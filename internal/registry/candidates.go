@@ -124,15 +124,6 @@ func NewCandidateCache(reg *Registry, runID int64, budget, perName int) *Candida
 	}
 }
 
-// intern returns the pooled copy of s, adding it if absent.
-func intern(pool map[string]string, s string) string {
-	if got, ok := pool[s]; ok {
-		return got
-	}
-	pool[s] = s
-	return s
-}
-
 // internPath returns the pooled copy of path, adding it if absent. If the pool
 // reaches maxPaths (or DefaultMaxInternPaths), it is reset so long-running sessions
 // do not leak memory.

@@ -317,14 +317,14 @@ func renderRename(w io.Writer, rep renameReport) error {
 				"('cortex indexers install', then 'cortex scip import'), or an explicit --floor high "+
 				"(measured %s precise).\n", rename.HighPrecision)
 		}
-	case rep.Applied && !rep.LeftoverScan.Clear():
+	case rep.Applied && !rep.Clear():
 		fmt.Fprintf(w, "APPLIED to %d file(s), but NOT VERIFIED COMPLETE: the old name is still in the "+
 			"files listed under LEFTOVER OCCURRENCES.\n", len(rep.Files))
 	case rep.Applied:
 		fmt.Fprintf(w, "APPLIED to %d file(s).\n", len(rep.Files))
 	default:
 		fmt.Fprintln(w, "DRY RUN: nothing was written. Re-run with --apply to make these edits.")
-		if !rep.LeftoverScan.Clear() {
+		if !rep.Clear() {
 			fmt.Fprintln(w, "  The old name also appears outside the sites (LEFTOVER OCCURRENCES); "+
 				"--apply would exit 3 unless they are resolved first.")
 		}
