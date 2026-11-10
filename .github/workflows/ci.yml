@@ -38,15 +38,16 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  # Pinned to a PATCHED release, not the "1.25" line. govulncheck found 28
-  # standard-library vulnerabilities on go1.25.0; the fixes landed in 1.25.3+.
-  # A floating minor version would have quietly reintroduced them.
-  GO_VERSION: "1.25.13"
+  # Pinned to a PATCHED release, not the "1.26" line. govulncheck has repeatedly
+  # found standard-library vulnerabilities in earlier patch releases (28 on
+  # go1.25.0; more fixed only in 1.26.9+). A floating minor version would have
+  # quietly reintroduced them.
+  GO_VERSION: "1.26.10"
   # Pinned deliberately. `version: latest` is not reproducible — a golangci-lint
   # release can turn a green main red without a commit — and on this repo it was
   # actively wrong: golangci-lint-action@v6 resolves "latest" through the v1
   # manifest and installs v1.64.8, which cannot read a `version: "2"` config.
-  GOLANGCI_LINT_VERSION: "v2.12.2"
+  GOLANGCI_LINT_VERSION: "v2.15.0"
 
 jobs:
   # Tier 1 — every commit. Must stay fast.

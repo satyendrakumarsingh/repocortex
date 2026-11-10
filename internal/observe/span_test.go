@@ -43,7 +43,7 @@ func TestEnabledPathRecordsSpans(t *testing.T) {
 
 	got := map[string]string{}
 	for _, kv := range childStub.Attributes {
-		got[string(kv.Key)] = kv.Value.Emit()
+		got[string(kv.Key)] = kv.Value.String()
 	}
 	if got[AttrLanguage] != "go" || got[AttrSizeBucket] != "4k" || got[AttrParseStatus] != "ok" {
 		t.Errorf("child attributes = %v", got)

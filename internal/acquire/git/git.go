@@ -441,7 +441,7 @@ func gitDirFor(start string) (string, bool) {
 	dir := start
 	for {
 		candidate := filepath.Join(dir, ".git")
-		fi, err := os.Stat(candidate)
+		fi, err := os.Stat(candidate) //nolint:gosec // G703: probing for .git under the user-chosen project root is the point
 		switch {
 		case err == nil && fi.IsDir():
 			return candidate, true

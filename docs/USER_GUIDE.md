@@ -50,7 +50,7 @@ Invoke-WebRequest -Uri https://raw.githubusercontent.com/satyendrakumarsingh/cor
 .\install.ps1
 ```
 
-### Building From Source (Go 1.25+)
+### Building From Source (Go 1.26+)
 ```bash
 git clone https://github.com/satyendrakumarsingh/cortex.git
 cd cortex
@@ -377,7 +377,7 @@ jobs:
         id: setup-go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.25.x'
+          go-version: '1.26.x'
           cache: true
 
       - name: Build RepoCortex

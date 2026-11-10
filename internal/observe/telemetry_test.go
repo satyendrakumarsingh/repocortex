@@ -124,7 +124,7 @@ func TestResourceCarriesNoIdentity(t *testing.T) {
 	res := newResource("1.2.3")
 	got := map[string]string{}
 	for _, kv := range res.Attributes() {
-		got[string(kv.Key)] = kv.Value.Emit()
+		got[string(kv.Key)] = kv.Value.String()
 	}
 
 	if got["service.name"] != ServiceName {

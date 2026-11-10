@@ -58,7 +58,7 @@ func TestRejectsSensitiveAttributes(t *testing.T) {
 			// carry the thing it just refused. Short values are skipped:
 			// "go" appears in the message's own reference to redact.go, and
 			// a two-character value discloses nothing anyway.
-			if v := tc.attr.Value.Emit(); len(v) >= 8 && strings.Contains(err.Error(), v) {
+			if v := tc.attr.Value.String(); len(v) >= 8 && strings.Contains(err.Error(), v) {
 				t.Errorf("error message quotes the rejected value: %s", err)
 			}
 		})
@@ -160,7 +160,7 @@ func TestFileAttrsExportNoPath(t *testing.T) {
 		t.Fatalf("FileAttrs produced something the guard rejects: %v", err)
 	}
 	for _, kv := range attrs {
-		v := kv.Value.Emit()
+		v := kv.Value.String()
 		for _, fragment := range []string{"alice", "acme", "auth", "token", "/"} {
 			if strings.Contains(v, fragment) {
 				t.Errorf("attribute %s = %q leaks %q from the path", kv.Key, v, fragment)
@@ -253,7 +253,7 @@ func TestRecordErrorExportsNoMessage(t *testing.T) {
 	}
 	dump := stubs[0]
 	for _, kv := range dump.Attributes {
-		v := kv.Value.Emit()
+		v := kv.Value.String()
 		if strings.Contains(v, "alice") || strings.Contains(v, "permission denied") {
 			t.Errorf("attribute %s exported the error message: %q", kv.Key, v)
 		}

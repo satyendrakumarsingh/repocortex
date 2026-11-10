@@ -2,7 +2,7 @@
 
 ## Getting set up
 
-**Go 1.25+. Nothing else.** No C compiler, no CGO, no system SQLite.
+**Go 1.26+. Nothing else.** No C compiler, no CGO, no system SQLite.
 
 ```bash
 git clone https://github.com/satyendrakumarsingh/repocortex.git && cd cortex

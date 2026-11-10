@@ -39,7 +39,7 @@ Per-command flags are in [CLI.md](CLI.md); task-shaped walkthroughs are in
 
 ## Installing
 
-Go 1.25+. Nothing else — no C compiler, no CGO.
+Go 1.26+. Nothing else — no C compiler, no CGO.
 
 ```bash
 go install github.com/satyendrakumarsingh/repocortex/cmd/cortex@latest
