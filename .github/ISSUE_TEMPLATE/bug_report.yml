@@ -1,0 +1,55 @@
+name: 🐛 Bug Report
+description: Report an issue or unexpected behavior in RepoCortex
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report an issue! Before opening, please check if your question is covered in our [FAQ](docs/FAQ.md) or existing issues.
+  - type: input
+    id: version
+    attributes:
+      label: RepoCortex Version
+      description: Run `cortex version` and paste the output.
+      placeholder: cortex v0.1.0 (darwin/arm64)
+    validations:
+      required: true
+  - type: dropdown
+    id: client
+    attributes:
+      label: AI Client or IDE
+      options:
+        - Claude Code
+        - Cursor
+        - Windsurf
+        - Google Antigravity
+        - Claude Desktop
+        - Zed
+        - Standalone CLI / CI
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: A clear description of the bug.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: Steps or commands to reproduce the issue.
+      placeholder: |
+        1. Run `cortex init`
+        2. Run `cortex index`
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant Logs or CLI Output
+      description: Paste any error messages, terminal logs, or MCP communication logs.
+      render: shell

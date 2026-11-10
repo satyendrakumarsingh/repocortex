@@ -1,0 +1,32 @@
+-- 0008_producer_stamp: record WHICH BUILD produced a run.
+--
+-- An index is not just data, it is data plus the resolution rules that produced
+-- it. Those rules change: within a single working session on this project two
+-- resolver guards were added and both reverted after measurement, one of them
+-- after it cost 2.4pp of `high` precision by converting honest ambiguity into
+-- 362 confident wrong answers. An index built either side of that change holds
+-- different edges for identical source, and nothing on disk said so.
+--
+-- That is the failure this column exists to make visible. A stale index does not
+-- announce itself — every query against it succeeds, returns plausible results,
+-- and carries the same confidence tiers as a current one. The user has no
+-- symptom to notice. `sense` solved this with index-staleness stamps and it is
+-- the discipline worth taking from them: the fix for silently-wrong data is not
+-- to be more careful, it is to make the staleness detectable.
+--
+-- WHY THE BUILD VERSION AND NOT A RULES REVISION. A hand-maintained "resolver
+-- rules revision" is only correct while every author remembers to bump it, and
+-- the change most likely to need it is the one made in a hurry. The build
+-- identity is derived rather than remembered, so it cannot be forgotten. It
+-- over-reports — two builds can be byte-different and resolution-identical — and
+-- that is the safe direction: a spurious "re-index to be sure" costs seconds,
+-- while a missed one costs a wrong blast radius on a real change.
+--
+-- WHY THE DEFAULT IS EMPTY, NOT THE CURRENT VERSION. Every run already on disk
+-- was written by a build that did not record this, and stamping them with the
+-- running binary's version would assert something false about all of them.
+-- Empty means "this run made no claim", which is exactly what is true, and it
+-- reads differently from a version that does not match — the first is unknown
+-- provenance, the second is known-stale, and those warrant different advice.
+
+ALTER TABLE index_runs ADD COLUMN producer_version TEXT NOT NULL DEFAULT '';

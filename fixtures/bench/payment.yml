@@ -1,0 +1,43 @@
+# Retrieval benchmark for the bundled payment-platform fixture.
+#
+# These are the cases the context engine is held to. `expect` is what a correct
+# answer must contain; `forbid` is what it must not, and the forbid list is what
+# makes the score mean anything — recall alone is trivially gamed by returning
+# the whole repository.
+#
+# Run with:  cortex bench fixtures/bench/payment.yml
+# In CI:     cortex bench fixtures/bench/payment.yml --fail-on-regression
+
+- id: idempotent-callback
+  task: Add idempotency to payment callback processing
+  # The chain a person would have to find by hand: the entry point, the service
+  # that owns the status transition, the repository that persists it, and the
+  # tables it writes.
+  expect:
+    - CallbackController
+    - TransactionService
+    - TransactionRepository
+    - transactions
+  # MarketingReport lives in an unrelated module and shares no vocabulary with
+  # the task. A keyword search that drags it in is exactly the failure this
+  # product claims to avoid.
+  forbid:
+    - MarketingReport
+  max_tokens: 8000
+
+- id: change-transaction-status-column
+  task: Change the status column on the transactions table
+  expect:
+    - transactions
+    - TransactionRepository
+  forbid:
+    - MarketingReport
+  max_tokens: 8000
+
+- id: notification-failure-handling
+  task: Handle notification delivery failures
+  expect:
+    - NotificationService
+  forbid:
+    - MarketingReport
+  max_tokens: 8000

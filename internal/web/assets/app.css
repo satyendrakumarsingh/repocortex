@@ -1,0 +1,2455 @@
+/*
+  RepoCortex portal - stylesheet.
+
+  ORGANISING IDEA. Confidence is the visual language of this portal, not a
+  badge in a corner. Four tiers - exact, high, medium, low - and the thing
+  that separates them is INK DENSITY, not hue: hue is spoken for by the one
+  accent and by the status colours, and a confidence tier that borrows a
+  status hue is a tier that reads as a verdict. See THE CONFIDENCE VOCABULARY
+  below for what each rung is worth and why density is also what survives
+  colour blindness and a greyscale print.
+
+  COLOUR SYSTEM. Every colour in this file is a token on bare `:root`, and
+  every rule below the token blocks reaches for var(--...) and never for a
+  literal. Tokens are named for the ROLE, not the value, and roles that need
+  to be both a graphic and a text colour get two steps rather than one
+  compromise - see --accent / --accent-text, and --canvas-path / --path-text.
+
+  CONTRAST. Nothing here was eyeballed. Ink, status and accent lightness are
+  solved against the worst surface each colour actually lands on: 4.5:1 for
+  text, 3:1 for control boundaries, focus rings and canvas strokes. Where the
+  reference palette's own value failed - Google Blue is 3.56:1 on white, its
+  green 2.21:1 - the hue is kept exactly and the lightness is moved.
+
+  THEMING. Dark is a token override in two places and two only: a
+  `prefers-color-scheme` block guarded with `:not([data-theme="light"])` so an
+  explicit light choice wins over the OS, and a `[data-theme="dark"]` block so
+  an explicit dark choice wins over the OS the other way. No colour is defined
+  only inside a media query; a page rendered with media queries unsupported
+  still gets a complete light palette. The two dark blocks are identical by
+  construction and must stay that way - `go test ./internal/web/` will not
+  catch a drift between them, but a reader who toggles the theme will.
+
+  RESPONSIVE. The shell is a grid with a fixed rail above 1080px and a single
+  column with a horizontal nav below it. Wide content - tables, the canvas,
+  the chain diagrams - scrolls inside its own container. The body never
+  scrolls horizontally: that is asserted by `overflow-x: clip` on `body` plus
+  `min-width: 0` on every grid and flex child that holds wide content, which
+  is the actual mechanism (a grid child defaults to `min-width: auto` and
+  refuses to shrink below its content, which is how a page silently grows a
+  horizontal scrollbar).
+*/
+
+/* ============================================================== tokens */
+
+:root {
+  color-scheme: light;
+
+  /*
+    SURFACES. The reference's defining move, and the one this portal adopts: the
+    page is a cool grey ground and the cards are pure white floating on it. The
+    separation comes from that figure/ground step and a soft shadow, not from a
+    heavy rule. panel-2 and panel-3 are the recessed steps INSIDE a card - a
+    toolbar well, a code chip, a hovered row.
+  */
+  --bg:                  #f8f7fa;
+  --bg-sunken:           #eceaf1;
+  --panel:               #ffffff;
+  --panel-2:             #faf9fc;
+  --panel-3:             #f1eff5;
+
+  /*
+    THE RAIL. Light in the light theme, like the reference's sidebar; sunk below
+    the page in the dark one. It was near-black in both before, which fought the
+    grey-ground/white-card idea rather than serving it.
+  */
+  --rail:                #ffffff;
+  --rail-ink:            #565062;
+  --rail-ink-dim:        #716c7c;
+  --rail-line:           #e8e7ec;
+  --rail-hover:          #f5f3f9;
+  --rail-bright:         #383144;
+
+  /*
+    INK. Muted slate, never black. These are the reference's own greys with every
+    role moved one rung deeper, because that ladder only clears AA for its first
+    two steps and this product puts real text at the third: 10.5px uppercase
+    column heads, hints, omission reasons.
+  */
+  --ink:                 #4a4457;
+  --ink-2:               #60596c;
+  --ink-3:               #6c6677;
+  --ink-inv:             #ffffff;
+
+  /*
+    LINES. Two of them, and the difference is the point. --line is decorative -
+    card edges, table rules, dividers - and stays whisper-light like the
+    reference. --line-strong bounds a CONTROL, and a control's boundary is the
+    one border that has to be visible: it is solved to 3:1 against every surface
+    a control sits on.
+  */
+  --line:                #e8e7ec;
+  --line-strong:         #878290;
+
+  /*
+    ONE ACCENT: Google Blue, in two steps, because one value cannot do both jobs.
+    #4285F4 is 3.56:1 on white - a fine GRAPHIC and a failing TEXT colour.
+
+      --accent       #4285F4 itself. The focus ring, the active-nav indicator,
+                     accent borders, the brand mark, canvas selection. Held to
+                     3:1, which is the bar for a graphic.
+      --accent-text  the same hue deepened past 4.5:1. Links, ghost-button
+                     labels, and the primary button's fill, so that white sits
+                     on it at AA rather than at 3.56:1.
+  */
+  --accent:              #4285f4;
+  --accent-text:         #2865cb;
+  --accent-hi:           #144fad;
+  --accent-soft:         #e8f1ff;
+  --accent-ink:          #ffffff;
+  --focus:               #2967cc;
+
+  /*
+    STATUS. good / warning / critical, plus info and unverified. Reference hues,
+    lightness solved rather than copied. This is the ONLY axis that carries hue,
+    and no colour here is ever the sole signal: each is paired with a word.
+  */
+  --ok:                  #01793f;
+  --ok-soft:             #d7f6df;
+  --warn:                #9c5809;
+  --warn-soft:           #ffeada;
+  --bad:                 #be383d;
+  --bad-soft:            #ffe7e5;
+  --info:                #007483;
+  --info-soft:           #d1f6fd;
+  --unknown:             #853880;
+  --unknown-soft:        #fce7f9;
+
+  /*
+    THE CONFIDENCE VOCABULARY.
+
+    Confidence and status are two different axes and must never be read as one.
+    Hue is spoken for - blue is the accent, green/amber/red/cyan are status - so
+    confidence is encoded as INK DENSITY on the neutral's own hue: four rungs,
+    no hue of their own. `medium` can no longer be mistaken for a warning,
+    because `medium` is no longer amber; it was literally the same hex as --warn
+    before, and --tier-high was literally the same hex as --accent.
+
+    Density is also the strongest available answer for a colour-blind reader.
+    The rungs are separated by luminance alone, and luminance is the one channel
+    no form of colour blindness touches: each rung sits 1.45-1.6:1 from its
+    neighbour and 3.4-3.9:1 end to end, and those figures are unchanged under
+    simulated protanopia, deuteranopia and tritanopia. The encodings that were
+    already here reinforce it - a glyph on `exact` and `unknown`, solid/dashed/
+    dotted borders, stroke weight and dash on the canvas - so a tier survives a
+    greyscale print of a review screenshot too.
+
+      --tier-X       the rung. Fills, swatches, row bars, canvas edges.
+      --tier-X-soft  the badge tint.
+      --tier-X-ink   the badge's text: the rung itself wherever the rung already
+                     clears AA on its own tint, deepened only at the faint end.
+      --tier-X-on    a label printed ON the solid fill (the stacked bar).
+
+    --tier-X-alpha and --tier-X-dash are declared here but read by nothing
+    today. app.js carries its own dash/alpha/width table (TIER) and reads only
+    the hue back out of this file; these are kept as the declared contract for
+    the day the canvas takes all four from here, and this comment says so rather
+    than claiming a wiring that does not exist.
+  */
+  --tier-exact:          #322842;
+  --tier-exact-soft:     #e9e6f1;
+  --tier-exact-ink:      #322842;
+  --tier-exact-on:       #ffffff;
+  --tier-exact-alpha:    1;
+  --tier-exact-dash:     0;
+
+  --tier-high:           #4d4759;
+  --tier-high-soft:      #efecf4;
+  --tier-high-ink:       #4d4759;
+  --tier-high-on:        #ffffff;
+  --tier-high-alpha:     0.86;
+  --tier-high-dash:      0;
+
+  --tier-medium:         #6b6772;
+  --tier-medium-soft:    #f2f0f6;
+  --tier-medium-ink:     #6b6772;
+  --tier-medium-on:      #ffffff;
+  --tier-medium-alpha:   0.72;
+  --tier-medium-dash:    5;
+
+  --tier-low:            #8a888c;
+  --tier-low-soft:       #f3f2f5;
+  --tier-low-ink:        #6e6d71;
+  --tier-low-on:         #0f0b15;
+  --tier-low-alpha:      0.34;
+  --tier-low-dash:       2;
+
+  --tier-unknown:        #853880;
+  --tier-unknown-soft:   #fce7f9;
+  --tier-unknown-ink:    #853880;
+  --tier-unknown-on:     #ffffff;
+  --tier-unknown-alpha:  0.45;
+  --tier-unknown-dash:   1;
+
+  /*
+    CANVAS. app.js reads these back off :root on every theme change, so the
+    NAMES here are a contract with the renderer, not private detail. --path-text
+    is the one that is not: it is the same warm hue deepened for the .xlang chip,
+    where the colour is text rather than a stroke.
+  */
+  --canvas-bg:           #fdfcfe;
+  --canvas-grid:         #f2f0f6;
+  --canvas-node:         #ffffff;
+  --canvas-node-2:       #f5f3f8;
+  --canvas-stroke:       #8d8896;
+  --canvas-ink:          #4a4457;
+  --canvas-ink-dim:      #716c7c;
+  --canvas-cluster:      #f6f5fa;
+  --canvas-cluster-line: #8d8995;
+  --canvas-sel:          #4285f4;
+  --canvas-path:         #b95015;
+  --path-text:           #ac4c18;
+
+  --shadow-1: 0 1px 3px rgba(0, 0, 0, .05), 0 2px 8px rgba(0, 0, 0, .03);
+  --shadow-2: 0 8px 24px rgba(0, 0, 0, .10), 0 2px 6px rgba(0, 0, 0, .04);
+
+  /* Geometry and type. System stacks only: a strict CSP forbids every remote
+     origin, so there is no webfont to fall back from. */
+  --r-sm: 6px;
+  --r:    12px;
+  --r-lg: 16px;
+  --sp:   4px;
+
+  --font: ui-sans-serif, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+
+  --rail-w: 232px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    /*
+      SURFACES. The reference's defining move, and the one this portal adopts: the
+      page is a cool grey ground and the cards are pure white floating on it. The
+      separation comes from that figure/ground step and a soft shadow, not from a
+      heavy rule. panel-2 and panel-3 are the recessed steps INSIDE a card - a
+      toolbar well, a code chip, a hovered row.
+    */
+    --bg:                  #18161d;
+    --bg-sunken:           #0f0d12;
+    --panel:               #232029;
+    --panel-2:             #2c2933;
+    --panel-3:             #37333f;
+
+    /*
+      THE RAIL. Light in the light theme, like the reference's sidebar; sunk below
+      the page in the dark one. It was near-black in both before, which fought the
+      grey-ground/white-card idea rather than serving it.
+    */
+    --rail:                #100e14;
+    --rail-ink:            #aba5b9;
+    --rail-ink-dim:        #898494;
+    --rail-line:           #2f2c36;
+    --rail-hover:          #1f1c25;
+    --rail-bright:         #f7f6fb;
+
+    /*
+      INK. Muted slate, never black. These are the reference's own greys with every
+      role moved one rung deeper, because that ladder only clears AA for its first
+      two steps and this product puts real text at the third: 10.5px uppercase
+      column heads, hints, omission reasons.
+    */
+    --ink:                 #eceaf1;
+    --ink-2:               #b3acc0;
+    --ink-3:               #a19cad;
+    --ink-inv:             #18161d;
+
+    /*
+      LINES. Two of them, and the difference is the point. --line is decorative -
+      card edges, table rules, dividers - and stays whisper-light like the
+      reference. --line-strong bounds a CONTROL, and a control's boundary is the
+      one border that has to be visible: it is solved to 3:1 against every surface
+      a control sits on.
+    */
+    --line:                #3e3945;
+    --line-strong:         #827e8a;
+
+    /*
+      ONE ACCENT: Google Blue, in two steps, because one value cannot do both jobs.
+      #4285F4 is 3.56:1 on white - a fine GRAPHIC and a failing TEXT colour.
+
+        --accent       #4285F4 itself. The focus ring, the active-nav indicator,
+                       accent borders, the brand mark, canvas selection. Held to
+                       3:1, which is the bar for a graphic.
+        --accent-text  the same hue deepened past 4.5:1. Links, ghost-button
+                       labels, and the primary button's fill, so that white sits
+                       on it at AA rather than at 3.56:1.
+    */
+    --accent:              #4f86e1;
+    --accent-text:         #649eff;
+    --accent-hi:           #8fb9ff;
+    --accent-soft:         #1f3559;
+    --accent-ink:          #080d16;
+    --focus:               #619cff;
+
+    /*
+      STATUS. good / warning / critical, plus info and unverified. Reference hues,
+      lightness solved rather than copied. This is the ONLY axis that carries hue,
+      and no colour here is ever the sole signal: each is paired with a word.
+    */
+    --ok:                  #3cb46b;
+    --ok-soft:             #153c23;
+    --warn:                #df8b38;
+    --warn-soft:           #492d12;
+    --bad:                 #f37a76;
+    --bad-soft:            #552423;
+    --info:                #00afc4;
+    --info-soft:           #023b44;
+    --unknown:             #e08cd9;
+    --unknown-soft:        #472845;
+
+    /*
+      THE CONFIDENCE VOCABULARY.
+
+      Confidence and status are two different axes and must never be read as one.
+      Hue is spoken for - blue is the accent, green/amber/red/cyan are status - so
+      confidence is encoded as INK DENSITY on the neutral's own hue: four rungs,
+      no hue of their own. `medium` can no longer be mistaken for a warning,
+      because `medium` is no longer amber; it was literally the same hex as --warn
+      before, and --tier-high was literally the same hex as --accent.
+
+      Density is also the strongest available answer for a colour-blind reader.
+      The rungs are separated by luminance alone, and luminance is the one channel
+      no form of colour blindness touches: each rung sits 1.45-1.6:1 from its
+      neighbour and 3.4-3.9:1 end to end, and those figures are unchanged under
+      simulated protanopia, deuteranopia and tritanopia. The encodings that were
+      already here reinforce it - a glyph on `exact` and `unknown`, solid/dashed/
+      dotted borders, stroke weight and dash on the canvas - so a tier survives a
+      greyscale print of a review screenshot too.
+
+        --tier-X       the rung. Fills, swatches, row bars, canvas edges.
+        --tier-X-soft  the badge tint.
+        --tier-X-ink   the badge's text: the rung itself wherever the rung already
+                       clears AA on its own tint, deepened only at the faint end.
+        --tier-X-on    a label printed ON the solid fill (the stacked bar).
+
+      --tier-X-alpha and --tier-X-dash are declared here but read by nothing
+      today. app.js carries its own dash/alpha/width table (TIER) and reads only
+      the hue back out of this file; these are kept as the declared contract for
+      the day the canvas takes all four from here, and this comment says so rather
+      than claiming a wiring that does not exist.
+    */
+    --tier-exact:          #ebe0ff;
+    --tier-exact-soft:     #3b3742;
+    --tier-exact-ink:      #ebe0ff;
+    --tier-exact-on:       #0f0b15;
+    --tier-exact-alpha:    1;
+    --tier-exact-dash:     0;
+
+    --tier-high:           #c6bed4;
+    --tier-high-soft:      #35323a;
+    --tier-high-ink:       #c6bed4;
+    --tier-high-on:        #0f0b15;
+    --tier-high-alpha:     0.86;
+    --tier-high-dash:      0;
+
+    --tier-medium:         #a19ea9;
+    --tier-medium-soft:    #2f2d33;
+    --tier-medium-ink:     #a19ea9;
+    --tier-medium-on:      #0f0b15;
+    --tier-medium-alpha:   0.72;
+    --tier-medium-dash:    5;
+
+    --tier-low:            #7f7e82;
+    --tier-low-soft:       #2c2b2e;
+    --tier-low-ink:        #949396;
+    --tier-low-on:         #0f0b15;
+    --tier-low-alpha:      0.34;
+    --tier-low-dash:       2;
+
+    --tier-unknown:        #e08cd9;
+    --tier-unknown-soft:   #472845;
+    --tier-unknown-ink:    #e08cd9;
+    --tier-unknown-on:     #120a11;
+    --tier-unknown-alpha:  0.45;
+    --tier-unknown-dash:   1;
+
+    /*
+      CANVAS. app.js reads these back off :root on every theme change, so the
+      NAMES here are a contract with the renderer, not private detail. --path-text
+      is the one that is not: it is the same warm hue deepened for the .xlang chip,
+      where the colour is text rather than a stroke.
+    */
+    --canvas-bg:           #141218;
+    --canvas-grid:         #221f28;
+    --canvas-node:         #2a2630;
+    --canvas-node-2:       #1e1b22;
+    --canvas-stroke:       #75717d;
+    --canvas-ink:          #eceaf1;
+    --canvas-ink-dim:      #928d9e;
+    --canvas-cluster:      #1c1a21;
+    --canvas-cluster-line: #75717c;
+    --canvas-sel:          #4f86e1;
+    --canvas-path:         #db703b;
+    --path-text:           #e98454;
+
+    --shadow-1: 0 1px 3px rgba(0, 0, 0, .40), 0 2px 8px rgba(0, 0, 0, .30);
+    --shadow-2: 0 12px 32px rgba(0, 0, 0, .60), 0 4px 12px rgba(0, 0, 0, .40);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  /*
+    SURFACES. The reference's defining move, and the one this portal adopts: the
+    page is a cool grey ground and the cards are pure white floating on it. The
+    separation comes from that figure/ground step and a soft shadow, not from a
+    heavy rule. panel-2 and panel-3 are the recessed steps INSIDE a card - a
+    toolbar well, a code chip, a hovered row.
+  */
+  --bg:                  #18161d;
+  --bg-sunken:           #0f0d12;
+  --panel:               #232029;
+  --panel-2:             #2c2933;
+  --panel-3:             #37333f;
+
+  /*
+    THE RAIL. Light in the light theme, like the reference's sidebar; sunk below
+    the page in the dark one. It was near-black in both before, which fought the
+    grey-ground/white-card idea rather than serving it.
+  */
+  --rail:                #100e14;
+  --rail-ink:            #aba5b9;
+  --rail-ink-dim:        #898494;
+  --rail-line:           #2f2c36;
+  --rail-hover:          #1f1c25;
+  --rail-bright:         #f7f6fb;
+
+  /*
+    INK. Muted slate, never black. These are the reference's own greys with every
+    role moved one rung deeper, because that ladder only clears AA for its first
+    two steps and this product puts real text at the third: 10.5px uppercase
+    column heads, hints, omission reasons.
+  */
+  --ink:                 #eceaf1;
+  --ink-2:               #b3acc0;
+  --ink-3:               #a19cad;
+  --ink-inv:             #18161d;
+
+  /*
+    LINES. Two of them, and the difference is the point. --line is decorative -
+    card edges, table rules, dividers - and stays whisper-light like the
+    reference. --line-strong bounds a CONTROL, and a control's boundary is the
+    one border that has to be visible: it is solved to 3:1 against every surface
+    a control sits on.
+  */
+  --line:                #3e3945;
+  --line-strong:         #827e8a;
+
+  /*
+    ONE ACCENT: Google Blue, in two steps, because one value cannot do both jobs.
+    #4285F4 is 3.56:1 on white - a fine GRAPHIC and a failing TEXT colour.
+
+      --accent       #4285F4 itself. The focus ring, the active-nav indicator,
+                     accent borders, the brand mark, canvas selection. Held to
+                     3:1, which is the bar for a graphic.
+      --accent-text  the same hue deepened past 4.5:1. Links, ghost-button
+                     labels, and the primary button's fill, so that white sits
+                     on it at AA rather than at 3.56:1.
+  */
+  --accent:              #4f86e1;
+  --accent-text:         #649eff;
+  --accent-hi:           #8fb9ff;
+  --accent-soft:         #1f3559;
+  --accent-ink:          #080d16;
+  --focus:               #619cff;
+
+  /*
+    STATUS. good / warning / critical, plus info and unverified. Reference hues,
+    lightness solved rather than copied. This is the ONLY axis that carries hue,
+    and no colour here is ever the sole signal: each is paired with a word.
+  */
+  --ok:                  #3cb46b;
+  --ok-soft:             #153c23;
+  --warn:                #df8b38;
+  --warn-soft:           #492d12;
+  --bad:                 #f37a76;
+  --bad-soft:            #552423;
+  --info:                #00afc4;
+  --info-soft:           #023b44;
+  --unknown:             #e08cd9;
+  --unknown-soft:        #472845;
+
+  /*
+    THE CONFIDENCE VOCABULARY.
+
+    Confidence and status are two different axes and must never be read as one.
+    Hue is spoken for - blue is the accent, green/amber/red/cyan are status - so
+    confidence is encoded as INK DENSITY on the neutral's own hue: four rungs,
+    no hue of their own. `medium` can no longer be mistaken for a warning,
+    because `medium` is no longer amber; it was literally the same hex as --warn
+    before, and --tier-high was literally the same hex as --accent.
+
+    Density is also the strongest available answer for a colour-blind reader.
+    The rungs are separated by luminance alone, and luminance is the one channel
+    no form of colour blindness touches: each rung sits 1.45-1.6:1 from its
+    neighbour and 3.4-3.9:1 end to end, and those figures are unchanged under
+    simulated protanopia, deuteranopia and tritanopia. The encodings that were
+    already here reinforce it - a glyph on `exact` and `unknown`, solid/dashed/
+    dotted borders, stroke weight and dash on the canvas - so a tier survives a
+    greyscale print of a review screenshot too.
+
+      --tier-X       the rung. Fills, swatches, row bars, canvas edges.
+      --tier-X-soft  the badge tint.
+      --tier-X-ink   the badge's text: the rung itself wherever the rung already
+                     clears AA on its own tint, deepened only at the faint end.
+      --tier-X-on    a label printed ON the solid fill (the stacked bar).
+
+    --tier-X-alpha and --tier-X-dash are declared here but read by nothing
+    today. app.js carries its own dash/alpha/width table (TIER) and reads only
+    the hue back out of this file; these are kept as the declared contract for
+    the day the canvas takes all four from here, and this comment says so rather
+    than claiming a wiring that does not exist.
+  */
+  --tier-exact:          #ebe0ff;
+  --tier-exact-soft:     #3b3742;
+  --tier-exact-ink:      #ebe0ff;
+  --tier-exact-on:       #0f0b15;
+  --tier-exact-alpha:    1;
+  --tier-exact-dash:     0;
+
+  --tier-high:           #c6bed4;
+  --tier-high-soft:      #35323a;
+  --tier-high-ink:       #c6bed4;
+  --tier-high-on:        #0f0b15;
+  --tier-high-alpha:     0.86;
+  --tier-high-dash:      0;
+
+  --tier-medium:         #a19ea9;
+  --tier-medium-soft:    #2f2d33;
+  --tier-medium-ink:     #a19ea9;
+  --tier-medium-on:      #0f0b15;
+  --tier-medium-alpha:   0.72;
+  --tier-medium-dash:    5;
+
+  --tier-low:            #7f7e82;
+  --tier-low-soft:       #2c2b2e;
+  --tier-low-ink:        #949396;
+  --tier-low-on:         #0f0b15;
+  --tier-low-alpha:      0.34;
+  --tier-low-dash:       2;
+
+  --tier-unknown:        #e08cd9;
+  --tier-unknown-soft:   #472845;
+  --tier-unknown-ink:    #e08cd9;
+  --tier-unknown-on:     #120a11;
+  --tier-unknown-alpha:  0.45;
+  --tier-unknown-dash:   1;
+
+  /*
+    CANVAS. app.js reads these back off :root on every theme change, so the
+    NAMES here are a contract with the renderer, not private detail. --path-text
+    is the one that is not: it is the same warm hue deepened for the .xlang chip,
+    where the colour is text rather than a stroke.
+  */
+  --canvas-bg:           #141218;
+  --canvas-grid:         #221f28;
+  --canvas-node:         #2a2630;
+  --canvas-node-2:       #1e1b22;
+  --canvas-stroke:       #75717d;
+  --canvas-ink:          #eceaf1;
+  --canvas-ink-dim:      #928d9e;
+  --canvas-cluster:      #1c1a21;
+  --canvas-cluster-line: #75717c;
+  --canvas-sel:          #4f86e1;
+  --canvas-path:         #db703b;
+  --path-text:           #e98454;
+
+  --shadow-1: 0 1px 3px rgba(0, 0, 0, .40), 0 2px 8px rgba(0, 0, 0, .30);
+  --shadow-2: 0 12px 32px rgba(0, 0, 0, .60), 0 4px 12px rgba(0, 0, 0, .40);
+}
+
+/* ============================================================== reset */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 15px/1.55 var(--font);
+  overflow-x: clip;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4 { margin: 0; font-weight: 620; letter-spacing: -0.011em; line-height: 1.25; }
+h2 { font-size: 20px; }
+h3 { font-size: 16px; }
+h4 { font-size: 14px; }
+p  { margin: 0; }
+ul, ol { margin: 0; padding-left: 1.25em; }
+
+a { color: var(--accent-text); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+a:hover { color: var(--accent-hi); }
+
+code, kbd, samp, .mono { font-family: var(--mono); font-size: 0.9em; }
+kbd {
+  border: 1px solid var(--line-strong); border-bottom-width: 2px;
+  border-radius: var(--r-sm); padding: 0 5px; background: var(--panel-2);
+  font-size: 11px; color: var(--ink-2);
+}
+
+/*
+  Keyboard focus. One ring, and --focus is solved to 4.5:1 against every
+  surface it can land on - the page, all three panel steps, the rail in both
+  themes, and the active-nav tint - so there is nowhere in the portal a
+  tabbing reader can lose it. The 2px offset keeps the ring off the control's
+  own fill, so a focused primary button shows blue-on-surface rather than
+  blue-on-blue.
+*/
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+/* A focused control inside the rail sits on the rail's own ground; the ring
+   is the same token because --focus clears 4.5:1 there too. */
+.rail :focus-visible { outline-offset: 1px; }
+
+.skip {
+  position: absolute; left: -9999px; top: 0; z-index: 100;
+  background: var(--accent-text); color: var(--accent-ink);
+  padding: 10px 16px; border-radius: 0 0 var(--r) 0; font-weight: 600;
+}
+.skip:focus { left: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ============================================================== shell */
+
+.app {
+  display: grid;
+  grid-template-columns: var(--rail-w) minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+.rail {
+  background: var(--rail);
+  color: var(--rail-ink);
+  padding: 16px 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  min-width: 0;
+  border-right: 1px solid var(--rail-line);
+  scrollbar-width: thin;
+}
+
+.rail-brand { padding: 0 8px 12px; }
+.rail-brand h1 { font-size: 16px; font-weight: 700; color: var(--rail-bright); display: flex; align-items: center; gap: 8px; letter-spacing: -0.015em; }
+.rail-brand .mark { color: var(--accent); font-size: 18px; }
+.rail-path {
+  font-family: var(--mono); font-size: 10.5px; color: var(--rail-ink-dim);
+  margin-top: 4px; word-break: break-all; line-height: 1.4;
+}
+
+.rail-label {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--rail-ink-dim); padding: 14px 8px 4px; font-weight: 700;
+}
+/* Index health stands alone above the groups: same spacing as a group's first entry, no heading of its own. */
+.rail-brand + .nav { margin-top: 10px; }
+
+.nav {
+  display: flex; align-items: center; gap: 9px; width: 100%;
+  background: none; border: 0; border-radius: var(--r-sm);
+  color: var(--rail-ink); font: inherit; font-size: 13px; font-weight: 500;
+  padding: 7px 10px; cursor: pointer; text-align: left;
+  transition: all .12s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.nav:hover { background: var(--rail-hover); color: var(--rail-bright); }
+.nav .ix {
+  font-family: var(--mono); font-size: 10.5px; color: var(--rail-ink-dim);
+  min-width: 16px; font-variant-numeric: tabular-nums;
+}
+/* The current screen: a blue tint carrying blue text, with the accent itself
+   as the indicator down the leading edge. */
+.nav[aria-current="page"] {
+  background: var(--accent-soft); color: var(--accent-text); font-weight: 650;
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.nav[aria-current="page"] .ix { color: var(--accent-text); }
+
+.rail-foot { margin-top: auto; padding: 14px 8px 0; border-top: 1px solid var(--rail-line); display: grid; gap: 8px; }
+.rail-foot .badge { font-size: 11px; color: var(--rail-ink-dim); margin: 0; }
+
+main {
+  min-width: 0;
+  padding: 0 0 64px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ============================================================== index bar */
+
+/*
+  The run's own verdict lives here, on every screen. `run.status: degraded` was
+  fetched and rendered nowhere a reader looks; a degraded run now says so at the
+  top of every page, with the reason and the remedy one click away.
+*/
+.indexbar {
+  position: sticky; top: 0; z-index: 30;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px;
+  padding: 10px 24px;
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--line);
+  min-width: 0;
+}
+.indexbar .project { font-weight: 650; font-size: 14px; }
+.indexbar .sep { color: var(--line-strong); }
+.indexbar .facts { display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--ink-3); font-size: 12.5px; }
+.indexbar .spacer { flex: 1 1 auto; min-width: 0; }
+
+.runbadge {
+  display: inline-flex; align-items: center; gap: 6px;
+  border-radius: 999px; padding: 3px 11px 3px 8px;
+  font-size: 12px; font-weight: 600; border: 1px solid transparent;
+  cursor: pointer; font-family: inherit;
+}
+.runbadge .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.runbadge.is-ok       { background: var(--ok-soft);   color: var(--ok);      border-color: color-mix(in srgb, var(--ok) 34%, transparent); }
+.runbadge.is-degraded { background: var(--warn-soft); color: var(--warn);    border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
+.runbadge.is-bad      { background: var(--bad-soft);  color: var(--bad);     border-color: color-mix(in srgb, var(--bad) 40%, transparent); }
+.runbadge.is-unknown  { background: var(--unknown-soft); color: var(--unknown); border-color: color-mix(in srgb, var(--unknown) 40%, transparent); }
+
+/* --- the global confidence control: the legend IS the filter -------------- */
+
+.tierbar {
+  display: flex; align-items: stretch; gap: 0;
+  border: 1px solid var(--line); border-radius: 999px; overflow: hidden;
+  background: var(--panel-2); min-width: 0;
+}
+.tierbar button {
+  display: flex; align-items: center; gap: 6px;
+  border: 0; border-right: 1px solid var(--line); background: none;
+  font: inherit; font-size: 11.5px; font-weight: 600;
+  padding: 4px 11px; cursor: pointer; color: var(--ink-2);
+  white-space: nowrap; transition: background .12s ease;
+}
+.tierbar button:last-child { border-right: 0; }
+.tierbar button:hover { background: var(--panel-3); }
+.tierbar button[aria-pressed="true"] { color: var(--ink); }
+/* An unpressed filter is muted, not faded: its label still has to be readable,
+   because reading it is how you know what you are turning back on. The hollow
+   swatch below carries the off state. */
+.tierbar button[aria-pressed="false"] { color: var(--ink-3); }
+.tierbar button[aria-pressed="false"] .swatch { background: transparent !important; }
+.tierbar .swatch {
+  width: 11px; height: 11px; border-radius: 3px; flex: none;
+  border: 1.5px solid currentColor;
+}
+.tierbar .n { font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.tierbar .t-exact  { color: var(--tier-exact); }
+.tierbar .t-high   { color: var(--tier-high); }
+.tierbar .t-medium { color: var(--tier-medium); }
+.tierbar .t-low    { color: var(--tier-low); }
+.tierbar .t-exact  .swatch { background: var(--tier-exact); }
+.tierbar .t-high   .swatch { background: var(--tier-high); }
+.tierbar .t-medium .swatch { background: var(--tier-medium); border-style: dashed; }
+.tierbar .t-low    .swatch { background: var(--tier-low); border-style: dotted; }
+
+/* ============================================================== screens */
+
+.screen {
+  padding: 22px 24px 0;
+  min-width: 0;
+  display: flex; flex-direction: column; gap: 16px;
+}
+.screen[hidden] { display: none; }
+
+.screen-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; min-width: 0; }
+.screen-head h2 { font-size: 22px; }
+.screen-head .lede { color: var(--ink-2); font-size: 13.5px; max-width: 72ch; }
+
+.stack { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+/* ============================================================== cards */
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  box-shadow: var(--shadow-1);
+  min-width: 0;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.card:hover {
+  box-shadow: var(--shadow-2);
+}
+.card > header {
+  display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between;
+  gap: 6px 14px; padding: 16px 18px 0;
+}
+/*
+  A card title is content, not a label: an endpoint name like
+  `GET /upiQr/v2/status/transaction/{tgName}/{userId}/{transactionId}` is 435px
+  of unbreakable text, and on a 375px viewport it pushed the whole document
+  466px wide - the body scrolled sideways on every screen of the repository
+  that has long routes. Titles wrap, and break inside a run of path if they
+  have to.
+*/
+.card > header h3 { font-size: 15px; font-weight: 680; letter-spacing: -0.012em; min-width: 0; overflow-wrap: anywhere; }
+.card > header .sub { color: var(--ink-3); font-size: 12px; }
+.card > .body { padding: 14px 18px 16px; min-width: 0; }
+.card > .body > * + * { margin-top: 12px; }
+.card.flush > .body { padding: 0; }
+
+.card.accent { border-color: color-mix(in srgb, var(--accent) 34%, var(--line)); }
+.card.warn   { border-color: color-mix(in srgb, var(--warn) 42%, var(--line)); background: color-mix(in srgb, var(--warn-soft) 42%, var(--panel)); }
+.card.bad    { border-color: color-mix(in srgb, var(--bad) 42%, var(--line)); background: color-mix(in srgb, var(--bad-soft) 42%, var(--panel)); }
+.card.unknown{ border-color: color-mix(in srgb, var(--unknown) 42%, var(--line)); background: color-mix(in srgb, var(--unknown-soft) 40%, var(--panel)); }
+
+.grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 16px; min-width: 0; }
+.grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; min-width: 0; }
+
+/* ============================================================== next action */
+
+/*
+  Every panel ends in one of these. The rule is not decorative: a panel that
+  states a fact and stops leaves the reader to invent the next move, and the
+  inventory-shaped screens this portal used to be were exactly that.
+*/
+.next {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px;
+  margin-top: 12px; padding: 10px 14px;
+  background: var(--panel-2); border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--r-sm); font-size: 12.5px; min-width: 0;
+}
+.next .k { font-weight: 650; color: var(--ink); }
+.next .d { color: var(--ink-2); min-width: 0; }
+.next code { background: var(--panel-3); padding: 2px 6px; border-radius: var(--r-sm); word-break: break-all; }
+.next .go {
+  margin-left: auto; flex: none;
+  background: none; border: 1px solid var(--line-strong); border-radius: var(--r-sm);
+  color: var(--accent-text); font: inherit; font-size: 12px; font-weight: 600;
+  padding: 4px 11px; cursor: pointer; transition: all 0.12s ease;
+}
+.next .go:hover { background: var(--accent-soft); border-color: var(--accent); }
+
+/* ============================================================== KPIs */
+
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; }
+.kpi {
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--r);
+  padding: 14px 16px; min-width: 0;
+  display: flex; flex-direction: column; justify-content: space-between;
+  box-shadow: var(--shadow-1);
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+}
+.kpi:hover {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-2);
+}
+.kpi .k { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--ink-3); font-weight: 700; }
+.kpi .v { font-size: 28px; font-weight: 700; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; margin-top: 4px; line-height: 1.15; color: var(--ink); }
+.kpi .c { font-size: 12px; color: var(--ink-2); margin-top: 3px; line-height: 1.4; }
+.kpi.is-warn .v { color: var(--warn); }
+.kpi.is-bad .v  { color: var(--bad); }
+.kpi.is-ok .v   { color: var(--ok); }
+
+/* ============================================================== tiers in the DOM */
+
+.tier {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10.5px; font-weight: 700; letter-spacing: .02em;
+  padding: 1px 7px; border-radius: 999px; white-space: nowrap;
+  border: 1px solid;
+}
+/* Border STYLE is half the encoding here and is deliberately redundant with
+   the density: solid, solid, dashed, dotted. The opacity that used to fade
+   `low` is gone - the fade is in the rung itself now, and stacking a second
+   one on top of it pushed the badge under AA. */
+.tier-exact   { color: var(--tier-exact-ink);   background: var(--tier-exact-soft);   border-color: color-mix(in srgb, var(--tier-exact) 45%, transparent); border-style: solid; }
+.tier-high    { color: var(--tier-high-ink);    background: var(--tier-high-soft);    border-color: color-mix(in srgb, var(--tier-high) 45%, transparent); border-style: solid; }
+.tier-medium  { color: var(--tier-medium-ink);  background: var(--tier-medium-soft);  border-color: color-mix(in srgb, var(--tier-medium) 60%, transparent); border-style: dashed; }
+.tier-low     { color: var(--tier-low-ink);     background: var(--tier-low-soft);     border-color: color-mix(in srgb, var(--tier-low) 65%, transparent); border-style: dotted; }
+.tier-unknown { color: var(--tier-unknown-ink); background: var(--tier-unknown-soft); border-color: color-mix(in srgb, var(--tier-unknown) 50%, transparent); border-style: dotted; }
+
+/* A row inherits its tier's treatment, so a table of relationships reads as a
+   confidence gradient rather than as a list with a badge column. */
+tr.t-exact   td:first-child { box-shadow: inset 3px 0 0 var(--tier-exact); }
+tr.t-high    td:first-child { box-shadow: inset 3px 0 0 var(--tier-high); }
+tr.t-medium  td:first-child { box-shadow: inset 3px 0 0 color-mix(in srgb, var(--tier-medium) 80%, transparent); }
+tr.t-low     td:first-child { box-shadow: inset 3px 0 0 var(--tier-low); }
+/* `low` rows used to be dimmed to .74, which took the row's own muted text to
+   3.2:1. The recession is in the rung's density and in the badge; it does not
+   need to be paid for a second time out of the text's legibility. */
+tr.t-unknown td:first-child { box-shadow: inset 3px 0 0 var(--tier-unknown); }
+
+.stacked {
+  display: flex; height: 26px; border-radius: var(--r-sm); overflow: hidden;
+  border: 1px solid var(--line); background: var(--panel-2);
+}
+/* The segments run light to dark across a density ramp, so a single white
+   label cannot be right for all of them. Each takes its own --tier-X-on,
+   which is whichever extreme clears AA on that rung - and that replaces the
+   text-shadow that used to be doing this job by smearing. */
+.stacked > span {
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10.5px; font-weight: 700; overflow: hidden; min-width: 0;
+}
+.stacked .s-exact  { background: var(--tier-exact);   color: var(--tier-exact-on); }
+.stacked .s-high   { background: var(--tier-high);    color: var(--tier-high-on); }
+.stacked .s-medium { background: var(--tier-medium);  color: var(--tier-medium-on); }
+.stacked .s-low    { background: var(--tier-low);     color: var(--tier-low-on); }
+.stacked .s-unknown{ background: var(--tier-unknown); color: var(--tier-unknown-on); }
+
+/* ============================================================== tables */
+
+.tablewrap {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--panel);
+  min-width: 0;
+}
+/* Wide tables scroll inside .tablewrap rather than crushing their columns.
+   Without a floor on the table width, a long evidence path steals the space
+   and the From/To columns render one character per line. */
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+.tablewrap > table { min-width: 720px; }
+th, td { text-align: left; padding: 9px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--ink-3); font-weight: 700; white-space: nowrap;
+  position: sticky; top: 0; background: var(--panel-2); z-index: 1;
+}
+tbody tr:last-child td { border-bottom: 0; }
+tbody tr { transition: background 0.1s ease; }
+tbody tr:hover { background: color-mix(in srgb, var(--accent-soft) 35%, var(--panel)); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: 12px; }
+td.nowrap { white-space: nowrap; }
+
+.path {
+  font-family: var(--mono); font-size: 11.5px; color: var(--ink-2);
+  word-break: break-all; line-height: 1.4;
+}
+.path .dim { color: var(--ink-3); }
+.sym { font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--ink); white-space: nowrap; }
+.empty .sym, .neigh .sym, .inspector .sym { white-space: normal; overflow-wrap: anywhere; }
+
+/* Evidence: a file:line the reader can act on, not inert text. */
+.ev {
+  max-width: 330px;
+  display: inline-flex; align-items: center; gap: 5px; max-width: 100%;
+  font-family: var(--mono); font-size: 11px; color: var(--ink-2);
+  background: var(--panel-2); border: 1px solid var(--line);
+  border-radius: var(--r-sm); padding: 1px 4px 1px 7px;
+}
+.ev .p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; }
+.ev button {
+  flex: none; border: 0; background: none; cursor: pointer; padding: 1px 3px;
+  color: var(--ink-3); font-size: 11px; border-radius: 3px; font-family: var(--font);
+}
+.ev button:hover { background: var(--panel-3); color: var(--accent-text); }
+.ev.copied { border-color: var(--ok); color: var(--ok); }
+
+/* ============================================================== controls */
+
+.toolbar {
+  display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 12px;
+  padding: 12px 14px; background: var(--panel); border: 1px solid var(--line);
+  border-radius: var(--r); min-width: 0;
+}
+.toolbar .grow { flex: 1 1 260px; min-width: 0; }
+
+/* ------------------------------------------------------------ the map's toolbar
+
+   One row between the answer and the canvas: the scope, the detail level, the
+   search box and the Filters button. `position: relative` is what the popover
+   hangs from — it opens under the row's right edge, where the button is, and
+   never wider than the row, so on a narrow screen it cannot fall off the left
+   edge the way a box anchored to the button alone would.
+*/
+#graph-toolbar {
+  position: relative; display: flex; flex-wrap: wrap; align-items: flex-end;
+  gap: 10px 12px; margin: 8px 0 10px; min-width: 0;
+}
+#graph-toolbar .grow { flex: 1 1 220px; min-width: 0; }
+#graph-toolbar .filters-btn { white-space: nowrap; }
+#graph-toolbar .filters-btn.is-changed { border-color: var(--accent); color: var(--accent-text); background: var(--accent-soft); }
+#graph-toolbar .filters-btn[aria-expanded="true"] { background: var(--panel-3); color: var(--ink); }
+.filters-pop {
+  position: absolute; z-index: 5; right: 0; top: calc(100% + 6px);
+  width: min(560px, 100%); box-sizing: border-box;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
+  padding: 12px 14px; box-shadow: 0 8px 24px rgba(0, 0, 0, .18);
+  display: grid; gap: 10px;
+}
+.filters-pop .field select { width: 100%; }
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.field > .lbl { font-size: 10.5px; text-transform: uppercase; letter-spacing: .07em; color: var(--ink-3); font-weight: 700; }
+
+input[type="text"], input[type="search"], select, textarea {
+  font: inherit; font-size: 13.5px; color: var(--ink);
+  background: var(--panel-2); border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm); padding: 7px 10px; min-width: 0; width: 100%;
+}
+input::placeholder { color: var(--ink-3); }
+select { cursor: pointer; }
+
+button.primary {
+  background: var(--accent); color: var(--accent-ink); border: 1px solid var(--accent);
+  border-radius: var(--r-sm); font: inherit; font-size: 13px; font-weight: 600;
+  padding: 8px 16px; cursor: pointer; white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.18);
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+button.primary:hover {
+  background: var(--accent-hi); border-color: var(--accent-hi);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(66, 133, 244, 0.25);
+}
+button.primary:active { transform: translateY(0); box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+button.primary:disabled { opacity: .5; cursor: not-allowed; transform: none; box-shadow: none; }
+
+button.ghost {
+  background: var(--panel-2); color: var(--ink); border: 1px solid var(--line);
+  border-radius: var(--r-sm); font: inherit; font-size: 12.5px; font-weight: 550; padding: 7px 13px;
+  cursor: pointer; white-space: nowrap;
+  transition: all 0.15s ease;
+}
+button.ghost:hover {
+  background: var(--panel-3); border-color: var(--line-strong); color: var(--ink);
+  transform: translateY(-1px);
+}
+button.ghost:active { transform: translateY(0); }
+button.ghost:disabled { opacity: .42; cursor: not-allowed; transform: none; }
+button.ghost[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
+
+.linkish {
+  background: none; border: 0; padding: 0; font: inherit; font-size: inherit;
+  color: var(--accent-text); cursor: pointer; text-decoration: underline;
+  text-underline-offset: 2px; text-align: left;
+}
+.linkish:hover { color: var(--accent-hi); }
+
+/* Checkbox chips — the replacement for `<select multiple size="4">`. */
+.chips { display: flex; flex-wrap: wrap; gap: 5px; min-width: 0; }
+.chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  border: 1px solid var(--line-strong); border-radius: 999px;
+  background: var(--panel-2); color: var(--ink-2);
+  font: inherit; font-size: 12px; padding: 3px 10px; cursor: pointer; white-space: nowrap;
+}
+.chip:hover { background: var(--panel-3); }
+.chip[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
+.chip .n { font-family: var(--mono); font-size: 10.5px; }
+
+/* Combobox — the replacement for a 699-option native select and for
+   `<datalist>`, which cannot show a tier, a count or a path as a real row. */
+.combo { position: relative; min-width: 0; }
+.combo-list {
+  position: absolute; z-index: 40; top: calc(100% + 4px); left: 0; right: 0;
+  max-height: 340px; overflow-y: auto; overscroll-behavior: contain;
+  background: var(--panel); border: 1px solid var(--line-strong);
+  border-radius: var(--r); box-shadow: var(--shadow-2); padding: 4px;
+}
+.combo-list[hidden] { display: none; }
+.combo-opt {
+  display: flex; align-items: baseline; gap: 8px; width: 100%;
+  border: 0; background: none; font: inherit; font-size: 13px; color: var(--ink);
+  padding: 6px 9px; border-radius: var(--r-sm); cursor: pointer; text-align: left; min-width: 0;
+}
+.combo-opt:hover, .combo-opt[aria-selected="true"] { background: var(--accent-soft); }
+.combo-opt .main { font-weight: 560; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.combo-opt .meta { color: var(--ink-3); font-size: 11.5px; font-family: var(--mono); margin-left: auto; white-space: nowrap; flex: none; }
+.combo-opt .sub { color: var(--ink-3); font-size: 11px; font-family: var(--mono); overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: left; flex: 1 1 auto; min-width: 40px; }
+.combo-note { padding: 6px 9px; font-size: 11.5px; color: var(--ink-3); border-top: 1px solid var(--line); margin-top: 4px; }
+
+.pager { display: inline-flex; align-items: center; gap: 8px; }
+.pager .range { font-size: 12.5px; color: var(--ink-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* ============================================================== omissions */
+
+/*
+  Omission reasons arrive as snake_case JSON keys. They used to be printed to
+  humans verbatim, twice, under two names for one cause. Each now becomes a
+  sentence, deduped by underlying cause, and rendered next to the thing it is a
+  caveat about rather than 4,876 pixels below it.
+*/
+.omit {
+  border: 1px solid var(--line); border-left: 3px solid var(--ink-3);
+  border-radius: var(--r-sm); background: var(--panel-2);
+  padding: 10px 12px; font-size: 12.5px; min-width: 0;
+}
+.omit > h4 { font-size: 12px; color: var(--ink-2); margin-bottom: 6px; }
+.omit ul { list-style: none; padding: 0; display: grid; gap: 7px; }
+.omit li { display: grid; gap: 2px; }
+.omit .what { color: var(--ink); }
+.omit .what b { font-variant-numeric: tabular-nums; }
+.omit .fix { color: var(--ink-3); font-size: 11.5px; }
+.omit .fix code { background: var(--panel-3); padding: 1px 5px; border-radius: 3px; }
+.omit.clean { border-left-color: var(--ok); }
+.omit.clean .what { color: var(--ok); }
+
+.inline-omit {
+  font-size: 11.5px; color: var(--ink-3);
+  border-top: 1px dashed var(--line-strong); padding: 7px 12px; min-width: 0;
+}
+.inline-omit b { color: var(--ink-2); font-variant-numeric: tabular-nums; }
+
+/* ============================================================== states */
+
+.empty {
+  display: grid; gap: 8px; padding: 26px 20px; text-align: left;
+  border: 1px dashed var(--line-strong); border-radius: var(--r);
+  background: var(--panel-2); max-width: 74ch; min-width: 0;
+}
+.empty h3 { font-size: 15px; }
+.empty p { color: var(--ink-2); font-size: 13px; }
+.empty .ex { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+
+.err {
+  border: 1px solid color-mix(in srgb, var(--bad) 45%, var(--line));
+  background: color-mix(in srgb, var(--bad-soft) 55%, var(--panel));
+  border-radius: var(--r); padding: 16px; display: grid; gap: 7px; min-width: 0;
+}
+.err h3 { color: var(--bad); }
+
+.loading { display: flex; align-items: center; gap: 9px; color: var(--ink-3); font-size: 13px; padding: 18px 2px; }
+.spin {
+  width: 13px; height: 13px; border-radius: 50%; flex: none;
+  border: 2px solid var(--line-strong); border-top-color: var(--accent);
+  animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.muted { color: var(--ink-3); }
+.small { font-size: 12px; }
+.prose { max-width: 76ch; color: var(--ink-2); font-size: 13px; }
+.hint { font-size: 12px; color: var(--ink-3); max-width: 88ch; }
+.warnline { color: var(--warn); font-weight: 600; }
+
+/* ============================================================== ask box */
+
+.ask {
+  background: linear-gradient(180deg, var(--panel) 0%, var(--panel-2) 100%);
+  border: 1px solid var(--line); border-radius: var(--r-lg);
+  padding: 18px 20px; box-shadow: var(--shadow-1); min-width: 0;
+}
+.ask h2 { font-size: 19px; }
+.ask .sub { color: var(--ink-2); font-size: 13px; margin-top: 4px; max-width: 70ch; }
+.ask-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; min-width: 0; }
+.ask-row .grow { flex: 1 1 320px; min-width: 0; }
+.ask-row input { font-size: 15px; padding: 10px 13px; }
+.ask-examples { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+.ask-examples .chip { font-size: 11.5px; }
+
+/* ============================================================== graph */
+
+/*
+  THE VIEW SWITCH HIDES BY ATTRIBUTE, AND SEVERAL OF THESE HOSTS OUTRANK IT.
+
+  `hidden` is only a UA rule (`display: none`), so any author rule that sets a
+  display beats it — `.graph-layout` is `display: grid` and `.stack`, which
+  #graph-path and #graph-table carry, is `display: flex`. Setting the attribute
+  therefore hid nothing, and the map stayed on screen underneath the browser it
+  had just been switched away from.
+
+  The id makes this rule specific enough to win without `!important`, and
+  stating it once here is why the switch does not need a display rule per host.
+*/
+#screen-graph [hidden] { display: none; }
+
+.graph-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 14px;
+  min-width: 0;
+}
+.graph-layout.no-inspector { grid-template-columns: minmax(0, 1fr); }
+
+.canvas-wrap {
+  position: relative; min-width: 0;
+  /* The scope banner and the lens row used to sit above this box and now sit
+     under it, so less of the viewport is spent before the canvas begins. The
+     height was chosen for the fold target — the canvas within 560px at
+     1440x900 — and can be tuned. */
+  height: clamp(380px, calc(100vh - 330px), 760px);
+  border: 1px solid var(--line); border-radius: var(--r);
+  background: var(--canvas-bg); overflow: hidden;
+}
+#graph-canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+#graph-canvas:active { cursor: grabbing; }
+#graph-canvas.is-pointing { cursor: pointer; }
+
+.canvas-tools {
+  position: absolute; right: 12px; top: 12px; display: flex; align-items: center; gap: 5px;
+  background: color-mix(in srgb, var(--panel) 94%, transparent);
+  border: 1px solid var(--line-strong); border-radius: 8px; padding: 4px 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  z-index: 50;
+}
+.canvas-tools .cm-btn { border-color: transparent; background: transparent; }
+.canvas-tools .cm-btn:hover { background: var(--panel-2); border-color: var(--line); }
+.canvas-tools .cm-btn[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-text); }
+.canvas-tools .cm-field { margin: 0 2px; }
+.canvas-tools .zoom-readout {
+  font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--ink-2);
+  align-self: center; padding: 0 6px; font-variant-numeric: tabular-nums; min-width: 44px; text-align: center;
+}
+.canvas-tools .tool-divider {
+  width: 1px; height: 16px; background: var(--line); margin: 0 2px;
+}
+
+.canvas-wrap.is-fullscreen {
+  position: fixed !important;
+  top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important;
+  width: 100vw !important; height: 100vh !important; max-height: 100vh !important;
+  z-index: 9999 !important; border-radius: 0 !important; border: 0 !important;
+  margin: 0 !important;
+}
+
+.graph-hover-card {
+  position: absolute;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--panel) 96%, transparent);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  padding: 8px 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11.5px;
+  color: var(--ink);
+  transition: opacity 0.1s ease;
+  max-width: 300px;
+}
+.graph-hover-card[hidden] {
+  display: none !important;
+}
+.graph-hover-title {
+  font-family: var(--mono);
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  word-break: break-word;
+}
+.graph-hover-tag {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-family: var(--mono);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  width: fit-content;
+}
+.graph-hover-stats {
+  display: flex;
+  gap: 10px;
+  color: var(--ink-2);
+  font-size: 10.5px;
+  margin-top: 2px;
+}
+.graph-hover-hint {
+  font-size: 9.5px;
+  color: var(--ink-3);
+  border-top: 1px dashed var(--line);
+  padding-top: 4px;
+  margin-top: 3px;
+}
+
+.canvas-note {
+  /* It floated in the canvas's corner, over the drawing, capped at one line's
+     worth of width. It sits under the canvas now, after the scope banner and
+     the lens row, and says everything it has to say at full width. */
+  margin: 10px 0 0; font-size: 11.5px; line-height: 1.55; color: var(--ink-2);
+}
+.canvas-note:empty { display: none; }
+.canvas-note b { font-variant-numeric: tabular-nums; }
+
+.minimap {
+  position: absolute; right: 12px; bottom: 12px;
+  width: 132px; height: 92px; border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm); background: color-mix(in srgb, var(--panel) 88%, transparent);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  z-index: 40;
+}
+.minimap[hidden] {
+  display: none !important;
+}
+
+.legend-strip {
+  display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: center;
+  font-size: 11.5px; color: var(--ink-3); padding: 2px 2px 0;
+}
+.legend-strip .k { display: inline-flex; align-items: center; gap: 6px; }
+.legend-strip svg { flex: none; }
+
+.inspector {
+  border: 1px solid var(--line); border-radius: var(--r);
+  background: var(--panel); padding: 13px 14px; min-width: 0;
+  align-self: start; position: sticky; top: 62px;
+  max-height: calc(100vh - 90px); overflow-y: auto; overscroll-behavior: contain;
+}
+.inspector h3 { font-size: 14px; }
+.inspector .neigh { display: grid; gap: 7px; margin-top: 8px; }
+.inspector .neigh > div { display: grid; gap: 2px; padding-bottom: 7px; border-bottom: 1px solid var(--line); }
+.inspector .neigh > div:last-child { border-bottom: 0; }
+.inspector .dir { font-family: var(--mono); font-size: 12px; color: var(--ink-3); }
+
+/* ============================================================== chains */
+
+.chain {
+  display: flex; align-items: stretch; gap: 0; min-width: 0;
+  overflow-x: auto; overscroll-behavior-x: contain; padding: 4px 2px 10px;
+}
+.chain .hop {
+  flex: none; min-width: 150px; max-width: 260px;
+  border: 1px solid var(--line); border-radius: var(--r-sm);
+  background: var(--panel-2); padding: 8px 10px;
+}
+.chain .hop .stage { font-size: 9.5px; text-transform: uppercase; letter-spacing: .09em; color: var(--ink-3); font-weight: 700; }
+.chain .hop .nm { font-family: var(--mono); font-size: 12px; font-weight: 600; word-break: break-all; margin-top: 2px; }
+.chain .hop .pth { font-family: var(--mono); font-size: 10px; color: var(--ink-3); word-break: break-all; margin-top: 3px; }
+.chain .link {
+  flex: none; width: 62px; display: grid; place-items: center; gap: 2px; align-content: center;
+  font-size: 9.5px; font-family: var(--mono); color: var(--ink-3); text-align: center;
+}
+.chain .link .bar { width: 100%; height: 0; border-top-width: 2px; }
+.chain .link .bar.t-exact  { border-top: 3px solid var(--tier-exact); }
+.chain .link .bar.t-high   { border-top: 2px solid var(--tier-high); }
+.chain .link .bar.t-medium { border-top: 2px dashed var(--tier-medium); }
+.chain .link .bar.t-low    { border-top: 2px dotted var(--tier-low); }
+.chain .stop {
+  flex: none; min-width: 150px; border: 1px dashed var(--line-strong);
+  border-radius: var(--r-sm); background: var(--bg-sunken); padding: 8px 10px;
+  color: var(--ink-3); font-size: 11.5px;
+}
+
+/* ============================================================== verdict */
+
+.verdict {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px;
+  padding: 16px 18px; border-radius: var(--r); border: 1px solid; min-width: 0;
+}
+.verdict .big { font-size: 30px; font-weight: 700; letter-spacing: -0.02em; line-height: 1; }
+.verdict .say { font-size: 13px; max-width: 66ch; }
+.verdict .exit { font-family: var(--mono); font-size: 12px; }
+.verdict.v-pass       { background: var(--ok-soft);      border-color: color-mix(in srgb, var(--ok) 40%, transparent);      color: var(--ok); }
+.verdict.v-advisory   { background: var(--warn-soft);    border-color: color-mix(in srgb, var(--warn) 45%, transparent);    color: var(--warn); }
+.verdict.v-fail       { background: var(--bad-soft);     border-color: color-mix(in srgb, var(--bad) 45%, transparent);     color: var(--bad); }
+.verdict.v-unverified { background: var(--unknown-soft); border-color: color-mix(in srgb, var(--unknown) 50%, transparent); color: var(--unknown); }
+.verdict .say, .verdict .exit { color: var(--ink-2); }
+
+.matrix { border-collapse: collapse; font-size: 12px; }
+.matrix th, .matrix td { padding: 4px 7px; border: 1px solid var(--line); text-align: center; }
+.matrix th.rowh, .matrix td.rowh { text-align: left; white-space: nowrap; font-weight: 600; font-size: 11.5px; }
+.matrix th.colh { writing-mode: vertical-rl; text-orientation: mixed; height: 108px; font-size: 10.5px; padding: 4px 2px; position: static; }
+.matrix td.cell { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+/* A zero is data, not a rule: it was painted in --line-strong at 1.67:1. */
+.matrix td.zero { color: var(--ink-3); }
+.matrix td.viol { outline: 2px solid var(--bad); outline-offset: -2px; font-weight: 700; }
+
+/* ============================================================== footer */
+
+.foot {
+  margin-top: 34px; padding: 18px 24px 0; border-top: 1px solid var(--line);
+  color: var(--ink-3); font-size: 11.5px; display: grid; gap: 4px; min-width: 0;
+}
+
+/* ============================================================== responsive */
+
+@media (max-width: 1180px) {
+  .graph-layout { grid-template-columns: minmax(0, 1fr); }
+  .inspector { position: static; max-height: none; }
+}
+
+@media (max-width: 1000px) {
+  :root { --rail-w: 0px; }
+  .app { grid-template-columns: minmax(0, 1fr); }
+  /* One scrolling row, not a wrapping block. Wrapped, the same seven buttons
+     took four rows and 440px of a 812px phone screen before any content
+     started - which is the desktop rail's 44%-of-the-viewport problem in a
+     different shape. */
+  .rail {
+    position: sticky; top: 0; z-index: 40;
+    border-right: 0; border-bottom: 1px solid var(--rail-line);
+    height: auto; flex-direction: row; flex-wrap: nowrap;
+    align-items: center; gap: 4px; padding: 8px 12px;
+    overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+  }
+  .rail-brand { padding: 0 10px 0 0; flex: none; }
+  .rail-brand h1 { font-size: 14px; white-space: nowrap; }
+  .rail-path { display: none; }
+  .rail-label {
+    padding: 0 0 0 8px; margin-left: 4px; align-self: center; font-size: 9px; flex: none;
+    border-left: 1px solid var(--rail-line); white-space: nowrap;
+  }
+  .nav { width: auto; flex: none; padding: 5px 8px; }
+  /* Row layout centers entries; the desktop-only top gap would sit the first button lower than the rest. */
+  .rail-brand + .nav { margin-top: 0; }
+  .rail-foot { margin-top: 0; border-top: 0; padding: 0 0 0 10px; grid-auto-flow: column; align-items: center; flex: none; }
+  .rail-foot .badge { display: none; }
+  .rail-foot .ghost { white-space: nowrap; }
+  .screen { padding: 16px 14px 0; }
+  .indexbar { padding: 9px 14px; position: static; }
+  .foot { padding: 16px 14px 0; }
+  .canvas-wrap { height: clamp(360px, 62vh, 620px); }
+  .minimap { display: none; }
+}
+
+@media (max-width: 620px) {
+  .kpis { grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); }
+  .kpi .v { font-size: 21px; }
+  .verdict .big { font-size: 24px; }
+  .tierbar { font-size: 10px; }
+  .tierbar button { padding: 4px 8px; }
+  .tierbar .n { display: none; }
+}
+
+@media print {
+  .rail, .canvas-tools, .toolbar, .next .go { display: none; }
+  .app { grid-template-columns: 1fr; }
+  .card { break-inside: avoid; }
+}
+
+
+/* ============================================================== graph explorer: scope, lenses, path
+
+   Everything below belongs to the graph screen's second layer: the controls
+   that turn a map into an answer, and the three panels that state what those
+   controls did. They share the palette tokens above rather than defining
+   colours of their own, so both themes stay complete by construction.
+*/
+
+.scopebar {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px;
+  padding: 9px 12px; margin: 10px 0 0;
+  border: 1px solid var(--line); border-left: 3px solid var(--line-strong);
+  border-radius: var(--r-sm); background: var(--panel-2);
+  font-size: 12.5px; color: var(--ink-2);
+}
+.scopebar .lbl {
+  font-size: 10.5px; text-transform: uppercase; letter-spacing: .07em;
+  color: var(--ink-3); font-weight: 600;
+}
+.scopebar .sym { font-family: var(--mono); font-size: 12.5px; color: var(--ink); word-break: break-all; }
+.scopebar.is-auto { border-left-color: var(--info); background: var(--info-soft); }
+.scopebar.is-empty { border-left-color: var(--warn); }
+.scopebar b { font-variant-numeric: tabular-nums; }
+
+.lensbar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+  padding: 9px 12px; margin: 10px 0 0;
+  border: 1px solid var(--line); border-radius: var(--r-sm);
+  background: var(--panel-2);
+}
+.lensbar .field { min-width: 0; }
+.lensbar .chip { align-self: center; }
+.lens-readout {
+  flex: 1 1 100%; min-width: 0;
+  font-size: 11.5px; line-height: 1.55; color: var(--ink-2);
+}
+.lens-readout b { font-variant-numeric: tabular-nums; color: var(--ink); }
+.held { color: var(--warn); }
+.held b { color: var(--warn); }
+
+/* The first-request progress state. It sits over the canvas rather than
+   replacing it, so the reader keeps the frame they are waiting to be filled. */
+.canvas-progress {
+  position: absolute; inset: auto 12px 12px 12px;
+  max-width: 480px;
+  padding: 12px 14px;
+  border: 1px solid var(--line); border-radius: var(--r);
+  background: var(--panel); box-shadow: var(--shadow-2);
+  font-size: 12px; color: var(--ink-2); z-index: 3;
+}
+.canvas-progress[hidden] { display: none; }
+.canvas-progress .row { display: flex; align-items: center; gap: 8px; color: var(--ink); }
+.canvas-progress p { margin: 5px 0 0; }
+.canvas-progress b { font-variant-numeric: tabular-nums; }
+
+/* The path chain. An ordered list, because it IS ordered, and a reader tabbing
+   through it or hearing it read out gets the hops in the order they run. */
+.chain { list-style: none; padding: 0; margin: 10px 0 0; display: grid; gap: 0; }
+.chain .chain-node {
+  display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+  padding: 7px 10px; border: 1px solid var(--line); border-radius: var(--r-sm);
+  background: var(--panel-2);
+}
+.chain .chain-node .ix {
+  font-family: var(--mono); font-size: 10.5px; color: var(--ink-3);
+  min-width: 14px; text-align: right;
+}
+.chain .chain-node .sym { font-family: var(--mono); font-size: 12.5px; color: var(--ink); word-break: break-all; }
+.chain .chain-node .path { font-size: 11px; color: var(--ink-3); word-break: break-all; }
+.chain .chain-hop {
+  display: flex; align-items: center; gap: 9px; flex-wrap: wrap;
+  margin-left: 22px; padding: 5px 10px 5px 14px;
+  border-left: 3px solid var(--line-strong);
+  font-size: 11.5px; color: var(--ink-2);
+}
+.chain .chain-hop .rel { font-family: var(--mono); font-size: 11px; }
+.chain .chain-hop.t-exact  { border-left-color: var(--tier-exact); }
+.chain .chain-hop.t-high   { border-left-color: var(--tier-high); }
+.chain .chain-hop.t-medium { border-left-color: var(--tier-medium); }
+.chain .chain-hop.t-low    { border-left-color: var(--tier-low); }
+.chain .chain-hop.t-unknown{ border-left-color: var(--tier-unknown); }
+
+/* Cross-language, in the relationships table. Shape and weight carry it as well
+   as colour, so it survives a reader who cannot separate the two hues. */
+.xlang {
+  font-family: var(--mono); font-size: 10.5px; font-weight: 600;
+  color: var(--path-text);
+  border: 1px solid currentColor; border-radius: 3px;
+  padding: 0 4px; white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .lensbar { gap: 8px; }
+  .lensbar .field { flex: 1 1 100%; }
+  .chain .chain-hop { margin-left: 8px; }
+}
+
+
+/* ============================================================== long words
+
+   An acceptance criterion on pulse reads "The tests named under Tests —
+   TestConstructionSites_PassTheirOwn…": one identifier, 40-odd characters, no
+   break opportunity in it anywhere. At 375px that single word set the
+   min-content width of its <li>, which set its <ul>, its card, its section and
+   finally the document — 398px of body against a 375px viewport, and nothing
+   whose BOX overflowed, so no culprit could be pointed at.
+
+   Prose in this product is full of identifiers. `anywhere` rather than
+   `break-word` on purpose: only `anywhere` reduces the min-content
+   contribution, which is the number that was doing the damage.
+*/
+.prose, .prose li, .card > .body p, .kpi .c, .omit .what, .omit .fix, .chain .rel,
+.combo-opt .main, .combo-opt .sub, .scopebar, .lens-readout, .canvas-note {
+  overflow-wrap: anywhere;
+}
+td, th { overflow-wrap: anywhere; }
+
+/* ------------------------------------------------------------ glossary
+   A defined word is underlined with dots and explains itself on hover; the
+   whole list sits in the same slot under the index bar the provenance uses. */
+dfn.term { font-style: normal; border-bottom: 1px dotted var(--ink-3); cursor: help; }
+.glossary { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; max-width: 70ch; }
+.glossary dt { font-weight: 620; color: var(--ink); }
+.glossary dd { margin: 0; color: var(--ink-2); }
+.glossary-panel { padding: 12px 0; }
+.glossary-panel h3 { margin-bottom: 8px; }
+
+/* ============================================================== the answer line and the fold
+   A screen opens with one sentence and its number; the rows and the caveats
+   sit one click below in a details element that starts closed. */
+.answer {
+  max-width: 100%;
+  margin: 4px 0 16px;
+  padding: 16px 20px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--r);
+  box-shadow: var(--shadow-1);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.answer h2 {
+  font-size: 20px;
+  font-weight: 650;
+  line-height: 1.35;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+  color: var(--ink);
+}
+.answer h2 b {
+  font-weight: 750;
+  color: var(--accent-text);
+}
+.answer .support {
+  color: var(--ink-2);
+  font-size: 13.5px;
+  line-height: 1.5;
+  max-width: 85ch;
+  margin: 0;
+}
+.answer .next {
+  margin: 4px 0 0;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  background: none;
+  border: 0;
+  padding: 0;
+  font-size: inherit;
+}
+/* The button carries the command, which can be long: it wraps instead of widening the page. */
+.answer .next button.primary { white-space: normal; max-width: 100%; min-width: 0; text-align: left; overflow-wrap: anywhere; }
+details.fold { border-top: 1px solid var(--line); padding: 8px 0; }
+details.fold > summary { cursor: pointer; color: var(--ink-2); font-weight: 560; list-style: none; }
+details.fold > summary::-webkit-details-marker { display: none; }
+/* The marker is decoration: the alt-text form keeps a screen reader from announcing it. */
+details.fold > summary::before { content: '▸ ' / ''; color: var(--ink-3); }
+details.fold[open] > summary::before { content: '▾ ' / ''; }
+details.fold > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* The drill's omission notice sets its own text color (var(--warn)) on the box;
+   the shared summary rule above overrides that to var(--ink-2), leaving the
+   one headline in the box grey. This modifier lets the summary inherit it. */
+details.fold.fold-warn > summary { color: inherit; border-top: 0; }
+
+/* ============================================================== Command Palette (Cmd+K) */
+.palette-trigger {
+  margin-top: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  background: var(--panel-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r, 6px);
+  color: var(--ink-2);
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.palette-trigger:hover {
+  background: var(--panel-3);
+  color: var(--ink);
+  border-color: var(--accent);
+}
+.palette-kbd {
+  font-family: var(--mono);
+  font-size: 11px;
+  background: var(--bg-sunken);
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+}
+
+.palette-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(18, 16, 24, 0.45);
+  backdrop-filter: blur(4px);
+  z-index: 9999;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 14vh;
+}
+.palette-backdrop[hidden] {
+  display: none !important;
+}
+
+.palette-dialog {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.18);
+  width: 100%;
+  max-width: 620px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.palette-search-wrap {
+  display: flex;
+  align-items: center;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+  gap: 12px;
+}
+.palette-search-icon {
+  color: var(--accent);
+  font-size: 16px;
+}
+#palette-search-input {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  font-size: 15px;
+  color: var(--ink);
+  font-family: inherit;
+}
+#palette-search-input::placeholder {
+  color: var(--ink-3);
+}
+
+.palette-results {
+  max-height: 380px;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+.palette-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 18px;
+  cursor: pointer;
+  color: var(--ink);
+  font-size: 13.5px;
+  text-decoration: none;
+  transition: background 0.1s;
+}
+.palette-item.active, .palette-item:hover {
+  background: var(--panel-3);
+  color: var(--accent);
+}
+.palette-item-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.palette-item-tag {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink-3);
+  background: var(--bg-sunken);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.palette-footer {
+  padding: 9px 18px;
+  background: var(--panel-2);
+  border-top: 1px solid var(--line);
+  display: flex;
+  gap: 16px;
+  font-size: 11px;
+  color: var(--ink-3);
+  font-family: var(--mono);
+}
+.palette-footer kbd {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+/* ============================================================== 360° Inspector Drawer */
+.inspector-drawer {
+  position: fixed;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 440px;
+  max-width: 90vw;
+  background: var(--panel);
+  border-left: 1px solid var(--line);
+  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.08);
+  z-index: 8000;
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+  overflow-y: auto;
+}
+.inspector-drawer[hidden] {
+  display: none !important;
+}
+.inspector-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+}
+.inspector-head h3 {
+  margin: 0;
+  font-size: 17px;
+  color: var(--ink);
+}
+.inspector-section {
+  margin-bottom: 20px;
+}
+.inspector-section h4 {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-3);
+  margin-bottom: 8px;
+}
+.inspector-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.inspector-list li {
+  padding: 6px 10px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 12.5px;
+  font-family: var(--mono);
+}
+
+/* ============================================================== Refactor Steps & Topology Cards */
+.step-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 14px 18px;
+  margin-bottom: 12px;
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+.step-order {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.step-content {
+  flex: 1;
+}
+.step-title {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 4px;
+  color: var(--ink);
+}
+.step-desc {
+  font-size: 12.5px;
+  color: var(--ink-2);
+  margin-bottom: 6px;
+}
+.step-cmd {
+  background: var(--bg-sunken);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink);
+  display: inline-block;
+}
+
+/* ============================================================== ENTERPRISE ARCHITECTURE & INTELLIGENCE */
+
+.overview-hero {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 22px 26px;
+  display: grid;
+  gap: 14px;
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.04);
+  position: relative;
+  overflow: hidden;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.overview-hero::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #3b82f6, #8b5cf6, #10b981);
+}
+.hero-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 12px;
+  min-width: 0;
+  max-width: 100%;
+}
+.hero-title-area {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  min-width: 0;
+  max-width: 100%;
+}
+.hero-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: -0.02em;
+  margin: 0;
+  word-break: break-word;
+}
+.hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--bg-sunken);
+  color: var(--ink-2);
+  border: 1px solid var(--line);
+  flex-shrink: 0;
+}
+.hero-badge.operational {
+  background: #ecfdf5;
+  color: #047857;
+  border-color: #a7f3d0;
+}
+.hero-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--ink-3);
+  font-family: var(--mono);
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.topology-stream {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 9px 14px;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.topology-stage {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.topology-stage .stage-count {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  color: var(--accent);
+  font-family: var(--mono);
+}
+.topology-arrow {
+  color: var(--ink-3);
+  font-size: 14px;
+}
+
+/* User Journey Hub */
+.journey-hub {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: 16px;
+  margin: 4px 0;
+  min-width: 0;
+  max-width: 100%;
+}
+.journey-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 20px 22px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 14px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  box-shadow: 0 2px 8px -2px rgba(0, 0, 0, 0.03);
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.journey-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.08);
+  border-color: var(--line-strong);
+}
+.journey-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.journey-icon {
+  font-size: 22px;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: var(--bg-sunken);
+  flex-shrink: 0;
+}
+.journey-card.arch .journey-icon { background: #eff6ff; color: #2563eb; }
+.journey-card.safety .journey-icon { background: #fdf2f8; color: #db2777; }
+.journey-card.agent .journey-icon { background: #f0fdf4; color: #16a34a; }
+.journey-title {
+  font-size: 15.5px;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0;
+}
+.journey-desc {
+  font-size: 12.5px;
+  color: var(--ink-2);
+  line-height: 1.5;
+  margin: 0;
+}
+.journey-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: auto;
+}
+.journey-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 11px;
+  border-radius: var(--r-sm);
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--panel-2);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  cursor: pointer;
+  transition: all 0.12s ease;
+  text-decoration: none;
+}
+.journey-btn:hover {
+  background: var(--bg-sunken);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.journey-btn.primary {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+.journey-btn.primary:hover {
+  background: color-mix(in srgb, var(--accent) 85%, black);
+}
+
+/* Surface Explorer Tables */
+.surface-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
+  gap: 16px;
+  margin: 6px 0;
+  min-width: 0;
+  max-width: 100%;
+}
+.surface-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 20px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.surface-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+}
+.surface-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.surface-table-wrap {
+  overflow-x: auto;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.surface-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.surface-table th {
+  text-align: left;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line);
+}
+.surface-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+.surface-table tr:hover td {
+  background: var(--panel-2);
+}
+.method-badge {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+.method-get { background: #dcfce7; color: #15803d; }
+.method-post { background: #dbeafe; color: #1d4ed8; }
+.method-put { background: #fef3c7; color: #b45309; }
+.method-delete { background: #fee2e2; color: #b91c1c; }
+.table-rw-badge {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--bg-sunken);
+  color: var(--ink-2);
+}
+.table-rw-badge.rw {
+  background: #fdf2f8;
+  color: #be185d;
+}
+.action-mini-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  padding: 5px 11px;
+  border-radius: var(--r-sm);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  color: var(--accent-text);
+  cursor: pointer;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: all 0.14s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.action-mini-btn:hover {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(66, 133, 244, 0.25);
+}
+
+/* Agent / MCP Box */
+.agent-mcp-panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 20px 22px;
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.mcp-code-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 10px 14px;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.mcp-cmd {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink);
+  flex: 1;
+  overflow-x: auto;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+@media (max-width: 600px) {
+  .surface-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .surface-card {
+    padding: 14px 12px;
+  }
+  .journey-hub {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .journey-card {
+    padding: 14px 12px;
+  }
+  .overview-hero {
+    padding: 16px 14px;
+  }
+  .hero-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .hero-meta {
+    flex-wrap: wrap;
+  }
+}
+
+/* ============================================================== CODE MAP (js/codemap.mjs)
+
+   One control vocabulary for the four views and the canvas tools:
+   - .cm-btn: a bordered button; .cm-btn-primary is the one main action in a
+     group; .cm-btn-quiet is for tertiary actions and icon-only closers.
+     Every button is 32px (28px with .cm-sm): a target, not a link.
+   - .cm-tabs: the view switch, a tablist with an underline on the active tab.
+   - .cm-input / .cm-select: 32px fields with a 3:1 boundary.
+   Icons are 16px strokes in currentColor; an icon never stands alone without
+   an aria-label. Focus is a 2px ring in --focus everywhere. */
+
+.cm-ic { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+.cm-btn {
+  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px;
+  border: 1px solid var(--line-strong); border-radius: var(--r-sm); background: var(--panel);
+  color: var(--ink); font: 500 13px/1 var(--font); cursor: pointer; white-space: nowrap;
+}
+.cm-btn:hover { background: var(--panel-2); border-color: var(--ink-3); }
+.cm-btn:focus-visible, .cm-tab:focus-visible, .cm-input:focus-visible, .cm-crumb:focus-visible,
+.cm-link:focus-visible, .cm-loc:focus-visible, .cm-ti:focus-visible, .cm-cell:focus-visible,
+.cm-outline button:focus-visible, .cm-gut-decl:focus-visible, .cm-src:focus-visible {
+  outline: 2px solid var(--focus); outline-offset: 2px;
+}
+.cm-btn[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-text); }
+.cm-btn[disabled] { opacity: .5; cursor: not-allowed; }
+.cm-btn.cm-sm { height: 28px; padding: 0 9px; font-size: 12.5px; }
+.cm-btn.cm-icon-only { padding: 0; width: 32px; justify-content: center; }
+.cm-btn.cm-sm.cm-icon-only { width: 28px; }
+.cm-btn-primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.cm-btn-primary:hover { background: var(--accent-hi); border-color: var(--accent-hi); }
+.cm-btn-quiet { border-color: transparent; background: transparent; color: var(--ink-2); }
+.cm-btn-quiet:hover { background: var(--panel-3); border-color: transparent; color: var(--ink); }
+
+.cm-input {
+  height: 32px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: var(--r-sm);
+  background: var(--panel); color: var(--ink); font: 13px var(--font); min-width: 0;
+}
+.cm-select { padding-right: 6px; }
+.cm-field { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink-2); white-space: nowrap; }
+.cm-field-sm .cm-input { height: 28px; font-size: 12.5px; }
+.cm-search { position: relative; display: inline-flex; align-items: center; }
+.cm-search .cm-ic { position: absolute; left: 9px; color: var(--ink-3); pointer-events: none; }
+.cm-search .cm-input { padding-left: 30px; width: 240px; }
+
+/* the bar: breadcrumb left, tabs right */
+.cm-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px 16px; flex-wrap: wrap; margin: 4px 0 12px; }
+.cm-crumbs { display: flex; align-items: center; gap: 2px; flex-wrap: wrap; min-width: 0; font-size: 13px; }
+.cm-crumbs > .cm-ic { width: 12px; height: 12px; color: var(--ink-3); }
+.cm-crumb { all: unset; box-sizing: border-box; padding: 4px 6px; border-radius: var(--r-sm); font: 500 12.5px var(--mono); color: var(--ink-2); cursor: pointer; overflow-wrap: anywhere; }
+.cm-crumb:hover { background: var(--panel-3); color: var(--ink); }
+span.cm-crumb { cursor: default; color: var(--ink); font-weight: 600; }
+span.cm-crumb:hover { background: none; }
+.cm-crumbs .cm-btn { margin-left: 8px; }
+
+.cm-tabs { display: inline-flex; gap: 2px; border-bottom: 1px solid var(--line); }
+.cm-tab {
+  position: relative; display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px;
+  border: 0; background: none; color: var(--ink-2); font: 500 13.5px var(--font); cursor: pointer;
+}
+.cm-tab:hover { color: var(--ink); }
+.cm-tab[aria-selected="true"] { color: var(--ink); }
+.cm-tab[aria-selected="true"]::after { content: ""; position: absolute; left: 8px; right: 8px; bottom: -1px; height: 2px; border-radius: 2px; background: var(--accent); }
+
+/* views + details panel */
+.cm-layout { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; align-items: start; }
+.cm-main { min-width: 0; }
+.cm-panel { width: 360px; position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow: auto; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); }
+.cm-shell { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.cm-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 10px; border-bottom: 1px solid var(--line); background: var(--panel-2); }
+.cm-grow { flex: 1; }
+.cm-note { padding: 8px 12px; border-top: 1px solid var(--line); background: var(--panel-2); color: var(--ink-2); font-size: 12.5px; }
+.cm-muted { color: var(--ink-3); }
+.cm-xs { font-size: 11.5px; }
+.cm-pad { padding: 14px 16px; margin: 0; }
+.cm-err { color: var(--bad); }
+.cm-mono { font-family: var(--mono); }
+.cm-tag { display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border-radius: 3px; background: var(--panel-3); color: var(--ink-2); font: 500 11px var(--font); white-space: nowrap; }
+.cm-tag.cm-warn { background: var(--warn-soft); color: var(--warn); }
+.cm-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.cm-empty { padding: 28px 24px; max-width: 620px; }
+.cm-empty > .cm-ic { width: 22px; height: 22px; color: var(--ink-3); }
+.cm-empty h3 { margin: 8px 0 4px; }
+.cm-empty p { color: var(--ink-2); margin: 0 0 12px; }
+
+.cm-phead { position: sticky; top: 0; display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; padding: 12px 14px; background: var(--panel); border-bottom: 1px solid var(--line); }
+.cm-phead h3 { margin: 0; font-size: 14px; overflow-wrap: anywhere; }
+.cm-phead h3:focus { outline: none; }
+.cm-phead p { margin: 2px 0 0; font-size: 12.5px; }
+.cm-psec { padding: 12px 14px; border-bottom: 1px solid var(--line); font-size: 13px; }
+.cm-psec:last-child { border-bottom: 0; }
+.cm-psec h4 { margin: 0 0 8px; font-size: 12.5px; font-weight: 500; color: var(--ink-3); }
+.cm-psec .cm-actions + .cm-actions { margin-top: 8px; }
+.cm-dl { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 6px 10px; margin: 0; }
+.cm-dl dt { color: var(--ink-3); }
+.cm-dl dd { margin: 0; min-width: 0; }
+.cm-rels { list-style: none; margin: 0; padding: 0; }
+.cm-rels li { padding: 6px 0; border-top: 1px solid var(--line); }
+.cm-rels li:first-child { border-top: 0; }
+.cm-rel-top { display: flex; align-items: center; gap: 8px; }
+.cm-rel-top .cm-link { flex: 1; min-width: 0; text-align: left; overflow-wrap: anywhere; }
+.cm-count { color: var(--ink-3); font-size: 12px; font-variant-numeric: tabular-nums; }
+.cm-link { all: unset; cursor: pointer; color: var(--accent-text); font-size: 12.5px; border-radius: 3px; }
+.cm-link:hover { text-decoration: underline; }
+.cm-loc { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 1px 4px; margin: 0 -4px; border-radius: 3px; font: 12px var(--mono); color: var(--ink-2); cursor: pointer; overflow-wrap: anywhere; }
+.cm-loc:hover { background: var(--panel-3); color: var(--ink); }
+.cm-loc .cm-ic { width: 12px; height: 12px; opacity: .7; }
+
+/* tree */
+.cm-tree-head, .cm-ti { display: grid; grid-template-columns: minmax(0, 1fr) 80px 80px 120px; gap: 8px; align-items: center; }
+.cm-tree-head { padding: 6px 12px; border-bottom: 1px solid var(--line); background: var(--panel-2); font-size: 12px; color: var(--ink-3); }
+.cm-tree-head span:not(:first-child) { text-align: right; }
+.cm-tree { max-height: 640px; overflow: auto; padding: 4px 0; }
+.cm-ti { height: 30px; padding-right: 12px; font-size: 13px; cursor: pointer; }
+.cm-ti:hover { background: var(--panel-2); }
+.cm-ti[aria-selected="true"] { background: var(--accent-soft); box-shadow: inset 2px 0 0 var(--accent); }
+.cm-ti:focus { outline: none; }
+.cm-ti:focus-visible { outline-offset: -2px; }
+.cm-lab { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.cm-lab > .cm-ic { color: var(--ink-3); }
+.cm-nm { font-family: var(--mono); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cm-nm mark { background: none; color: var(--accent-text); font-weight: 600; }
+.cm-tw { display: inline-grid; place-items: center; width: 16px; height: 16px; color: var(--ink-3); flex: none; }
+.cm-tw .cm-ic { width: 12px; height: 12px; transition: transform .1s; }
+.cm-ti[aria-expanded="true"] .cm-tw .cm-ic { transform: rotate(90deg); }
+.cm-num { text-align: right; color: var(--ink-2); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.cm-deg { display: flex; align-items: center; justify-content: flex-end; gap: 6px; color: var(--ink-3); font-size: 12px; font-variant-numeric: tabular-nums; }
+.cm-deg i { display: block; height: 6px; border-radius: 3px; background: var(--accent); opacity: .45; }
+.cm-ti-more { height: 26px; display: flex; align-items: center; color: var(--ink-3); font-size: 12px; font-style: italic; }
+
+/* treemap */
+.cm-tm { position: relative; height: 560px; background: var(--panel-2); }
+.cm-cell { position: absolute; box-sizing: border-box; overflow: hidden; padding: 4px 6px; border: 1px solid var(--panel); color: #fff; font-size: 11.5px; line-height: 1.3; cursor: pointer; }
+.cm-cell:hover { outline: 2px solid var(--focus); outline-offset: -2px; z-index: 2; }
+.cm-cell.is-sel { outline: 3px solid var(--ink); outline-offset: -3px; z-index: 3; }
+.cm-cell-t { font: 600 11.5px var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cm-cell-s { opacity: .9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cm-legend-inline { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-3); font-size: 12px; }
+.cm-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; }
+.cm-ramp { display: inline-block; width: 110px; height: 8px; border-radius: 4px; background: linear-gradient(90deg, #5B6371, #2249AE); }
+
+/* code */
+.cm-code { display: grid; grid-template-columns: 260px minmax(0, 1fr); min-height: 560px; }
+.cm-outline { border-right: 1px solid var(--line); max-height: 680px; overflow: auto; }
+.cm-outline h4 { margin: 0; padding: 10px 12px 4px; font-size: 12px; font-weight: 500; color: var(--ink-3); }
+.cm-outline button { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 8px; width: 100%; padding: 5px 12px; cursor: pointer; font-size: 12.5px; }
+.cm-outline button:hover { background: var(--panel-2); }
+.cm-outline button[aria-current="true"] { background: var(--accent-soft); box-shadow: inset 2px 0 0 var(--accent); }
+.cm-outline .cm-mono { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cm-right { margin-left: auto; white-space: nowrap; }
+.cm-src { max-height: 680px; overflow: auto; font: 12.5px/20px var(--mono); background: var(--panel); }
+.cm-ln { display: grid; grid-template-columns: 22px 56px minmax(0, 1fr); white-space: pre; }
+.cm-ln.is-hl { background: var(--accent-soft); }
+.cm-ln.is-flash, .cm-ln.is-match { background: var(--warn-soft); }
+.cm-ln.is-decl .cm-tx { font-weight: 600; }
+.cm-no { padding-right: 14px; text-align: right; color: var(--ink-3); user-select: none; }
+.cm-gut { display: inline-grid; place-items: center; }
+.cm-gut-decl { all: unset; display: inline-grid; place-items: center; cursor: pointer; }
+.cm-gut-decl::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+.cm-gut-ev::before { content: ""; width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid var(--ink-3); }
+.cm-tx { padding-right: 16px; }
+.cm-kw { color: var(--unknown); }
+.cm-str { color: var(--ok); }
+.cm-ty { color: var(--accent-text); }
+.cm-com { color: var(--ink-3); font-style: italic; }
+
+@media (max-width: 1279px) {
+  .cm-layout { grid-template-columns: minmax(0, 1fr); }
+  .cm-panel { position: static; width: auto; max-height: none; }
+}
+@media (max-width: 1023px) {
+  .cm-tm { height: 460px; }
+  .cm-code { grid-template-columns: 200px minmax(0, 1fr); }
+  .cm-tree-head, .cm-ti { grid-template-columns: minmax(0, 1fr) 70px 100px; }
+  .cm-c-exp { display: none; }
+}
+@media (max-width: 760px) {
+  .cm-bar { flex-direction: column; align-items: stretch; }
+  .cm-tabs { display: flex; }
+  .cm-tab { flex: 1; justify-content: center; padding: 0 6px; }
+  .cm-tm { height: 400px; }
+  .cm-code { grid-template-columns: minmax(0, 1fr); }
+  .cm-outline { max-height: 180px; border-right: 0; border-bottom: 1px solid var(--line); }
+  .cm-tree-head, .cm-ti { grid-template-columns: minmax(0, 1fr) 64px; }
+  .cm-c-deg { display: none; }
+  .cm-search { flex: 1 1 100%; }
+  .cm-search .cm-input { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cm-tw .cm-ic { transition: none; }
+}
+.cm-loc.is-copied { color: var(--ok); }
+.cm-pad-sm { padding: 0 8px 6px; }

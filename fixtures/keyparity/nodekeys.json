@@ -1,0 +1,163 @@
+{
+  "note": "Shared node-key fixture. internal/cli/export.go's buildExportGraph is the SOURCE OF TRUTH for the expected keys; internal/web's metricsGraphBySymbol must reproduce them byte-for-byte or a CSV exported from the CLI cannot be joined against a centrality row on the portal. Two tests read this file - internal/cli/exportkeyparity_test.go and internal/web/metrics_keyparity_test.go - so neither implementation can drift without one of them failing. The rows deliberately cover: a unique key, a cross-file collision where one side falls below a high floor, a cross-file collision where both sides survive, a same-file collision resolved by line, a residual tie identical in fqn+path+line, empty-FQN fallbacks at two confidences, and an unkeyable row.",
+  "symbols": [
+    {
+      "id": 10,
+      "file_id": 1,
+      "path": "a/one.go",
+      "name": "Unique",
+      "fqn": "a/one.go:Unique",
+      "line": 3,
+      "kind": "function",
+      "confidence": "high"
+    },
+    {
+      "id": 11,
+      "file_id": 1,
+      "path": "a/one.go",
+      "name": "Floor",
+      "fqn": "Floor",
+      "line": 5,
+      "kind": "method",
+      "confidence": "high"
+    },
+    {
+      "id": 12,
+      "file_id": 2,
+      "path": "b/two.go",
+      "name": "Floor",
+      "fqn": "Floor",
+      "line": 9,
+      "kind": "method",
+      "confidence": "low"
+    },
+    {
+      "id": 13,
+      "file_id": 1,
+      "path": "a/one.go",
+      "name": "Twin",
+      "fqn": "Twin",
+      "line": 11,
+      "kind": "method",
+      "confidence": "high"
+    },
+    {
+      "id": 14,
+      "file_id": 2,
+      "path": "b/two.go",
+      "name": "Twin",
+      "fqn": "Twin",
+      "line": 12,
+      "kind": "method",
+      "confidence": "exact"
+    },
+    {
+      "id": 15,
+      "file_id": 1,
+      "path": "a/one.go",
+      "name": "Same",
+      "fqn": "Same",
+      "line": 20,
+      "kind": "method",
+      "confidence": "high"
+    },
+    {
+      "id": 16,
+      "file_id": 1,
+      "path": "a/one.go",
+      "name": "Same",
+      "fqn": "Same",
+      "line": 30,
+      "kind": "method",
+      "confidence": "high"
+    },
+    {
+      "id": 17,
+      "file_id": 1,
+      "path": "a/one.go",
+      "name": "Dup",
+      "fqn": "Dup",
+      "line": 40,
+      "kind": "function",
+      "confidence": "high"
+    },
+    {
+      "id": 18,
+      "file_id": 1,
+      "path": "a/one.go",
+      "name": "Dup",
+      "fqn": "Dup",
+      "line": 40,
+      "kind": "function",
+      "confidence": "high"
+    },
+    {
+      "id": 19,
+      "file_id": 2,
+      "path": "b/two.go",
+      "name": "NoFQN",
+      "fqn": "",
+      "line": 7,
+      "kind": "function",
+      "confidence": "medium"
+    },
+    {
+      "id": 20,
+      "file_id": 2,
+      "path": "b/two.go",
+      "name": "NoFQN2",
+      "fqn": "",
+      "line": 8,
+      "kind": "function",
+      "confidence": "high"
+    },
+    {
+      "id": 21,
+      "file_id": 2,
+      "path": "b/two.go",
+      "name": "Lonely",
+      "fqn": "Lonely",
+      "line": 2,
+      "kind": "function",
+      "confidence": "exact"
+    },
+    {
+      "id": 22,
+      "file_id": 1,
+      "path": "a/one.go",
+      "name": "",
+      "fqn": "",
+      "line": 1,
+      "kind": "function",
+      "confidence": "high"
+    }
+  ],
+  "expected": {
+    "low": [
+      "Dup@a/one.go#L40",
+      "Dup@a/one.go#L40#2",
+      "Floor@a/one.go",
+      "Floor@b/two.go",
+      "Lonely",
+      "Same@a/one.go#L20",
+      "Same@a/one.go#L30",
+      "Twin@a/one.go",
+      "Twin@b/two.go",
+      "a/one.go:Unique",
+      "b/two.go:NoFQN",
+      "b/two.go:NoFQN2"
+    ],
+    "high": [
+      "Dup@a/one.go#L40",
+      "Dup@a/one.go#L40#2",
+      "Floor",
+      "Lonely",
+      "Same@a/one.go#L20",
+      "Same@a/one.go#L30",
+      "Twin@a/one.go",
+      "Twin@b/two.go",
+      "a/one.go:Unique",
+      "b/two.go:NoFQN2"
+    ]
+  }
+}

@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en" data-theme="system">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>RepoCortex</title>
+<link rel="stylesheet" href="/assets/app.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>◈</text></svg>">
+</head>
+<body>
+
+<a class="skip" href="#main">Skip to content</a>
+
+<div class="app">
+
+<!--
+  The rail is built by js/nav.mjs from one list in the reader's words: grouped
+  by what a reader wants to know, with Index health alone at the top because
+  its verdict qualifies every other screen. Below 1000px the stylesheet reflows
+  the same markup into one horizontally scrolling row, group headings included.
+  A scripts-off browser meets the brand and the footer.
+-->
+<nav class="rail" aria-label="Screens">
+  <div class="rail-brand">
+    <h1><span class="mark" aria-hidden="true">◈</span> <strong id="project">RepoCortex</strong></h1>
+    <div class="rail-path" id="index-path"></div>
+    <button type="button" id="palette-open-btn" class="palette-trigger" title="Command Palette (Cmd+K)">
+      <span class="palette-kbd">⌘K</span> Quick Jump
+    </button>
+  </div>
+
+  <div class="rail-foot">
+    <p class="badge" id="scope-note">read-only · localhost</p>
+    <button type="button" id="glossary-toggle" class="ghost" aria-expanded="false" aria-controls="provenance">What do these words mean?</button>
+    <button type="button" id="theme-toggle" class="ghost">Theme: system</button>
+  </div>
+</nav>
+
+<main id="main">
+
+  <!--
+    The index bar is on every screen and it carries the run's own verdict.
+    `index_health` was served by four handlers and rendered nowhere a reader
+    looks; it is now the second thing on the page, and it is a button that says
+    why.
+
+    The tier bar beside it is the legend AND the filter. Confidence is not a
+    control buried in a settings panel in this product — it is the first thing
+    the eye lands on, and clicking a tier moves the floor on every screen.
+  -->
+  <div class="indexbar" id="indexbar"></div>
+
+  <!--
+    The provenance disclosure opens UNDER the bar rather than inside it. The bar
+    is sticky, and a panel that pins itself over the document hides the very
+    numbers it is a caveat about. It stays empty and `hidden` until a reader
+    asks for it, so the shell a script-less browser meets is unchanged.
+  -->
+  <div id="provenance" hidden></div>
+
+  <section class="screen" id="screen-overview"></section>
+
+  <!--
+    THE CODE MAP IS FOUR VIEWS, ONE TAB APART, AND THE GRAPH COMES FIRST.
+
+    Graph, Tree, Treemap and Code (js/codemap.mjs owns the last three and the
+    tabs). What follows describes the Graph, which this shell holds.
+
+    The MAP: the index drawn all-at-once as a force layout, and — the reason it
+    stays — the combined-edge table under it, which is the one artifact in this
+    product that puts a measured tier and a checkable file:line on a
+    RELATIONSHIP. The API contract requires that table to be first-class and
+    never behind a disclosure.
+
+    The TREE, TREEMAP and CODE views answer "what is inside this", "where is
+    the code" and "what does this line do". They replaced the card browser,
+    and are built by script into their own hosts below because their shape
+    depends on the payload.
+
+    The map's reading order is the answer, the canvas, then everything that
+    explains the canvas. It used to be the other way round: three paragraphs
+    and a seven-control panel, and the canvas below the fold at 1440x900. Now
+    one toolbar row sits between the answer and the canvas — the scope, the
+    detail level, a search box and a Filters button — and the five filters that
+    a reader touches rarely live in a popover behind that button. The scope
+    banner, the lens readout and the drawing's own note keep every word they
+    said; they say it below the picture they describe.
+
+    The canvas stays in the SHELL rather than built by script. Three reasons, in
+    order of weight: a reader with a screen reader meets a labelled `role="img"`
+    element and its text equivalent whether or not the script has run; changing
+    a filter re-fetches and re-lays-out without tearing down and rebuilding the
+    renderer, so pan, zoom and the WebGL-free canvas context all survive; and
+    `cortex ui`'s own test asserts that the shell the binary serves contains a
+    canvas, which is the right thing to assert.
+  -->
+  <section class="screen" id="screen-graph" hidden>
+    <div id="graph-head"></div>
+
+    <!--
+      The breadcrumb and the four view tabs. Only the chosen view is built — the
+      map's spring layout does not run for a canvas nobody is looking at.
+    -->
+    <div id="graph-view-host"></div>
+
+    <!--
+      The code map's other three views (js/codemap.mjs). Each is built only
+      when it is the view on screen, into its own host, and shares the map's
+      address: container, level and sel.
+    -->
+    <div id="graph-tree-host" class="cm-host" hidden></div>
+    <div id="graph-treemap-host" class="cm-host" hidden></div>
+    <div id="graph-code-host" class="cm-host" hidden></div>
+
+    <!--
+      One row: scope, detail level, search, and the Filters button whose popover
+      holds grouping, language, edge kinds, the standard of proof and the focus
+      depth. The button says how many of those five are away from their default,
+      so a narrowed map never looks like the whole one.
+    -->
+    <div id="graph-toolbar"></div>
+
+    <div class="graph-layout no-inspector" id="graph-layout">
+      <div class="canvas-wrap" id="canvas-wrap">
+        <canvas id="graph-canvas" tabindex="0" role="img"
+                aria-label="Map of the indexed repository, grouped into communities. The table below this canvas is a complete text equivalent of everything drawn on it."></canvas>
+        <!--
+          A real progress state, not a bare spinner: what is being read, how big
+          it is, and how long the wait has actually lasted so far. The first
+          request against a large index builds the whole structural map, and a
+          spinner that says nothing for a second and a half reads as a hang.
+        -->
+        <div class="canvas-progress" id="graph-progress" role="status" aria-live="polite" hidden></div>
+        <canvas class="minimap" id="graph-minimap" width="132" height="92"
+                aria-hidden="true" title="Click to move the viewport"></canvas>
+        <div class="canvas-tools" id="canvas-tools"></div>
+        <div class="graph-hover-card" id="graph-hover-card" hidden></div>
+      </div>
+    </div>
+
+    <!--
+      The scope banner is where the explorer says something it used to leave
+      blank: that nobody named a scope, which container it therefore chose, and
+      by what rule. `?level=files` with no container rendered a completely empty
+      canvas — no nodes, no message, every control around it looking correct.
+    -->
+    <div id="graph-scope" aria-live="polite"></div>
+
+    <!--
+      The lens row: the cross-language switch, the button that clears every
+      lens, and the readout that states the lens arithmetic — how many edges
+      are drawn, how many are proven, how many a lens is holding back.
+    -->
+    <div id="graph-lenses"></div>
+
+    <!--
+      The drawing's own note: how many boxes are drawn, from how many the
+      server sent, of how many it holds. It used to float in the canvas's
+      corner; it sits under the canvas now, where it can be read at length.
+    -->
+    <div class="canvas-note" id="canvas-note"></div>
+
+    <p class="hint" id="graph-hint"></p>
+    <div id="graph-path" class="stack"></div>
+    <div id="graph-map-head"></div>
+    <div id="graph-table" class="stack"></div>
+    <div id="graph-omissions"></div>
+  </section>
+
+  <section class="screen" id="screen-search" hidden></section>
+  <section class="screen" id="screen-metrics" hidden></section>
+  <section class="screen" id="screen-crossstack" hidden></section>
+  <section class="screen" id="screen-blast" hidden></section>
+  <section class="screen" id="screen-contract" hidden></section>
+  <section class="screen" id="screen-verify" hidden></section>
+  <section class="screen" id="screen-ownership" hidden></section>
+  <section class="screen" id="screen-diff" hidden></section>
+  <section class="screen" id="screen-tables" hidden></section>
+  <section class="screen" id="screen-tests" hidden></section>
+  <section class="screen" id="screen-config" hidden></section>
+  <section class="screen" id="screen-trace" hidden></section>
+  <section class="screen" id="screen-governance" hidden></section>
+  <section class="screen" id="screen-deps" hidden></section>
+  <section class="screen" id="screen-retrieval" hidden></section>
+  <section class="screen" id="screen-agent" hidden></section>
+  <section class="screen" id="screen-accuracy" hidden></section>
+  <section class="screen" id="screen-estate" hidden></section>
+  <section class="screen" id="screen-events" hidden></section>
+  <section class="screen" id="screen-missed" hidden></section>
+  <section class="screen" id="screen-planchange" hidden></section>
+
+  <!-- Global Command Palette (Cmd+K) -->
+  <div id="command-palette-backdrop" class="palette-backdrop" hidden>
+    <div class="palette-dialog" role="dialog" aria-modal="true" aria-label="Command Palette">
+      <div class="palette-search-wrap">
+        <span class="palette-search-icon" aria-hidden="true">◈</span>
+        <input id="palette-search-input" type="search" placeholder="Jump to screen, symbol, API route, or table... (Esc to close)" autocomplete="off" spellcheck="false">
+      </div>
+      <div id="palette-results" class="palette-results" role="listbox"></div>
+      <div class="palette-footer">
+        <span><kbd>↑</kbd> <kbd>↓</kbd> Navigate</span>
+        <span><kbd>↵</kbd> Select</span>
+        <span><kbd>Esc</kbd> Close</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 360° Inspector Drawer -->
+  <aside id="inspector-drawer" class="inspector-drawer" hidden aria-label="Symbol Inspector">
+    <div class="inspector-head">
+      <h3 id="inspector-title">Symbol Inspector</h3>
+      <button type="button" id="inspector-close" class="ghost" aria-label="Close inspector">✕</button>
+    </div>
+    <div id="inspector-content" class="inspector-content"></div>
+  </aside>
+</main>
+
+<footer class="foot">
+  <p id="foot-meta"></p>
+  <p>
+    This portal never writes to the index. It reads one committed run, states what each
+    view left out, and puts a checkable file and line under every relationship it draws.
+  </p>
+</footer>
+
+<script type="module" src="/assets/js/main.mjs"></script>
+<script src="/assets/app.js" defer></script>
+</div><!-- /.app -->
+</body>
+</html>

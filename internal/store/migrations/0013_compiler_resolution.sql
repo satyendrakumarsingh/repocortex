@@ -1,0 +1,48 @@
+-- 0013_compiler_resolution: let a compiler index answer "what does this name
+-- refer to", and keep the resolver's own answer when it does.
+--
+-- WHAT WAS WRONG. symbol_references.resolution is written by the heuristic
+-- resolver and by nothing else. Importing a SCIP index adds tens of thousands
+-- of compiler-proven facts about the very same source positions, and not one of
+-- them reached this column. On an 8,500-file repository 93,596 compiler edges
+-- carried an exact file:line while 324,342 references at those and other
+-- positions were still recorded 'unresolved' and 121,419 'ambiguous'. Every
+-- consumer that reads coverage — `callers`, `references`, the "N% of M
+-- references are bound" caveat, the MCP tools, the portal — was reporting what
+-- the RESOLVER could do, while describing it as what the INDEX knows.
+--
+-- WHY TWO COLUMNS, AND NOT JUST AN OVERWRITE. Same argument as
+-- 0012_resolver_claim, one table over. `cortex accuracy` explains a missed
+-- call site by reading this column: 'unresolved' means the resolver bound the
+-- reference to nothing, 'ambiguous' means it could not choose. Those are
+-- statements about the RESOLVER. Overwriting them with the compiler's verdict
+-- would make the report say the resolver succeeded wherever the compiler did,
+-- which is the same inversion 0012 exists to undo — and it would do it to the
+-- instrument this project reverts changes on.
+--
+--   prior_resolution  is what the resolver concluded, preserved verbatim the
+--                     first time something else overwrote it. Empty means
+--                     nothing ever did, so `resolution` IS the resolver's
+--                     answer. That covers every row written before this
+--                     migration.
+--
+--   resolution_source names who decided the CURRENT value: '' for the
+--                     heuristic resolver (or not yet decided), 'compiler' for
+--                     a SCIP import. Stored rather than inferred from
+--                     prior_resolution being non-empty, because that inference
+--                     is only sound while exactly one other producer exists,
+--                     and a provenance column that silently stops being true
+--                     when a second one appears is worse than none.
+--
+-- WHY A READER NEEDS THE SOURCE AT ALL. 'resolved' is shown to people who are
+-- deciding whether to trust an empty `callers` result. "Bound by a typechecker"
+-- and "bound by name matching plus an import heuristic" are different claims
+-- with different failure modes, and the whole confidence system exists because
+-- this product refuses to present the second as the first.
+--
+-- NOT BACK-FILLED, for 0008's and 0012's reason: stamping existing rows with a
+-- source they never recorded asserts something false about all of them, and
+-- reads identically to a row that genuinely made the claim.
+
+ALTER TABLE symbol_references ADD COLUMN resolution_source TEXT NOT NULL DEFAULT '';
+ALTER TABLE symbol_references ADD COLUMN prior_resolution  TEXT NOT NULL DEFAULT '';

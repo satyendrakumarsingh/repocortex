@@ -1,0 +1,74 @@
+# Retrieval benchmark against RepoCortex's own source.
+#
+# WHY A SECOND BENCH SET EXISTS. payment.yml holds 3 cases over a 9-file
+# fixture. It scores 3/3 at 100% recall, and that number is close to
+# meaningless: a set that small cannot detect a regression, and every case was
+# written against code shaped to suit it. A benchmark you cannot fail is a
+# benchmark that proves nothing.
+#
+# This set runs against a real 400+ file Go repository — this one — where the
+# vocabulary is uneven, names collide, and the task descriptions below were
+# written the way a person actually asks, not the way the code is spelled.
+#
+# The `forbid` lists are the point. Recall alone is trivially gamed by returning
+# the whole repository, so each case names something that shares vocabulary with
+# the task and is genuinely irrelevant to it. Those are the entries that fail
+# when ranking regresses.
+#
+# Run with:  cortex index && cortex resolve && cortex bench fixtures/bench/self.yml
+#
+# NOTE: run this against an index of THIS repository. Running it against another
+# project's index reports failures that are only a missing corpus — the stale
+# index this was first measured against reported 1/3 for exactly that reason.
+
+- id: confidence-floor-on-impact
+  task: stop the blast radius expanding through unreliable edges
+  # Deliberately says neither "confidence" nor "impact" the way the code spells
+  # them: "unreliable edges" is the user's vocabulary, not the codebase's.
+  # The expectation grammar is: exact symbol name, exact FQN, or a path suffix
+  # at a segment boundary (a trailing slash means directory). Bare package
+  # names like "impact" match NONE of those — my first draft used them and
+  # scored 0/5 against a working engine, which is a benchmark bug, not a
+  # retrieval finding.
+  expect:
+    - DefaultMinConfidence
+    - internal/capability/impact/
+  forbid:
+    - internal/trace/
+  max_tokens: 12000
+
+- id: what-runs-the-index-twice
+  task: why does indexing the same code twice produce different results
+  # The determinism digest and the two-phase swap. A reader asking this has a
+  # symptom, not a subsystem.
+  expect:
+    - RegistryDigest
+  forbid:
+    - internal/bench/
+  max_tokens: 12000
+
+- id: secret-redaction
+  task: make sure we never print a password from a config file
+  expect:
+    - Redact
+  forbid:
+    - internal/graph/
+  max_tokens: 12000
+
+- id: empty-answer-is-not-absence
+  task: a query returned nothing and I need to know whether that means the code is unused
+  # The coverage caveat and the explained-absence path. Vocabulary mismatch is
+  # total: the code says "resolution", the question says "unused".
+  expect:
+    - ResolutionStats
+  forbid:
+    - internal/watch/
+  max_tokens: 12000
+
+- id: which-tests-cover-a-change
+  task: find the tests that exercise a function I am about to change
+  expect:
+    - FindTests
+  forbid:
+    - internal/analyze/config/
+  max_tokens: 12000

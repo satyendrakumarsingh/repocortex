@@ -1,0 +1,71 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  enable:
+    - errcheck        # unchecked errors hide failures in an indexer
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - bodyclose
+    - errorlint       # %w wrapping, so callers can errors.Is/As
+    - gosec
+    - misspell
+    - nilerr
+    - unconvert
+    - copyloopvar
+
+  settings:
+    gosec:
+      excludes:
+        # Subprocess execution is a core feature (SCIP indexer orchestration).
+        # It is governed by the trust model in internal/config, which is
+        # enforced by tests, not by suppressing the linter everywhere.
+        - G204
+    errcheck:
+      # A failed write to a command's own stdout, or a deferred Close on a
+      # read path, is not actionable: there is nowhere to report it and no
+      # recovery. Excluding them here keeps the signal on errors that DO
+      # matter, rather than training everyone to skim past `_ =`.
+      exclude-functions:
+        - (*database/sql.Rows).Close
+        - (*database/sql.Stmt).Close
+        - (io.Closer).Close
+        - (*cortex/internal/store.DB).Close
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - fmt.Fprint
+
+  exclusions:
+    # fixtures/ is corpus, not code. Its Go files exist to be INDEXED — each
+    # reproduces a construct that broke the extractor — so "unused function" is
+    # the point of them, not a defect. Linting them would shape the fixture
+    # around the linter rather than around the bug it reproduces.
+    paths:
+      - fixtures/
+    rules:
+      # Tests legitimately ignore errors on cleanup paths and use weak
+      # randomness/hashes in fixtures.
+      - path: _test\.go
+        linters: [errcheck, gosec]
+      # A Git hook MUST be 0755 — Git silently skips a hook it cannot execute,
+      # and a hook that silently never runs is the failure `cortex hooks`
+      # exists to avoid. The paths are derived from the root the user named
+      # plus the repository's own local git config (core.hooksPath) and
+      # gitdir pointer — untracked local state a clone does not ship — never
+      # from tracked content. G301/G302/G306 are the permission rules; G304
+      # is "file read from a variable path"; G703 is the same taint pass
+      # reporting path traversal on that same repo-root-derived path (G703
+      # was observed on three consecutive runs by one machine and on none by
+      # another; gosec's taint pass is not deterministic between cache
+      # states).
+      - path: internal/cli/hooks\.go
+        linters: [gosec]
+        text: "G30[1246]|G703"
+
+formatters:
+  enable:
+    - gofmt

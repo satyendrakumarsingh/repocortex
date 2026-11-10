@@ -1,0 +1,50 @@
+name: CodeQL
+
+# Separate from ci.yml deliberately. CodeQL builds the whole module under its
+# own extractor and takes minutes; folding it into the per-push test job would
+# slow down the gate developers actually wait on. Weekly plus PR is enough for
+# a static analyser whose ruleset changes upstream, not with our commits.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "0 4 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: analyze (go)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version: "1.25.13"
+          cache: true
+
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: go
+          queries: security-and-quality
+
+      # CGO_ENABLED=0 so the extractor compiles the same code users run.
+      # The cgo parser backend is behind a build tag and is analysed by its
+      # own workflow's tests, not here.
+      - name: build
+        env:
+          CGO_ENABLED: "0"
+        run: go build ./...
+
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:go"

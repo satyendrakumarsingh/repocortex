@@ -1,0 +1,71 @@
+# Binaries and build artifacts
+/cortex
+/dist/
+/bin/
+*.exe
+*.test
+*.out
+*.dylib
+*.so
+*.dll
+
+# Index artifacts — never commit a registry or local graph databases
+.cortex/
+*.scip
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# Go artifacts
+/vendor/
+coverage.out
+coverage.html
+*.prof
+*.pprof
+
+# IDEs, Editors & Operating Systems
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+*.bak
+
+# AI agent local workspaces, tool caches & scratch directories
+.claude/
+.cursor/
+.gemini/
+.superpowers/
+.copilot/
+scratch/
+tmp/
+cortex-out/
+*.log
+
+# Sensitive environment and key files
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.cert
+
+# Playwright deps for the portal e2e suite
+internal/web/e2e/node_modules/
+internal/web/e2e/test-results/
+
+# Machine-local e2e fixtures: real repositories on one disk, never public
+internal/web/e2e/support/local-fixtures.mjs
+
+# Maintainer records: audits, plans, research and the UI preview mock name
+# machines and repositories that are not public. Kept on disk, never published.
+docs/internal/

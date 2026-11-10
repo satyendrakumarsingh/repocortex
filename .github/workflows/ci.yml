@@ -1,0 +1,716 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    # Release builds are gated on a tag, so tag pushes must reach this
+    # workflow at all. Without this the release job below could never fire.
+    tags: ["v*"]
+  pull_request:
+  # Nightly, for the slow gates that cannot block a PR.
+  schedule:
+    - cron: "0 3 * * *"
+  # Lets a maintainer run the slow gates on demand.
+  workflow_dispatch:
+    inputs:
+      run_fuzz:
+        description: "Run the fuzzing gate"
+        type: boolean
+        default: false
+      run_perf:
+        description: "Run the latency gates"
+        type: boolean
+        default: false
+      run_soak:
+        description: "Run the soak gate"
+        type: boolean
+        default: false
+      run_real_corpus:
+        description: "Run the corpus gate against real repositories"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# A force-push to a PR should not leave the previous run burning a Windows
+# runner for ten more minutes. main and tags are never cancelled: those runs
+# are the record of what was actually verified.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # Pinned to a PATCHED release, not the "1.25" line. govulncheck found 28
+  # standard-library vulnerabilities on go1.25.0; the fixes landed in 1.25.3+.
+  # A floating minor version would have quietly reintroduced them.
+  GO_VERSION: "1.25.13"
+  # Pinned deliberately. `version: latest` is not reproducible — a golangci-lint
+  # release can turn a green main red without a commit — and on this repo it was
+  # actively wrong: golangci-lint-action@v6 resolves "latest" through the v1
+  # manifest and installs v1.64.8, which cannot read a `version: "2"` config.
+  GOLANGCI_LINT_VERSION: "v2.12.2"
+
+jobs:
+  # Tier 1 — every commit. Must stay fast.
+  lint:
+    name: format / vet / lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with: { go-version: "${{ env.GO_VERSION }}", cache: true }
+
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "::error::gofmt required for:"; echo "$unformatted"; exit 1
+          fi
+
+      - run: go vet ./...
+
+      # The `soak` build tag hides four test files from every default vet and
+      # build in this workflow, so nothing here has ever compiled them. Without
+      # this step the first sign that they no longer build is the nightly soak
+      # job failing at 3am, days after the commit that broke it. (The other
+      # tagged build, cgo_parser, needs a C toolchain and is vetted in
+      # cgo-backend.yml instead.)
+      - name: vet the tagged builds
+        # Tagged code is compiled by nothing in the default build, so without
+        # this it rots silently until someone runs it months later.
+        run: |
+          go vet -tags soak ./tests/soak/...
+          go vet -tags perf ./internal/context/...
+
+      # golangci-lint-action v6 CANNOT run this repo. `.golangci.yml` is
+      # `version: "2"`, and v6 only ever installs golangci-lint v1 — it resolves
+      # `version: latest` through golangci-lint's v1 manifest, which currently
+      # pins v1.64.8. v1 rejects a v2 config outright:
+      #
+      #   Error: you are using a configuration file for golangci-lint v2 with
+      #   golangci-lint v1: please use golangci-lint v2
+      #
+      # v7 was the first major to support v2; v9 is the current one and the only
+      # one on the node24 runtime that GitHub has not deprecated.
+      - uses: golangci/golangci-lint-action@v9
+        with: { version: "${{ env.GOLANGCI_LINT_VERSION }}" }
+
+      - name: go.mod is tidy
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod go.sum
+
+      # THIRD_PARTY.md is generated from the module graph, not written by
+      # hand — a hand-maintained list is wrong within a month and nobody
+      # notices, because nothing checks it. `--check` is the form CI runs;
+      # it fails the build the moment the committed file and the graph
+      # disagree, the same discipline applied to the byte-reproducible
+      # generated docs below.
+      - name: the dependency inventory is current
+        run: go run ./cmd/cortex licenses --check
+
+  # Tier 2 — every PR, on every platform RepoCortex ships to.
+  #
+  # The matrix is not ceremony. The FTS5 guarantee test verifies an
+  # UNDOCUMENTED property of modernc.org/sqlite, and its codegen flags are
+  # per-platform. Verifying only on Linux would leave Windows users to
+  # discover a broken search layer themselves.
+  #
+  # WHAT WINDOWS DOES NOT ACTUALLY COVER
+  #
+  # The suite runs green on windows-latest, but three groups of tests reduce
+  # themselves to skips there, and it is worth knowing which:
+  #
+  #   * every os.Symlink call site (internal/security/paths_test.go,
+  #     internal/acquire/fs/walk_test.go, internal/indexer/detect_test.go)
+  #     either checks runtime.GOOS or t.Skipf's on the symlink error, because
+  #     creating a symlink on Windows needs SeCreateSymbolicLinkPrivilege. The
+  #     symlink-escape containment checks are therefore proven on Linux and
+  #     macOS only.
+  #   * TestMarkerFilesAreNeverRead skips explicitly: chmod 0o000 does not deny
+  #     reads on Windows, it only toggles the read-only bit.
+  #   * TestValidatePathSymlinkedRoot's /tmp variant skips where /tmp is not a
+  #     symlink.
+  #
+  # That is the right design — those are genuine platform differences, not
+  # bugs — but "green on Windows" means less than it looks like, and nobody
+  # should read this matrix as proof the containment logic was exercised there.
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    # -timeout below is per test binary; this bounds the job as a whole so a
+    # wedged watcher cannot hold a runner for six hours. The measured whole-suite
+    # -race wall time is ~10m on a fast 12-core machine, so 60 leaves room for a
+    # slower runner without leaving a hung job to burn the full six hours.
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with: { go-version: "${{ env.GO_VERSION }}", cache: true }
+
+      # -race needs a C toolchain on every supported platform. The runner
+      # images ship one, but when that changes the failure is otherwise a
+      # baffling link error thousands of lines into the log.
+      - name: race detector prerequisites
+        shell: bash
+        run: |
+          echo "CGO_ENABLED=$(go env CGO_ENABLED)  CC=$(go env CC)"
+          cc=$(go env CC)
+          if ! command -v "$cc" >/dev/null 2>&1; then
+            echo "::error::race detector needs a C compiler and $cc is not on PATH"
+            exit 1
+          fi
+          "$cc" --version | head -1
+
+      - name: build
+        run: go build ./...
+
+      # -timeout is PER TEST BINARY, not for the job, so this is really "the
+      # budget for the slowest single package". That package is
+      # internal/context, and it was measured, not guessed:
+      #
+      #   whole suite, -race, 12-core macOS:      9m47s wall
+      #   internal/context alone, -race:          578s  (9m38s)
+      #
+      # 578s against the old `-timeout 10m` is 22 seconds of headroom on a fast
+      # developer machine. A 4-core GitHub runner is materially slower than
+      # that, so the old value was not "tight" — it was already past the point
+      # where the first real push would have been a coin flip, and the failure
+      # mode is a panic dump rather than anything that names the true cause.
+      # 20m restores real margin; timeout-minutes above bounds the job.
+      #
+      # NOTE: internal/context is that slow because it now contains a wall-clock
+      # p95 latency assertion over a 94k-symbol catalogue. A perf threshold on a
+      # shared, noisy-neighbour CI runner will eventually fail for reasons that
+      # have nothing to do with the commit under test; consider a benchmark plus
+      # a tracked baseline rather than a hard gate in the PR path.
+      - name: unit + integration tests (race detector)
+        run: go test -race -timeout 20m ./...
+
+      - name: FTS5 dependency guarantee
+        run: go test -race -v -run 'TestFTS5' ./tests/integration/...
+
+      # The loop, run against this repository. `compile` states what a task is
+      # and `verify` checks a change against it — so this proves both halves
+      # work end to end on a real index, not only against fixtures. A break here
+      # means the two commands agree in unit tests and disagree in practice,
+      # which is precisely the failure a fixture cannot catch.
+      - name: compile → verify closes on this repository
+        run: |
+          set -euo pipefail
+          go build -o /tmp/cortex ./cmd/cortex
+          /tmp/cortex index
+          /tmp/cortex resolve
+          /tmp/cortex compile "Add a confidence floor to impact traversal" --json > /tmp/contract.json
+          test -s /tmp/contract.json
+          # Exit 0 (pass or advisory) or 1 (a fact) are both real answers. Exit 2
+          # is 'unverified' — nothing to check against — and that must never
+          # happen on a repository that just compiled a contract successfully.
+          set +e
+          /tmp/cortex verify --contract /tmp/contract.json \
+            --changed internal/capability/impact/impact.go
+          code=$?
+          set -e
+          if [ "$code" -ge 2 ]; then
+            echo "verify exited $code: it had nothing to check against, which means the contract carried no scope, no rules and no blast radius"
+            exit 1
+          fi
+
+      # Retrieval measured against THIS repository, not only the 9-file fixture.
+      # payment.yml scores 3/3 at 100% and cannot detect a regression; self.yml
+      # asks vocabulary-mismatched questions of 400+ real files and currently
+      # scores 1/5. It is recorded here WITHOUT --fail-on-regression on purpose:
+      # the number is a known-bad baseline being tracked, and turning a failing
+      # benchmark into a red build teaches everyone to ignore it. Make it a gate
+      # when it is green.
+      - name: retrieval benchmark on this repository (tracked, not gating)
+        run: |
+          set -euo pipefail
+          /tmp/cortex bench fixtures/bench/self.yml || true
+          echo "Above is tracked, not gating. See docs/NON-GOALS.md for why it fails."
+
+      # The fixture benchmark IS a gate: it is small, it is green, and a
+      # regression in it means the context engine broke.
+      - name: retrieval benchmark on the bundled fixture (gating)
+        run: |
+          set -euo pipefail
+          cd fixtures/payment-platform
+          /tmp/cortex init && /tmp/cortex index && /tmp/cortex resolve
+          /tmp/cortex bench ../../fixtures/bench/payment.yml --fail-on-regression
+
+      # The accuracy report took twenty minutes on a 91,548-symbol repository
+      # before migration 0011 and the join inversion; it takes seconds now.
+      #
+      # A wall-clock budget on THIS repository would be a gate that cannot fail
+      # — 425 files were fast under the slow query too, which is exactly why the
+      # regression survived. The real guard is TestAccuracyQueryUsesItsIndexes
+      # and TestAccuracyQueryDoesNotNestLoopTheBigSide in internal/cli, which
+      # assert the query PLAN and so fail at any corpus size.
+      #
+      # This step is the end-to-end companion: it proves the command still runs
+      # and still reports, and the timing is recorded rather than asserted,
+      # because the honest budget for a 425-file repo tells you nothing about a
+      # 90,000-symbol one.
+      - name: accuracy report runs end to end
+        run: |
+          set -euo pipefail
+          start=$(date +%s)
+          /tmp/cortex accuracy > /tmp/accuracy.txt 2>&1 || {
+            echo "accuracy failed:"; cat /tmp/accuracy.txt; exit 1; }
+          echo "elapsed: $(( $(date +%s) - start ))s on $(wc -l < /tmp/accuracy.txt) lines of report"
+          # It must REFUSE to report rather than invent a number when no
+          # compiler index is present — CI has no SCIP import, so this is the
+          # not-measured path, and it is the one a first-time user hits.
+          grep -q "NOT MEASURED\|Not measured" /tmp/accuracy.txt || {
+            echo "accuracy reported figures with no compiler facts imported"; exit 1; }
+
+      # Generated documentation must be byte-reproducible, because that property
+      # is the whole reason it is committable: if the same index regenerated a
+      # different document, its diff would be noise and nobody would review it.
+      #
+      # Deliberately NOT `docs --check` against a copy committed in this
+      # repository. This document reports symbol and edge counts for the tree it
+      # describes, so every commit would legitimately move it, and a gate that
+      # fails on every commit is one people learn to ignore. `--check` is the
+      # right gate for a USER's repository, where the committed document is the
+      # artifact under review; here the claim under test is determinism.
+      - name: generated documentation is byte-reproducible
+        run: |
+          set -euo pipefail
+          /tmp/cortex docs --out /tmp/docs-a
+          /tmp/cortex docs --out /tmp/docs-b
+          diff -u /tmp/docs-a/ARCHITECTURE.md /tmp/docs-b/ARCHITECTURE.md
+          diff -u /tmp/docs-a/CAPABILITIES.md /tmp/docs-b/CAPABILITIES.md
+          # And it must survive a re-index: same tree, new run, same document.
+          /tmp/cortex index
+          /tmp/cortex resolve
+          /tmp/cortex docs --out /tmp/docs-c
+          diff -u /tmp/docs-a/ARCHITECTURE.md /tmp/docs-c/ARCHITECTURE.md
+
+  # Tier 2 — the portal, driven by a browser against the fixture that ships
+  # with the repository. Every screen the portal has is asserted here; before
+  # this job the 14,000 lines of Go and 10,000 of JS behind `cortex ui` had
+  # no automated coverage anywhere a pull request could see.
+  portal-e2e:
+    name: portal e2e (ci fixture)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [lint]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with: { go-version: "${{ env.GO_VERSION }}", cache: true }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: internal/web/e2e/package-lock.json
+      - name: install the suite
+        run: npm --prefix internal/web/e2e ci
+      - name: install the browser
+        run: cd internal/web/e2e && npx playwright install --with-deps chromium
+      - name: run the ci tier
+        env:
+          CORTEX_E2E_TIER: ci
+        run: npm --prefix internal/web/e2e test
+      - name: keep the traces of anything that failed
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: portal-e2e-traces
+          path: |
+            internal/web/e2e/test-results/
+            internal/web/e2e/results.json
+          if-no-files-found: ignore
+
+  # Proves the zero-CGO promise: if this fails, `go install` is broken for
+  # users without a C toolchain, and cross-compilation stops working.
+  cgo-free:
+    name: builds without CGO
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with: { go-version: "${{ env.GO_VERSION }}", cache: true }
+
+      - name: build all release targets from one runner
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          set -euo pipefail
+          for target in darwin/amd64 darwin/arm64 linux/amd64 linux/arm64 windows/amd64; do
+            os="${target%/*}"; arch="${target#*/}"
+            echo "--- $os/$arch"
+            GOOS="$os" GOARCH="$arch" go build -o /dev/null ./cmd/cortex
+          done
+
+      - name: tests pass with CGO disabled
+        env:
+          CGO_ENABLED: "0"
+        run: go test -timeout 15m ./...
+
+  # Security-relevant gates, separated so a failure here is unmistakable.
+  security:
+    name: security gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with: { go-version: "${{ env.GO_VERSION }}", cache: true }
+
+      # ./internal/config/... covers TestRepoCannotSetExecutionSettings and
+      # TestRepoCannotDisableRedaction. internal/indexer holds two more of the
+      # same family — TestRepoCannotInfluenceThePlan and
+      # ...InfluenceWhatIsExecuted — and they were not being run by this job at
+      # all, so a regression in the strongest part of the trust boundary would
+      # only ever have surfaced in the generic test matrix.
+      - name: repo config cannot grant execution
+        run: go test -race -v -run 'TestRepoCannot' ./internal/config/... ./internal/indexer/...
+
+      - name: graph invariant gates fail on corruption
+        run: go test -race -v -run 'TestDoctorDetects' ./internal/cli/...
+
+      # Likewise missing: the redaction gates are the reason RepoCortex may be
+      # pointed at a private repository, and nothing in this job ran them.
+      # Matches TestSecretsNeverEnterTheIndex, TestSecretsNeverReachAnAgent and
+      # TestRedactionDoesNotDestroyOrdinaryCode — the last one matters as much
+      # as the other two, since a redactor that eats ordinary code gets turned
+      # off by the first person it inconveniences.
+      - name: secrets never leave the repository
+        run: go test -race -v -run 'TestSecrets|TestRedaction' ./tests/integration/...
+
+      # The whole package, not a -run pattern: its tests are named for what
+      # they check (TestRedactIsIdempotent, TestValidatePathRejectsSymlinkEscape,
+      # TestEntropyNeverFiresAlone) rather than for a common prefix, so any
+      # pattern narrow enough to look tidy silently drops half of them.
+      - name: redaction and path-containment engine
+        run: go test -race ./internal/security/...
+
+      - uses: golang/govulncheck-action@v1
+        with:
+          # The action sets up its own Go and defaults to "stable". Scanning
+          # with a different toolchain than the one CI builds with reports
+          # standard-library vulnerabilities for a release nobody ships.
+          go-version-input: "${{ env.GO_VERSION }}"
+          check-latest: false
+
+  # Tier 3 — nightly. Too slow to gate every PR.
+  # Tier 1 — every PR. The regression corpus in fixtures/corpus reproduces the
+  # constructs that have actually broken this tool on real repositories: a Vue
+  # single-file component, a decorated Python function, a Tailwind class that
+  # parses as SQL, a TypeScript line declaring two things with one name, a Go
+  # blank identifier, a config key inside a comment.
+  #
+  # It runs as part of `go test ./...` too. It gets its own job so that a
+  # failure names itself in the checks list rather than hiding inside a package
+  # that has two hundred other tests.
+  corpus:
+    name: corpus gate (regression shapes)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with: { go-version: "${{ env.GO_VERSION }}", cache: true }
+      - name: index the regression corpus and assert its invariants
+        run: go test -count=1 -run 'TestCorpus' -v ./internal/cli/
+
+  # Tier 3 — nightly. Real repositories, pinned to exact revisions.
+  #
+  # This job exists because every serious defect this tool has had was found by
+  # pointing it at real code, and none of them would have been predicted. The
+  # fixture above can only catch a shape somebody has already been bitten by;
+  # this catches the next one.
+  #
+  # Pinned SHAs, not branches: a gate whose corpus moves underneath it reports
+  # failures nobody changed anything to cause, and gets muted within a month.
+  # Update the pins deliberately, and treat what breaks as the finding.
+  real-corpus:
+    name: corpus gate (real repositories)
+    if: github.event_name == 'schedule' || inputs.run_real_corpus
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: prometheus, url: "https://github.com/prometheus/prometheus.git", sha: "5e5b11dcff2fb914acfa1d312c226b0dcf5b9587", language: go }
+          - { name: nest, url: "https://github.com/nestjs/nest.git", sha: "82cab543f85a7726b6cf8f23a1e4770fa7ed6034", language: typescript }
+          - { name: commons-lang, url: "https://github.com/apache/commons-lang.git", sha: "e66ad3dd2e8538e24940d97179c960a60dd25495", language: java }
+          - { name: scrapy, url: "https://github.com/scrapy/scrapy.git", sha: "c7eacdbb30a4563bbbe04ed02781768f4e19eabb", language: python }
+    steps:
+      - uses: actions/checkout@v7
+        with: { path: cortex }
+      - uses: actions/setup-go@v7
+        with: { go-version: "${{ env.GO_VERSION }}", cache: true }
+
+      - name: build
+        working-directory: cortex
+        run: CGO_ENABLED=0 go build -o "$RUNNER_TEMP/cortex" ./cmd/cortex
+
+      - name: fetch ${{ matrix.name }} at its pinned revision
+        run: |
+          git init --quiet corpus
+          cd corpus
+          git remote add origin "${{ matrix.url }}"
+          git fetch --quiet --depth 1 origin "${{ matrix.sha }}"
+          git checkout --quiet FETCH_HEAD
+
+      - name: index and resolve
+        working-directory: corpus
+        run: |
+          "$RUNNER_TEMP/cortex" init
+          "$RUNNER_TEMP/cortex" index
+          "$RUNNER_TEMP/cortex" resolve
+
+      # The assertions. Indexing "not crashing" is the weakest possible claim,
+      # so each of these is a property that has been violated at least once.
+      - name: assert the run committed something
+        working-directory: corpus
+        run: |
+          status=$("$RUNNER_TEMP/cortex" status)
+          echo "$status"
+          echo "$status" | grep -qE "Index: +(READY|DEGRADED)" || {
+            echo "::error::indexing left no committed revision"; exit 1; }
+
+      - name: assert graph invariants hold
+        working-directory: corpus
+        run: |
+          # doctor exits non-zero when any invariant fails, and prints the
+          # location, the consequence and the remedy for each.
+          "$RUNNER_TEMP/cortex" doctor --verify-index
+
+      - name: assert no file defeated the indexer
+        working-directory: corpus
+        run: |
+          failed=$("$RUNNER_TEMP/cortex" status --json | grep -o '"parse_failures":[0-9]*' | cut -d: -f2)
+          echo "files that failed to parse or persist: ${failed:-0}"
+          # A parse failure is normal data on a large tree; a large one is not.
+          # The number that must stay at zero is enforced by doctor above.
+
+      - name: assert indexing is deterministic
+        working-directory: corpus
+        run: |
+          a=$("$RUNNER_TEMP/cortex" index --full --digest --json | grep -o '"registry_digest": *"[^"]*"')
+          b=$("$RUNNER_TEMP/cortex" index --full --digest --json | grep -o '"registry_digest": *"[^"]*"')
+          echo "$a"; echo "$b"
+          [ "$a" = "$b" ] || { echo "::error::two indexes of the same tree disagree"; exit 1; }
+
+  fuzz:
+    name: fuzz parsers
+    # Triggered nightly or on demand. Deliberately NOT keyed off commit
+    # message text: that is attacker-influenced input on a fork PR, and
+    # keeping it out of workflow expressions removes the question entirely.
+    if: github.event_name == 'schedule' || inputs.run_fuzz
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with: { go-version: "${{ env.GO_VERSION }}", cache: true }
+      - name: fuzz identifier splitter
+        run: go test -run=NONE -fuzz=FuzzSplitIdentifier -fuzztime=5m ./internal/search/
+
+  # Tier 3 — nightly. The endurance suite lives behind the `soak` build tag, so
+  # `go test ./...` cannot see it (verified: `go list ./tests/soak` reports zero
+  # test files without the tag, four with it). That exclusion is the whole point
+  # of the tag, and it also means nothing ever compiled or ran this code in CI.
+  # This job is what makes the tag a deferral rather than a deletion.
+  soak:
+    name: soak (endurance)
+    if: github.event_name == 'schedule' || inputs.run_soak
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with: { go-version: "${{ env.GO_VERSION }}", cache: true }
+
+      - name: the soak tag really does hide these from the default run
+        run: |
+          set -euo pipefail
+          untagged=$(go list -f '{{ len .TestGoFiles }}' ./tests/soak/)
+          tagged=$(go list -tags soak -f '{{ len .TestGoFiles }}' ./tests/soak/)
+          echo "test files: untagged=$untagged tagged=$tagged"
+          if [ "$untagged" != "0" ] || [ "$tagged" = "0" ]; then
+            echo "::error::the soak build tag is not doing its job"
+            exit 1
+          fi
+
+      # -soak.duration is the budget for EACH test, not for the suite — see
+      # tests/soak/doc.go. There are four of them, so 20m meant a floor of 80
+      # minutes against a 45m -timeout: the job could never finish, and would
+      # have died mid-third-test with a goroutine dump naming nothing near the
+      # cause. 8m x 4 = 32m fits inside both the -timeout and timeout-minutes
+      # above, with room for the runner being slower than a developer machine.
+      #
+      # If a longer soak is ever wanted, BOTH bounds have to move with it.
+      - name: endurance suite
+        run: go test -tags soak -race -timeout 45m ./tests/soak/... -soak.duration=8m
+
+  # Builds the artifacts a tag promises. It publishes nothing: the binaries and
+  # their checksums are uploaded to the run, and releasing them stays a
+  # deliberate human step.
+  # Nightly. A wall-clock threshold does not belong on the push path: on a
+  # shared runner it eventually fails for reasons unrelated to the commit, and
+  # a gate that cries wolf gets switched off. Building a 94,000-symbol registry
+  # also took internal/context from 26s to 578s under -race, a cost every
+  # unrelated pull request would have paid.
+  perf:
+    name: latency gates
+    if: github.event_name == 'schedule' || inputs.run_perf
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with: { go-version: "${{ env.GO_VERSION }}", cache: true }
+      # No -race: the detector costs 5-20x here, so a latency budget asserted
+      # against instrumented code measures the detector, not the product.
+      - name: context assembly latency at 94k symbols
+        run: go test -tags perf -timeout 25m -v -run 'TestP95|TestCatalogueCacheRemoves' ./internal/context/
+
+  release:
+    name: release artifacts
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [lint, test, cgo-free, security, portal-e2e]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Least privilege for the three things this job actually does:
+    #   contents: write      - create the GitHub Release and attach assets
+    #   id-token: write      - mint the OIDC token the attestation is signed with
+    #   attestations: write  - store the resulting provenance attestation
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with: { go-version: "${{ env.GO_VERSION }}", cache: true }
+
+      # CGO_ENABLED=0 is not an optimisation here, it is the product promise:
+      # every published binary is the one the cgo-free job proved buildable.
+      - name: build, archive and checksum every target
+        env:
+          CGO_ENABLED: "0"
+          VERSION: ${{ github.ref_name }}
+          COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          build_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          # The module is github.com/satyendrakumarsingh/repocortex, not
+          # cortex. -X silently no-ops on a path that matches no symbol -
+          # the build still succeeds and every binary reports "dev". Always
+          # use the fully-qualified path here.
+          pkg="github.com/satyendrakumarsingh/repocortex/internal/cli"
+          ldflags="-s -w"
+          ldflags="$ldflags -X ${pkg}.Version=$VERSION"
+          ldflags="$ldflags -X ${pkg}.Commit=$COMMIT"
+          ldflags="$ldflags -X ${pkg}.BuildTime=$build_time"
+
+          mkdir -p dist
+          for target in darwin/amd64 darwin/arm64 linux/amd64 linux/arm64 windows/amd64; do
+            os="${target%/*}"; arch="${target#*/}"
+            stage="dist/cortex_${VERSION}_${os}_${arch}"
+            bin="cortex"
+            if [ "$os" = "windows" ]; then bin="cortex.exe"; fi
+
+            echo "--- $os/$arch"
+            mkdir -p "$stage"
+            GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags "$ldflags" \
+              -o "$stage/$bin" ./cmd/cortex
+            cp LICENSE NOTICE README.md "$stage/"
+
+            base=$(basename "$stage")
+            if [ "$os" = "windows" ]; then
+              (cd dist && zip -qr "$base.zip" "$base")
+            else
+              tar -czf "dist/$base.tar.gz" -C dist "$base"
+            fi
+            rm -rf "$stage"
+          done
+
+          (cd dist && sha256sum ./*.tar.gz ./*.zip > SHA256SUMS)
+          cat dist/SHA256SUMS
+
+      # -ldflags only works if the symbol paths are right, and a typo there is
+      # silent: the build succeeds and ships "dev". Running the binary is the
+      # only way to know the stamping actually took. This lives in
+      # script/verify-stamp.sh, not inline here, so a developer can run the
+      # identical check locally before ever pushing a tag.
+      - name: the version stamp actually landed
+        run: ./script/verify-stamp.sh "${{ github.ref_name }}"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: cortex-${{ github.ref_name }}
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/SHA256SUMS
+          if-no-files-found: error
+
+      # SBOM must exist before the publish step so it can be uploaded as one of
+      # the release assets below, alongside the archives and checksums.
+      - name: generate an SBOM for the source tree
+        uses: anchore/sbom-action@v0
+        with:
+          path: .
+          format: spdx-json
+          output-file: dist/cortex_${{ github.ref_name }}_sbom.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+
+      # gh release create is the step this whole job existed for: everything
+      # above builds and verifies artifacts that, until now, nothing ever
+      # published. Without this, no tag has ever produced a downloadable
+      # release - the job succeeded and quietly stopped.
+      #
+      # This is idempotent on purpose: `gh release create` errors if a release
+      # for the tag already exists, so a bare create would go permanently red
+      # on any retry after a partial failure (network blip, runner eviction,
+      # a later step erroring) - defeating the point of this job, which is to
+      # make releases reliably producible. Checking for an existing release
+      # first and falling back to `upload --clobber` means a re-run after a
+      # partial failure finishes the job instead of failing forever. Do not
+      # "simplify" this back into a plain `gh release create`.
+      - name: publish the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          notes="Binaries are built with CGO_ENABLED=0 for all five targets. Verify with SHA256SUMS, and verify provenance with:
+
+          gh attestation verify <file> --repo ${{ github.repository }}"
+          if gh release view "${{ github.ref_name }}" >/dev/null 2>&1; then
+            gh release upload "${{ github.ref_name }}" \
+              dist/*.tar.gz dist/*.zip dist/SHA256SUMS dist/*_sbom.spdx.json --clobber
+          else
+            gh release create "${{ github.ref_name }}" \
+              --title "${{ github.ref_name }}" \
+              --notes "$notes" \
+              dist/*.tar.gz dist/*.zip dist/SHA256SUMS dist/*_sbom.spdx.json
+          fi
+
+      # Provenance must be attested for the exact bytes that were published,
+      # so this runs after the Release exists, not before the archives are
+      # built. Attesting an intermediate artefact would prove the wrong thing.
+      # The publish step above is idempotent (create-or-upload), so "after the
+      # release exists" is unambiguous here: this step runs after publish
+      # succeeds on every path, whether that run created the release or
+      # re-uploaded to one that already existed. The subject bytes on disk are
+      # the same dist/*.tar.gz and dist/*.zip either way, so attesting them
+      # here always matches what was just published.
+      - name: attest build provenance for the published archives
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: "dist/*.tar.gz, dist/*.zip, dist/*_sbom.spdx.json"

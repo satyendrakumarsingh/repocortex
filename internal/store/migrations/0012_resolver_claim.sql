@@ -1,0 +1,53 @@
+-- 0012_resolver_claim: keep the resolver's own claim after the compiler
+-- overwrites it.
+--
+-- WHAT BROKE. UpgradeEdges replaces a weaker edge IN PLACE — the edges table's
+-- UNIQUE key spans (run, src, dst, kind, evidence_file, evidence_line) and NOT
+-- confidence, so the compiler's version of a relationship the resolver already
+-- found collides with it and the row's confidence, source and detail are
+-- rewritten. That is the right behaviour for the graph: one relationship, one
+-- row, at the best evidence available.
+--
+-- It is the wrong behaviour for MEASUREMENT, and until CALLS edges could be
+-- promoted from a SCIP index nobody noticed, because SCIP never produced a
+-- CALLS edge and so no CALLS row was ever upgraded. Now they are, and
+-- `cortex accuracy` reads the resolver's output as
+-- `source = 'source_code' AND kind = 'CALLS'`. Every call the resolver got
+-- RIGHT is exactly the call the compiler confirms, so every hit was rewritten
+-- to source='compiler' and vanished from the report — while every call it got
+-- WRONG collided with nothing, survived untouched, and stayed. Measured on an
+-- 8,500-file repository the same resolver scored 51.2% recall before an import
+-- and 0.5% after it. The report did not degrade gracefully; it inverted,
+-- keeping the failures and discarding the successes.
+--
+-- That is worse than no report. Nine changes in this project have been reverted
+-- on this instrument's evidence, and an instrument that reads best when the
+-- graph is worst would have justified reverting all of them.
+--
+-- WHAT THESE COLUMNS HOLD. The (confidence, source) pair the row carried
+-- immediately before the first upgrade that replaced it — the resolver's
+-- original claim, preserved verbatim. Empty means no upgrade has ever touched
+-- this row, which is true of every row written before this migration and of
+-- every row the compiler inserted outright.
+--
+-- WHY TWO COLUMNS AND NOT ONE. The tier alone cannot be read back safely: a
+-- 'high' edge from the heuristic resolver and a 'high' edge from the config
+-- analyser are different claims by different producers, and accuracy scores
+-- only the first. Storing the source beside the tier keeps the predicate that
+-- reads them identical in shape to the one that reads the live columns, which
+-- is the property that stops the two from drifting.
+--
+-- WHY NOT A SECOND ROW INSTEAD. Keeping the heuristic edge alongside the
+-- compiler's would make `cortex callers` show one call twice, once as a
+-- guess, and would double every count built on the graph. The measurement's
+-- need to see history must not become the graph's problem: history goes in
+-- columns nothing but the report reads.
+--
+-- WHY THE DEFAULT IS EMPTY AND NOT THE CURRENT VALUE. Same argument as
+-- 0008_producer_stamp: back-filling these from the live columns would assert
+-- that every existing row had been upgraded from itself, which is false and
+-- indistinguishable from a genuine record. Empty means "this row makes no claim
+-- about its history", which is exactly what is true of it.
+
+ALTER TABLE edges ADD COLUMN prior_confidence TEXT NOT NULL DEFAULT '';
+ALTER TABLE edges ADD COLUMN prior_source TEXT NOT NULL DEFAULT '';

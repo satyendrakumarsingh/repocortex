@@ -1,0 +1,42 @@
+-- 0010_arity: record how many parameters a definition declares and how many
+-- arguments a call site passes.
+--
+-- WHY THIS IS A SCHEMA CHANGE AND NOT A RESOLVER CHANGE
+--
+-- When several candidates share a name, the number of arguments at the call
+-- site is evidence about which one was meant, and it was evidence the database
+-- could not hold. `symbols` had a `signature` column that internal/parse never
+-- populated for code symbols, and `symbol_references` had no notion of an
+-- argument list at all. So the resolver's disambiguation tiers had to choose
+-- between `Save(id)` and `Save(ctx, id, opts)` on file position alone.
+--
+-- Two columns close that. Both are inputs to ranking, never filters — see A4 in
+-- internal/resolve/infer/resolver.go.
+--
+-- ============================================================================
+-- THE ENCODING IS OFFSET BY ONE, AND THAT IS LOAD-BEARING.
+-- ============================================================================
+--
+-- 0 means UNKNOWN. A count of n is stored as n+1.
+--
+-- The obvious schema — an INTEGER holding the count, defaulting to 0 — cannot
+-- express the difference between "this call passes no arguments" and "nobody
+-- worked out how many arguments this call passes". Those are opposite facts:
+-- the first is evidence that narrows candidates, the second is the absence of
+-- evidence, and conflating them would let every row that predates this
+-- migration, every SCIP-imported symbol, and every language with no arity query
+-- assert that it is niladic. That is precisely the class of mistake A18
+-- recorded — reading "the parser could not express it" as "the source did not
+-- write it" — and it broke every chained call in Go.
+--
+-- Offsetting by one makes the SQL default and the Go zero value both say
+-- "unknown", so a producer that has not been taught about arity is silent
+-- rather than wrong. pkg/model.Arity is the Go side of the same encoding;
+-- nothing else needs to know about the +1.
+--
+-- NOT NULL DEFAULT 0 rather than NULL, because SQLite's ALTER TABLE ADD COLUMN
+-- backfills a constant and every existing row genuinely is unknown.
+
+ALTER TABLE symbols ADD COLUMN param_count INTEGER NOT NULL DEFAULT 0;
+
+ALTER TABLE symbol_references ADD COLUMN arg_count INTEGER NOT NULL DEFAULT 0;

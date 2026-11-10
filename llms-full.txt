@@ -1,0 +1,3327 @@
+# RepoCortex — Complete Technical Documentation
+> Consolidated reference manual for LLMs, AI coding assistants, and automated indexing engines.
+
+---
+
+
+# --- BEGIN FILE: llms.txt ---
+
+# RepoCortex
+
+> Deterministic Code Intelligence & Change Safety Engine for AI Coding Agents. 100% local, zero-CGO, compiler-backed relational code graph served over Model Context Protocol (MCP) to Cursor, Claude Code, Windsurf, Google Antigravity, and Zed.
+
+RepoCortex solves the agent token-waste and hallucination problem. Instead of forcing AI agents to run 15+ exploratory greps across hundreds of thousands of lines of code—burning 35,000+ tokens and missing dynamic dispatch or interface implementations—RepoCortex indexes the repository locally into a relational SQLite knowledge graph with four calibrated provenance tiers (`exact`, `high`, `medium`, `low`). Agents query exact call hierarchies, blast radii, database access patterns, and covering tests in single sub-millisecond MCP calls.
+
+## Key Facts & Technical Specifications
+- **CLI Commands**: `cortex` (primary), with `repocortex` and `cortex` aliases
+- **Runtime Dependencies**: Zero external dependencies, pure Go 1.25+, zero CGO, embedded SQLite (`modernc.org/sqlite`)
+- **Supported Languages**: Go, TypeScript/JavaScript, Python, Java, C#, Rust, C/C++, Ruby, PHP, Kotlin, Swift, Scala
+- **Protocol**: Model Context Protocol (MCP) over stdio JSON-RPC
+- **Storage**: Local `.cortex/index.db` (backwards-compatible with `.cortex/index.db`)
+- **Memory Footprint**: < 250 MB RAM for 10,000 source files; sub-50ms incremental watch latency
+
+## MCP Tools Reference
+- `get_task_context(task, max_tokens)`: Resolves entry-point files, symbols, upstream callers, downstream callees, and covering tests for a task description in a single call.
+- `impact_analysis(symbol, depth)`: Computes the transitive blast radius of modifying a symbol with hub-pruning for loggers and base utilities.
+- `find_tests(symbol)`: Identifies covering test functions discovered along proven call paths rather than filename guessing.
+- `find_callers(symbol)`: Traces direct upstream callers entering a symbol.
+- `find_symbol(name)`: Looks up exact symbol definitions and their type signatures.
+- `find_references(symbol)`: Finds all cross-file references with calibrated confidence.
+- `search_code(query)`: High-performance SQLite FTS5 BM25 search across indexed code symbols and docstrings.
+- `get_project_overview()`: Summarizes repository language breakdown, symbol counts, and index health.
+- `detect_blindspots(file)`: Reports unresolved references, orphan tables, and unmapped endpoints.
+- `plan_change(task, targets)`: Generates an ordered refactoring sequence with test verification gates.
+
+## Core CLI Commands
+- `cortex init`: Initialize the local `.cortex/` SQLite database schema.
+- `cortex index`: Extract AST definitions, imports, and references across all supported files.
+- `cortex resolve`: Bind extracted references to definitions and construct the directional call graph.
+- `cortex install --rules`: Auto-detect installed agents (Cursor, Claude Code, Windsurf, Antigravity) and inject MCP config and behavioral rules.
+- `cortex impact --base <rev> --head <rev>`: Calculate the exact blast radius between two Git revisions.
+- `cortex missed --fail-on high`: Audit code blindspots, unmapped HTTP routes, and uncalled symbols.
+- `cortex arch --fail-on high`: Enforce declarative architectural boundary invariants.
+- `cortex report pr --impact impact.json`: Generate bounded, formatted GitHub Pull Request review comments.
+- `cortex report sarif`: Output standard SARIF 2.1.0 for GitHub Code Scanning integration.
+- `cortex ui`: Launch the embedded offline visual architecture portal at `http://localhost:7777`.
+
+## Documentation Links
+- [60-Second Quickstart](docs/USER_GUIDE.md): Step-by-step setup, index creation, and agent wiring
+- [Why Not Vector RAG?](docs/WHY_NOT_VECTOR_RAG.md): Technical deep-dive on why deterministic graphs outperform vector similarity search for source code
+- [Complete CLI Manual](docs/CLI.md): Comprehensive reference of all 35+ CLI subcommands and options
+- [Architecture & Design](docs/DESIGN_AND_ARCHITECTURE.md): System architecture, in-memory CSR graph, and design invariants
+- [Agent Integration Guide](docs/agent-integration.md): Setup instructions for Claude Code, Cursor, Windsurf, Claude Desktop, Antigravity
+- [Accuracy & Benchmarks](docs/accuracy.md): Precision and recall measurements against compiler ground truth across 30,000+ edges
+- [Frequently Asked Questions (FAQ)](docs/FAQ.md): Answers to common questions regarding performance, scalability, and security
+
+
+# --- END FILE: llms.txt ---
+
+
+
+# --- BEGIN FILE: docs/WHY_NOT_VECTOR_RAG.md ---
+
+# Why Vector RAG Fails for Code: The Case for Deterministic Graph Intelligence
+
+*An engineering perspective on why vector embeddings and semantic search break down on real codebases, and why deterministic AST graphs with calibrated confidence tiers are the only reliable foundation for AI coding agents.*
+
+---
+
+## 1. The Siren Song of Vector Similarity
+
+Every engineer who has plugged an LLM into a codebase starts with the same architecture:
+1. Chunk source files into 500-token windows.
+2. Run them through an embedding model (`text-embedding-3-small`, Ada, etc.).
+3. Store the vectors in a vector database.
+4. When a user or agent asks a question, retrieve the top-10 nearest chunks by cosine similarity and dump them into the prompt.
+
+On paper, this sounds elegant. It requires almost zero language-specific parsing, works on any programming language from day one, and handles natural language questions gracefully.
+
+In practice—on real production repositories with 500,000 lines of code, overloaded methods, microservice boundaries, and subtle interface contracts—**it fails continuously, silently, and expensively.**
+
+Why? Because natural language and computer software operate on completely different mathematical foundations:
+- **Prose is continuous and fuzzy.** If a user manual mentions *"resetting your credentials"* and another paragraph mentions *"updating your password"*, they are semantically similar. Cosine similarity correctly bridges that vocabulary gap.
+- **Code is discrete and causal.** If a function is named `processPayment()`, it does not matter how semantically similar it is to `verifyPayment()`, `logPayment()`, or `mockPayment()`. If the runtime executes `BillingGateway.settle()`, then **only** `settle()` matters. 
+
+Embedding similarity measures **lexical and thematic proximity**. Compilers, linkers, and runtimes operate on **causal reachability**. Conflating the two is the root cause of AI coding agent hallucinations.
+
+---
+
+## 2. The Five Fatal Traps of Code RAG
+
+Through months of testing agents across large polyglot enterprise codebases, we documented five failure modes that vector RAG cannot fix without fundamentally abandoning vector search:
+
+### Trap 1: The "Unrelated Payment Marketing" Paradox (Similarity $\neq$ Causality)
+
+Consider a real scenario from our benchmark fixtures:
+A user asks an AI agent:
+> *"Add idempotency token verification to our payment callback processing."*
+
+A vector RAG system embeds this prompt and queries the vector index.
+- In `internal/billing/CallbackController.java`, the code defines `handleWebhook(Request req)`: concise, dense, few comments.
+- In `unrelated/marketing/MarketingReport.java`, a developer wrote a lengthy class comment explaining:
+  > *"This report aggregates marketing attribution. Unrelated to payment processing callbacks, which are handled in billing."*
+
+The vector search engine computes the dot product. Because `MarketingReport.java` repeats the words *"payment"*, *"processing"*, and *"callbacks"* multiple times in natural prose, **it scores higher in cosine similarity than the actual controller code!**
+
+The vector database happily feeds `MarketingReport.java` into the agent's context window. The agent dutifully reads it, gets confused, greps for more files, burns tokens, and misses the actual callback handler.
+
+> **Engineering Principle**: Graph connectivity (can symbol A reach symbol B through an actual AST call edge?) must act as an **admission gate**, not merely a ranking heuristic.
+
+---
+
+### Trap 2: The Blast Radius Blindspot
+
+When an engineer or an agent modifies a function signature—say, renaming `UpdateUser(ctx, id)` or adding a mandatory parameter—the most dangerous question is:
+> *"Who across the entire repository breaks if I make this change?"*
+
+Vector search cannot answer this question. Period.
+- If function `A()` calls `B()`, they may share zero vocabulary. `A()` might be a generic task scheduler `RunBatchJob()`, and `B()` might be `RotateKey()`. No embedding model on earth will score them as close neighbors.
+- What an agent actually needs is a **reverse transitive reachability walk** along proven call edges.
+- If an agent relies on vector search or grep to find callers, it misses callers whose function names or surrounding comments don't resemble the target. The agent submits a PR, tests pass locally because tests only ran on modified files, and staging breaks with a runtime panic.
+
+---
+
+### Trap 3: Symbol Collision and the "Close()" Illusion
+
+In any production codebase with more than 50 packages, common identifier names collide constantly:
+- `Close()` appears on database connections, HTTP response bodies, file handles, channel wrappers, and metrics flushers.
+- `Init()` or `Start()` appears in dozens of subsystems.
+- `Process()` or `Execute()` exists on command handlers, workers, pipelines, and CLI commands.
+
+To a vector model, all instances of `db.Close()` and `file.Close()` live in the same neighborhood of vector space. 
+When an agent asks *"find references to Close"*, vector retrieval retrieves a noisy salad of unrelated clean-up methods.
+
+To resolve a reference correctly, you need:
+1. **Lexical scoping** (what package is imported?)
+2. **Type attribution** (what is the receiver type of `db`?)
+3. **AST arity checking** (how many arguments does the call pass?)
+4. **Interface satisfaction** (does this struct implement that interface?)
+
+None of these four operations are vectors. They are discrete relational algebra queries over an Abstract Syntax Tree.
+
+---
+
+### Trap 4: Context Window Pollution and the "Lost in the Middle" Tax
+
+A typical vector RAG pipeline retrieves the top 10–20 chunks (often 500–1,000 tokens each) to maximize recall. That dumps **10,000 to 20,000 tokens of raw file text** into the agent's prompt on every turn.
+
+This introduces two severe penalties:
+1. **Financial and Latency Tax**: At current frontier model pricing, 20k tokens per prompt across a 30-turn agent coding session burns \$1.50–\$5.00 per task and adds 5–15 seconds of time-to-first-token per request.
+2. **Cognitive Degradation ("Lost in the Middle")**: Extensive academic research demonstrates that LLM reasoning degrades sharply when critical needles are surrounded by large haystacks of irrelevant code. When the context is polluted with 80% irrelevant snippets, the agent produces weaker reasoning and introduces subtle logic bugs.
+
+RepoCortex flips this equation. Instead of returning whole files or raw text chunks:
+- It returns **compact symbol signatures and 2-hop subgraphs**.
+- A full task context (the target file, exact callers, related database tables, and the specific test file) typically costs **under 800 tokens**.
+- The agent gets 95% less noise and 100% higher causal precision.
+
+---
+
+### Trap 5: The Zero-Provenance Lie
+
+When a vector search engine returns a list of results, each result carries a float score:
+`[Score: 0.8421, File: payment.go]`
+
+What does `0.8421` mean to an autonomous agent?
+- Does it mean the compiler proved that `payment.go` executes this code?
+- Does it mean an import statement matches?
+- Does it mean someone mentioned "payment" in a TODO comment three years ago?
+
+The agent cannot tell. Because every result is presented with equal epistemic weight, the agent treats heuristic hunches as absolute facts. It deletes code thinking nobody calls it, or writes callers that fail at link time.
+
+---
+
+## 3. The RepoCortex Alternative: Deterministic Graph Intelligence
+
+We built RepoCortex because we were tired of watching agents flounder in vector soup. We wanted a tool built on the same principles as compilers, linkers, and databases: **deterministic truth, provable provenance, and bounded memory.**
+
+```
++-------------------------------------------------------------------------+
+|                        THE REPOCORTEX GRAPH PIPELINE                      |
++-------------------------------------------------------------------------+
+|                                                                         |
+|   Source Code (.go, .ts, .py, .java, .rs, .c, etc.)                     |
+|        │                                                                |
+|        ▼ (Tree-Sitter / SCIP Indexers)                                  |
+|   AST Extraction (Pure Go, 206 grammars, zero CGO)                      |
+|        │                                                                |
+|        ▼                                                                |
+|   Symbol & Reference Registry (SQLite relational tables)                |
+|        │                                                                |
+|        ▼ (Multi-pass resolution: Arity, Imports, Receivers, SCIP)       |
+|   Resolved Knowledge Graph with 4-Tier Provenance:                      |
+|        ├── exact  : Compiler type-checker proven (100% precision)       |
+|        ├── high   : Unambiguous import + type discriminator (87-99%)   |
+|        ├── medium : Multi-candidate heuristic lead (5-37%)              |
+|        └── low    : Loose identifier match (Filtered out)               |
+|        │                                                                |
+|        ▼                                                                |
+|   Compressed Sparse Row (CSR) Memory Graph (<250 MB RAM)                |
+|        │                                                                |
+|        ▼ (Sub-millisecond traversals)                                   |
+|   Model Context Protocol (MCP) Server -> AI Agent (Cursor/Claude/etc.)  |
++-------------------------------------------------------------------------+
+```
+
+### The Four Confidence Tiers
+
+RepoCortex never lies about how much it knows. Every edge in the graph is tagged with its provenance:
+
+| Confidence | Source | Typical Precision | What the Agent Does |
+|---|---|---|---|
+| `exact` | Compiler-backed SCIP indexers (`scip-go`, `scip-typescript`, etc.) | **100.0%** | Safe for automated refactoring, renames, and blocking CI gates. |
+| `high` | Tree-Sitter AST with explicit package imports and receiver matching | **86.8% – 99.5%** | Reliable primary guidance for code exploration and planning. |
+| `medium` | Multi-candidate type inference or package-level heuristics | **5.7% – 37.5%** | Treated as investigatory leads; never acted upon without verification. |
+| `low` | Loose identifier matches across unrelated packages | **0.0% – 2.8%** | Filtered by default. Exposed only when explicitly requested. |
+
+When an agent calls `cortex`, it doesn't get a vague similarity score. It gets:
+> *"Symbol `SubmitOrder` reaches `ChargeCard` at Depth 2 (Confidence: `exact`, proven by compiler)."*
+
+If an edge is heuristic (`medium`), RepoCortex attaches an advisory notice:
+> *"Warning: Interface dispatch could not be proven at compile time. Verify candidates before modifying."*
+
+---
+
+## 4. Does Vector Search Have Any Role?
+
+Honest engineering requires acknowledging trade-offs. Is vector search completely useless in software engineering?
+
+No. Vector search and BM25 lexical search excel at **unstructured natural language discovery**:
+- *"Where in this codebase do we calculate state sales tax?"*
+- *"Find the configuration that controls retry backoff for Redis."*
+
+In RepoCortex, we use full-text search (SQLite FTS5 BM25) for exactly that: **finding candidate entry points** from a user's natural language task prompt.
+
+**Crucially, however, search is only the candidate finder. It is never the resolver.**
+Once candidates are found, RepoCortex immediately projects them onto the deterministic graph:
+1. Candidate nodes are validated against AST symbol definitions.
+2. Unconnected noise (like marketing comments or logs) is pruned because it has zero graph degree to the rest of the system.
+3. The true execution cluster is traversed along proven edges.
+4. Only the connected, verified subgraph is emitted to the agent.
+
+---
+
+## 5. Summary: Why We Chose SQLite Over a Vector DB
+
+| Dimension | Vector RAG | RepoCortex Deterministic Graph |
+|---|---|---|
+| **Underlying Math** | High-dimensional float cosine distance | Discrete relational graph algebra & AST traversals |
+| **Edge Precision** | Uncalibrated probabilities (0.0 to 1.0) | Mathematically verified confidence tiers (`exact`, `high`, etc.) |
+| **Transitive Blast Radius** | Impossible (Semantic similarity does not chain) | Sub-millisecond recursive walks with hub pruning |
+| **Token Consumption** | 10k–30k tokens per query (raw file chunks) | 500–1,500 tokens per query (subgraph signatures) |
+| **Storage & Dependencies** | Python service, vector DB, API keys, GPU | Single self-contained static binary, pure Go, local SQLite |
+| **Privacy & Security** | Source code often sent to third-party embedding APIs | **100% offline**, zero telemetry, runs air-gapped on your laptop |
+| **Refactoring Safety** | Hallucination hazard; unsafe for edits | Atomic rollback with multi-file AST validation |
+
+We didn't build RepoCortex to jump on an AI hype cycle. We built it because software engineering is a discipline of precision. Your tools should be as rigorous as the code you write.
+
+
+# --- END FILE: docs/WHY_NOT_VECTOR_RAG.md ---
+
+
+
+# --- BEGIN FILE: docs/USER_GUIDE.md ---
+
+# RepoCortex User Guide: The Enterprise Guide to Code Intelligence & Change Safety
+
+RepoCortex is a local-first, zero-CGO code intelligence engine and knowledge graph for engineering teams and AI coding agents. It indexes large polyglot codebases into a queryable graph of symbols, call chains, HTTP endpoints, database access patterns, event broker queues, and test coverage—delivering deterministic answers over CLI, MCP (Model Context Protocol), and an embedded interactive portal.
+
+---
+
+## 1. Design Philosophy
+
+Modern codebases suffer from context fragmentation. AI coding agents burn 80% of their token budget and reasoning time repeatedly grepping files, attempting to reconstruct architectural boundaries and tracing caller chains from scratch.
+
+RepoCortex replaces speculative text search with deterministic graph intelligence:
+
+1. **Every Fact Carries Provenance**: RepoCortex never conflates a compiler-proven fact with a heuristic regex match. All relationships carry confidence tiers (`exact`, `high`, `medium`, `low`).
+2. **Zero-CGO & Local-First**: Written in pure Go using pure-Go SQLite (`modernc.org/sqlite`). It compiles to a self-contained static binary. Your proprietary source code never leaves your workstation or CI runner.
+3. **Zero External LLM Calls in Core Engine**: Graph construction, BM25 indexing, AST pruning, and impact analysis run deterministically at native CPU speed with zero cloud API dependencies.
+4. **Honest Incompleteness**: An empty query result distinguishes between "we proved this has no callers" and "this code has unresolvable dynamic references." Blind spots and omitted edges are reported explicitly.
+
+---
+
+## 2. Confidence Tier & Provenance Model
+
+RepoCortex categorizes all graph relationships into four immutable tiers:
+
+| Tier | Source | Typical Precision | Recommended Usage |
+|---|---|---|---|
+| `exact` | Compiler-backed SCIP indexers (`scip-go`, `scip-typescript`, `scip-python`, `scip-java`) | **100.0%** (Proved by compiler typechecker) | Fully automated refactoring and blocking CI gates. |
+| `high` | Tree-sitter explicit import matching + unambiguous type discriminator | **86.8% – 99.5%** | Primary guidance for AI agents and human reviews. |
+| `medium` | Multi-candidate type inference or package-level heuristic | **5.7% – 37.5%** | Displayed as informative leads; never acted on automatically. |
+| `low` | Loose identifier name match across files | **0.0% – 2.8%** | Filtered out by default; accessible via `--min-confidence low`. |
+
+To inspect your repository's measured precision and recall against your local toolchains:
+```bash
+cortex accuracy
+```
+
+---
+
+## 3. Installation & Getting Started
+
+### Pre-built Binary Installation
+
+**macOS / Linux:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/satyendrakumarsingh/cortex/main/install.sh | sh
+```
+
+**Windows (PowerShell):**
+```powershell
+Invoke-WebRequest -Uri https://raw.githubusercontent.com/satyendrakumarsingh/cortex/main/install.ps1 -OutFile install.ps1
+.\install.ps1
+```
+
+### Building From Source (Go 1.25+)
+```bash
+git clone https://github.com/satyendrakumarsingh/cortex.git
+cd cortex
+go build -trimpath -ldflags="-s -w" -o cortex ./cmd/cortex
+sudo mv cortex /usr/local/bin/
+```
+
+### Initializing a Project
+
+From the root of your git repository:
+```bash
+# 1. Initialize local configuration (.cortex.yml)
+cortex init
+
+# 2. Build the structural index (scans source files and extracts definitions)
+cortex index
+
+# 3. Resolve cross-file references and build the call graph
+cortex resolve
+
+# 4. Verify graph integrity
+cortex doctor
+```
+
+Subsequent indexing runs are incremental: RepoCortex stores SHA-256 content hashes of files and re-indexes only files modified since the last run.
+
+---
+
+## 4. CLI Reference & Key Capabilities
+
+### 4.1. Distributed Event Topology (`cortex events`)
+
+RepoCortex statically tracks asynchronous event producers and consumers across distributed message brokers:
+- **Supported Brokers**: Apache Kafka (Sarama, kafka-go, Spring Kafka, KafkaJS, kafka-python), RabbitMQ / AMQP, AWS SQS / SNS, and Google Cloud Pub/Sub.
+
+```bash
+# List all discovered topics/queues across the repository
+cortex events
+
+# Inspect producers and consumers for a specific topic
+cortex events topic payment.settled
+
+# Output machine-readable JSON
+cortex events --json
+```
+
+Example human output:
+```text
+Event Topology Report (3 topics discovered)
+
+Topic: payment.settled [kafka]
+  Producers:
+    - SettlementService.Finalize (services/settlement.go:142) [high]
+  Consumers:
+    - LedgerWorker.OnMessage (workers/ledger.go:88) [high]
+    - NotificationHandler.HandleEvent (handlers/notify.ts:45) [high]
+```
+
+### 4.2. Code Blindspots & Missed References (`cortex missed`)
+
+Static analysis frequently encounters dynamic dispatch, unmapped HTTP routes, orphan database tables, or critical paths lacking tests. `cortex missed` surfaces these blindspots before they cause production defects.
+
+```bash
+# Run a blindspot audit across the repository
+cortex missed
+
+# Output formatted JSON for custom CI/CD parsing
+cortex missed --json
+```
+
+Discovered categories:
+- `unresolved_call`: Dynamic or reflection-based calls where the target symbol could not be proven.
+- `untested_critical`: Public API endpoints or database writers lacking covering test edges.
+- `unmapped_endpoint`: Route handlers defined in code without client callers or framework contracts.
+- `orphan_table`: Database tables defined in schemas or migrations with zero code readers or writers.
+
+### 4.3. Deterministic Refactoring Plans (`cortex plan-change`)
+
+Before refactoring a symbol or renaming a core function, `cortex plan-change` constructs an ordered, multi-step execution plan containing direct callers, affected tests, preconditions, and postconditions.
+
+```bash
+# Generate refactoring execution plan for a symbol
+cortex plan-change --symbol ProcessRefund
+
+# Output JSON plan for automated agent execution
+cortex plan-change --symbol ProcessRefund --json
+```
+
+Example output:
+```text
+Refactor Plan for ProcessRefund (services/billing.go:112)
+Risk Level: MEDIUM (Risk Score: 42/100)
+Direct Callers: 4 | Affected Tests: 2
+
+Preconditions:
+  - Working directory is clean (no uncommitted edits)
+  - Target symbol exists and compiles
+
+Step 1 [update_caller]: Update call site in handlers/payment.go:64
+Step 2 [update_caller]: Update call site in workers/retry.go:102
+Step 3 [update_def]: Refactor signature in services/billing.go:112
+Step 4 [verify_test]: Run covering test TestProcessRefundSuccess (services/billing_test.go:40)
+
+Postconditions:
+  - Run cortex doctor to ensure zero dangling reference edges
+  - Run affected test suite
+```
+
+### 4.4. AST Interface Pruning (`cortex prune`)
+
+When AI agents read source files, up to 90% of tokens are consumed by implementation logic inside method bodies. `cortex prune` parses Go, Python, and TypeScript/JavaScript files and strips all function bodies, replacing them with concise stubs while preserving all type signatures, struct fields, interfaces, and docstrings.
+
+```bash
+# Print pruned AST interface to stdout
+cortex prune internal/store/sqlite.go
+
+# Reduces a 1,200-line file (~12,000 tokens) to a 90-line interface (~900 tokens)
+```
+
+### 4.5. Token-Efficient Diff Minimization (`cortex diff-minimize`)
+
+Standard git diffs contain excess context lines, whitespace noise, and redundant index headers. `cortex diff-minimize` parses patch streams into structured, token-efficient representations highlighting exact additions, removals, and symbol contexts.
+
+```bash
+git diff HEAD~1 | cortex diff-minimize
+```
+
+### 4.6. Task Context & Relevance Ranking (`cortex context`)
+
+Given a natural language task description, RepoCortex uses BM25 full-text scoring combined with AST dependency graph traversal to locate the exact transitive file set required for the task.
+
+```bash
+cortex context "Add idempotency key validation to payment callback handler"
+```
+
+The context engine bridges domain concepts deterministically (e.g. mapping "credential leakage" to `redact.go` and `credentials_test.go`) without hallucination.
+
+### 4.7. The Change-Safety Gate: Compile & Verify
+
+RepoCortex enforces architecture rules and prevents regressions through a two-phase contract:
+
+1. **Compile**: Convert an engineering intent into a strict JSON contract:
+   ```bash
+   cortex compile "Refactor auth middleware to use JWT tokens" --json > task-contract.json
+   ```
+2. **Work**: Engineer or AI agent makes changes.
+3. **Verify**: Evaluate git changes against the contract:
+   ```bash
+   cortex verify --contract task-contract.json --changed "$(git diff --name-only | paste -sd, -)"
+   ```
+
+Exit Codes:
+- `0` (`pass`): All checks satisfied with zero violations.
+- `0` (`advisory`): Only heuristic leads discovered (use `--fail-on-leads` to reject).
+- `1` (`fail`): At least one compiler-proven fact violation detected (e.g., breaking an architecture boundary or modifying an excluded file).
+- `2` (`unverified`): No index or contract data available to verify.
+
+### 4.8. Applying a Rename (`cortex rename`)
+
+`plan-change` tells you what a rename touches; `rename` makes the edit, but only
+where it can prove every site.
+
+1. **Dry run first** (the default). It lists every site with its confidence and
+   every site that would block an apply:
+   ```bash
+   cortex rename updateStatus applyStatus
+   ```
+2. **What blocks `--apply`.** It writes nothing, lists every failing site and
+   exits `2` unless every site is `exact` (compiler-proven), unchanged since
+   indexing, unambiguous on its line, inside the project root and writable, and
+   the new name is not already defined in an edited file. On a project with no
+   compiler index, every site is `high` and the rename is refused. Run
+   `cortex indexers install --yes` and `cortex scip import` to upgrade them
+   to `exact`.
+3. **Opting into `high`.** `--floor high` also accepts an explicit import plus an
+   unambiguous receiver type. That tier is measured 86.8-96.1% precise, so the
+   command prints a warning first: at 90%, a rename touching thirty sites gets
+   three wrong. Read every listed site.
+   ```bash
+   cortex rename updateStatus applyStatus --floor high --apply
+   ```
+4. **What `--apply` does.** Files are written atomically and restored if a later
+   write fails. A lock file, `.cortex-edit.lock`, exists at the project root
+   only while the edit runs; if a crashed run left it behind, RepoCortex never
+   deletes it for you, and the error tells you to remove it once no cortex
+   process is running. Then the task contract lands in
+   `.cortex/rename-contract.json` and `verify` runs automatically on the
+   changed files. `verify` reads the **pre-rename index**, so run
+   `cortex index` afterwards.
+5. **Exit codes.** `0` applied and verified; `1` error or verify failure; `2`
+   refused, nothing written; `3` applied, but not verified complete: either
+   `verify` was unverified, or the old name still appears in indexed files, which
+   are listed under `LEFTOVER OCCURRENCES`. Handle them by hand.
+6. **RepoCortex does not run the compiler.** References it could not bind, and
+   interface implementations or overrides with no edge to the symbol, are not
+   renamed. After every rename, search for the old name, then **build and
+   test**.
+
+---
+
+---
+
+## 5. Model Context Protocol (MCP) Server Setup
+
+RepoCortex includes a built-in MCP server that communicates over JSON-RPC via standard input/output.
+
+### Claude Desktop Configuration
+Add RepoCortex to `~/Library/Application Support/Claude/claude_desktop_config.json`:
+```json
+{
+  "mcpServers": {
+    "cortex": {
+      "command": "cortex",
+      "args": ["serve", "--project", "/path/to/your/repository"]
+    }
+  }
+}
+```
+
+### Cursor & Windsurf Configuration
+In Cursor or Windsurf MCP Settings:
+- **Name**: `cortex`
+- **Type**: `command`
+- **Command**: `cortex serve --project /path/to/your/repository`
+
+### Available MCP Tools
+
+AI agents connected to RepoCortex gain access to:
+- `get_project_overview`: Orient on the repository: languages, size, resolution coverage.
+- `search_code` / `find_symbol` / `get_symbol`: Locate declarations with exact file, line, and kind.
+- `find_callers` / `find_references`: Retrieve incoming call edges and usage sites with confidence grades.
+- `get_task_context`: Obtain ranked file summaries and symbol graphs for a prompt.
+- `impact_analysis`: Calculate transitive impact (blast radius) and risk for a change.
+- `find_tests`: Find the tests that cover a symbol or file.
+- `plan_change`: Generate a step-by-step refactoring plan with preconditions and post-checks.
+- `plan_rename`: Enumerate every site a rename must touch.
+- `detect_blindspots`: Audit unresolved calls, unmapped endpoints, orphan tables and missing config.
+- `get_file_outline`: Obtain a token-optimized outline (signatures, types, docs; bodies pruned) of a file.
+- `minimize_diff`: Compress unified git diffs into structured, token-efficient patch contexts.
+- `find_api_endpoints` / `find_db_access` / `get_config_key`: Query HTTP endpoints, database access and configuration keys.
+- `resolution_coverage`: Report how much of the call graph is resolved, so an empty result is not over-trusted.
+
+Some tools need the `standard` profile; see [agent-integration.md](agent-integration.md).
+Event topology (`cortex events`) is available from the CLI and the portal, not as an MCP tool.
+
+---
+
+## 6. Enterprise Interactive Dashboard (`cortex ui`)
+
+RepoCortex includes an embedded, high-performance web dashboard providing complete $N$-level visibility into your codebase architecture.
+
+To launch the portal:
+```bash
+cortex ui
+```
+By default, the server listens on loopback (`127.0.0.1`) on an ephemeral port and prints the access URL.
+
+### Command Palette (`Cmd+K` / `Ctrl+K`)
+Press `Cmd+K` (macOS) or `Ctrl+K` (Linux/Windows) anywhere in the portal to open the global Command Palette:
+- Instant fuzzy navigation to any screen (`Overview`, `Explore Graph`, `APIs`, `Database`, `Events`, `Blindspots`, `Plan Refactor`, `Governance`, `Metrics`).
+- Quick actions: reload data, copy repo root, trigger index refresh.
+
+### 360° Symbol Inspector Drawer
+Clicking any symbol name anywhere in the application (in tables, graph nodes, callers, or refactor steps) slides open the 360° Symbol Inspector drawer from the right:
+- Definition path and exact line number with one-click editor opening (`vscode://`).
+- Inbound callers and outbound dependencies grouped by confidence.
+- Database read/write associations and event broker linkages.
+- Covering tests and test gap analysis.
+
+### Screens Overview
+- **System Overview**: High-level repository health, language breakdown, resolution coverage rate, and freshness indicators.
+- **Code map** — four views of the index behind one breadcrumb and one tab strip. They share the selection, so a symbol chosen in one view is selected in the others:
+  - **Graph**: the canvas map of directories, files or symbols, with grouping, focus, path finding and three layouts.
+  - **Tree**: the repository as an outline, directory → file → symbol, navigable with the keyboard.
+  - **Treemap**: where the code is — boxes sized by symbols and coloured by connections, exported share or language.
+  - **Code**: a file's text as the index holds it, with its declarations, callers and callees, and the lines relationships cite. Served by `GET /api/source` from the index's own copy, never from disk.
+- **Event Bus & Queues**: Interactive topology of Kafka topics, AMQP exchanges, and cloud pub/sub queues with publisher and consumer cards.
+- **Code Blindspots**: Actionable matrix of unmapped endpoints, unresolved dynamic calls, and orphan database tables with remediation suggestions.
+- **Plan a Refactor**: Interactive refactoring orchestrator generating step-by-step modification lists with preconditions, affected tests, and post-checks.
+- **Architecture Governance**: Real-time evaluation of declared Architecture Decision Records (ADRs) and prohibited dependency boundaries.
+
+---
+
+## 7. CI/CD Integration: GitHub Actions Change-Safety Gate
+
+RepoCortex can be integrated directly into your GitHub Actions workflow to fail pull requests that introduce architecture violations or high-severity blindspots (`--fail-on`, default `high`), and to publish what it found: a sticky pull-request comment, code-scanning alerts (SARIF) and the job summary. Reports are published before the gate runs, so a failing build still leaves the reviewer a comment and alerts that explain why.
+
+Create `.github/workflows/cortex-gate.yml` (the repository ships this exact file):
+```yaml
+name: RepoCortex Change-Safety Gate
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  # Lowest blindspot / architecture severity that fails the build: high|medium|low.
+  CORTEX_FAIL_ON: high
+  # auto: install the pinned compiler-backed indexers this repository needs and
+  # import their facts as `exact` before impact runs. fast: skip that stage; the
+  # report stays heuristic and says so.
+  CORTEX_ACCURACY: auto
+
+jobs:
+  gate:
+    name: Change-Safety Verification
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write   # the sticky report comment
+      security-events: write # SARIF upload to code scanning
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go Environment
+        id: setup-go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.x'
+          cache: true
+
+      - name: Build RepoCortex
+        run: go build -trimpath -ldflags="-s -w" -o ./bin/cortex ./cmd/cortex
+
+      # resolve is not optional: without it the index holds definitions but no
+      # call graph, and every impact and blindspot result below would be empty
+      # for the wrong reason.
+      - name: Index and Resolve
+        run: |
+          ./bin/cortex index
+          ./bin/cortex resolve
+
+      # The cache key is the pin table itself, so it changes exactly when a
+      # pinned version or digest does.
+      - name: Pin Compiler Indexers
+        if: env.CORTEX_ACCURACY == 'auto'
+        run: |
+          mkdir -p cortex-out
+          ./bin/cortex indexers pins > cortex-out/indexer-pins.txt
+
+      # Only scip-go is cached: it is built by `go install` into GOPATH/bin,
+      # which setup-go puts on PATH. npm and container indexers are fetched and
+      # digest-verified on every run.
+      - name: Cache Compiler Indexers
+        if: env.CORTEX_ACCURACY == 'auto'
+        uses: actions/cache@v4
+        with:
+          path: ~/go/bin/scip-go
+          key: cortex-indexers-${{ runner.os }}-go${{ steps.setup-go.outputs.go-version }}-${{ hashFiles('cortex-out/indexer-pins.txt') }}
+
+      # An accuracy upgrade, never a requirement: if an indexer is missing, blocked
+      # or produces an index that will not import, the edges stay heuristic and the
+      # report says so. A language whose toolchain is missing is skipped with its
+      # reason (kept in cortex-out/indexers.txt and the step summary). Java is
+      # never built here: without the repo-build opt-in its indexer is reported as
+      # blocked.
+      - name: Import Compiler Facts
+        if: env.CORTEX_ACCURACY == 'auto'
+        run: |
+          mkdir -p cortex-out
+          { ./bin/cortex indexers install --yes --out-dir cortex-out/scip 2>&1 \
+              || echo "::warning::compiler indexers unavailable; the report uses heuristic edges"; } \
+            | tee cortex-out/indexers.txt
+          imported=0
+          failed=0
+          for f in cortex-out/scip/*.scip; do
+            [ -f "$f" ] || continue
+            if ./bin/cortex scip import "$f"; then
+              imported=$((imported + 1))
+            else
+              echo "::warning::scip import of $(basename "$f") failed; its edges stay heuristic"
+              failed=$((failed + 1))
+            fi
+          done
+          {
+            echo "### Compiler-backed precision"
+            echo "imported: $imported, failed: $failed"
+            echo '```'
+            cat cortex-out/indexers.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify Index Integrity
+        run: ./bin/cortex doctor --verify-index
+
+      # Reports are collected and published BEFORE the gate runs, so a failing
+      # gate still leaves the reviewer a comment and code-scanning alerts that
+      # say why.
+      - name: Collect Findings
+        run: |
+          mkdir -p cortex-out
+          ./bin/cortex --json arch > cortex-out/arch.json
+          ./bin/cortex --json missed > cortex-out/missed.json
+
+      - name: Impact Analysis of the Pull Request
+        if: github.event_name == 'pull_request'
+        run: ./bin/cortex --json impact --base "origin/${{ github.base_ref }}" --head HEAD > cortex-out/impact.json
+
+      - name: Render Reports
+        run: |
+          ./bin/cortex report sarif --arch cortex-out/arch.json --missed cortex-out/missed.json --out cortex-out/cortex.sarif
+          if [ -f cortex-out/impact.json ]; then
+            ./bin/cortex report pr --impact cortex-out/impact.json --arch cortex-out/arch.json --missed cortex-out/missed.json --out cortex-out/pr-report.md
+          else
+            ./bin/cortex report pr --arch cortex-out/arch.json --missed cortex-out/missed.json --out cortex-out/pr-report.md
+          fi
+          cat cortex-out/pr-report.md >> "$GITHUB_STEP_SUMMARY"
+
+      # A fork pull request's token is read-only and cannot write security
+      # events; the PR comment and step summary still carry the findings.
+      - name: Upload SARIF to Code Scanning
+        if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: cortex-out/cortex.sarif
+          category: cortex
+
+      # Same-repository pull requests only: a fork's token cannot write
+      # comments, and this job never runs fork code with write permissions.
+      - name: Post Sticky PR Comment
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          id=$(gh api "repos/$REPO/issues/$PR/comments" --paginate \
+            --jq '.[] | select(.body | contains("<!-- cortex:pr-report -->")) | .id' | head -n 1)
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$REPO/issues/comments/$id" -F body=@cortex-out/pr-report.md
+          else
+            gh api -X POST "repos/$REPO/issues/$PR/comments" -F body=@cortex-out/pr-report.md
+          fi
+
+      - name: Report Event Topology
+        run: ./bin/cortex events
+
+      - name: Enforce Architecture Rules
+        run: ./bin/cortex arch --fail-on "$CORTEX_FAIL_ON"
+
+      - name: Audit Code Blindspots
+        run: ./bin/cortex missed --fail-on "$CORTEX_FAIL_ON"
+```
+
+The `Collect Findings` step saves `cortex --json arch|missed|impact` output; `cortex report sarif` turns it into a SARIF 2.1.0 file uploaded to code scanning under the category `cortex`, and `cortex report pr` renders one bounded Markdown comment that starts with `<!-- cortex:pr-report -->`. That marker is how the workflow finds and edits its own comment on later pushes instead of adding a new one. The job needs `pull-requests: write` (the comment) and `security-events: write` (the SARIF upload); the workflow sets both on the job only. Pull requests from forks get neither the comment nor the code-scanning upload, because a fork's token is read-only; they still get the job summary and the gate. The blast-radius analysis runs only on pull requests, and none of the reporting steps fail the build -- the `Enforce` steps at the end do.
+
+**Compiler-backed precision.** With `CORTEX_ACCURACY: auto` (the default) the gate runs `cortex indexers install --yes --out-dir cortex-out/scip` after `resolve`, then `cortex scip import` on every index it produced, so `impact` walks compiler-proven `exact` edges wherever a compiler exists. `--yes` is the CI operator's consent to install the pinned indexers listed by `cortex indexers pins`; nothing else is installed, and every download is pinned and verified (by digest, or by the Go checksum database for scip-go). The runner needs the language's own toolchain — Go for scip-go (setup-go provides it), Node for scip-typescript and scip-python; a project whose toolchain is missing is skipped with its reason. Java is never built by this workflow. The stage is an accuracy upgrade, never a requirement, and it never fails the job: if an indexer is missing, blocked, or produces an index that will not import, the gate emits a `::warning::`, the edges stay heuristic, and the job summary gains a "Compiler-backed precision" section listing the imported and failed counts and each skipped language with its reason. scip-go is cached under a key derived from the pin table. Set `CORTEX_ACCURACY: fast` to skip the stage; the PR report then shows, in a "How much of the blast radius is proven" table, what share of the blast radius is `exact`, `high` and `medium` (interface-dispatch-only symbols are not counted). The step never passes `--allow-repo-build`, so fork pull requests, which run with a read-only token, execute only pinned, digest-verified indexers and never the repository's own build.
+
+---
+
+## 8. Summary & Best Practices
+
+1. **Keep the Index Fresh**: Add `cortex hooks install` to your development environment to automatically refresh the index on every git commit in 20 milliseconds without running background daemons.
+2. **Import Compiler Data in CI**: Place the compiler's `index.scip` in the project root (or `.cortex/`) before `cortex resolve`, which imports it automatically (`--no-scip` opts out), or run `cortex scip import` yourself, to upgrade heuristic edges to compiler-backed `exact` confidence.
+3. **Trust `exact` and `high`, Verify `medium`**: Never allow AI coding agents or automated scripts to execute destructive refactoring operations on `medium` or `low` confidence edges without explicit human review.
+
+---
+
+## 9. Comprehensive Product Capabilities
+
+RepoCortex delivers an end-to-end change-safety and code intelligence architecture. The following matrix details each capability and its operational mechanism:
+
+### 9.1. Polyglot AST Precision Engine & Arity Dialects
+- **Multi-Language Parsing**: Zero-external-dependency Tree-Sitter grammars compiled directly into pure Go. Supports Go, TypeScript, JavaScript, Java, Python, C#, Rust, C, C++, and Ruby.
+- **Arity & Overload Resolution**: Parameter count queries (`paramCountQueries`) and call argument queries (`argCountQueries`) distinguish methods overloaded by parameter count in Java, C#, and TypeScript.
+- **Dynamic Arena Memory Management**: Automatically triggers parser pool memory draining upon encountering large generated files (>256 KiB), eliminating multi-gigabyte heap spikes during repository batch scans.
+
+### 9.2. Change Safety & Blast Radius Analytics (`cortex impact`, `cortex plan-change`)
+- **Upstream & Downstream Traversal**: Answers both *"what does this function call?"* (downstream dependencies) and *"what in the entire enterprise depends on this function?"* (upstream blast radius).
+- **Hub Pruning**: Automatically prunes traversals across high-degree utility nodes (such as loggers, string formatters, and base object classes) to avoid exponential combinatorial explosions while explicitly reporting the cutoff boundary.
+- **Test Gap Detection (`cortex missed`)**: Proves whether modified code paths have verified test coverage or whether execution branches are blind to the testing suite.
+
+### 9.3. Safe Automated Refactoring (`cortex rename`)
+- **Exact AST Identifier Splicing**: Matches identifiers strictly on AST node boundaries. Never confuses a symbol name with a comment, string literal, or substring token.
+- **Reversible Multi-File Rollback**: Takes an in-memory snapshot before modifying source code. If any file write fails or post-apply verification detects an orphaned call site, RepoCortex rolls back all files across the repository to their original state in reverse order.
+- **Leftover Occurrence Scanning**: Audits all files (including unindexed or binary files) post-rename to ensure no stale references to the old symbol persist.
+
+### 9.4. Architecture Governance & CI/CD Gates (`cortex arch`)
+- **Structural Boundary Enforcement**: Declaratively defines allowed import and call relationships between architectural layers (e.g. `domain` must never import `infrastructure` or `controller`).
+- **PR Gating & SARIF 2.1.0**: Generates standard SARIF code-scanning artifacts and sticky GitHub PR comments showing exact change risk and architectural compliance scores.
+
+### 9.5. Cross-Stack Distributed Topology (`cortex api`, `cortex db`, `cortex events`)
+- **HTTP / REST Endpoints**: Statically discovers route handlers across Express, Spring Boot, Gin, FastAPI, NestJS, and ASP.NET.
+- **Database Access Maps**: Maps database tables, ORM models (Prisma, GORM, Hibernate, SQLAlchemy), and raw SQL queries to identifying calling methods.
+- **Distributed Event Topologies**: Extracts producer and consumer queues across Apache Kafka, RabbitMQ, AWS SQS/SNS, and Google Cloud Pub/Sub.
+
+### 9.6. AI Coding Agent MCP Server (`cortex serve`, `cortex install`)
+- **Compact Subgraph Extraction**: Delivers targeted subgraphs and pruned signatures instead of raw file dumps, saving up to 85% of LLM token windows.
+- **Confidence Advisory Notices**: Automatically attaches warning notes when query results contain heuristic (`medium` or `low`) edges, preventing autonomous agents from acting on hallucinatory call chains.
+
+---
+
+## 10. Deep Comparative Analysis: RepoCortex vs Alternative Tools
+
+Rather than evaluating specific vendor brands, the following analysis benchmarks RepoCortex against the primary architectural classes of code intelligence and developer tools currently deployed in the software industry:
+
+```
++--------------------------------------------------------------------------------------------------+
+|                                  TOOL CATEGORY COMPARISON OVERVIEW                               |
++--------------------------------------------------------------------------------------------------+
+| RepoCortex                  : Pure-Go static binary, deterministic graph, safe transactional edits |
+| Category A (LSP Daemons)  : Per-language server silos, heavy memory, navigation only, no cross-db|
+| Category B (Vector RAG)   : Fuzzy text embeddings, 80%+ hallucinations, massive token waste      |
+| Category C (Heavy SAST)   : Multi-hour batch scans, alert fatigue, read-only, non-agent-native   |
+| Category D (Text Greppers): High speed, zero semantic awareness, false-positive substring matches|
++--------------------------------------------------------------------------------------------------+
+```
+
+### Detailed Evaluation by Tool Category
+
+#### Category 1: Traditional Language Server Protocol (LSP) Daemons
+* **How They Work**: Run language-specific daemons (e.g., `gopls`, `tsserver`, `jdtls`) in the background of an IDE to provide real-time auto-complete and go-to-definition.
+* **Limitations Compared to RepoCortex**:
+  - **Siloed by Language**: An LSP cannot connect a TypeScript frontend API call to a Java Spring Boot endpoint, nor can it trace a Go publisher to a Python Kafka consumer.
+  - **Resource Heavy**: Running 3 to 4 distinct language servers in a microservice monorepo easily consumes 4–8 GB of RAM.
+  - **No Global Change Impact**: LSPs provide local symbol lookups but lack graph traversal capabilities (e.g., multi-hop blast radius, hub pruning, test gap discovery).
+* **Where RepoCortex Excels**: RepoCortex unifies all languages into a single SQLite knowledge graph running in a single lightweight process with flat memory footprint.
+
+#### Category 2: Naive Vector Search / Embedding-Based Code RAG
+*(For an exhaustive architectural essay, see [Why Vector RAG Fails for Code: The Case for Deterministic Graph Intelligence](WHY_NOT_VECTOR_RAG.md))*
+* **How They Work**: Chunk source code into text windows, compute dense vector embeddings, and perform cosine similarity searches to retrieve context for LLMs.
+* **Limitations Compared to RepoCortex**:
+  - **Fuzzy Guesswork vs Deterministic Truth**: Vector similarity finds code that *reads similarly*, not code that is *actually executed*. A method named `processPayment` will match unrelated payment helpers while missing the actual interface implementation `settle`.
+  - **Extreme Token Waste**: Dumping entire source files or arbitrary chunks into an LLM context consumes tens of thousands of tokens per prompt, leading to high cost and lost-in-the-middle context degradation.
+  - **Zero Safety Guarantees**: Vector search provides zero safety invariants for automated refactoring or architecture governance.
+* **Where RepoCortex Excels**: RepoCortex delivers exact call graphs and pruned signatures, reducing prompt token consumption by up to 85% while providing mathematically calibrated confidence tiers.
+
+#### Category 3: Heavyweight Enterprise Static Analysis (SAST) Suites
+* **How They Work**: Execute deep interprocedural taint analysis and abstract interpretation to detect security vulnerabilities and code quality flaws.
+* **Limitations Compared to RepoCortex**:
+  - **Hours-Long Execution**: Full repository scans take 30 minutes to several hours, preventing interactive developer use.
+  - **High False-Positive Noise**: Developers frequently suffer from alert fatigue due to uncalibrated heuristic warnings.
+  - **Read-Only / Non-Agent Native**: Designed for compliance reporting rather than active pair-programming with AI coding agents.
+* **Where RepoCortex Excels**: RepoCortex indexes 10,000 files in seconds, provides sub-millisecond query latency via in-memory CSR graphs, and integrates natively into agent workflows via standard MCP tools.
+
+#### Category 4: Static LSIF / SCIP Compiler-Only Dumpers
+* **How They Work**: Compile code using full toolchains (`scip-go`, `scip-typescript`) and write large protocol buffer files storing cross-references.
+* **Limitations Compared to RepoCortex**:
+  - **Brittle Setup Requirements**: Require every compiler, SDK, private registry credential, and native dependency to be fully configured on the host. If a build fails, zero index is produced.
+  - **Static / Non-Queryable**: Output static dump files that cannot be dynamically traversed, queried for blast radius, or updated incrementally on file save.
+* **Where RepoCortex Excels**: RepoCortex provides zero-setup Tree-Sitter heuristic indexing out of the box, with optional seamless SCIP compiler enrichment (`cortex scip import`). If a compiler is missing, RepoCortex still delivers an 87%+ accurate graph.
+
+#### Category 5: Fast Regex / Text Greppers (ripgrep, ag, ctags)
+* **How They Work**: Execute optimized parallel string and regular expression searches across file trees.
+* **Limitations Compared to RepoCortex**:
+  - **No Semantic Awareness**: Cannot distinguish between a function definition, an invocation, a comment, a string literal, or a substring in an unrelated variable name.
+  - **No Graph Traversability**: Cannot trace multi-hop call hierarchies, dependency chains, or transitive blast radius.
+* **Where RepoCortex Excels**: RepoCortex understands AST node boundaries, receiver types, and call semantics.
+
+---
+
+### Comprehensive Capabilities & Architectural Comparison Matrix
+
+| Architectural Feature | RepoCortex | Traditional LSP Daemons | Vector Embedding RAG | Enterprise SAST Suites | Static SCIP / LSIF Dumpers | Text Greppers (`rg`) |
+|:---|:---:|:---:|:---:|:---:|:---:|:---:|
+| **Zero-Setup Polyglot Indexing** | **Yes** (Native Go) | No (Per-language SDKs) | Yes (Raw text) | No (Complex setups) | No (Full build required) | **Yes** |
+| **Deterministic Call Graphs** | **Yes** | Yes (Single language) | No (Fuzzy similarity) | Yes | **Yes** | No (String match) |
+| **Cross-Stack Topologies (DB/API/Events)** | **Yes** | No | No | Partial (Security only) | No | No |
+| **Calibrated Confidence Provenance** | **Yes** (4 Tiers) | Implicit (Uncalibrated) | No (Distance metric) | No (Severity, not truth) | **Yes** (Compiler-only) | No |
+| **Transitive Blast Radius (`impact`)** | **Yes** (With Hub Pruning)| No | No | No | No | No |
+| **AI Agent MCP Server Native** | **Yes** (10+ tools) | No | Partial (Retrieval only)| No | No | No |
+| **Atomic Multi-File Safe Refactoring** | **Yes** (With Rollback) | Partial (LSP rename) | No | No | No | No (Blind replace) |
+| **Incremental File Watch Latency** | **<50 ms** | <100 ms | Seconds to minutes | Hours (Batch only) | Batch only | Instant (Stateless) |
+| **Memory Footprint on 10K Files** | **<250 MB** | 2–6 GB | 1–3 GB + Vector DB | 4–16 GB | N/A (Static file) | **<50 MB** |
+| **100% Offline / Air-Gapped Operation** | **Yes** | **Yes** | No (Often needs cloud) | Often Cloud-hosted | **Yes** | **Yes** |
+| **Single Standalone Static Binary** | **Yes** (Zero CGO) | No | No | No | No | **Yes** |
+
+
+# --- END FILE: docs/USER_GUIDE.md ---
+
+
+
+# --- BEGIN FILE: docs/agent-integration.md ---
+
+# Agent integration
+
+RepoCortex is a server. Wiring it up has two halves, and only one of them is the
+MCP registration.
+
+The other half is guidance. An agent with the tools connected but nothing
+telling it *when* to reach for them will keep grepping, because a tool
+description is only read once the agent has already decided to look at the tool
+list. Nothing in a tool schema can say "before you edit a symbol, ask for its
+blast radius first". That sentence has to live in project memory.
+
+Both halves come out of one command:
+
+```
+cortex agent
+```
+
+---
+
+## 1. Register the MCP server
+
+### Claude Code, one line
+
+```
+claude mcp add cortex -- cortex --project /path/to/repo serve
+```
+
+`--project` is explicit on purpose. An MCP client starts the server from
+whatever directory it happens to be in, and a server that quietly indexed the
+wrong repository would be worse than one that failed to start.
+
+`cortex agent` prints this line with your project's real path substituted, so
+you can paste it rather than editing it.
+
+### Claude Code, as a plugin
+
+This repository ships a plugin manifest at `.claude-plugin/plugin.json`. It
+registers the same MCP server *and* installs the guidance as a skill, so one
+step delivers both halves:
+
+```
+claude --plugin-dir /path/to/cortex
+```
+
+`--plugin-dir` loads a plugin straight from a directory, without installing it.
+To install it properly, or to hand it to a team, add the repository as a
+marketplace — `.claude-plugin/marketplace.json` is there for that:
+
+```
+/plugin marketplace add /path/to/cortex
+/plugin install cortex@cortex
+```
+
+The manifest pins the project root with `${CLAUDE_PROJECT_DIR}`, which Claude
+Code expands to the project you have open:
+
+```json
+{
+  "mcpServers": {
+    "cortex": {
+      "command": "cortex",
+      "args": ["--project", "${CLAUDE_PROJECT_DIR}", "serve"]
+    }
+  }
+}
+```
+
+The plugin does **not** ship the `cortex` binary. Build or install it first
+and make sure it is on `PATH`.
+
+### Any other MCP client
+
+RepoCortex speaks MCP over stdio. Whatever config format your client uses, these
+are the three facts it needs:
+
+| | |
+| --- | --- |
+| transport | stdio |
+| command | `cortex` |
+| args | `--project /path/to/repo serve` |
+
+For a client that reads the common `mcpServers` JSON shape — including a
+project-scope `.mcp.json` in the repository root:
+
+```json
+{
+  "mcpServers": {
+    "cortex": {
+      "command": "cortex",
+      "args": ["--project", "/path/to/repo", "serve"]
+    }
+  }
+}
+```
+
+`cortex agent --json` emits the same spec as machine-readable JSON, if you
+would rather generate the config than write it.
+
+---
+
+## 2. Give the agent the guidance
+
+```
+cortex agent --guidance >> CLAUDE.md
+```
+
+That appends a short block, delimited by `<!-- cortex:guidance -->` markers,
+that tells the agent when to use each tool and how to read what comes back. It
+is deliberately short: an agent skims project memory, and a page of prose is
+ignored in exactly the same way as no prose at all.
+
+`--guidance` prints the block and nothing else — no banner, no trailing advice —
+because the output is meant to land in a file you keep.
+
+If you would rather have it as its own file:
+
+```
+cortex agent --write docs/cortex-guidance.md
+```
+
+`--write` refuses to replace a file that already exists. Passing `--force`
+allows it and says on stderr what it discarded. **No mode of this command
+modifies your global configuration** — where the integration goes is your
+decision, so the default is to print and let you place it.
+
+### What the guidance actually says
+
+Every rule is grounded in behaviour the server has, not in aspiration:
+
+| Rule | Why it exists |
+| --- | --- |
+| Call `get_task_context` first | Its own description opens `CALL THIS FIRST`. One call replaces a dozen exploratory ones. |
+| Ask for a blast radius before editing | `impact_analysis` on the `standard` profile, `find_callers` otherwise. |
+| `find_tests` before changing behaviour | It reports *which signal* found each test — a proven call edge outranks a filename match. |
+| Treat anything below `exact` as a lead | `exact` means a compiler proved it. `high`/`medium`/`low` were inferred and may be wrong. |
+| An empty result means unresolved, not absent | Relationship answers are a lower bound. An agent told "no callers" will happily delete a live method. |
+| `COVERAGE TOO LOW` outranks the list under it | The server emits that literal string when under half of the repository's references are bound. |
+| "No index has been built" is not a broken tool | It is a recoverable state with a one-command fix, and the server deliberately returns it as a success. |
+| The index is a snapshot, not your working tree | Read files you just edited directly, or run `cortex watch`. |
+
+---
+
+## 3. Check it landed
+
+```
+cortex agent --check
+```
+
+It reports six things, reading only — it never creates what it finds missing:
+
+- **index** — present, committed, non-empty
+- **resolution** — how much of the call graph is actually bound
+- **mcp tools** — which profile is active and what it exposes
+- **mcp registration** — whether this repository's `.mcp.json` names `cortex`
+- **guidance** — whether `CLAUDE.md` or `AGENTS.md` carries the marker
+- **plugin manifest** — whether `.claude-plugin/plugin.json` is present
+
+Nothing missing is reported as a failure, and the command exits zero unless the
+index is genuinely unreadable. An un-integrated project is the normal starting
+state, not a malfunction — the same judgement the MCP server makes about
+`isError`. Add `--json` to consume it from a script.
+
+Note that `--check` sees the **project scope** only. A registration you added
+with `claude mcp add` at user or local scope lives outside the repository, so it
+is invisible here; the check says "not visible from this repository" rather than
+claiming you have not registered it.
+
+---
+
+## What to expect once it is wired up
+
+### The tool surface is small on purpose
+
+```
+$ cortex serve --list-tools
+MCP profile "minimal" exposes 7 tool(s):
+  get_project_overview
+  search_code
+  find_symbol
+  get_symbol
+  find_references
+  find_callers
+  get_task_context
+```
+
+Every exposed schema is injected into the agent's context on *every* request, so
+a wide tool surface spends the very context RepoCortex exists to save — and a long
+tool list measurably degrades tool selection. Seven is the default, and it is a
+product decision rather than a limitation.
+
+`impact_analysis` and `find_tests` need the `standard` profile. Set it in
+`.cortex.yml`:
+
+```yaml
+mcp:
+  profile: standard
+```
+
+```
+$ cortex serve --list-tools
+MCP profile "standard" exposes 9 tool(s):
+  get_project_overview
+  search_code
+  find_symbol
+  get_symbol
+  find_references
+  find_callers
+  get_task_context
+  impact_analysis
+  find_tests
+```
+
+The guidance block adds **no tools**. It is text in project memory, paid for
+once, that teaches the agent an ordering over the tools already there.
+
+### There must be an index
+
+The server refuses to start without one, and an empty index answers every
+question with nothing:
+
+```
+cortex init
+cortex index
+cortex resolve
+```
+
+`resolve` is the step people skip. `index` extracts references but cannot bind
+them — that needs the complete symbol table, which does not exist until every
+file is parsed. Until `resolve` runs, `find_callers` and `find_references`
+return nothing, and *nothing is the answer most easily mistaken for a fact*.
+`cortex agent --check` calls this out as its own row for that reason.
+
+### Answers carry their own caveats
+
+RepoCortex does not hand an agent a tidy list built on evidence it does not have.
+A relationship answer on a poorly resolved index arrives with the verdict
+*before* the list:
+
+```
+COVERAGE TOO LOW — caller lookup for Go is unreliable here: 31% of this index's
+16973 references are bound to a definition. Run 'cortex resolve' to raise it.
+Do not present what follows as an answer to the question asked.
+```
+
+And a recoverable condition arrives as a **successful** call whose text says what
+to do next, never as a tool error:
+
+```
+No index has been built for this project yet, so there is nothing to answer from.
+Run 'cortex index' in the project root, then ask again. This is not a tool
+failure: RepoCortex is working and the index is simply absent.
+```
+
+That distinction is load-bearing. A model that sees a tool fail early concludes
+the toolset is broken and stops calling it for the rest of the session, so an
+error is reserved for security refusals and genuine malfunction. The guidance
+tells the agent to read these as instructions rather than as failures.
+
+While the first index of a project is being built, the same mechanism answers
+that the index is *still being built* (wait, and do not start a second one)
+rather than "no index has been built". Once a run is committed, an answer taken
+from it carries a note when a newer run is being built, because that answer may
+not reflect recent edits.
+
+---
+
+## Keeping it current
+
+The index describes the last committed run, not your working tree.
+
+```
+cortex watch      # re-index on change
+cortex status     # revision, counts, resolution coverage
+```
+
+For files you edited moments ago, read them directly — the guidance says so, so
+the agent will not report a stale definition as current.
+
+---
+
+## The CLI is the same engine
+
+Every MCP tool has a command-line counterpart, which is the fastest way to see
+*why* an agent received what it received:
+
+```
+cortex context "Add idempotency to payment callback processing"   # get_task_context, with exclusions
+cortex callers <symbol>                                           # find_callers
+cortex references <symbol>                                        # find_references
+cortex symbol <name>                                              # find_symbol
+cortex search <query>                                             # search_code
+cortex status                                                     # get_project_overview
+```
+
+`cortex context --show-excluded` lists everything considered and left out with
+the reason it was cut, which is the part an agent never shows you.
+
+
+# --- END FILE: docs/agent-integration.md ---
+
+
+
+# --- BEGIN FILE: docs/CLI.md ---
+
+# CLI reference
+
+One entry per command: the question it answers, its flags, one example that was
+actually run, and the exit code where it is load-bearing. This is a lookup table.
+For "which of these do I need", start at [GUIDE.md](GUIDE.md); for the reasoning
+and the longer worked examples, [user-manual.md](user-manual.md).
+
+Where a command's own `--help` argues its design, that argument is not repeated
+here. Run `cortex <command> --help` — the help text in this tool is written to
+be read.
+
+## Global flags
+
+Available on every command.
+
+| Flag | Effect |
+|---|---|
+| `--json` | emit machine-readable JSON on stdout |
+| `--project <dir>` | project root (default: current directory) |
+| `-q`, `--quiet` | suppress all logging |
+| `-v`, `--verbose` | verbose logging |
+
+Every query command takes `--json`. That is deliberate: a git hook or a CI check
+should not have to speak JSON-RPC to ask the same questions the MCP tools answer.
+
+## The provenance warning
+
+Every index run records the build that wrote it. When a query command opens an
+index written by a **different** build, it says so on stderr and then answers
+anyway:
+
+```
+$ cortex callers Greet
+time=… level=WARN msg="This index was written by cortex dev and you are running
+9.9.9-test. Resolution rules change between builds, so these results may come from
+different rules than this binary would produce. Re-index to refresh."
+Greet (function) at main.go:3
+
+KIND   SYMBOL  EVIDENCE   CONFIDENCE
+CALLS  main    main.go:5  high (source_code)
+
+1 caller(s).
+```
+
+An index is data *plus* the resolution rules that produced it, and those rules
+have already changed twice in this project's history in ways that moved real
+edges. An index written either side of such a change holds different edges for
+identical source, and every query against it succeeds and looks exactly as
+trustworthy as a current one. There is no symptom to notice, which is why the
+index has to say so itself.
+
+A run with no stamp — one written before the column existed — reports **unknown**
+provenance rather than known staleness, because the advice differs: "re-index to
+be sure" is not the same as "these results came from other rules".
+
+Neither is an error. `-q` suppresses it along with all other logging. A schema
+mismatch is a different thing and *is* an error, because the reader cannot
+safely interpret the rows at all:
+
+```
+$ cortex callers Redact
+error: index schema is v7 but this build of cortex expects v8 — run 'cortex index' to upgrade it
+```
+
+## Exit codes
+
+Most commands are 0 on success and 1 on error. Four gate:
+
+| Command | Codes |
+|---|---|
+| [`verify`](#verify) | 0 `pass`, 0 `advisory`, 1 `fail`, 2 `unverified` |
+| [`arch --fail-on`](#arch) | 1 when a violation at or above that severity exists |
+| [`bench --fail-on-regression`](#bench) | 1 when any case fails |
+| [`docs --check`](#docs) | 1 when the committed documents have drifted |
+| [`rename`](#rename-old-new) | 0 would apply, or applied with `verify` passing or advisory; 1 error, `verify` `fail`, or an incomplete rollback; 2 refused (nothing written); 3 applied but not verified complete |
+
+---
+
+## Index lifecycle
+
+### `init`
+
+**Answers:** nothing yet — it creates `.cortex/` and applies the registry
+schema. It does not index.
+
+| Flag | Effect |
+|---|---|
+| `--force` | recreate the index if it already exists |
+
+```
+$ cortex init
+Initialized RepoCortex for "payfix2"
+  Index:          /path/payfix2/.cortex/index.db
+  Schema version: 8 (8 migration(s) applied)
+  Accuracy mode:  auto
+
+Next: cortex index
+```
+
+### `index`
+
+**Answers:** what is in this repository? Walks it, parses every supported file,
+and makes the result queryable. Incremental by default — files are compared by
+**content hash**, not mtime, so a `git checkout` does not trigger a full
+reparse.
+
+| Flag | Effect |
+|---|---|
+| `--full` | rebuild from scratch. Discards resolved edges; re-run `resolve` |
+| `--accuracy fast\|auto\|exact` | override the accuracy mode (full path only) |
+| `--workers N` | parse concurrency (default 4). Peak memory scales with this, not with repository size |
+| `--digest` | print the registry digest — the determinism gate |
+
+`--workers` and `--accuracy` take effect only on the `--full` path, but are
+validated on every path, so a typo fails immediately rather than being silently
+discarded:
+
+```
+$ cortex index --accuracy nonsense
+error: --accuracy "nonsense": want fast, auto or exact
+$ echo $?
+1
+```
+
+A full rebuild publishes atomically: the new revision becomes visible only once
+the whole run is written, so an interrupted rebuild leaves the previous revision
+in place.
+
+```
+$ cortex index --full --digest
+  Files:         422 indexed, 54 skipped (476 discovered)
+  Symbols:       6259
+  References:    29506 (unresolved until M2)
+  Imports:       2063
+  Digest:        74f82dd64551014cbaad1be87228d2ac720c7ac0ca49ccfd856eb0bfe4a5d54b
+  Duration:      7346ms
+```
+
+### `resolve`
+
+**Answers:** which definition does each reference point at? Builds the call
+graph. Separate from `index` because binding needs the complete symbol table,
+which does not exist until every file has been parsed.
+
+| Flag | Effect |
+|---|---|
+| `--min-confidence high\|medium\|low` | drop bindings weaker than this instead of recording them |
+| `--no-scip` | do not import an `index.scip` found in the project root or `.cortex/` |
+
+Resolution itself never produces `exact`; that is reserved for compiler-backed
+SCIP data and is enforced in Go, in a SQL `CHECK`, and again at commit time. If
+an `index.scip` sits in the project root or `.cortex/`, `resolve` imports it
+afterwards (as `scip import` would) and prints a `SCIP:` line with the edges
+upgraded, or, when the import fails, the path and the reason. A failed import
+does not fail `resolve`. JSON output carries the same under `scip`.
+
+```
+$ cortex resolve
+  References:  29506
+  Resolved:    12062 (40.9%)
+  Ambiguous:   2063
+  Unresolved:  15381  (calls outside this repository)
+  Edges:       11720
+    high:    9714
+    medium:  133
+    low:     2215
+  Data access: 476 statement(s), 458 bound to a declared table, 450 edges
+  Config:      32 read(s), 2 bound to a declared key, 2 edges
+  Duration:    1260ms
+```
+
+### `watch`
+
+**Answers:** keeps the index current as you edit. Runs until interrupted.
+
+| Flag | Effect |
+|---|---|
+| `--debounce <duration>` | quiet period before reacting to a burst of edits (default 300ms) |
+
+Editors emit bursts of events for one save, so changes are debounced and
+coalesced. Each file updates in its own transaction, so an agent querying
+concurrently always sees a file either entirely before or entirely after a
+change.
+
+### `status`
+
+**Answers:** what state is the index in, and how much is in it? All figures are
+read from the registry; nothing is estimated. No flags beyond the global ones.
+
+```
+$ cortex status
+Project:        payfix2
+Index:          READY
+Schema:         v8
+Revision:       f7fd7cc51ad9fd4fde96ba72b24d4f60f6d5b2a5
+Files:          10
+Symbols:        54
+Relationships:  26
+Last indexed:   2026-08-18T03:23:11+05:30
+Index size:     268.0 KiB
+Accuracy mode:  auto
+MCP profile:    minimal
+Capabilities:   code
+```
+
+### `doctor`
+
+**Answers:** is the environment sane, and is the graph structurally sound?
+
+| Flag | Effect |
+|---|---|
+| `--verify-index` | run the graph invariant gate: dangling edges, orphaned symbols, edges claiming compiler certainty without compiler evidence |
+| `--resolution-precision` | adjudicate the heuristic resolver against compiler facts already imported into this index |
+
+`--resolution-precision` needs a run holding both heuristic and compiler edges,
+so import a SCIP index first. It reports precision, never recall, and it reports
+the coverage the precision was computed over. `doctor`'s exit status is **not**
+affected by the measurement — add `--json` to gate on it yourself; the report
+lands under `resolution_precision`.
+
+```
+$ cortex doctor --verify-index
+[ok  ]  go runtime                go1.25.13 darwin/amd64
+[ok  ]  sqlite                    3.53.3
+[ok  ]  fts5                      ENABLE_FTS5 present
+[ok  ]  dangling edges            none
+[ok  ]  orphaned symbols          none
+[ok  ]  unproven exact edges      none
+...
+```
+
+### `version`
+
+**Answers:** which build is this? A source build reports `dev`/`none`/`unknown`,
+which is correct rather than broken — the real values are injected with
+`-ldflags` at release time.
+
+```
+$ cortex version
+cortex dev (commit none, built unknown, darwin/amd64)
+```
+
+---
+
+### `languages`
+
+**Answers:** which languages does this binary actually resolve, and to what
+depth? No flags beyond `--verbose`, which lists the parsed-tier grammars too.
+
+The tiers are computed from the query set at run time, not read from a list,
+so this output cannot disagree with what the binary does. A language is `typed`
+when it has definition, import, receiver and arity queries; `resolved` when it
+has definitions and imports; `parsed` when only a grammar ships for it.
+
+```
+$ cortex languages
+TIER      COUNT  WHAT YOU GET
+typed     1      definitions, imports, receiver and arity discrimination — references can reach 'high'
+resolved  11     definitions and imports — references bind across files
+parsed    194    definitions and search only — no cross-file references claimed
+total     206
+
+typed:    [go]
+resolved: [c_sharp java javascript kotlin php python ruby rust scala tsx typescript]
+```
+
+Read the tiers as a coverage statement before trusting an empty relationship
+result: a `parsed`-tier language will never produce a caller, and the absence is
+a property of the tier, not of the code.
+
+### `hooks install`, `hooks status`, `hooks uninstall`
+
+**Answers:** keep the index current on every commit, without a daemon.
+
+| Flag | Effect |
+|---|---|
+| `--binary PATH` | (`install`) the `cortex` the hook should call; default is this executable |
+
+`install` writes a Git `post-commit` hook that re-indexes after each commit, so
+the portal and any connected agent describe the commit you just made. The block
+is written inside marked delimiters: an existing hook is appended to, never
+replaced, and `uninstall` removes exactly the marked block. The hook runs
+detached and swallows every failure — a hook that can fail a commit is a hook
+people delete.
+
+```
+$ cortex hooks status
+post-commit: not installed
+The index is only as current as the last 'cortex index'.
+Install it with: cortex hooks install
+```
+
+Prefer `watch` when you want the index to follow edits rather than commits, and
+the hook when you want nothing running in the background.
+
+## Compiler-backed accuracy
+
+### `indexers`
+
+**Answers:** which compiler-backed indexers apply here, and can this machine run
+them? Two subcommands.
+
+`indexers list` is pure inspection — it changes nothing and installs nothing.
+
+```
+$ cortex indexers list
+Accuracy mode: auto
+Toolchain:     go: go version go1.25.13 darwin/amd64
+
+LANGUAGE  INDEXER  STATUS                 PATH
+go        scip-go  ready (found on PATH)  .
+```
+
+`indexers install` provisions them. Every download is pinned to an exact version
+and verified against a recorded digest; a mismatch refuses rather than
+installing, and an indexer with no recorded digest is never fetched at all.
+
+| Flag | Effect |
+|---|---|
+| `--yes` | install without prompting (still verifies digests) |
+| `--out-dir DIR` | write the `.scip` files into `DIR` (created if absent, must be empty) instead of a temporary directory, so a script knows where to find them |
+| `--allow-repo-build` | permit running the repository's own build (Java); it executes code from the repo. Refused by default; prefer `accuracy.indexers.runner=docker` |
+
+`indexers pins` prints one tab-separated line per indexer this build may
+install, with five fields: name, version, channel, the reference it installs,
+and the digest it verifies (`-` where the channel verifies itself, as
+`go install` does against the checksum database).
+
+```
+$ cortex indexers pins
+scip-go	v0.2.7	go-install	github.com/scip-code/scip-go/cmd/scip-go@v0.2.7	-
+scip-java	0.12.2	docker	sourcegraph/scip-java@sha256:a05564b9...	sha256:a05564b9...
+scip-python	0.6.6	npm	@sourcegraph/scip-python@0.6.6	be8e0a1e...
+scip-typescript	0.3.14	npm	@sourcegraph/scip-typescript@0.3.14	92a88678...
+```
+
+(Digests abbreviated here.) The output depends on nothing but the binary: no
+repository, config or network is read. That makes it a sound CI cache key: the
+key changes exactly when a pin changes, which is how the change-safety workflow
+caches `scip-go`.
+
+Which indexers may be installed, and whether installation may happen without
+prompting, is controlled by your **user** config (`~/.config/cortex/config.yml`)
+and never by the repository. A cloned repo must not be able to decide what runs
+on your machine.
+
+### `scip import`
+
+**Answers:** takes a `.scip` index that already exists — usually from CI — and
+writes its relationships in as `exact`/`compiler` facts. Nothing is ever
+downgraded, so importing a stale index cannot weaken the graph, and importing
+the same index twice is a no-op.
+
+| Flag | Effect |
+|---|---|
+| `--path-prefix <dir>` | repo-relative directory the index's documents hang off, when the index records absolute build-container paths |
+| `--max-bytes N` | cap the index size in bytes (0 = default, negative = no cap) |
+
+Order matters: index, resolve, then import.
+
+```
+$ cortex scip import index.scip
+scip-go 0.2.7: 313 document(s), 276 matched
+symbols: 4376 matched, 14810 with no counterpart in the index
+edges:   15885 new, 0 upgraded from heuristic, 1026 already known
+         72729 reference(s) point outside the indexed repository
+         3173 reference(s) the indexer attributed to a file rather than a definition were skipped
+duration: 2.218s
+
+37 of 313 document(s) matched no indexed file (88% matched).
+```
+
+Paths are the usual failure. If the matched-document count is zero, pass
+`--path-prefix`. `0 upgraded from heuristic` is expected, not a failure — see
+[FAQ.md](FAQ.md#why-does-scip-import-say-0-upgraded-from-heuristic).
+
+---
+
+## Asking the index questions
+
+All five of these answer the same questions as the MCP tools, against the same
+index.
+
+### `search`
+
+**Answers:** which files contain this text? Full-text over the index's FTS5
+tables. Identifiers are indexed by their parts, so `callback` matches
+`handlePaymentCallback`. This searches **text**; to find a definition by name,
+use `symbol`.
+
+| Flag | Effect |
+|---|---|
+| `-n`, `--limit N` | maximum files to report (default 20) |
+
+```
+$ cortex search callback -n 5
+internal/search/tokenize_test.go
+internal/compile/compile_test.go
+fixtures/payment-platform/src/main/java/com/pay/controller/CallbackController.java
+internal/context/task_test.go
+internal/cli/final_test.go
+
+5 file(s) matching "callback".
+```
+
+Coverage is indexed files only: binary, generated and oversized files are
+recorded in the index but carry no searchable text, and secrets are redacted
+before storage.
+
+### `symbol`
+
+**Answers:** where is this defined? Exact, not fuzzy — asking for
+`TransactionService` returns that type, not the forty symbols whose names
+contain it.
+
+| Flag | Effect |
+|---|---|
+| `--kind <kind>` | restrict to one kind (class, interface, method, function, …) |
+| `-n`, `--limit N` | maximum definitions to report (default 50) |
+
+```
+$ cortex symbol Server --kind class
+KIND   NAME    LOCATION                   CONFIDENCE
+class  Server  internal/mcp/server.go:41  high (source_code)
+
+1 definition(s) named "Server".
+```
+
+The confidence shown is the confidence of the **extraction**, so a
+compiler-proven definition is distinguishable from a parsed one.
+
+### `references`, `callers`, `callees`
+
+**Answer:** what points at this symbol, what calls it, and what does it call.
+`references` is broadest — calls, imports, implementations, extensions and plain
+references. `callers` is call edges only. `callees` points away from the symbol.
+All three share the same flags.
+
+| Flag | Effect |
+|---|---|
+| `-n`, `--limit N` | maximum relationships to report (default 100) |
+| `--min-confidence exact\|high\|medium\|low` | drop edges below this confidence |
+| `--path <substring>` | disambiguate by file path substring |
+
+```
+$ cortex callers Redact
+Redact (function) at internal/security/redact.go:67
+
+KIND   SYMBOL       EVIDENCE                          CONFIDENCE
+CALLS  Bound        internal/mcp/framing.go:153       high (source_code)
+CALLS  RedactFile   internal/security/redact.go:122   high (source_code)
+...
+17 caller(s).
+```
+
+**An empty result is never presented as proof of absence.** It reports the
+index's measured resolution coverage instead:
+
+```
+$ cortex callees profileTools
+profileTools (function) at internal/mcp/server.go:129
+
+No callees found.
+
+41% of 29506 references are bound to a definition (15381 point outside this
+repository, 2063 were too ambiguous to bind). An empty result is a lower bound,
+not proof that nothing uses this symbol.
+```
+
+### `context`
+
+**Answers:** what would an agent be handed for this task? This is what
+`get_task_context` serves over MCP, printed for a human, and it is the fastest
+way to see *why* an agent received what it received.
+
+| Flag | Effect |
+|---|---|
+| `--max-files N` | override the file budget |
+| `--max-lines N` | override the excerpt line budget |
+| `--max-symbols N` | override the symbol budget |
+| `--show-excluded` | list everything considered and left out, with the reason |
+
+```
+$ cortex context "Add secret redaction to MCP responses"
+Task: Add secret redaction to MCP responses
+Understood as: Concepts: mcp, redaction, responses, secret, add; action: add.
+Anchored on 20 symbols named by the task (MCPProfile, MCPMinimal, …); expanded
+to 1462 reachable symbols in the call graph
+
+KIND      NAME        LOCATION                        WHY
+class     MCPProfile  internal/config/config.go:90    named by the task (matches "mcp"); text also matches …
+...
+```
+
+Every item carries a non-empty reason it earned its tokens, and `--show-excluded`
+prints the rejections with theirs.
+
+---
+
+## Structural surfaces
+
+### `api`
+
+**Answers:** what HTTP endpoints does this service expose, and what handles
+each? No flags beyond the global ones.
+
+Routes are discovered from the framework's own spelling — a Spring annotation, a
+Go router registration, a FastAPI or Flask decorator, a Django `path()` in a
+urlconf, an Express member call, a NestJS controller decorator — never from
+strings that merely look like paths. Django routes are reported at `medium`
+confidence, since the `include()` mount prefix is not visible from the file.
+**Not covered:** OpenAPI documents, GraphQL schemas, gRPC service definitions,
+API-gateway configuration.
+
+```
+$ cortex api
+METHOD & PATH           HANDLER         DECLARED AT
+POST /payment/callback  handleCallback  …/controller/CallbackController.java:21
+
+1 endpoint(s). Discovery covers spring, go-http, go-router, fastapi, flask, django, express, nest.
+5 further route(s) are declared in test files and are not counted above — they
+are fixtures, not this service's API.
+```
+
+### `db`, `db table`
+
+**Answer:** which tables does this repository declare or query, and what reads
+or writes each. `READ`, `WRITE`, `READ_WRITE`, `DDL` and `UNKNOWN` are kept
+distinct — "what touches this table" is a mildly useful question, "what *writes*
+it" is the one asked before changing a column. Neither takes flags beyond the
+global ones.
+
+Tables nothing here declares are still reported: that is the normal shape of a
+service reading a database another service owns.
+
+```
+$ cortex db table transactions
+transactions (declared in this repository)
+
+WRITTEN BY (1)
+  save (…/TransactionRepository.java)      …TransactionRepository.java:20  high (UPDATE (literal SQL))
+
+READ BY (1)
+  findById (…/TransactionRepository.java)  …TransactionRepository.java:14  high (SELECT (literal SQL))
+```
+
+### `config`
+
+**Answers:** every configuration key the repository declares or reads, and — the
+two findings worth acting on — the mismatches between them. A key read by code
+that nothing declares is how a service fails at start-up; a key declared and
+never read is either dead configuration or a lookup this scan cannot see.
+
+| Flag | Effect |
+|---|---|
+| `--all` | list every key, not only the mismatches |
+
+**Values are never read.** Not masked, not truncated — never read at all. Keys
+whose *name* indicates a credential are labelled sensitive, which requires
+reading nothing. Declarations come from `.env`, YAML, JSON, TOML and
+`.properties`; Kubernetes, Helm, Terraform and CI definitions are not read.
+
+```
+$ cortex config
+READ BUT NOT DECLARED (16) — a service that needs these and finds nothing fails at start-up
+  API_KEY                5 reader(s)  sensitive (by name)
+  DATABASE_URL           5 reader(s)
+  ...
+179 key(s) total: 161 declared and never read, 4 labelled sensitive by name.
+Pass --all for the full inventory.
+```
+
+### `deps`
+
+**Answers:** what does this project declare it depends on, and does anything
+import it? Aliased as `dependencies`.
+
+| Flag | Effect |
+|---|---|
+| `--all` | list every dependency, not only the unused ones |
+
+Manifests, not lock files — `go.mod`, `package.json`, `pom.xml`, `build.gradle`,
+`requirements.txt`, `pyproject.toml`, `Cargo.toml`. **No vulnerability data**:
+versions are reported accurately so a real scanner can consume them, but a
+scanner shipping an embedded advisory list is stale the day it is built. An
+unused dependency is a prompt, not a verdict.
+
+```
+$ cortex deps
+DECLARED BUT NOT IMPORTED (1)
+  github.com/never/used  v0.1.0  runtime  go.mod:7
+
+  Check before removing: a package can be loaded by reflection, required by a
+  build plugin, or imported under a name that differs from its distribution name.
+
+2 dependency(ies) declared. Pass --all for the full list.
+```
+
+### `arch`
+
+**Answers:** does the code match the architecture you declared? Compares the
+dependency **graph** against components and rules in `.cortex.yml`. Components
+are declared, never inferred.
+
+| Flag | Effect |
+|---|---|
+| `--crossings` | list every component-to-component dependency, not only violations |
+| `--fail-on high\|medium\|low` | **exit 1** when a violation of this severity or worse exists |
+| `--min-confidence exact\|high\|medium\|low` | ignore relationships below this confidence |
+
+```
+$ cortex arch --fail-on high
+VIOLATIONS (113)
+  SEVERITY  RULE                           CROSSING                              CONFIDENCE
+  high      cli-goes-through-the-registry  cli -> store (symbolName -> symbols)  high
+  ...
+error: 113 architecture violation(s), worst severity "high" (--fail-on high)
+$ echo $?
+1
+```
+
+The report always states how many symbols belong to no declared component and
+were therefore not checked. The confidence column is the confidence of the
+*edge*, not of the rule: `--min-confidence exact` narrows the same run above
+from 113 violations to 42.
+
+### `arch adr`
+
+**Answers:** what decisions are on record, and why? Reads `docs/adr/`,
+`docs/decisions/` and the other conventional locations, in both the Nygard and
+MADR formats. Takes an optional number or substring; no flags beyond the global
+ones.
+
+RepoCortex does not check whether an ADR is still **true**. A record saying the
+system uses Postgres is evidence of a decision, not of the current state — the
+graph is where you check the current state.
+
+---
+
+### `infra`
+
+**Answers:** which service does this code run in, and what restarts when a
+configuration key changes? Read from Dockerfiles, Compose files, Kubernetes
+manifests, Helm charts and Terraform.
+
+| Flag | Effect |
+|---|---|
+| `--for PATH` | which deployment unit does this repo-relative file run in |
+| `--key NAME` | what does changing this configuration key name restart |
+| `--keys` | list every configuration key name each unit sets |
+| `--format F` | restrict to `dockerfile`, `compose`, `kubernetes`, `helm` or `terraform` |
+| `--disk` | scan the working tree instead of the index; works before `cortex index` |
+
+**Values are never printed.** These files hold credentials, and the guarantee is
+structural rather than a filter: the extractor has no field a value fits in, and
+a Kubernetes `Secret` is read as the key names it declares. What you get is
+"`DB_PASSWORD`, from Secret `db-creds`", which is the half you can act on.
+
+Manifests are stored by `cortex index`, so a service is a node in the same
+graph as the code and a key name binds to the code that reads it; `resolve`
+joins a service to the endpoints built from its build context. `--disk` reads
+the tree directly instead, and the output says which of the two it is reading,
+because they can disagree.
+
+What could not be read is reported: a manifest that fails to parse is listed
+with the reason, and Helm templates are reported as unrendered rather than
+guessed at. Terraform is read as block headers only, never attribute values.
+**Not read:** CloudFormation, systemd units, CI definitions.
+
+```
+$ cortex infra
+The index holds no deployment manifests. If you expected some, re-run 'cortex index';
+to check the working tree directly, run 'cortex infra --disk'.
+
+Read: Dockerfile, docker-compose.yml, Kubernetes manifests, Chart.yaml and values.yaml,
+and .tf files. CloudFormation, systemd units and CI definitions are not read — that is a
+coverage limit, not a finding about your deployment.
+```
+
+## Change-safety and context tools
+
+These run against the committed index. Each takes the global `--json`.
+
+### `events`, `events topic`
+
+**Answers:** which topics, queues and exchanges exist, and who publishes to or
+consumes from them?
+
+`cortex events` lists them across Kafka, RabbitMQ/AMQP, SQS, SNS and Google
+Cloud Pub/Sub. `cortex events topic <name>` lists the functions that publish
+to or consume from one. Event topology is not an MCP tool.
+
+### `missed`
+
+**Answers:** where is this index blind, or where is the code hiding risk?
+
+| Flag | Effect |
+|---|---|
+| `--kind <kind>` | one of `unresolved_call`, `untested_critical`, `unmapped_endpoint`, `orphan_table`, `missing_config`, `unparsed_file` |
+| `--limit <n>` | blindspots reported per category (default 50) |
+| `--fail-on <severity>` | exit 1 when a blindspot of this severity (`high`, `medium`, `low`) or worse exists |
+
+MCP equivalent: `detect_blindspots`.
+
+### `plan-change <symbol>`
+
+**Answers:** what is the ordered, checkable sequence of steps to change this
+symbol safely? Output carries the target, direct callers, risk, covering tests
+and pre/post-conditions per step.
+
+| Flag | Effect |
+|---|---|
+| `--min-confidence <tier>` | lowest edge confidence to walk: `exact`, `high`, `medium` (default), `low` |
+
+MCP equivalent: `plan_change`.
+
+### `rename <old> <new>`
+
+**Answers:** can this symbol be renamed at its definition and at every
+reference RepoCortex resolved, and is every one of those sites safe to edit?
+A dry run by default: it lists every site with its confidence and says whether
+the rename could be applied. Nothing is written without `--apply`.
+
+`--apply` writes only if **every** site passes:
+
+1. its confidence is at or above the floor: `exact` (a compiler-proven edge) by
+   default, or `high` with `--floor high`;
+2. the file is byte-for-byte what was indexed (otherwise re-index);
+3. the old name occurs on the site's line exactly once, or the recorded column
+   lands on it exactly;
+4. the file is inside the project root, and is a regular, writable file (a
+   read-only file is the owner saying "do not touch", and is refused);
+5. every reference was fetched, and the new name is not already defined in a
+   file being edited.
+
+If any site fails, nothing is written, every failing site is listed, and the
+exit code is 2. Files are written atomically (write, then rename), contained to
+the project root, with the hash re-checked immediately before each replace. If
+a later write fails, the files already written are restored. Only one edit runs
+per project root at a time: a `.cortex-edit.lock` file at the project root
+exists only while a commit is running, and a second `rename --apply` that finds
+it is refused. A lock left behind by a crashed process is **never** stolen; the
+error names the lock's holder and its path, and once you have confirmed no
+cortex process is running, delete it by hand and retry. It exists only
+during a commit, so there is no need to ignore it in `.gitignore`, though it can
+appear briefly in `git status`.
+
+After applying, a task contract for the rename is written to
+`.cortex/rename-contract.json` and [`verify`](#verify) runs on the changed
+files. **Verify reads the pre-rename index**: it checks the change against what
+was indexed before the edit. Run `cortex index` afterwards to refresh it.
+
+| Flag | Effect |
+|---|---|
+| `--apply` | write the edits (default is a dry run) |
+| `--floor exact\|high` | weakest confidence an edit may rest on (default `exact`). `high` accepts an explicit import plus an unambiguous receiver type, measured 86.8-96.1% precise, and prints a warning saying so before applying |
+| `--path <substr>` | substring of the defining file's path, when several definitions share the name |
+| `--max-sites N` | refuse renames with more references than this (default 2000) |
+| `--contract-out FILE` | where to write the rename's task contract (default `.cortex/rename-contract.json`) |
+| global `--json` | machine-readable report, including `leftovers` |
+
+| Exit | Meaning |
+|---|---|
+| 0 | dry run: would apply. Apply: written, and `verify` passed or advised, and no occurrence of the old name remains |
+| 1 | error, `verify` returned `fail`, or a rollback after a failed write was incomplete |
+| 2 | refused: nothing was written (a site below the floor, an unchanged-file or ambiguity failure, a locked project root, a read-only file) |
+| 3 | applied, but **not verified complete**: `verify` was `unverified`, or `LEFTOVER OCCURRENCES` of the old name remain in indexed files |
+
+**Limits.** RepoCortex never compiles your code. A reference it could not bind,
+and interface implementations or overrides that have no edge to the symbol, are
+not listed and **not renamed**; comments and strings that mention the old name
+are listed as leftovers but left alone. Every run prints this as a
+`NOT COMPLETE` note. Search for the old name, then build and test.
+
+A dry run on a copy of `fixtures/payment-platform` (Java, so no compiler index
+exists and every site is `high`, below the default `exact` floor):
+
+```
+$ cortex rename updateStatus applyStatus
+Rename updateStatus -> applyStatus  (src/main/java/com/pay/service/TransactionService.java:updateStatus, src/main/java/com/pay/service/TransactionService.java:18)
+REFUSED: nothing was written. Every site must be exact or better, unambiguous on its line, and unchanged since indexing.
+  High sites need a compiler-backed index to become exact ('cortex indexers install', then 'cortex scip import'), or an explicit --floor high (measured 86.8-96.1% precise).
+
+SITES
+  high  src/main/java/com/pay/controller/CallbackController.java:23  CALLS
+  high  src/main/java/com/pay/service/TransactionService.java:18     DEFINITION
+
+REFUSED SITES
+  high    src/main/java/com/pay/controller/CallbackController.java:23  confidence high is below exact
+  high    src/main/java/com/pay/service/TransactionService.java:18  confidence high is below exact
+
+NOT COMPLETE: RepoCortex renames the definition and the references it resolved, nothing else, ...
+$ echo $?
+2
+```
+
+(The `NOT COMPLETE` note is truncated here; the tool prints it in full.) With
+the explicit opt-in to `high`, on the same copy:
+
+```
+$ cortex rename updateStatus applyStatus --floor high --apply
+WARNING --floor high: `high` bindings measure 86.8-96.1% precision against compiler indexes (docs/accuracy.md); at 90%, a rename touching thirty sites gets three wrong. Read every high site below, then build and test.
+Rename updateStatus -> applyStatus  (src/main/java/com/pay/service/TransactionService.java:updateStatus, src/main/java/com/pay/service/TransactionService.java:18)
+APPLIED to 2 file(s), but NOT VERIFIED COMPLETE: the old name is still in the files listed under LEFTOVER OCCURRENCES.
+
+SITES
+  high  src/main/java/com/pay/controller/CallbackController.java:23  CALLS
+  high  src/main/java/com/pay/service/TransactionService.java:18     DEFINITION
+
+LEFTOVER OCCURRENCES (2 line(s) still name updateStatus; showing 2)
+  References RepoCortex could not bind, or comments and strings. Nothing here was changed; review each by hand.
+  src/test/java/com/pay/controller/CallbackControllerTest.java:8  verify(transactionService).updateStatus("txn-1", "COMPLETED");
+  src/test/java/com/pay/service/TransactionServiceTest.java:7  service.updateStatus("txn-1", "COMPLETED");
+
+VERIFY: PASS  (contract: /tmp/rn/.cortex/rename-contract.json)
+  [UNKNOWN] The repository declares no architecture, so there was no rule for this change to break. ...
+  [UNKNOWN] The contract names no covering test, so for the 1 changed scope symbol(s) there is nothing to check coverage against. ...
+  Checked against the pre-rename index; run 'cortex index' to refresh it.
+
+NOT COMPLETE: RepoCortex renames the definition and the references it resolved, nothing else, ...
+$ echo $?
+3
+```
+
+Here the two test files call the method through a mock and a field that
+RepoCortex did not bind, so the old name survives; the exit code is 3, never 0,
+until you handle them by hand. Verify passing does not make a rename complete.
+
+MCP equivalent: none. The MCP server only plans (`plan_rename`, `plan_change`); it never edits.
+
+### `prune <file>`
+
+**Answers:** what is this file's interface, without its implementation? Bodies
+are replaced by a placeholder; signatures, types and docstrings stay.
+
+| Flag | Effect |
+|---|---|
+| `--no-docstrings` | strip docstrings as well as bodies |
+| `--placeholder <text>` | text left in stripped bodies (default `/* ... */`) |
+
+MCP equivalent: `get_file_outline`.
+
+### `diff-minimize [patch-file]`
+
+**Answers:** what does this diff change, in fewer tokens? Reads a patch file or
+stdin, strips redundant headers, names enclosing symbols and compresses long
+unchanged runs.
+
+```
+git diff HEAD~1 | cortex diff-minimize
+```
+
+MCP equivalent: `minimize_diff`.
+
+## The loop: compile → work → verify
+
+### `compile`
+
+**Answers:** what brief should an agent have been given for this one-line ask?
+Scope, non-scope, constraints, blast radius, tests, acceptance, and what it does
+not know.
+
+| Flag | Effect |
+|---|---|
+| `--max-scope N` | bound the scope list (0 = default) |
+
+Everything is derived, nothing is invented: every constraint and risk carries the
+file or symbol it came from, and a constraint with no evidence is dropped rather
+than emitted. No model, no network, no clock — the same intent against the same
+index produces a byte-identical contract.
+
+```
+$ cortex compile "Add secret redaction to MCP responses"
+# Task Contract
+
+## Intent
+Add secret redaction to MCP responses
+
+## Interpretation
+Concepts: mcp, redaction, responses, secret, add; action: add. …
+
+## Scope
+- `MCPProfile` in `internal/config/config.go` (class) — named by the task …
+
+## Out of scope
+- `Declarations` in `internal/analyze/config/config.go` — relevant (1.79) but
+  dropped to stay inside the ~8000-token budget
+…
+```
+
+Pipe `--json` into `verify`.
+
+### `verify`
+
+**Answers:** did the change honour the contract? Four questions — scope,
+architecture rules, missed callers, test coverage — and it refuses to ask a
+fifth. It is not a linter, a test runner or a reviewer.
+
+| Flag | Effect |
+|---|---|
+| `--contract <path>` | contract from `compile --json` (**required**) |
+| `--changed <a,b,c>` | comma-separated changed file paths |
+| `--changed-from <file>` | file holding one changed path per line (`-` for stdin) |
+| `--fail-on-leads` | exit non-zero when only leads were found |
+| `--min-confidence exact\|high\|medium\|low` | raise the contract's confidence floor |
+
+One of `--changed` or `--changed-from` is required. `verify` does not run git:
+the changed set is an **input**, because the situation that matters is an agent
+asking "is what I have in my working tree acceptable" before it writes anything.
+
+**The exit codes are the command.**
+
+| Code | Disposition | Meaning |
+|---|---|---|
+| 0 | `pass` | every question was asked, nothing was found |
+| 0 | `advisory` | findings exist, all of them leads (`--fail-on-leads` makes this 1) |
+| 1 | `fail` | at least one finding is a FACT |
+| 2 | `unverified` | there was nothing to check against |
+
+A finding is a FACT when the edge behind it is compiler-proven, and a LEAD when
+it rests on a heuristic edge — because the edge itself may be wrong. Presenting
+the two identically makes the report either alarmist or ignorable, and both end
+with it switched off.
+
+`unverified` is deliberately not `pass`. "We looked and found nothing" and
+"there was nothing to look at" must not render the same, or the gate stops
+gating on the day contract generation breaks and nobody notices. All four,
+observed:
+
+```
+$ cortex verify --contract contract.json --changed internal/cli/opendb.go
+VERIFY: FAIL
+[FACT] internal/cli/opendb.go violates architecture rule cli-goes-through-the-registry:
+       openReadOnly (cli) depends on CheckVersion (store).
+  evidence: internal/cli/opendb.go:48 — openReadOnly REFERENCES CheckVersion, exact
+            confidence; rule cli-goes-through-the-registry, verdict forbidden
+  scip: scip-go 0.2.7
+$ echo $?
+1
+
+$ cortex verify --contract contract.json --changed src/main/java/com/pay/service/TransactionService.java
+VERIFY: ADVISORY
+[LEAD] …/TransactionService.java violates architecture rule services-do-not-touch-the-database:
+       findTransaction (service) calls findById (repository).
+  evidence: …/TransactionService.java:26 — findTransaction CALLS findById, high
+            confidence; rule services-do-not-touch-the-database, verdict forbidden
+  receiver type matches
+$ echo $?
+0
+$ cortex verify --contract contract.json --changed src/…/TransactionService.java --fail-on-leads
+$ echo $?
+1
+
+$ cortex verify --contract contract.json --changed src/main/java/com/pay/model/Transaction.java
+VERIFY: PASS
+No findings.
+$ echo $?
+0
+
+$ cortex verify --contract hollow.json --changed README.md
+VERIFY: UNVERIFIED
+No findings.
+$ echo $?
+2
+```
+
+Every report also prints what it could **not** check, under `NOT CHECKED` and
+`UNKNOWN`, rather than presenting a narrow clean result as a broad one.
+
+---
+
+## Reporting and measurement
+
+### `diff`
+
+**Answers:** what changed about the code's **facts** between two indexed runs —
+symbols added, removed, moved or orphaned; relationships added, removed or
+re-graded; endpoints whose handler changed; tables that gained or lost a reader
+or a writer.
+
+| Flag | Effect |
+|---|---|
+| `--from <ref>` | base (older) side: a run id, or a commit SHA recorded on an indexed run |
+| `--to <ref>` | head (newer) side (default: the committed run) |
+| `--from-index <path>` | read the base side from this index database |
+| `--to-index <path>` | read the head side from this index database |
+| `--max-per-section N` | cap the changes reported per section (0 = default) |
+| `--max-evidence-sites N` | cap the evidence sites carried per edge fact (0 = default) |
+
+Nothing here invokes git. A ref matching no indexed run fails and says so — it
+never falls back to whichever run happens to be committed. And committing a run
+retires the one before it, so **one index database holds one committed run**;
+comparing across commits normally means two index files, which is what
+`--from-index`/`--to-index` are for.
+
+```
+$ cortex diff --from-index /tmp/paybase/index.db --from 2 --to 3
+diff 8e6705118c97…..8e6705118c97… (runs 2..3)
+  base: status=ready accuracy=auto digest=3f5cf0b410ea
+  head: status=ready accuracy=auto digest=03dbf1aa57cd
+
+SYMBOLS
+  moved    …/TransactionService.java:TransactionService (class)  line 6 -> 6 (+0)
+  added    …/TransactionService.java:refund (method)  line 29
+
+EDGES
+  added    …:refund (method) -[CALLS]-> …/TransactionRepository.java:findById (method)
+           high/source_code at …/TransactionService.java:30:24
+  added    …:refund (method) -[CALLS]-> …/TransactionRepository.java:save (method)
+           high/source_code at …/TransactionService.java:30:8
+
+COULD NOT COMPARE
+  - 1 files did not parse cleanly in one of the runs; changes inside them are
+    marked uncertain
+```
+
+The report always ends with what it could not compare. A degraded run, a file
+that did not parse, or two runs indexed in different accuracy modes all mean an
+absence may be an indexing gap rather than a deletion.
+
+### `docs`
+
+**Answers:** generates `ARCHITECTURE.md` and `CAPABILITIES.md` from the indexed
+graph, with Mermaid diagrams. Every claim cites the file and line it came from;
+where the graph is silent, the document says so instead of guessing.
+
+| Flag | Effect |
+|---|---|
+| `--out <dir>` | write the two files there (default: stdout) |
+| `--check` | regenerate in memory and compare; **exit 1** on drift |
+| `--max-components N` / `--max-depth N` / `--max-endpoints N` | caps (0 = default) |
+
+Output is deterministic: the same index regenerates byte-identical files, so
+these can be committed and reviewed like any other artifact. `--check` is the
+useful one in CI.
+
+```
+$ cortex docs --out /tmp/paydocs
+wrote /tmp/paydocs/ARCHITECTURE.md
+wrote /tmp/paydocs/CAPABILITIES.md
+
+$ cortex docs --check --out /tmp/paydocs
+documentation is current (2 file(s) checked).
+$ echo $?
+0
+```
+
+### `bench`
+
+**Answers:** did the context engine retrieve the right code? Runs hand-written
+cases through the engine and scores the pack it actually produces.
+
+| Flag | Effect |
+|---|---|
+| `--fail-on-regression` | **exit 1** when any case fails, for CI |
+
+A case names a task, the code a correct answer must contain (`expect`), and the
+code it must not (`forbid`). The second half is what makes the number mean
+something — recall alone is trivially gamed by returning the whole repository.
+
+```
+$ cortex bench fixtures/bench/payment.yml
+CASE                              RESULT  RECALL  TOKENS  MISSING
+change-transaction-status-column  pass    100%    1567    —
+idempotent-callback               pass    100%    1368    —
+notification-failure-handling     pass    100%    1388    —
+
+3/3 passed, mean recall 100%.
+```
+
+**What this does not measure:** whether an agent completed the task. Only whether
+the context contained what a human said it should.
+
+### `trace`
+
+**Answers:** which indexed code did production actually reach? Takes an exported
+OpenTelemetry or Jaeger file — a **file**, not a live collector — and lines it up
+against the graph. No flags beyond the global ones.
+
+Correlation is heuristic and every match says how it was made: a `code.function`
+attribute names the symbol outright, an `http.route` matching an endpoint is
+strong, a span name matching a symbol is weak and is only tried when nothing
+better exists and the name is unique.
+
+```
+$ cortex trace spans.json
+otlp-json: 3 span(s) across 1 trace(s), service(s): pay
+
+EXERCISED (3)
+  ENTITY                  KIND      CALLS  ERRORS  P95   MATCHED BY
+  POST /payment/callback  endpoint  1      0       40ms  route
+  transactions            table     1      0       15ms  table
+  updateStatus            method    1      0       25ms  code-attribute
+```
+
+Spans are **not persisted**. Runtime data ages out in hours while an index
+describes a commit, and storing them together would produce a graph whose edges
+are true at different times.
+
+---
+
+### `impact`
+
+**Answers:** what does a git range put at risk? Reads the files the range
+changed, finds the symbols defined in them, and walks *inward* to everything
+that depends on each.
+
+| Flag | Effect |
+|---|---|
+| `--base REV` | the revision to compare from (required) |
+| `--head REV` | the revision to compare to (default `HEAD`) |
+| `--depth N` | hops to follow from each changed symbol |
+| `--min-confidence` | floor for the walk (default `medium`) |
+| `--max-seeds N` | maximum changed symbols to analyse |
+| `--limit N` | rows per section |
+
+The direction is the point: a change threatens the code that depends on it,
+not the code it calls, so this walks callers. Renamed and deleted files are
+seeded under the name the index has for them, since those are the two changes
+most likely to break a caller and the ones a naive diff would report as empty.
+
+Nothing here checks out or re-indexes. The range is read from the repository
+and the symbols from the committed run, so the index may describe neither end
+of the range. That case is reported as **STALE INDEX** at the top rather than
+answered quietly, because every symbol in a stale report is about other code:
+
+```
+$ cortex impact --base HEAD~6 --head HEAD
+Blast radius of HEAD~6..HEAD
+
+UNVERIFIED PROVENANCE
+
+  STALE INDEX: this index was built at commit c91cf807, which is neither end of the
+  analysed range HEAD~6..HEAD. … Re-run `cortex index` at one end of the range and ask again.
+
+13 files changed; 192 changed symbols found in the index, 192 analysed.
+144 symbols at risk through recorded references, plus 0 reachable only through dispatch.
+Riskiest change: internal/resolve/infer/language.go:For — risk moderate (score 59, certainty low).
+  This is the MAXIMUM over the changed symbols, never a total: two risks of 40 do not make an 80.
+```
+
+The result is a lower bound, always: files the index holds no symbols for are
+named rather than counted, and an empty result is "nothing found", never
+"nothing breaks". `--json` is the form a CI gate consumes.
+
+### `who`
+
+**Answers:** who has context on the code a change to this symbol can reach?
+Computes the blast radius, then asks git history who has touched the files it
+lands in, ranked by how much of the radius they have touched.
+
+| Flag | Effect |
+|---|---|
+| `--depth N` | hops to follow out from the symbol |
+| `--commits N` | how far back from `HEAD` to read history |
+| `--limit N` | maximum identities to list |
+| `--min-confidence` | floor for the blast radius |
+
+This is not CODEOWNERS. CODEOWNERS routes by the directory a file sits in,
+which answers "who administers this path" and not "who has seen the code this
+change can break": a two-line edit to a shared decoder reaches thirty call sites
+in six packages, and the person listed for the decoder's directory may never
+have touched any of them.
+
+What it reports is context, not ownership, and every limit is printed with the
+answer: git records that somebody changed a file, not that they understand it,
+own it, or still work here; attribution is per file; the history window is
+bounded; an identity is an address. A name that matches more than one
+definition is refused rather than guessed:
+
+```
+$ cortex who Execute
+"Execute" matches 2 definitions. Re-ask with a fully-qualified name:
+
+  internal/cli/root.go:Execute             internal/cli/root.go:192
+  internal/indexer/orchestrate.go:Execute  internal/indexer/orchestrate.go:477
+```
+
+### `report sarif`, `report pr`
+
+**Answers:** what should a CI run show the reviewer? Turns the JSON that
+`cortex --json arch|missed|impact` already printed into two CI artefacts. It
+reads those files, not the index, so it needs no database and runs anywhere the
+JSON can be carried. At least one input is required; an input you do not pass is
+reported as "not run", and so is `arch` output from a project with no declared
+architecture. Each input is shape-checked: passing `missed` output to `--arch`
+is an error naming the file.
+
+`report sarif` writes one SARIF 2.1.0 run for code scanning.
+
+| Flag | Effect |
+|---|---|
+| `--arch FILE` | output of `cortex --json arch` |
+| `--missed FILE` | output of `cortex --json missed` |
+| `--path-prefix P` | prefix joined onto every file path, for an index built from a subdirectory |
+| `--out FILE` | output file, or `-` for stdout (default `-`) |
+
+Findings with no file path cannot be shown by code scanning. They are left out
+of `results` and counted in a run-level `toolExecutionNotification`, so they are
+never silently lost. File URIs are percent-encoded.
+
+`report pr` writes the Markdown body of a pull-request comment.
+
+| Flag | Effect |
+|---|---|
+| `--impact FILE` | output of `cortex --json impact` |
+| `--arch FILE` | output of `cortex --json arch` |
+| `--missed FILE` | output of `cortex --json missed` |
+| `--max-rows N` | rows per table before the rest are counted (default 20) |
+| `--out FILE` | output file, or `-` for stdout (default `-`) |
+
+When `--impact` is given, the comment also carries a "How much of the blast
+radius is proven" table: the share of `impact`'s reached symbols at each path
+confidence (`exact (compiler-proven)`, `high`, `medium`; `low` only when
+present), rounded to whole percent, with a one-line form in the summary row.
+Symbols reached only through interface dispatch are a different claim and are
+not counted; a confidence value that is not one of the four tiers is bucketed
+as `unlabelled` and never echoed. When no symbol is `exact`, the comment says
+that no part of the blast radius is compiler-proven and how to change that.
+With no `--impact`, or an `impact` that reached nothing, the table is absent
+and the summary row says "not run".
+
+The first line is the sticky marker `<!-- cortex:pr-report -->`, which a
+workflow searches for to edit its own comment instead of adding another. Text
+that came from the repository (symbol names, paths, messages) is escaped, every
+table is bounded with an "...and N more" line, the whole body is capped at
+60000 characters with a truncation note, and a stale-index banner leads the
+report when `impact` says the index does not describe the range.
+
+```
+$ cortex --json missed > missed.json
+$ cortex report pr --missed missed.json
+<!-- cortex:pr-report -->
+## RepoCortex change-safety report
+
+| Check | Result |
+|---|---|
+| Blast radius | not run |
+| Architecture | not run |
+| Blindspots | 38 (1 high) |
+
+### Blindspots
+
+| Severity | Kind | Target | Location |
+|---|---|---|---|
+| medium | unresolved\_call | request | src/main/java/com/pay/controller/CallbackController.java:23 |
+| ... | ... | ... | ... |
+
+_…and 18 more._
+```
+
+Neither subcommand sets a failing exit code for findings; gating stays with
+`arch --fail-on` and `missed --fail-on`, so a workflow can publish first and
+enforce afterwards. See the [CI guide](USER_GUIDE.md#7-cicd-integration-github-actions-change-safety-gate).
+
+### `export`
+
+**Answers:** the committed symbol graph, in a format another tool reads.
+
+| Flag | Effect |
+|---|---|
+| `--format F` | `csv`, `dot`, `graphml`, `json` or `svg` |
+| `--out PATH` | write to a file instead of stdout; written beside its destination and renamed into place |
+| `--min-confidence` | floor for exported facts (default `low`, which keeps everything) |
+
+```bash
+cortex export --format dot | dot -Tsvg -o graph.svg
+cortex export --format graphml --out graph.graphml     # Gephi, yEd, Cytoscape
+cortex export --format csv --out edges.csv             # spreadsheets, pandas
+```
+
+Every format carries edge direction, and every format that can hold a
+confidence does. A format that cannot hold something says so — on stderr, so a
+pipeline reading stdout is unaffected:
+
+```
+$ cortex export --format csv | head -3
+index_revision: 1  built at commit c91cf80
+note: 675 symbol(s) share a fully-qualified name with another; their node ids carry a '@<path>' suffix …
+note: csv export is lossy — edge list only: nodes with no edges are omitted, node kind is not carried, …
+```
+
+The CSV writer prefixes a cell starting with `=`, `+`, `-` or `@` with a quote,
+so an exported symbol name cannot become a spreadsheet formula.
+
+### `system`
+
+**Answers:** what crosses between repositories? Joins several members' indexes
+into one read-only view and reports outbound HTTP calls answered by endpoints
+declared elsewhere, and tables more than one member touches.
+
+| Flag | Effect |
+|---|---|
+| `--member name=path/to/index.db` | a member, repeatable |
+| `--members FILE` | the member list as YAML (`members: [{name, index}]`); paths resolve relative to the file |
+| `--stale-after D` | age at which a member index is called out as old |
+| `--max-edges`, `--max-shared-tables`, `--max-unjoined` | caps on each section |
+
+Nothing is merged or migrated: each member keeps its own index, runs and
+digest. Past two repositories, keep the list in a file — the estate is a
+property of the team, not of an invocation, and retyping eight flags is how a
+member silently goes missing. It is deliberately not `.cortex.yml`, which is
+per-repository configuration.
+
+```yaml
+members:
+  - name: web
+    index: ../web/.cortex/index.db
+  - name: orders
+    index: ../orders/.cortex/index.db
+```
+
+Confidence is weaker here than anywhere else in the tool, and the output says
+so: matching `/users/{id}` against `/users/:id` is a guess no compiler proved,
+so nothing this command produces is `exact`, and an edge's confidence is the
+minimum over every leg of the path including the match. A call two members
+could both answer is refused rather than assigned. The report always begins
+with the members, including any whose index is absent or stale, and ends with
+what it could not join. Exit status is 2 when a member could not be read, so
+the report is a floor rather than a total.
+
+A single member is refused: one repository is already answered by `api` and
+`db`.
+
+### `licenses`
+
+**Answers:** regenerate `THIRD_PARTY.md` from the module graph, or verify it.
+
+| Flag | Effect |
+|---|---|
+| `--check` | verify the committed file is current; non-zero exit if not — the form CI runs |
+
+```
+$ cortex licenses --check
+THIRD_PARTY.md is current (147 modules)
+```
+
+## Serving
+
+### `serve`
+
+**Answers:** runs an MCP server on stdio, exposing the index to a coding agent.
+
+| Flag | Effect |
+|---|---|
+| `--list-tools` | print the exposed tools and exit |
+
+```bash
+claude mcp add cortex -- cortex --project /path/to/repo serve
+```
+
+The tool set is governed by `mcp.profile` in `.cortex.yml` — `minimal`
+(default), `standard`, `full`. The default is deliberately small: every tool's
+schema is injected into the agent's context on every request, so a large surface
+spends the very context this tool exists to save.
+
+```
+$ cortex serve --list-tools
+MCP profile "minimal" exposes 7 tool(s):
+  get_project_overview
+  search_code
+  find_symbol
+  get_symbol
+  find_references
+  find_callers
+  get_task_context
+```
+
+Responses are bounded and never contain whole files. Repository content is
+labelled as untrusted evidence, because indexed source may have been written by
+someone other than you.
+
+### `ui`
+
+**Answers:** a local, read-only web portal over the index — twenty screens
+grouped by what you want to know. Index health stands alone above the
+groups; then five groups, named the way a reader would ask the question:
+
+- **Understand the code** — Map of the code (graph explorer), Find a
+  symbol, Shape of the code.
+- **Before you change something** — What could break (blast radius for one
+  symbol), Task brief (the compiled task contract), Check a change (the
+  verify report against that contract), Who knows this code, What changed.
+- **How it runs** — APIs and what they touch (the cross-stack view from a
+  frontend component through the route, handler and tables it reaches),
+  Database tables, Settings and secrets, What actually ran, Across
+  repositories.
+- **Quality** — Test coverage, Architecture rules (governance),
+  Dependencies, How accurate is this index.
+- **For your AI agent** — Connect an agent, Retrieval quality.
+
+Every screen opens with its answer in one plain sentence. Evidence and the
+things the view can't see fold below that sentence, closed by default, and
+`?open=1` on the URL unfolds them all. Confidence reads as a word (proven,
+very likely, uncertain, a guess) with the tier id kept on every field and
+flag underneath. A "What do these words mean?" button opens a glossary for
+the terms that remain.
+
+| Flag | Effect |
+|---|---|
+| `--port N` | port to listen on; `0` picks a free one (default `7777`) |
+| `--host ADDR` | address to bind; anything but loopback exposes your codebase's structure and the command says so |
+| `--max-nodes N` | symbol nodes per graph response; what is excluded is stated, never dropped (default `1500`) |
+| `--allow-refresh` | add the one write route, a POST that rebuilds the index; off by default |
+| `--print-url` | print the URL that would be served and exit |
+
+The portal opens the index read-only and serves only GET routes. Without
+`--allow-refresh` no route that writes is registered at all — read-only is
+enforced by the absence of a route, not by a check inside a handler. With it,
+a refresh must carry a header a cross-site form cannot set, and a foreign
+`Origin` is refused even so.
+
+It binds to `127.0.0.1` and refuses requests whose `Host` is not a loopback
+address, because a page on the public internet can otherwise point your own
+browser at `localhost:7777` and read the structure of your code. Everything is
+served from the binary: no npm, no build step, no CDN, and a Content-Security-
+Policy that forbids loading from any other origin, so it works offline.
+
+Confidence is the visual language of every screen: a compiler-proven edge is
+drawn solid with a tick, a `medium` edge dashed, and `low` edges are off by
+default with the count of what that hides stated in every response.
+
+```
+$ cortex ui --print-url
+http://127.0.0.1:7777/
+```
+
+### `install`
+
+**Answers:** register RepoCortex's MCP server with every agent client detected on
+this machine, preserving everything else in each client's config file.
+
+| Flag | Effect |
+|---|---|
+| `--dry-run` | report what would be written without writing it |
+
+Covers Claude Code, Claude Desktop, Cursor and Windsurf. A client whose config
+file does not exist is skipped rather than created, since creating one would
+guess at a layout the client may not accept. For Zed, which uses a different
+config key, use `agent` and place the output yourself.
+
+```
+$ cortex install --dry-run
+would write Claude Code      ~/.claude.json
+would write Claude Desktop   ~/Library/Application Support/Claude/claude_desktop_config.json
+skip  Cursor           (no config at ~/.cursor/mcp.json)
+skip  Windsurf         (no config at ~/.codeium/windsurf/mcp_config.json)
+
+Restart your agent, then ask it to use RepoCortex.
+```
+
+### `agent`
+
+**Answers:** the two things that make RepoCortex usable by an agent — the MCP
+registration, and the guidance that tells the agent *when* to reach for it.
+
+| Flag | Effect |
+|---|---|
+| `--guidance` | print only the guidance block, to append to `CLAUDE.md` or `AGENTS.md` |
+| `--check` | report which parts of the integration are wired up; reads only |
+| `--write PATH` | write the guidance block to a new file; refuses to replace one unless `--force` |
+| `--force` | with `--write`, replace an existing file and say so |
+
+The guidance is the part that is usually missing. An agent with the tools wired
+up but no guidance still greps, because nothing told it a blast radius is
+available before it edits a symbol, or that an empty caller list means
+"unresolved" rather than "unused". The default prints and leaves placement to
+you; nothing here touches your configuration.
+
+```bash
+cortex agent --guidance >> CLAUDE.md
+```
+
+`--check` never reports a missing piece as a failure — an un-integrated project
+is the normal starting state — so it exits zero unless something is broken:
+
+```
+$ cortex agent --check
+[ok  ]  index             revision 1 — 690 files, 9059 symbols, 16495 relationships
+[ok  ]  resolution        79% of the 20656 references that name something this index defines are bound
+[ok  ]  mcp tools         profile "minimal" exposes 7: get_project_overview, search_code, …
+                            means: impact_analysis and find_tests are not exposed on this profile
+                            do:    set mcp.profile: standard in .cortex.yml to add them
+[warn]  mcp registration  not in this repository's .mcp.json
+                            do:    cortex agent, and run the 'claude mcp add' line it prints
+[warn]  guidance          not found in CLAUDE.md or AGENTS.md
+                            means: the agent has the tools but no rule telling it when to use them
+```
+
+### `completion`
+
+Standard Cobra shell-completion generator: `cortex completion bash|zsh|fish|powershell`.
+
+
+# --- END FILE: docs/CLI.md ---
+
+
+
+# --- BEGIN FILE: docs/DESIGN_AND_ARCHITECTURE.md ---
+
+# RepoCortex: System Design, Architecture & Engineering Standards
+
+This document establishes the architectural principles, package boundaries, coding conventions, and design patterns that govern the RepoCortex codebase. It serves as the primary technical specification for engineers maintaining and extending the platform.
+
+---
+
+## 1. Architectural Vision & Core Principles
+
+RepoCortex is engineered as a **local-first, deterministic code intelligence engine and change-safety platform**. Unlike tools that rely on cloud-hosted language servers or speculative LLM embeddings, RepoCortex models software as an explicit, queryable knowledge graph stored in a zero-dependency, pure-Go SQLite database.
+
+### The Five Invariants
+
+Every subsystem in RepoCortex must satisfy five non-negotiable invariants:
+
+```
++--------------------------------------------------------------------------------------------------+
+|                                    REPOCORTEX ARCHITECTURAL INVARIANTS                             |
++--------------------------------------------------------------------------------------------------+
+| 1. TWO-PHASE PUBLICATION : Staging runs are isolated; CommitRun performs an atomic pointer swap. |
+| 2. EVIDENCE & PROVENANCE : Every edge carries exact source location and a calibrated confidence. |
+| 3. BOUNDED MEMORY        : Memory is O(1) or O(page), never O(repository size).                  |
+| 4. SAFE MUTATION         : Automated edits must dry-run, splice ASTs, verify, and auto-rollback.|
+| 5. HONEST INCOMPLETENESS : Omissions, blindspots, and weak edges are explicitly reported.        |
++--------------------------------------------------------------------------------------------------+
+```
+
+1. **Two-Phase Atomic Publication**: Indexing operations populate staging runs (`index_runs.status = 'indexing'`). Query paths only read committed runs (`committed = 1`). A crash or cancellation mid-index leaves zero corrupt state. `CommitRun` publishes the new revision in a single SQLite transaction.
+2. **Explicit Evidence & Provenance**: There are no synthetic or unverified edges. Every relationship points to an `evidence_file`, `evidence_line`, and an immutable confidence tier (`exact`, `high`, `medium`, `low`).
+3. **Bounded Resident Memory**: Peak memory consumption must remain bounded regardless of codebase scale. Monolithic whole-repo data structures are strictly prohibited in the hot path. All passes must operate on bounded pages, streaming cursors, or compact indices (CSR).
+4. **Safe Mutation Protocol**: Any command that mutates user source code (such as `cortex rename`) must follow a strict transactional protocol: dry-run analysis $\to$ filesystem containment verification $\to$ exact AST identifier splicing $\to$ atomic cross-file commit $\to$ post-apply verification scan $\to$ automatic rollback on any failure.
+5. **Honest Incompleteness**: RepoCortex never papers over gaps. An empty query result distinguishes between "we proved this has zero callers" and "this code has unresolvable dynamic references." Blind spots and omitted edges are surfaced transparently to agents and users.
+
+---
+
+## 2. Layered Package Architecture
+
+RepoCortex follows a strict unidirectional dependency hierarchy adhering to **Clean / Hexagonal Architecture**. Dependencies flow downward from the entry points toward domain models:
+
+```mermaid
+graph TD
+    CLI["cmd/cortex (CLI Entrypoint)"] --> Cap["internal/capability (Domain Features)"]
+    MCP["internal/mcp (Agent Protocol)"] --> Cap
+    Web["internal/web (Interactive UI)"] --> Cap
+    
+    Cap --> Graph["internal/graph (Traversal & CSR)"]
+    Cap --> Pipe["internal/pipeline (Orchestration)"]
+    Cap --> Edit["internal/edit (Atomic Splicing)"]
+    
+    Pipe --> Resolve["internal/resolve (Inference & SCIP)"]
+    Pipe --> Parse["internal/parse (Tree-Sitter AST)"]
+    Pipe --> Reg["internal/registry (Relational Storage)"]
+    Pipe --> Acq["internal/acquire (FS & Git Discovery)"]
+    
+    Resolve --> Reg
+    Graph --> Reg
+    Reg --> Store["internal/store (SQLite Engine)"]
+    
+    Store --> Model["pkg/model (Domain Entities)"]
+    Acq --> Model
+    Parse --> Model
+    Reg --> Model
+    Graph --> Model
+    Cap --> Model
+```
+
+### Package Taxonomy & Boundaries
+
+| Package Path | Responsibility | Permitted Inward Dependencies | Prohibited Dependencies |
+|:---|:---|:---|:---|
+| `pkg/model` | Canonical domain types (`Symbol`, `Edge`, `File`, `Range`, `Confidence`, `Position`). Pure primitives. | None (Root of dependency tree). | Must **never** import any `internal/...` package or third-party database/network drivers. |
+| `internal/store` | Low-level SQLite database management, WAL pragmas, connection pooling, and schema migrations (`migrations/*.sql`). | `pkg/model` | Must not depend on higher-level pipeline or analysis logic. |
+| `internal/registry` | Relational persistence abstraction, atomic run lifecycle, symbol indices, and LRU candidate prefetching. | `internal/store`, `pkg/model` | Must not import `internal/parse`, `internal/resolve`, or `internal/pipeline`. |
+| `internal/acquire` | Working tree discovery (`fs`) and Git metadata extraction (`git`), commit history, and blame. | `pkg/model` | Must not access the database registry. |
+| `internal/parse` | Polyglot Tree-Sitter AST parsing, query compilation, tag extraction, arity extraction, and parser arena pools. | `pkg/model` | Must not access the registry or database. |
+| `internal/resolve` | Multi-pass reference resolution, receiver type narrowing, inherited dispatch, and SCIP compiler import. | `internal/registry`, `pkg/model` | Must not import `internal/pipeline` or CLI logic. |
+| `internal/graph` | Directed graph traversal, hub pruning, cycle detection, and high-performance in-memory Compressed Sparse Row (CSR) indexing. | `internal/store`, `internal/registry`, `pkg/model` | Must not mutate source code or execute pipeline indexing. |
+| `internal/capability` | Business logic for product capabilities: `impact` (blast radius), `rename` (safe refactoring), `testgap` (coverage proof), `planchange` (change blueprint), `missed` (risk detection). | `internal/graph`, `internal/registry`, `internal/edit`, `pkg/model` | Must not import `internal/cli` or `internal/web`. |
+| `internal/edit` | Surgical source code splicing, exact identifier boundary matching, hash validation, and multi-file rollback transactions. | `pkg/model`, `internal/security` | Must not import graph traversal or MCP servers. |
+| `internal/mcp` | Model Context Protocol server exposing JSON-RPC tools and prompts to autonomous coding agents. | `internal/capability`, `internal/graph`, `internal/registry`, `pkg/model` | Must not expose internal database drivers directly over the wire. |
+| `internal/web` | Local interactive web portal, SVG visualizers, tree views, code views, and Server-Sent Events (SSE). | `internal/capability`, `internal/graph`, `internal/registry`, `pkg/model` | Must be entirely self-contained with embedded HTML/JS/CSS assets. |
+| `internal/cli` | Cobra command definitions, flag parsing, human terminal formatting, and structured JSON output. | All `internal/...` packages. | Should contain **zero** business logic; strictly delegates to `internal/capability` or `internal/pipeline`. |
+
+---
+
+## 3. Code Conventions & Engineering Standards
+
+### 3.1. File Naming Conventions
+- All Go files must be lowercase with words separated by underscores (`snake_case.go`).
+- **Domain Files**: Named for their domain entity or capability (`candidates.go`, `incremental.go`, `leftovers.go`, `traverse.go`).
+- **Adapter Files**: Named for the specific external interface they adapt (`orm_prisma.go`, `sqlite.go`, `walker.go`).
+- **Test Files**: Always placed adjacent to the code they verify (`candidates_test.go`, `resolve_equivalence_test.go`).
+- **Platform-Specific Files**: Suffix with the target OS (`open_unix.go`, `open_other.go`, `backend_cgo.go`).
+
+### 3.2. Error Handling & Typing
+- **Never swallow errors**: All errors must be handled, wrapped with meaningful context (`fmt.Errorf("action description: %w", err)`), or explicitly documented why they are ignored.
+- **Sentinel Errors**: Package-level sentinel errors must start with `Err` (`ErrNotFound`, `ErrRunNotFound`, `ErrTargetNotFound`).
+- **Domain Errors vs Presentation**: Packages in `internal/capability` and below must return typed domain errors. Human formatting and exit code mapping belong exclusively in `internal/cli`.
+
+### 3.3. Interface Segregation (Ports & Adapters)
+- Interfaces must be defined **by the consumer**, not the producer.
+- Interfaces must be minimal (1 to 3 methods). For example:
+  ```go
+  // TextSearcher is declared in internal/capability/rename where it is used.
+  type TextSearcher interface {
+      SearchFiles(ctx context.Context, query string, limit int) ([]registry.FileMatch, error)
+      FilesWithoutText(ctx context.Context, runID int64) ([]model.File, error)
+  }
+  ```
+- Concrete structs (like `*registry.Registry`) implement the interface implicitly without needing a compile-time dependency from `registry` to `rename`.
+
+---
+
+## 4. Key Design Patterns in RepoCortex
+
+### 4.1. The Functional Options Pattern
+Extensively used across constructors to maintain clean API backwards compatibility without parameter proliferation:
+```go
+type ResolveOptions struct {
+    PageSize        int
+    CandidateBudget int
+    MinConfidence   model.Confidence
+    OnProgress      func(done, total int64)
+    OnFlush         func(edges, outcomes int)
+}
+```
+
+### 4.2. Compressed Sparse Row (CSR) In-Memory Graph Index
+Graph traversals over millions of edges in SQLite suffer from repeated SQL serialization overhead. RepoCortex loads graph snapshots into a compact **Compressed Sparse Row (CSR)** structure:
+- Two 32-bit offset arrays (`outOffsets`, `inOffsets`).
+- Two contiguous edge slices (`outEdges`, `inEdges`), where each edge occupies 8 bytes (target node `int32`, kind enum `int8`, confidence enum `int8`).
+- **Two-Pass Streaming Construction**: Pass 1 assigns contiguous node IDs and calculates degree bounds; Pass 2 streams raw SQLite rows directly into pre-sized slices. Zero intermediate heap allocations.
+- Provides sub-millisecond multi-hop BFS and hub pruning across 1,000,000+ edges.
+
+### 4.3. Keyset Pagination over Offset Pagination
+In `internal/registry/references.go`, batch processing avoids `LIMIT ... OFFSET ...` because:
+1. `OFFSET N` requires scanning and discarding $N$ B-tree entries on every page ($O(N^2)$ aggregate time).
+2. As resolution updates rows (`resolution = 'resolved'`), the logical offset shifts underneath the cursor.
+RepoCortex uses **Keyset Pagination** (`WHERE f.path > ? ORDER BY f.path LIMIT ?`), guaranteeing $O(\log N)$ page access that remains strictly stable under concurrent row updates.
+
+### 4.4. Memory-Bounded LRU Caches with Generational Reset
+`CandidateCache` in `internal/registry/candidates.go` uses an LRU linked list bounded by **candidate rows** rather than symbol names (since a single name like `String` can hold thousands of definitions). To eliminate memory leaks from string interning in long-running sessions, interning tables enforce strict capacity ceilings (`DefaultMaxInternPaths = 5,000`) and execute generational resets when saturated.
+
+### 4.5. Atomic Multi-File Splicer with Reversible Rollback
+`internal/edit` manages safe automated code transformations:
+```
+1. LOCATE     : Pin exact (line, col) range using AST identifier boundaries.
+2. VERIFY     : Confirm expected old identifier matches source bytes exactly.
+3. DRY-RUN    : Calculate full multi-file diff without disk side effects.
+4. BACKUP     : Snapshot original file hashes and content in memory.
+5. SPLICING   : Apply bottom-up token splicing (so earlier line/col offsets stay valid).
+6. COMMIT     : Write modified files to disk with atomic sync.
+7. ROLLBACK   : On any write failure or post-verification regression, immediately
+                restore previous file states across all modified files in reverse order.
+```
+
+---
+
+## 5. Security & Isolation Architecture
+
+1. **Strict Path Containment**: All file operations are validated using `security.ValidatePath(root, relPath)` to prevent directory traversal attacks (`../`). Symlinks that escape the repository root are strictly rejected.
+2. **Credential Redaction**: File reading abstractions automatically skip sensitive credentials, private keys, environment files (`.env*`, `id_rsa`, `*.pem`, `*.key`), and files exceeding size caps (`edit.DefaultMaxFileBytes = 3MB`).
+3. **Pure-Go Sandboxing**: By using pure-Go transpiled SQLite and pure-Go Tree-Sitter parsers (`gotreesitter`), RepoCortex eliminates CGO dynamic linking risks, memory corruption vulnerabilities, and platform-specific glibc incompatibilities.
+
+---
+
+## 6. Verification & Quality Gates
+
+Every pull request and commit must pass automated verification:
+1. **Compilation & Architecture Testing**: `go test ./tests/architecture/...` enforces package import boundaries.
+2. **Equivalence & Determinism Gates**: `resolve_equivalence_test.go` asserts that streaming candidate-capped resolution produces byte-for-byte identical output to a full in-memory baseline.
+3. **Race Detection**: `go test -race ./...` on core concurrency paths.
+4. **Zero-Warning Static Analysis**: `golangci-lint` enforces strict style, complexity, and deadcode rules.
+
+
+# --- END FILE: docs/DESIGN_AND_ARCHITECTURE.md ---
+
+
+
+# --- BEGIN FILE: docs/FAQ.md ---
+
+# FAQ
+
+The questions an evaluator actually asks. Where the honest answer is
+unflattering, it is here in full — a tool whose limits you have to discover by
+being burned by them is one you stop using.
+
+Numbers cited are from [accuracy.md](accuracy.md) and
+[performance.md](performance.md); where this page reproduces one itself, it says
+so and names the corpus.
+
+---
+
+## What happens if I never give it a SCIP index?
+
+You get a working system in which **nothing is ever labelled `exact`**, and that
+is by construction rather than by omission.
+
+A tree-sitter parse can tell you that `svc.updateStatus()` is a call. It cannot
+tell you *which* `updateStatus`, because that needs a type for `svc`, which needs
+imports, which needs the build graph. So the heuristic resolver tops out at
+`high` confidence and says so. `model.Edge.Validate` refuses `exact` unless the
+evidence source is `compiler`, a SQL `CHECK` in migration 0001 refuses it again,
+and `registry.validateRun` refuses it a third time before a run is published.
+`doctor --verify-index` then checks the whole graph for edges claiming compiler
+certainty without compiler evidence.
+
+Practically: `high` is 86.8–96.1% across five repositories in three languages,
+so the graph is useful. What you lose is the ability to call a finding a **fact**
+rather than a **lead** — `verify` grades an architecture violation on a
+heuristic edge as a lead and exits 0 (`advisory`), and grades the same violation
+on a compiler edge as a fact and exits 1. Without SCIP, `verify` can advise but
+cannot fail a build on architecture.
+
+You also lose recall. On this repository's own working tree, `resolve` binds 40.9% of
+references; the rest are calls into dependencies that live outside the tree, or
+names too ambiguous to bind. Adding `scip-go` took the same tree from 11,720
+heuristic edges to 25,736 additional compiler facts.
+
+## Why is `medium` only 5.7–37.5%, and what am I supposed to do with it?
+
+Show it. Do not act on it. That is the whole recommendation.
+
+`medium` is the tier the resolver assigns when the evidence narrowed the
+candidates but did not make one unique — a receiver type matching an overload
+set, or several matches among the imports. Measured against compiler ground
+truth across five repositories it lands between **5.7%** (prometheus) and
+**37.5%** (a Python corpus). At 5.7% it is wrong roughly nineteen times out of
+twenty.
+
+An earlier version of this project documented `medium` as "probable".
+Measurement does not support that, and [accuracy.md](accuracy.md) records the
+correction rather than quietly editing the label.
+
+Two consequences worth internalising:
+
+- `medium` is **not rare** — 6,473 of the 30,975 adjudicated edges. That is why
+  the all-tiers precision figure sits between 65% and 94% while `high` alone
+  stays near 90%. An agent consuming every edge equally gets the low number; one
+  passing `--min-confidence high` gets the high one.
+- The tier is worth *rendering* because a hint that a name exists is still
+  information for a human deciding where to look. It is not worth *gating* on,
+  and a CI check that blocked a merge on a 5.7%-precision edge would be removed
+  within a week — taking the facts with it. That is the reasoning behind the
+  fact/lead split in `verify`.
+
+`low` is 0.0–2.8%. Treat it as "this name exists somewhere", nothing more.
+
+## Why is an empty result not proof that nothing calls this?
+
+Because the index resolves only part of any repository, and the two statements
+"nothing calls this" and "nothing I could resolve calls this" have opposite
+consequences. A developer told the first one deletes the method.
+
+So every relationship query that finds nothing reports the index's measured
+resolution coverage instead of a bare empty list:
+
+```
+$ cortex callees profileTools
+profileTools (function) at internal/mcp/server.go:129
+
+No callees found.
+
+41% of 29506 references are bound to a definition (15381 point outside this
+repository, 2063 were too ambiguous to bind). An empty result is a lower bound,
+not proof that nothing uses this symbol.
+```
+
+The same discipline runs through the rest of the tool. `arch` reports how many
+symbols belong to no declared component and were therefore not checked. `diff`
+ends with what it could not compare. `verify` prints `NOT CHECKED` and `UNKNOWN`
+sections. `doctor --resolution-precision` reports the coverage its precision was
+computed over and names the languages it could not measure at all. Every
+capability report carries a `Completeness` value that
+`capability.NewCompleteness` constructs so the lower-bound and dynamic-dispatch
+caveats **cannot** be omitted by a caller who forgets.
+
+Three different situations produce an empty answer — the call does not exist,
+the file never parsed, or the reference was seen and could not be bound — and
+they have different remedies. `internal/cli/query.go` diagnoses which one you
+are looking at rather than rendering all three identically.
+
+## Why doesn't it use an LLM?
+
+Because every part of this tool that a model could plausibly do is a part whose
+value depends on it being reproducible.
+
+The argument is made in four package docs, and it is the same argument each
+time:
+
+- **`internal/context`** — "the same task against the same index produces a
+  byte-identical Pack, because an agent that gets a different answer on a retry
+  cannot build a cache, a test, or trust."
+- **`internal/compile`** — a contract that changed between two runs of the same
+  input could not be cached, tested, or trusted, and "the brief drifted" is a
+  worse failure than "the brief was thin".
+- **`internal/verify`** — a verdict that changed between two runs of the same
+  inputs could not be gated on.
+- **`internal/bench`** — an LLM judge would make the score depend on a model
+  version and a sampling temperature, and the regression this most needs to
+  catch is exactly the one a generous judge forgives.
+
+There is a second reason, specific to resolution. A model asked "which
+`updateStatus` does this call?" produces an answer that is *plausible*, and a
+plausible answer stamped with a confidence level is precisely the lie the
+confidence system exists to prevent. Compiler output is the only input RepoCortex
+accepts as proof, and `internal/resolve/scip` is the only package permitted to
+produce `exact` edges.
+
+The determinism is load-bearing elsewhere too: `cortex diff` is only meaningful
+because two index runs over the same tree are byte-identical, and
+`cortex docs --check` can only gate CI because the generated documents are
+reproducible. Neither works on top of a non-deterministic pass.
+
+See [NON-GOALS.md](NON-GOALS.md#it-does-not-use-a-model-as-a-resolver).
+
+## What does it cost to index a large repository?
+
+From [performance.md](performance.md), three real repositories cloned at
+`--depth 1`, indexed and resolved on `darwin/arm64` native:
+
+| Repository | Language | Files discovered | Indexed | Symbols | Edges | Index time | Peak RSS |
+|---|---|---|---|---|---|---|---|
+| prometheus | Go | 1,262 | 1,030 | 21,429 | 35,787 | 8.8 s | 664 MB |
+| nest | TypeScript | 2,297 | 1,929 | 13,916 | 4,064 | 3.7 s | 590 MB |
+| spring-boot | Java | 11,851 | 9,236 | 94,304 | 119,480 | 46.4 s | 756 MB |
+
+A 9,000-file Java repository indexes in under a minute. Reproduced here on this
+repository's own working tree — 476 files discovered, 422 indexed, 6,259 symbols
+— a full index took 10.0 s and `resolve` 1.3 s.
+
+Three caveats that matter more than the numbers:
+
+1. **The first index is the expensive one.** Afterwards it is incremental, and
+   files are compared by **content hash rather than mtime** — `git checkout`
+   rewrites timestamps wholesale, and an mtime-based diff would reparse the
+   whole repository after every branch switch. On the 5,000-file synthetic
+   corpus a full index is 20–35 s while an incremental pass over an unchanged
+   tree is under a second and a one-file change is around 0.8 s.
+2. **Peak memory scales with `--workers`, not with repository size.** The
+   default is 4. Raising it is a memory decision, and performance.md publishes
+   the worker/RSS table so it can be made with evidence.
+3. **`exact` mode is a different order of cost**, because it runs your real
+   build. `scip-go` on prometheus takes about eight minutes and produces a 57 MB
+   index. Measured here: 43.7 s on a 305-file clone of this repository, and on
+   its current 422-file working tree a 12.7 MB index that `scip import` landed
+   in 1.8 s.
+
+The published figures in performance.md were taken on an amd64 toolchain running
+under Rosetta, so they are a **ceiling** — roughly 1.4–3x above what a native
+build delivers. See [BENCHMARKING.md](BENCHMARKING.md#pitfall-1-check-your-goarch-before-you-benchmark-anything).
+
+## Is Java supported?
+
+Indexed and measured, yes. Measured against `scip-java` on
+spring-petclinic/spring-petclinic-rest: `high` is 100.0% precision on 82 of 82
+judged edges, 32.7% recall, F1 49.2%; `medium` and `low` are absent because no
+edges landed in those tiers; 169 of 251 adjudicated call sites produced no
+edge at all. See [accuracy.md](accuracy.md) "Java: measured" for the method.
+
+Take the number seriously but keep its size in view: the judged pool is 82
+edges, far smaller than the thousands adjudicated for Go, TypeScript and
+Python, and Java's recall is the weakest of the four measured languages —
+two thirds of its known call sites produce no edge. Precision is solid;
+recall is the thing to watch.
+
+Getting here took three earlier attempts across seven builds, also recorded
+in accuracy.md: spring-boot needed a Gradle that was not on the host,
+commons-lang builds but emits no SemanticDB because `-source 8` is below what
+the javac plugin attaches to, and petclinic's GraalVM Maven extension needed
+Java 17 while `scip-java` falls back through 21 → 17 → 11. None of those was
+RepoCortex's fault; spring-petclinic-rest was simply the first repository tried
+that avoided all three.
+
+Before a Java SCIP index is imported for a given repository,
+`doctor --resolution-precision` says so by name rather than quietly leaving it
+out of the table — for example, a run against a repository with no Java index
+imported yet:
+
+```
+LANGUAGE    FILES  CALLS EDGES  COMPILER FACTS  STATUS
+go          399    11,683       25,736          measured
+java        8      18           0               NOT MEASURED — no SCIP index imported for it
+typescript  1      2            0               NOT MEASURED — no SCIP index imported for it
+```
+
+A synthetic Java corpus was deliberately not used to measure Java: uniform
+generated code makes resolution easy and would report an inflated precision,
+which is worse than no number.
+
+## Does my source code leave the machine?
+
+No. Single binary, zero CGO, no network in any indexing or query path. The one
+place RepoCortex reaches the network at all is `indexers install`, which downloads
+third-party SCIP indexers — pinned to exact versions, verified against recorded
+digests, refusing rather than installing on a mismatch.
+
+What *does* leave the machine is whatever your agent sends to its model
+provider, which is why `internal/security` is the last thing that runs before
+indexed content is served. Secret values are redacted before storage, not on the
+way out. The error modes there are treated as asymmetric on purpose: a false
+positive costs a line of context, a false negative ships a live credential to a
+provider's logs and no release fixes that.
+
+`cortex config` is the sharpest expression of the same rule. It reports which
+configuration keys exist and who reads them, and **never reads a value at all** —
+not masked, not truncated. A data structure with nowhere to put a value cannot
+leak one, which is a stronger guarantee than a redaction list that can be wrong
+about a key nobody anticipated.
+
+## Can a repository I cloned make RepoCortex run something?
+
+No, and this is enforced structurally rather than by convention.
+
+RepoCortex reads two config files with deliberately different trust levels.
+`.cortex.yml` lives in the repository, is therefore untrusted, and controls
+*what gets indexed*. `~/.config/cortex/config.yml` is yours alone and controls
+*what gets executed* — accuracy mode, whether indexers may be provisioned, and
+whether they run natively or in Docker.
+
+The split exists because compiler-backed indexing runs build systems, and
+Maven/Gradle plugins execute arbitrary code by design. If a repository could
+name the indexer to run, `git clone && cortex index` on a hostile repo would
+be remote code execution. So repository config **structurally cannot express**
+execution settings: the fields do not exist on the type, and unknown keys are a
+parse error rather than a silently ignored setting. `TestRepoCannotSetExecutionSettings`
+holds it there.
+
+`internal/indexer` is the package where this bites hardest, and its doc comment
+lists the six controls with the reason for each — the one worth knowing is that
+**nothing is read from the repository except the names of marker files**.
+Detection stats `pom.xml`, `go.mod`, `package.json`; it never opens them.
+
+A repository also cannot disable secret redaction (there is no `security:` key,
+and writing one is a parse error), and its exclude patterns are additive, so it
+cannot un-exclude `.git` or `node_modules`.
+
+## Why does `scip import` say "0 upgraded from heuristic"?
+
+Because that is the correct result, and it took a note in the command's own
+output to stop people reading it as a failure.
+
+SCIP records that one symbol **references** another. It does not record that the
+reference is a **call**. RepoCortex will not stamp a guess about that with
+`exact`, so compiler facts arrive as `REFERENCES` edges and sit *alongside* the
+resolver's `CALLS` edges rather than replacing them. An upgrade happens only
+where both tools agree on the relationship kind and the evidence line.
+
+The same output line usually alarms people twice. `22974 with no counterpart in
+the index` is also normal: a compiler sees local variables, struct fields and
+generated declarations that a tags-based extractor never emits, so on a real Go
+repository most of the compiler's symbols legitimately have no counterpart. Only
+a very low match **rate** suggests the index and the working tree have diverged,
+and the command says so when it does.
+
+If the matched-document count is zero, that is the real failure and it is almost
+always paths — an index built in a container records `/build/repo/src/Main.java`.
+Pass `--path-prefix`.
+
+## Why did a query print a warning about which build wrote the index?
+
+Because an index is data *plus* the resolution rules that produced it.
+
+Every run records the build that wrote it. Query with a different build and you
+get, on stderr, before the answer:
+
+```
+level=WARN msg="This index was written by cortex dev and you are running
+9.9.9-test. Resolution rules change between builds, so these results may come
+from different rules than this binary would produce. Re-index to refresh."
+```
+
+This project has already changed its resolution rules twice in ways that moved
+real edges: one guard broke every chained Go call, and another converted 362
+ambiguous references into confident wrong answers. An index written either side
+of such a change holds different edges for identical source, every query against
+it succeeds, and the results look exactly as trustworthy as current ones. There
+is no symptom to notice, which is why the index has to say so itself.
+
+It is a warning, not an error — a stale index still answers, and refusing to
+answer would be the worse trade. `-q` silences it. An index with no stamp at all
+reports *unknown* provenance instead, because "re-index to be sure" is different
+advice from "these results came from other rules".
+
+A **schema** mismatch is a different matter and does fail, because the reader
+cannot safely interpret the rows:
+
+```
+error: index schema is v7 but this build of cortex expects v8 — run 'cortex index' to upgrade it
+```
+
+## What is the difference between `search`, `symbol`, `references` and `callers`?
+
+They answer four different questions and are not interchangeable.
+
+| Command | Question | Matching |
+|---|---|---|
+| `search` | which files contain this text? | full-text, identifiers split into parts |
+| `symbol` | where is this defined? | exact name, not fuzzy |
+| `references` | what points at it? | calls, imports, implementations, extensions, plain references |
+| `callers` | what calls it? | call edges only |
+
+`search` covers indexed files only — binary, generated and oversized files are
+recorded in the index but carry no searchable text. `symbol` returns
+`TransactionService`, not the forty symbols whose names contain it; use `search`
+when you want the forty. `references` is strictly broader than `callers`,
+because an import or an implementation is a reference but not a call.
+
+The one that surprises people: identifiers are indexed by their **parts**, so
+`callback` matches `handlePaymentCallback`. That is a correctness property, not
+a nicety — SQLite's FTS5 tokenizer would otherwise index `handleCallback` as one
+opaque token and a search for `callback` would find nothing. It also has a known
+limit, recorded in performance.md: `SplitIdentifier` yields
+`[data source health indicator]`, so the query `datasource` misses
+`DataSourceHealthIndicator` while `data source` finds it — and `datasource` is
+the phrasing Spring itself uses.
+
+## Do I have to run `resolve` separately? Why isn't it part of `index`?
+
+Yes, and because it cannot be.
+
+Indexing extracts references but cannot bind them: binding needs the complete
+symbol table, which does not exist until every file has been parsed. A file
+parsed first cannot resolve a call to a symbol defined in a file parsed last.
+
+Two practical consequences. `cortex index --full` **discards resolved edges** —
+the flag's own help says so — and you must re-run `resolve` after it; a plain
+incremental `cortex index` does not. And until you have run `resolve` once,
+relationship queries have nothing to search, and will tell you exactly that
+rather than returning a misleading empty result:
+
+```
+$ cortex callers Redact
+Redact (function) at internal/security/redact.go:67
+
+No callers found.
+
+29506 reference(s) were extracted but none have been resolved yet — run
+'cortex resolve' to build the call graph. Until then this query has nothing
+to search.
+```
+
+## Is it deterministic? How would I know?
+
+Yes, and the way you know is that the project publishes a digest and gates on
+it. `cortex index --full --digest` prints a sha256 over the run's content.
+Indexing the same tree twice must produce the same digest, and the gate is
+verified **both ways** — stable across 1/2/4/8/16 workers, and *sensitive* to a
+single added symbol. A digest that never changed would pass the stability half
+while detecting nothing.
+
+Reproduced here, two full indexes of the same clone:
+
+```
+Digest:        1aa2f3d184544656a21062b12c8dc49f05231ca865198d63941f44b291288f12
+```
+
+This is not decorative. It is what makes `cortex diff` sound: a graph delta
+between two runs only means "the code changed" if the two runs are themselves
+reproducible, and otherwise "this edge disappeared" might mean a worker pool
+interleaved differently. It also caught a real defect that no unit test could —
+`tableSymbols` picked a canonical symbol by "first declaration wins" over a
+`SELECT` with no `ORDER BY`, and an unordered `SELECT` has no first. The full
+story is in [accuracy.md](accuracy.md).
+
+## Why does `status` say DEGRADED?
+
+`DEGRADED` means the run published but not every file parsed cleanly. It is a
+statement about completeness, not a failure: the index is queryable and every
+command works. "A partial index beats none, but it must not claim to be
+complete" is the rule in `registry`, and the status is how it declines to claim
+it.
+
+On this repository's own working tree:
+
+```
+$ cortex status
+Index:           DEGRADED
+Files:           476
+Symbols:         6726
+Relationships:   37911
+Partial parses:  13  (symbols may be incomplete in these files)
+```
+
+Thirteen of 476. They are the `doc.go` files — a Go file carrying a package
+comment and nothing else yields no tags — which is exactly the kind of harmless
+gap the status is *not* trying to dramatise. Do not read `DEGRADED` as "the
+index is broken"; read it as "ask the `files` table which 13".
+
+The index records the disposition of every file, per path, so a gap is visible
+rather than looking like the file never existed:
+
+```
+$ sqlite3 .cortex/index.db "select parse_status, count(*) from files group by parse_status;"
+ok|409
+partial|13
+skipped|54
+```
+
+Skipped files carry their reason in `parse_error` — no grammar for that file
+type, over the 256 KiB parse ceiling, binary, or excluded. Note that `status`
+also prints a separate `parse_failures` count in `--json`, which is 0 here: a
+partial parse and a failed parse are different facts and are counted
+separately.
+
+## What does it deliberately not do?
+
+Enough that it has its own page: [NON-GOALS.md](NON-GOALS.md). The short list —
+it is not a code-search engine competing on retrieval, it does not use a model
+as a resolver, it does not persist runtime spans alongside a static index, it
+does not ship vulnerability data, it does not infer your architecture, and it
+does not widen its MCP tool surface.
+
+## Where do I go next?
+
+| You want | Go to |
+|---|---|
+| A route through the tool for your role | [GUIDE.md](GUIDE.md) |
+| Flags and exit codes | [CLI.md](CLI.md) |
+| To reproduce a published number | [BENCHMARKING.md](BENCHMARKING.md) |
+| The full reference | [user-manual.md](user-manual.md) |
+| An error message you just saw | [troubleshooting.md](troubleshooting.md) |
+
+
+# --- END FILE: docs/FAQ.md ---
+

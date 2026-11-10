@@ -1,0 +1,27 @@
+name: 💡 Feature Request
+description: Propose a new feature, extractor, or enhancement for RepoCortex
+labels: ["enhancement", "discussion"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        We welcome feature ideas and new language/framework extractors!
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or Use Case
+      description: What problem are you trying to solve, or what agent workflow does this improve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposed_solution
+    attributes:
+      label: Proposed Solution
+      description: How should this feature work? (e.g. new CLI command, MCP tool, or framework extractor)
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Any alternative solutions or workarounds you've evaluated.
