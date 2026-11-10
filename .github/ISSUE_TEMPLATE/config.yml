@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 RepoCortex Discussions & Community
+    url: https://github.com/satyendrakumarsingh/repocortex/discussions
+    about: Ask questions, share workflows, and discuss ideas with the community.
+  - name: 📖 RepoCortex Documentation & Guides
+    url: https://github.com/satyendrakumarsingh/repocortex/tree/main/docs
+    about: Read comprehensive guides, CLI reference, and architecture specs.
+  - name: 🛡️ Security Vulnerability Reporting
+    url: https://github.com/satyendrakumarsingh/repocortex/security/policy
+    about: Report potential vulnerabilities privately following our coordinated disclosure policy.

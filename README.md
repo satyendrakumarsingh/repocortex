@@ -4,7 +4,7 @@
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
   "name": "RepoCortex",
-  "alternateName": ["cortex", "repocortex", "cortex"],
+  "alternateName": ["cortex", "repocortex"],
   "applicationCategory": "DeveloperApplication",
   "operatingSystem": "macOS, Linux, Windows",
   "description": "Deterministic Code Intelligence & Change Safety Engine for AI Coding Agents (Cursor, Claude Code, Windsurf, Antigravity) over Model Context Protocol (MCP).",
@@ -29,13 +29,14 @@
            |_|                                            
 ```
 
-### **Deterministic Code Intelligence & Change Safety for AI Coding Agents**
+### **Deterministic Code Intelligence & Change Safety Engine for AI Coding Agents**
 
-*Stop your AI agent from burning 40,000 tokens rediscovering your codebase.*<br>
-A local-first, zero-CGO code intelligence engine that indexes your repository into a queryable knowledge graph and serves it to AI agents over the [Model Context Protocol (MCP)](https://modelcontextprotocol.io). Every fact carries its compiler- or AST-proven provenance.
+*Stop your AI agent from burning 40,000 tokens guessing with fuzzy vector search.*<br>
+A local-first, zero-CGO code intelligence engine that indexes your repository into a deterministic knowledge graph of AST symbols, call hierarchies, HTTP routes, SQL tables, and test coverage—served to AI agents over [Model Context Protocol (MCP)](https://modelcontextprotocol.io). Every fact carries compiler-proven or AST-validated provenance.
 
 ---
 
+[![GitHub Release](https://img.shields.io/github/v/release/satyendrakumarsingh/repocortex?style=flat-square&color=007ec6)](https://github.com/satyendrakumarsingh/repocortex/releases)
 [![CI](https://img.shields.io/github/actions/workflow/status/satyendrakumarsingh/repocortex/ci.yml?label=CI&style=flat-square)](https://github.com/satyendrakumarsingh/repocortex/actions/workflows/ci.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/satyendrakumarsingh/repocortex/badge?style=flat-square)](https://scorecard.dev/viewer/?uri=github.com/satyendrakumarsingh/repocortex)
 [![SLSA 3](https://slsa.dev/images/gh-badge-level3.svg)](https://slsa.dev)
@@ -45,6 +46,7 @@ A local-first, zero-CGO code intelligence engine that indexes your repository in
 [![Local SQLite](https://img.shields.io/badge/storage-local_SQLite-orange?style=flat-square)](https://sqlite.org)
 [![MCP Native](https://img.shields.io/badge/MCP-native_server-00D26A?style=flat-square)](https://modelcontextprotocol.io)
 [![llms.txt](https://img.shields.io/badge/llms.txt-standard-purple?style=flat-square)](llms.txt)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](.github/CONTRIBUTING.md)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue?style=flat-square)](LICENSE)
 
 <br>
@@ -108,7 +110,7 @@ go install github.com/satyendrakumarsingh/repocortex/cmd/cortex@latest
 # Or via curl installer (macOS / Linux, checksum-verified)
 curl -fsSL https://raw.githubusercontent.com/satyendrakumarsingh/repocortex/main/install.sh | sh
 ```
-*(CLI commands: `cortex` (primary), with `repocortex` and `cortex` aliases fully supported).*
+*(CLI commands: `cortex` (primary), with `repocortex` alias fully supported).*
 
 ### 2. Index your repository
 ```bash
@@ -123,6 +125,12 @@ cortex init && cortex index && cortex resolve
 cortex install --rules
 ```
 *Restart your IDE or agent. When you prompt your agent, it automatically queries `get_task_context` and `impact_analysis` instead of wasting tokens running exploratory greps.*
+
+### 4. Verify in 5 seconds
+```bash
+# Instant verification: query task context for an auth or core feature
+cortex context "how does authentication work?"
+```
 
 ---
 
@@ -546,9 +554,9 @@ RepoCortex provides `cortex impact --base <branch> --head <rev>`, which recursiv
 
 ## 👥 Contributing & License
 
-Contributions are warmly welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) and [CLAUDE.md](CLAUDE.md) for architecture guidelines.
+Contributions are warmly welcome! Please see [CONTRIBUTING.md](.github/CONTRIBUTING.md) and [CLAUDE.md](CLAUDE.md) for architecture guidelines.
 
-* [Code of Conduct](CODE_OF_CONDUCT.md)
-* [Security Policy](SECURITY.md)
+* [Code of Conduct](.github/CODE_OF_CONDUCT.md)
+* [Security Policy](.github/SECURITY.md)
 
 Licensed under the **[Apache License 2.0](LICENSE)**.

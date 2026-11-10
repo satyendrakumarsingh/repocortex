@@ -69,8 +69,8 @@ const (
 	AttrTool         = "cortex.mcp.tool"         // RepoCortex's own tool names
 	AttrStatus       = "cortex.status"           // ok | error | denied | timeout
 	AttrCacheHit     = "cortex.cache.hit"        // bool
-	AttrOperation    = "db.operation"              // select | insert | migrate | ...
-	AttrErrorType    = "error.type"                // Go type name, set by RecordError
+	AttrOperation    = "db.operation"            // select | insert | migrate | ...
+	AttrErrorType    = "error.type"              // Go type name, set by RecordError
 )
 
 var registeredKeys = map[string]struct{}{

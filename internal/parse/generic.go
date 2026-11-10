@@ -2,6 +2,7 @@ package parse
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"runtime"
 	"sort"
@@ -358,6 +359,9 @@ func (p *genericParser) Parse(ctx context.Context, path string, src []byte) (*Re
 
 	tags, tree, err := p.tagWithGuards(ctx, src)
 	if err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(ctx.Err(), context.Canceled) {
+			return nil, ctx.Err()
+		}
 		// A failed parse is data about this file, not a run-level failure.
 		res.Status = StatusFailed
 		res.Err = err
@@ -530,11 +534,14 @@ func (p *genericParser) tagWithGuards(ctx context.Context, src []byte) (tags []t
 	case o := <-done:
 		return o.tags, o.tree, o.err
 	case <-ctx.Done():
+		if errors.Is(ctx.Err(), context.Canceled) {
+			return nil, nil, ctx.Err()
+		}
 		// The worker is left to finish on its own; gotreesitter exposes no
 		// cancellation hook we can safely reach here. It is bounded by the
 		// source-size cap, so it terminates. Returning now keeps the indexer
 		// moving rather than stalling on one pathological file.
-		return nil, nil, fmt.Errorf("parse exceeded %s", timeout)
+		return nil, nil, fmt.Errorf("parse exceeded %s: %w", timeout, ctx.Err())
 	}
 }
 

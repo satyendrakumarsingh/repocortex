@@ -5,7 +5,7 @@
 RepoCortex solves the agent token-waste and hallucination problem. Instead of forcing AI agents to run 15+ exploratory greps across hundreds of thousands of lines of code—burning 35,000+ tokens and missing dynamic dispatch or interface implementations—RepoCortex indexes the repository locally into a relational SQLite knowledge graph with four calibrated provenance tiers (`exact`, `high`, `medium`, `low`). Agents query exact call hierarchies, blast radii, database access patterns, and covering tests in single sub-millisecond MCP calls.
 
 ## Key Facts & Technical Specifications
-- **CLI Commands**: `cortex` (primary), with `repocortex` and `cortex` aliases
+- **CLI Commands**: `cortex` (primary), with `repocortex` alias
 - **Runtime Dependencies**: Zero external dependencies, pure Go 1.25+, zero CGO, embedded SQLite (`modernc.org/sqlite`)
 - **Supported Languages**: Go, TypeScript/JavaScript, Python, Java, C#, Rust, C/C++, Ruby, PHP, Kotlin, Swift, Scala
 - **Protocol**: Model Context Protocol (MCP) over stdio JSON-RPC

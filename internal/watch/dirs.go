@@ -63,7 +63,7 @@ func (b fsnotifyBackend) Close() error                  { return b.w.Close() }
 var builtinIgnoredDirs = map[string]struct{}{
 	".git":         {},
 	"node_modules": {},
-	".cortex":    {},
+	".cortex":      {},
 }
 
 // entry is one path discovered while registering watches.

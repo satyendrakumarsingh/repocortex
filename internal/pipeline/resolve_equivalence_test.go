@@ -407,7 +407,7 @@ func TestOverSubscribedMethodResolvedByReceiverInStreaming(t *testing.T) {
 		if _, err := w.AddSymbol(ctx, &model.Symbol{
 			Kind: model.KindMethod, Name: "build",
 			FQN: fmt.Sprintf("%s#build", path), FileID: fID,
-			Range: model.Range{Start: model.Position{Line: 5}, End: model.Position{Line: 10}},
+			Range:    model.Range{Start: model.Position{Line: 5}, End: model.Position{Line: 10}},
 			Exported: true, Confidence: model.ConfidenceHigh, Source: model.SourceSourceCode,
 		}); err != nil {
 			t.Fatalf("add dummy build: %v", err)
@@ -426,7 +426,7 @@ func TestOverSubscribedMethodResolvedByReceiverInStreaming(t *testing.T) {
 	targetSymID, err := w.AddSymbol(ctx, &model.Symbol{
 		Kind: model.KindMethod, Name: "build",
 		FQN: targetPath + "#build", FileID: targetFID,
-		Range: model.Range{Start: model.Position{Line: 5}, End: model.Position{Line: 10}},
+		Range:    model.Range{Start: model.Position{Line: 5}, End: model.Position{Line: 10}},
 		Exported: true, Confidence: model.ConfidenceHigh, Source: model.SourceSourceCode,
 	})
 	if err != nil {
@@ -445,7 +445,7 @@ func TestOverSubscribedMethodResolvedByReceiverInStreaming(t *testing.T) {
 	callerSymID, err := w.AddSymbol(ctx, &model.Symbol{
 		Kind: model.KindMethod, Name: "doWork",
 		FQN: callerPath + "#doWork", FileID: callerFID,
-		Range: model.Range{Start: model.Position{Line: 2}, End: model.Position{Line: 20}},
+		Range:    model.Range{Start: model.Position{Line: 2}, End: model.Position{Line: 20}},
 		Exported: true, Confidence: model.ConfidenceHigh, Source: model.SourceSourceCode,
 	})
 	if err != nil {

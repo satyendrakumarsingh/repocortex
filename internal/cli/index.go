@@ -124,7 +124,9 @@ func tryIncremental(cmd *cobra.Command, g *Global, showDigest bool) (bool, error
 		return false, fmt.Errorf("diff working tree: %w", err)
 	}
 
-	stats, err := pipeline.Incremental(ctx, reg, current.ID, walker, changes, pipeline.IncrementalOptions{})
+	stats, err := pipeline.Incremental(ctx, reg, current.ID, walker, changes, pipeline.IncrementalOptions{
+		Resolve: true,
+	})
 	if err != nil {
 		return false, fmt.Errorf("incremental update failed: %w", err)
 	}
@@ -317,17 +319,16 @@ func runIndex(cmd *cobra.Command, g *Global, workers int, showDigest bool, accur
 	if err != nil {
 		return fmt.Errorf("indexing failed: %w", err)
 	}
+	// Refuse to publish or flush a run the user interrupted: a partial index that looks
+	// complete is worse than no new index at all.
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("indexing cancelled; previous revision left in place")
+	}
 	if err := sink.Flush(ctx); err != nil {
 		return fmt.Errorf("flush: %w", err)
 	}
 	if err := writer.Close(); err != nil {
 		return fmt.Errorf("close writer: %w", err)
-	}
-
-	// Refuse to publish a run the user interrupted: a partial index that looks
-	// complete is worse than no new index at all.
-	if err := ctx.Err(); err != nil {
-		return fmt.Errorf("indexing cancelled; previous revision left in place")
 	}
 
 	if err := reg.CommitRun(ctx, run.ID); err != nil {

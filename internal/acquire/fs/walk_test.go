@@ -173,8 +173,8 @@ func TestWalkGitignoreSemantics(t *testing.T) {
 			name: "cortexignore uses the same syntax",
 			files: map[string]string{
 				".cortexignore": "*.gen.go\n",
-				"a.gen.go":        "package a",
-				"a.go":            "package a",
+				"a.gen.go":      "package a",
+				"a.go":          "package a",
 			},
 			want: []string{".cortexignore", "a.go"},
 		},
@@ -490,8 +490,8 @@ func TestWalkPathsUseForwardSlashes(t *testing.T) {
 
 	root := t.TempDir()
 	writeTree(t, root, map[string]string{
-		"a/b/c/deep.go":     "package c",
-		"top.go":            "package main",
+		"a/b/c/deep.go":   "package c",
+		"top.go":          "package main",
 		"x/y/.cortexkeep": "keep",
 	})
 

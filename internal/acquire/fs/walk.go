@@ -313,12 +313,18 @@ func (st *walkState) walkDir(dir, rel string, rules ruleSet) {
 			childRel = rel + "/" + name
 		}
 		childPath := filepath.Join(dir, name)
-		isDir := entry.IsDir()
+		isSymlink := entry.Type()&iofs.ModeSymlink != 0
+		isDir := entry.IsDir() && !isSymlink
 
 		// Config exclusions are checked first and cannot be negated; see
 		// NewWalker. Checking them before the repo's own ignore rules also
 		// means a repo cannot make RepoCortex spend time inside node_modules.
 		if st.w.configExcluded(childRel, isDir) {
+			continue
+		}
+
+		if isSymlink {
+			st.emit(st.symlink(childPath, childRel))
 			continue
 		}
 

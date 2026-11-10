@@ -34,7 +34,7 @@ linters:
         - (*database/sql.Rows).Close
         - (*database/sql.Stmt).Close
         - (io.Closer).Close
-        - (*cortex/internal/store.DB).Close
+        - (*github.com/satyendrakumarsingh/repocortex/internal/store.DB).Close
         - fmt.Fprintf
         - fmt.Fprintln
         - fmt.Fprint

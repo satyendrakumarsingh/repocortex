@@ -1,0 +1,155 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v1.0.0)"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  GO_VERSION: "1.25.13"
+
+jobs:
+  release:
+    name: Build & Publish Release
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go Environment
+        uses: actions/setup-go@v5
+        with:
+          go-version: "${{ env.GO_VERSION }}"
+          cache: true
+
+      - name: Resolve Version and Tag
+        id: vars
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            VERSION="${{ github.ref_name }}"
+            TAG_NAME="${{ github.ref_name }}"
+            IS_PRERELEASE="false"
+            TITLE="RepoCortex ${VERSION}"
+          elif [ -n "${{ github.event.inputs.tag }}" ]; then
+            VERSION="${{ github.event.inputs.tag }}"
+            TAG_NAME="${{ github.event.inputs.tag }}"
+            IS_PRERELEASE="false"
+            TITLE="RepoCortex ${VERSION}"
+          else
+            SHORT_SHA=$(git rev-parse --short HEAD)
+            VERSION="canary-${SHORT_SHA}"
+            TAG_NAME="canary"
+            IS_PRERELEASE="true"
+            TITLE="RepoCortex Canary (${SHORT_SHA})"
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag_name=${TAG_NAME}" >> "$GITHUB_OUTPUT"
+          echo "is_prerelease=${IS_PRERELEASE}" >> "$GITHUB_OUTPUT"
+          echo "title=${TITLE}" >> "$GITHUB_OUTPUT"
+
+      - name: Cross-compile Multi-arch Targets and Create Universal Binary
+        shell: bash
+        env:
+          VERSION: ${{ steps.vars.outputs.version }}
+        run: |
+          set -euo pipefail
+          build_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          commit=$(git rev-parse HEAD)
+          pkg="github.com/satyendrakumarsingh/repocortex/internal/cli"
+          ldflags="-s -w -X ${pkg}.Version=${VERSION} -X ${pkg}.Commit=${commit} -X ${pkg}.BuildTime=${build_time}"
+
+          mkdir -p dist
+
+          echo "==> Building darwin/amd64"
+          mkdir -p dist/darwin_amd64
+          CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags "$ldflags" -o dist/darwin_amd64/cortex ./cmd/cortex
+          cp LICENSE NOTICE README.md dist/darwin_amd64/
+          tar -czf "dist/cortex_${VERSION}_darwin_amd64.tar.gz" -C dist/darwin_amd64 cortex LICENSE NOTICE README.md
+
+          echo "==> Building darwin/arm64"
+          mkdir -p dist/darwin_arm64
+          CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags "$ldflags" -o dist/darwin_arm64/cortex ./cmd/cortex
+          cp LICENSE NOTICE README.md dist/darwin_arm64/
+          tar -czf "dist/cortex_${VERSION}_darwin_arm64.tar.gz" -C dist/darwin_arm64 cortex LICENSE NOTICE README.md
+
+          echo "==> Creating universal macOS binary with lipo (cortex-mac.zip)"
+          mkdir -p dist/universal_mac
+          lipo -create -output dist/universal_mac/cortex dist/darwin_amd64/cortex dist/darwin_arm64/cortex
+          cp LICENSE NOTICE README.md dist/universal_mac/
+          (cd dist/universal_mac && zip -qr "../cortex-mac.zip" cortex LICENSE NOTICE README.md)
+
+          echo "==> Building linux/amd64"
+          mkdir -p dist/linux_amd64
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "$ldflags" -o dist/linux_amd64/cortex ./cmd/cortex
+          cp LICENSE NOTICE README.md dist/linux_amd64/
+          tar -czf "dist/cortex_${VERSION}_linux_amd64.tar.gz" -C dist/linux_amd64 cortex LICENSE NOTICE README.md
+
+          echo "==> Building linux/arm64"
+          mkdir -p dist/linux_arm64
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags "$ldflags" -o dist/linux_arm64/cortex ./cmd/cortex
+          cp LICENSE NOTICE README.md dist/linux_arm64/
+          tar -czf "dist/cortex_${VERSION}_linux_arm64.tar.gz" -C dist/linux_arm64 cortex LICENSE NOTICE README.md
+
+          echo "==> Building windows/amd64"
+          mkdir -p dist/windows_amd64
+          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "$ldflags" -o dist/windows_amd64/cortex.exe ./cmd/cortex
+          cp LICENSE NOTICE README.md dist/windows_amd64/
+          (cd dist/windows_amd64 && zip -qr "../cortex_${VERSION}_windows_amd64.zip" cortex.exe LICENSE NOTICE README.md)
+          cp dist/windows_amd64/cortex.exe dist/cortex.exe
+
+          rm -rf dist/darwin_amd64 dist/darwin_arm64 dist/universal_mac dist/linux_amd64 dist/linux_arm64 dist/windows_amd64
+
+          echo "==> Generating SHA256 checksums"
+          (cd dist && shasum -a 256 *.tar.gz *.zip *.exe > SHA256SUMS)
+          cat dist/SHA256SUMS
+
+      - name: Verify Version Stamp
+        shell: bash
+        run: ./script/verify-stamp.sh "${{ steps.vars.outputs.version }}"
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cortex-release-${{ steps.vars.outputs.version }}
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/cortex.exe
+            dist/SHA256SUMS
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.vars.outputs.tag_name }}
+          name: ${{ steps.vars.outputs.title }}
+          draft: false
+          prerelease: ${{ steps.vars.outputs.is_prerelease == 'true' }}
+          generate_release_notes: true
+          files: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/cortex.exe
+            dist/SHA256SUMS
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

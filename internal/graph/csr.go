@@ -153,10 +153,10 @@ func NewCSRGraph(runID int64, records []EdgeRecord) (*CSRGraph, error) {
 
 // LoadCSR reads all edges for runID from the graph's database into an in-memory CSRGraph snapshot.
 // It streams edges in two passes directly from SQLite:
-// 1. Pass 1 streams (src_id, dst_id) to map node IDs and compute degree counts,
-//    calculating offsets and pre-allocating exact-size edge buffers.
-// 2. Pass 2 streams (src_id, dst_id, kind, confidence) directly into outEdges and inEdges,
-//    avoiding holding all intermediate EdgeRecord structs in memory simultaneously with CSRGraph.
+//  1. Pass 1 streams (src_id, dst_id) to map node IDs and compute degree counts,
+//     calculating offsets and pre-allocating exact-size edge buffers.
+//  2. Pass 2 streams (src_id, dst_id, kind, confidence) directly into outEdges and inEdges,
+//     avoiding holding all intermediate EdgeRecord structs in memory simultaneously with CSRGraph.
 func (g *Graph) LoadCSR(ctx context.Context, runID int64) (*CSRGraph, error) {
 	tx, err := g.db.BeginTx(ctx, nil)
 	if err != nil {

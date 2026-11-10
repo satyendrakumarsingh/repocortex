@@ -423,4 +423,3 @@ function caller(xs: string[]) {
 		t.Errorf("spreadCall(...xs): arity reported as %d, want unknown", got.Count())
 	}
 }
-

@@ -410,4 +410,3 @@ func TestRunnerDrainsOnLargeFile(t *testing.T) {
 		t.Errorf("expected at least 2 drain calls (1 mid-run for large file + 1 final), got %d", calls)
 	}
 }
-

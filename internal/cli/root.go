@@ -57,6 +57,7 @@ func NewRoot() *cobra.Command {
 	root := &cobra.Command{
 		Use:     "cortex",
 		Aliases: []string{"repocortex"},
+		Version: Version,
 		Short:   "Deterministic code intelligence & change safety for AI coding agents",
 		Long: `RepoCortex builds a queryable knowledge graph of a software system —
 symbols, references, APIs, database access, tests, configuration and Git

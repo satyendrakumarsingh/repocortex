@@ -231,7 +231,7 @@ func TestRepoConfigCannotNameAnIndexer(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			root := writeRepo(t, map[string]string{
 				".cortex.yml": body,
-				"go.mod":        "module x",
+				"go.mod":      "module x",
 			})
 			if _, err := config.Load(root); err == nil {
 				t.Fatal("a repository set an execution field and config.Load accepted it")

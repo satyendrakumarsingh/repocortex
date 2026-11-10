@@ -388,6 +388,7 @@ jobs:
       # for the wrong reason.
       - name: Index and Resolve
         run: |
+          ./bin/cortex init
           ./bin/cortex index
           ./bin/cortex resolve
 
@@ -411,10 +412,7 @@ jobs:
 
       # An accuracy upgrade, never a requirement: if an indexer is missing, blocked
       # or produces an index that will not import, the edges stay heuristic and the
-      # report says so. A language whose toolchain is missing is skipped with its
-      # reason (kept in cortex-out/indexers.txt and the step summary). Java is
-      # never built here: without the repo-build opt-in its indexer is reported as
-      # blocked.
+      # report says so.
       - name: Import Compiler Facts
         if: env.CORTEX_ACCURACY == 'auto'
         run: |

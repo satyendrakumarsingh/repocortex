@@ -1,63 +1,75 @@
-# RepoCortex documentation
+# RepoCortex Documentation
 
-## Start here
+Welcome to the RepoCortex documentation portal. RepoCortex is a local-first, zero-CGO code intelligence and change safety engine that parses source code into a deterministic knowledge graph and serves it to AI coding agents over Model Context Protocol (MCP).
 
-| Document | The question it answers |
+---
+
+## 🏛️ Documentation Taxonomy
+
+```text
+docs/
+├── getting-started/     # First-time adoption & environment setup
+├── concepts/            # Architectural principles, invariants & mental models
+├── reference/           # Exhaustive CLI, MCP, and configuration specifications
+└── operations/          # CI/CD change-safety gates, tuning & troubleshooting
+```
+
+---
+
+## 1. 🚀 Getting Started
+
+Quick onboarding paths to get RepoCortex running in your project and connected to your AI agent.
+
+| Guide | Description |
 |---|---|
-| [GUIDE.md](GUIDE.md) | I have twenty minutes — which of the four paths (wire into an agent, blast radius before a refactor, architecture in CI, check the accuracy) do I take, and what do I type? |
-| [USER_GUIDE.md](USER_GUIDE.md) | What can the whole platform do end to end — events, blindspots, refactor plans, pruning, the MCP tool list, the portal and the CI gate — in one read? |
-| [user-manual.md](user-manual.md) | What does each part of the tool do, organised by what I am trying to do; and the complete configuration reference for both config files |
-| [CLI.md](CLI.md) | Every command, every flag, what each refuses to claim, and real output |
-| [agent-integration.md](agent-integration.md) | How does an AI coding agent get the tools AND the guidance to reach for them? |
-| [FAQ.md](FAQ.md) | The questions people actually ask, including the ones about what it cannot do |
-| [troubleshooting.md](troubleshooting.md) | Something printed an error — what caused it and what do I do? Keyed on the literal messages |
+| [**Quickstart Guide**](getting-started/quickstart.md) | 60-second end-to-end guide: install, index, resolve, and verify |
+| [**Agent Integration**](getting-started/agent-integration.md) | Wiring instructions for Cursor, Claude Code, Windsurf, Antigravity, Claude Desktop, and Zed |
+| [**Installation**](getting-started/installation.md) | Automated curl installer, Go install, and precompiled universal release binaries |
 
-## Understanding what it claims
+---
 
-| Document | The question it answers |
+## 2. 🧠 Concepts & Architecture
+
+The engineering rationale and formal models behind deterministic code graphs.
+
+| Document | Description |
 |---|---|
-| [accuracy.md](accuracy.md) | How right are the edges, per language and per confidence tier, measured against a compiler — and how were the numbers produced? |
-| [architecture.md](architecture.md) | What are the layers, why is each boundary where it is, and what is actually built? |
-| [NON-GOALS.md](NON-GOALS.md) | What does it deliberately not do, and where in the code is each refusal enforced? |
-| [BENCHMARKING.md](BENCHMARKING.md) | How is retrieval quality scored, and what would make the number lie? |
-| [corpus.md](corpus.md) | Which real repositories is it held to in CI, and why those? |
+| [**Why Not Vector RAG?**](concepts/why-not-vector-rag.md) | Lexical similarity vs causal call-graph reachability for code intelligence |
+| [**Architecture & Invariants**](concepts/architecture.md) | Hexagonal pipeline, in-memory CSR graph, and zero-CGO design |
+| [**Accuracy & Provenance**](reference/accuracy-and-benchmarks.md) | Adjudication of 30,975 edges against compiler ground truth across 4 confidence tiers |
+| [**Non-Goals**](NON-GOALS.md) | Deliberate architectural refusals and scope boundaries |
 
-## Working on RepoCortex
+---
 
-| Document | The question it answers |
+## 3. 📖 Technical Reference
+
+Authoritative specifications for commands, tools, and options.
+
+| Reference | Description |
 |---|---|
-| [development.md](development.md) | How do I set up, and which of the five test tiers does my change need to satisfy? |
-| [git-workflow.md](git-workflow.md) | What does a commit message here have to contain, and why can a shipped migration never be edited? |
-| [performance.md](performance.md) | What does each operation actually cost, and what measurement chose each default? |
-| [security.md](security.md) | What is the threat model, which controls enforce it, and — explicitly — what is not protected? |
+| [**CLI Reference**](reference/cli.md) | Complete manual of all 35+ CLI commands, flags, and outputs |
+| [**MCP Tools Reference**](reference/mcp-tools.md) | Schemas and profiles for all 10 native Model Context Protocol tools |
+| [**Configuration**](user-manual.md#configuration) | Local `.cortex.yml` schema and global configuration options |
+| [**FAQ**](FAQ.md) | Answers to common technical and architectural questions |
 
-## Maintainer records
+---
 
-Audit records, design specs, implementation plans, competitive teardowns and
-the UI preview mock are kept outside the public tree, under `docs/internal/`,
-which is gitignored. They are point-in-time working records for maintainers —
-agent-run audits and plans that name machines and repositories that are not
-public — not documentation for someone using the tool. Nothing a user needs
-lives there.
+## 4. ⚙️ Operations & Hardening
 
-Release history is in [../CHANGELOG.md](../CHANGELOG.md). Contribution rules are
-in [../CONTRIBUTING.md](../CONTRIBUTING.md). The engineering standards these
-documents are audited against are in [../CLAUDE.md](../CLAUDE.md).
+Running RepoCortex in production pipelines and automated environments.
 
-## What "verified" means here, and what it does not
+| Guide | Description |
+|---|---|
+| [**CI/CD Change-Safety Gates**](operations/ci-cd-gates.md) | GitHub Actions workflow, SARIF 2.1.0 reporting, and sticky PR comments |
+| [**Troubleshooting Catalogue**](operations/troubleshooting.md) | Comprehensive error catalog keyed to literal error strings with remedies |
+| [**Performance & Tuning**](operations/performance.md) | Memory-mapped I/O, SQLite pragmas, CSR memory footprints, and worker scaling |
+| [**Security & Threat Model**](security.md) | Path containment, secret redaction, and local execution boundaries |
+| [**SEO & AEO Specification**](operations/seo-and-aeo.md) | Search Engine & AI Engine Optimization metadata standards |
 
-Claims in these documents are checked by running something — building the binary,
-indexing a copy of this repository in a temporary directory, executing the named
-test or benchmark — not by reading the code and inferring. Where a number could
-not be reproduced, the document says so and withholds the number rather than
-repeating it; [performance.md](performance.md) has two such cases.
+---
 
-That is not the same as a guarantee of currency. These files are edited by hand
-and the code is not, so any of them can drift between one audit and the next. The
-specific way it drifts is worth knowing: a statement that something is *missing*
-survives long after the gap closes, because nothing prompts an edit when a feature
-lands. Both `architecture.md` and `development.md` carried a list of empty
-placeholder packages that had shipped months earlier.
+## Contributing & Community
 
-Where a document and the code disagree, the code is the answer. Where two
-documents disagree, the one that names the command it ran is the better bet.
+- [**Contributing Guidelines**](../.github/CONTRIBUTING.md): Core invariants, coding standards, and test tiers
+- [**Code of Conduct**](../.github/CODE_OF_CONDUCT.md): Contributor standards and pledge
+- [**Security Policy**](../.github/SECURITY.md): Coordinated vulnerability disclosure

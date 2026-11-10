@@ -142,7 +142,7 @@ jobs:
           PR: ${{ github.event.pull_request.number }}
         run: |
           id=$(gh api "repos/$REPO/issues/$PR/comments" --paginate \
-            --jq '.[] | select(.body | contains("<!-- cortex:pr-report -->") or contains("<!-- cortex:pr-report -->")) | .id' | head -n 1)
+            --jq '.[] | select(.body | contains("<!-- cortex:pr-report -->")) | .id' | head -n 1)
           if [ -n "$id" ]; then
             gh api -X PATCH "repos/$REPO/issues/comments/$id" -F body=@cortex-out/pr-report.md
           else

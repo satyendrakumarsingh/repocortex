@@ -53,6 +53,8 @@ This does not index anything; run "cortex index" afterwards.`,
 				if err := os.Remove(dbPath); err != nil {
 					return fmt.Errorf("remove existing index: %w", err)
 				}
+				_ = os.Remove(dbPath + "-wal")
+				_ = os.Remove(dbPath + "-shm")
 				g.Log().Warn("removed existing index", "path", dbPath)
 			}
 

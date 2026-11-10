@@ -97,17 +97,15 @@ done
 install -m 0755 "$extracted" "${INSTALL_DIR}/cortex" 2>/dev/null \
   || { cp "$extracted" "${INSTALL_DIR}/cortex" && chmod 0755 "${INSTALL_DIR}/cortex"; }
 ln -sf "${INSTALL_DIR}/cortex" "${INSTALL_DIR}/repocortex" 2>/dev/null || cp "${INSTALL_DIR}/cortex" "${INSTALL_DIR}/repocortex"
-ln -sf "${INSTALL_DIR}/cortex" "${INSTALL_DIR}/cortex" 2>/dev/null || cp "${INSTALL_DIR}/cortex" "${INSTALL_DIR}/cortex"
 
 # Gatekeeper quarantines anything curl wrote. Without this the first run dies
 # with a dialog the user cannot dismiss from a terminal.
 if [ "$os" = "darwin" ] && command -v xattr >/dev/null 2>&1; then
   xattr -d com.apple.quarantine "${INSTALL_DIR}/cortex" 2>/dev/null || true
   xattr -d com.apple.quarantine "${INSTALL_DIR}/repocortex" 2>/dev/null || true
-  xattr -d com.apple.quarantine "${INSTALL_DIR}/cortex" 2>/dev/null || true
 fi
 
-echo "installed ${INSTALL_DIR}/cortex (with repocortex & cortex aliases)"
+echo "installed ${INSTALL_DIR}/cortex (with repocortex alias)"
 "${INSTALL_DIR}/cortex" version
 
 case ":${PATH}:" in

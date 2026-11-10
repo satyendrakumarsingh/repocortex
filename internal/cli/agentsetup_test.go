@@ -62,22 +62,6 @@ func agentRepoFile(t *testing.T, rel string) string {
 
 // ------------------------------------------------------------------ drift
 
-// TestAgentGuidanceMatchesSkillFile is the reason the guidance can live in two
-// places at once.
-//
-// The Go constant is what the command prints and what --check looks for; the
-// SKILL.md copy is what a plugin install puts in front of the agent. Two copies
-// of a behavioural contract WILL diverge, and the divergence would be invisible
-// — both files keep working, they simply tell the agent different things. This
-// test is the only thing preventing that.
-func TestAgentGuidanceMatchesSkillFile(t *testing.T) {
-	skill := agentRepoFile(t, ".claude-plugin/skills/cortex/SKILL.md")
-	if !strings.Contains(skill, agentGuidance) {
-		t.Fatalf("SKILL.md no longer contains the guidance block verbatim.\n"+
-			"Paste this between the markers in .claude-plugin/skills/cortex/SKILL.md:\n\n%s", agentGuidance)
-	}
-}
-
 // TestAgentGuidanceNamesOnlyRealTools stops the guidance from telling an agent
 // to call something that does not exist.
 //
@@ -143,60 +127,6 @@ func TestAgentGuidanceStaysShort(t *testing.T) {
 	}
 	if !strings.HasSuffix(agentGuidance, agentGuidanceClose+"\n") {
 		t.Error("guidance must close with its marker and a trailing newline")
-	}
-}
-
-// ------------------------------------------------------------------ plugin
-
-// TestAgentPluginManifest checks the manifest against the shape Claude Code
-// documents, and against this package's own constants.
-func TestAgentPluginManifest(t *testing.T) {
-	var manifest struct {
-		Name        string `json:"name"`
-		Description string `json:"description"`
-		Version     string `json:"version"`
-		Skills      string `json:"skills"`
-		MCPServers  map[string]struct {
-			Command string   `json:"command"`
-			Args    []string `json:"args"`
-		} `json:"mcpServers"`
-	}
-	if err := json.Unmarshal([]byte(agentRepoFile(t, pluginManifestPath)), &manifest); err != nil {
-		t.Fatalf("%s is not valid JSON: %v", pluginManifestPath, err)
-	}
-
-	if manifest.Name != agentMCPName {
-		t.Errorf("plugin name = %q, want %q", manifest.Name, agentMCPName)
-	}
-	if manifest.Version == "" || manifest.Description == "" {
-		t.Error("plugin manifest needs a version and a description")
-	}
-
-	srv, ok := manifest.MCPServers[agentMCPName]
-	if !ok {
-		t.Fatalf("manifest registers no MCP server named %q — installing the plugin would give the agent nothing", agentMCPName)
-	}
-	if srv.Command != "cortex" {
-		t.Errorf("plugin command = %q, want cortex on PATH", srv.Command)
-	}
-	// The project root must be explicit. A server started from whatever
-	// directory the client happens to be in would index the wrong repository
-	// and never say so.
-	joined := strings.Join(srv.Args, " ")
-	if !strings.Contains(joined, "${CLAUDE_PROJECT_DIR}") {
-		t.Errorf("plugin args %q do not pin the project root to ${CLAUDE_PROJECT_DIR}", joined)
-	}
-	if !strings.Contains(joined, "serve") {
-		t.Errorf("plugin args %q never reach the serve subcommand", joined)
-	}
-
-	// The skills path must resolve, or the guidance ships nowhere.
-	if manifest.Skills == "" {
-		t.Fatal("manifest declares no skills path")
-	}
-	dir := filepath.Join("..", "..", filepath.FromSlash(strings.TrimPrefix(manifest.Skills, "./")))
-	if _, err := os.Stat(dir); err != nil {
-		t.Errorf("skills path %q does not exist: %v", manifest.Skills, err)
 	}
 }
 

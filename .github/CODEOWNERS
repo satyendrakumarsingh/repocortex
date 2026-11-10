@@ -1,0 +1,12 @@
+# RepoCortex Code Owners
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Repository author & sole maintainer
+*       @satyendrakumarsingh
+
+# Critical paths
+/.github/                     @satyendrakumarsingh
+/.github/workflows/           @satyendrakumarsingh
+/cmd/                         @satyendrakumarsingh
+/internal/                    @satyendrakumarsingh
+/pkg/                         @satyendrakumarsingh

@@ -47,9 +47,8 @@ try {
     }
     Copy-Item -Path $src -Destination (Join-Path $Dir "cortex.exe") -Force
     Copy-Item -Path $src -Destination (Join-Path $Dir "repocortex.exe") -Force
-    Copy-Item -Path $src -Destination (Join-Path $Dir "cortex.exe") -Force
 
-    Write-Host "installed $Dir\cortex.exe (with repocortex.exe & cortex.exe aliases)"
+    Write-Host "installed $Dir\cortex.exe (with repocortex.exe alias)"
     & (Join-Path $Dir "cortex.exe") version
 
     $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
