@@ -1,0 +1,18 @@
+# Smithery MCP Server Manifest
+# https://smithery.ai/docs/config#smitheryyaml
+
+startCommand:
+  type: stdio
+
+configSchema:
+  type: object
+  properties:
+    projectPath:
+      type: string
+      description: "Path to the repository to index and serve (default: current directory)."
+
+commandFunction: |-
+  (config) => ({
+    command: 'cortex',
+    args: config.projectPath ? ['--project', config.projectPath, 'serve'] : ['serve']
+  })
