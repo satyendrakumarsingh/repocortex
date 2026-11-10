@@ -26,7 +26,7 @@ env:
 jobs:
   release:
     name: Build & Publish Release
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - name: Checkout Repository
@@ -92,9 +92,10 @@ jobs:
           cp LICENSE NOTICE README.md dist/darwin_arm64/
           tar -czf "dist/cortex_${VERSION}_darwin_arm64.tar.gz" -C dist/darwin_arm64 cortex LICENSE NOTICE README.md
 
-          echo "==> Creating universal macOS binary with lipo (cortex-mac.zip)"
+          echo "==> Creating universal macOS binary (cortex-mac.zip)"
+          sudo apt-get update && sudo apt-get install -y llvm zip
           mkdir -p dist/universal_mac
-          lipo -create -output dist/universal_mac/cortex dist/darwin_amd64/cortex dist/darwin_arm64/cortex
+          llvm-lipo -create -output dist/universal_mac/cortex dist/darwin_amd64/cortex dist/darwin_arm64/cortex
           cp LICENSE NOTICE README.md dist/universal_mac/
           (cd dist/universal_mac && zip -qr "../cortex-mac.zip" cortex LICENSE NOTICE README.md)
 
