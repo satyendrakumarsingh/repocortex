@@ -29,10 +29,10 @@
            |_|                                            
 ```
 
-### **Deterministic Code Intelligence & Change Safety Engine for AI Coding Agents**
+### **Deterministic Code Intelligence & Blast Radius Engine for AI Coding Agents**
 
-*Stop your AI agent from burning 40,000 tokens guessing with fuzzy vector search.*<br>
-A local-first, zero-CGO code intelligence engine that indexes your repository into a deterministic knowledge graph of AST symbols, call hierarchies, HTTP routes, SQL tables, and test coverage—served to AI agents over [Model Context Protocol (MCP)](https://modelcontextprotocol.io). Every fact carries compiler-proven or AST-validated provenance.
+*Stop your AI coding agent from burning 40,000 tokens guessing with fuzzy vector search.*<br>
+A local-first, zero-CGO code intelligence engine that indexes your codebase into a deterministic knowledge graph of AST symbols, call hierarchies, HTTP routes, SQL tables, and test coverage—served to AI agents over [Model Context Protocol (MCP)](https://modelcontextprotocol.io). Replaces flaky vector RAG with compiler-proven provenance.
 
 ---
 
