@@ -1,159 +1,114 @@
-<!--
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "SoftwareApplication",
-  "name": "RepoCortex",
-  "alternateName": ["cortex", "repocortex"],
-  "applicationCategory": "DeveloperApplication",
-  "operatingSystem": "macOS, Linux, Windows",
-  "description": "Deterministic Code Intelligence & Change Safety Engine for AI Coding Agents (Cursor, Claude Code, Windsurf, Antigravity) over Model Context Protocol (MCP).",
-  "url": "https://github.com/satyendrakumarsingh/repocortex",
-  "downloadUrl": "https://github.com/satyendrakumarsingh/repocortex/releases",
-  "softwareVersion": "0.1.0",
-  "license": "https://opensource.org/licenses/Apache-2.0",
-  "programmingLanguage": ["Go", "TypeScript", "Python", "Java", "C#", "Rust"],
-  "keywords": "mcp-server, code-intelligence, ai-coding-agents, code-graph, blast-radius, tree-sitter, cursor, claude-code, windsurf, antigravity, static-analysis, scip"
-}
-</script>
--->
-
 <div align="center">
 
-```text
-  ____                      ____            _             
- |  _ \ ___ _ __   ___     / ___|___  _ __ | |_ _____  __ 
- | |_) / _ \ '_ \ / _ \   | |   / _ \| '__|| __/ _ \ \/ / 
- |  _ <  __/ |_) | (_) |  | |__| (_) | |   | ||  __/>  <  
- |_| \_\___| .__/ \___/    \____\___/|_|    \__\___/_/\_\ 
-           |_|                                            
-```
+# RepoCortex
 
-### **Deterministic Code Intelligence & Blast Radius Engine for AI Coding Agents**
+**Deterministic code intelligence and change safety for AI coding agents.**<br>
+Compiler-proven call graphs over [MCP](https://modelcontextprotocol.io), instead of flaky vector RAG.<br>
+**~90% fewer tokens · 100% local · zero CGO · single binary**
 
-*Stop your AI coding agent from burning 40,000 tokens guessing with fuzzy vector search.*<br>
-A local-first, zero-CGO code intelligence engine that indexes your codebase into a deterministic knowledge graph of AST symbols, call hierarchies, HTTP routes, SQL tables, and test coverage—served to AI agents over [Model Context Protocol (MCP)](https://modelcontextprotocol.io). Replaces flaky vector RAG with compiler-proven provenance.
-
----
-
-[![GitHub Release](https://img.shields.io/github/v/release/satyendrakumarsingh/repocortex?style=flat-square&color=007ec6)](https://github.com/satyendrakumarsingh/repocortex/releases)
+[![Release](https://img.shields.io/github/v/release/satyendrakumarsingh/repocortex?style=flat-square&color=007ec6)](https://github.com/satyendrakumarsingh/repocortex/releases)
 [![CI](https://img.shields.io/github/actions/workflow/status/satyendrakumarsingh/repocortex/ci.yml?label=CI&style=flat-square)](https://github.com/satyendrakumarsingh/repocortex/actions/workflows/ci.yml)
-[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/satyendrakumarsingh/repocortex/badge?style=flat-square)](https://scorecard.dev/viewer/?uri=github.com/satyendrakumarsingh/repocortex)
-[![SLSA 3](https://slsa.dev/images/gh-badge-level3.svg)](https://slsa.dev)
-[![Adjudicated edges](https://img.shields.io/badge/adjudicated_edges-30%2C975-blue?style=flat-square)](docs/accuracy.md)
+[![MCP](https://img.shields.io/badge/MCP-native_server-00D26A?style=flat-square)](https://modelcontextprotocol.io)
 [![Go 1.25+](https://img.shields.io/badge/Go-1.25%2B-00ADD8?logo=go&style=flat-square)](https://go.dev)
-[![CGO-free](https://img.shields.io/badge/CGO-free-success?style=flat-square)](https://github.com/satyendrakumarsingh/repocortex)
-[![Local SQLite](https://img.shields.io/badge/storage-local_SQLite-orange?style=flat-square)](https://sqlite.org)
-[![MCP Native](https://img.shields.io/badge/MCP-native_server-00D26A?style=flat-square)](https://modelcontextprotocol.io)
-[![llms.txt](https://img.shields.io/badge/llms.txt-standard-purple?style=flat-square)](llms.txt)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](.github/CONTRIBUTING.md)
-[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue?style=flat-square)](LICENSE)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue?style=flat-square)](LICENSE)
 
-<br>
+Works with `Cursor` · `Claude Code` · `Windsurf` · `Antigravity` · `Claude Desktop` · `Zed`
 
-**1-Click Agent Integration:**<br>
-`Cursor` · `Claude Code` · `Windsurf` · `Google Antigravity` · `Claude Desktop` · `Zed`
-
-<br>
-
-[⚡ 60s Quickstart](#-60-second-quickstart) ·
-[🧠 Why Not Vector RAG?](docs/WHY_NOT_VECTOR_RAG.md) ·
-[🤖 LLM Manifest](llms.txt) ·
-[🚀 Key Features](#-key-features) ·
-[🏗️ Architecture](#-how-it-works) ·
-[📊 Accuracy](#-accuracy--benchmarks) ·
-[⚖️ Comparison](#-repocortex-vs-alternatives) ·
-[❓ FAQ](#-frequently-asked-questions-faq) ·
-[📖 User Guide](docs/USER_GUIDE.md)
+[Quickstart](#quickstart) ·
+[Why not vector RAG?](docs/WHY_NOT_VECTOR_RAG.md) ·
+[How it works](#how-it-works) ·
+[Accuracy](#accuracy) ·
+[Agent setup](#connect-your-agent) ·
+[Docs](#documentation) ·
+[`llms.txt`](llms.txt)
 
 </div>
 
----
-
-> [!NOTE]
-> **Why we built RepoCortex:**
-> Watching an AI coding agent burn 40,000 tokens running exploratory greps across a 500k-line monorepo—only to miss an interface implementation and break production—is painful, expensive, and unnecessary.
->
-> Instead of guessing through fuzzy vector similarities or shipping your proprietary source code to third-party embedding APIs, RepoCortex parses your codebase locally into a deterministic knowledge graph of AST symbols, call hierarchies, HTTP routes, SQL tables, and test coverage.
->
-> **100% local. Zero CGO. Pure deterministic truth.**
-
 ```text
-╭────────────────────────────────────────────────────────────────────────────────╮
-│  $ cortex impact --base main..HEAD                                             │
-│                                                                                │
-│  ⚡ Risk: HIGH (Score: 82/100) — 14 symbols reached from 2 changed              │
-│                                                                                │
-│  How much of the blast radius is proven:                                       │
-│  ├── 🟢 85% exact   [Compiler type-checked via SCIP]                            │
-│  └── 🔵 15% high    [AST receiver & import validated]                           │
-│                                                                                │
-│  Impacted Execution Chain:                                                      │
-│  ● PaymentGateway.ChargeToken()           internal/pay/gateway.go:42            │
-│    └── CheckoutHandler.HandleOrder()      api/controllers/order.go:118          │
-│        └── Kafka topic: "orders.charged"  (3 downstream microservices)          │
-│                                                                                │
-│  Covering Test Suite:                                                          │
-│  ✓ TestOrderCheckoutFlow (via proven call edge)  tests/order_test.go:56        │
-╰────────────────────────────────────────────────────────────────────────────────╯
+$ cortex impact --base main..HEAD
+
+⚡ Risk: HIGH (82/100) — 14 symbols reached from 2 changed
+
+  🟢 85% exact   compiler type-checked via SCIP
+  🔵 15% high    AST receiver & import validated
+
+  ● PaymentGateway.ChargeToken()           internal/pay/gateway.go:42
+    └── CheckoutHandler.HandleOrder()      api/controllers/order.go:118
+        └── Kafka topic "orders.charged"   (3 downstream services)
+
+  ✓ TestOrderCheckoutFlow (proven call edge)   tests/order_test.go:56
 ```
 
----
+Your agent burns ~40k tokens on exploratory greps and still misses interface implementations. RepoCortex parses your repo locally into a deterministic graph of symbols, call hierarchies, HTTP routes, SQL tables and test coverage. The agent then asks one question and gets a proven answer in ~800 tokens.
 
-## ⚡ 60-Second Quickstart
+## Quickstart
 
-### 1. Install the standalone binary
+**1. Install**
+
 ```bash
-# Via Go (Zero CGO, zero external build dependencies)
-go install github.com/satyendrakumarsingh/repocortex/cmd/cortex@latest
-
-# Or via curl installer (macOS / Linux, checksum-verified)
-curl -fsSL https://raw.githubusercontent.com/satyendrakumarsingh/repocortex/main/install.sh | sh
+brew install satyendrakumarsingh/tap/cortex      # macOS / Linux
 ```
-*(CLI commands: `cortex` (primary), with `repocortex` alias fully supported).*
 
-### 2. Index your repository
+<details>
+<summary>Other install methods (curl, Go, Windows, offline binaries)</summary>
+
+```bash
+# macOS / Linux, checksum-verified
+curl -fsSL https://raw.githubusercontent.com/satyendrakumarsingh/repocortex/main/install.sh | sh
+
+# Go 1.25+ (no CGO, no external build dependencies)
+go install github.com/satyendrakumarsingh/repocortex/cmd/cortex@latest
+```
+
+```powershell
+# Windows (PowerShell)
+Invoke-WebRequest -Uri https://raw.githubusercontent.com/satyendrakumarsingh/repocortex/main/install.ps1 -OutFile install.ps1
+Unblock-File .\install.ps1
+.\install.ps1
+```
+
+Pre-built binaries for macOS (Apple Silicon and Intel), Linux (amd64, arm64) and Windows (amd64) are on the [Releases](https://github.com/satyendrakumarsingh/repocortex/releases) page, for air-gapped machines. The command is `cortex`; `repocortex` also works.
+
+</details>
+
+**2. Index your repo** (seconds; creates a local SQLite graph in `.cortex/`)
+
 ```bash
 cd your-project
 cortex init && cortex index && cortex resolve
 ```
-*(Creates a self-contained SQLite knowledge graph inside `.cortex/` in seconds; backwards-compatible with existing `.cortex/`).*
 
-### 3. Connect your AI coding agent
+**3. Connect your agent**
+
 ```bash
-# Auto-detects Cursor, Claude, Windsurf, or Antigravity and injects agent guidance
-cortex install --rules
+cortex install --rules     # detects Cursor, Claude, Windsurf, Antigravity
 ```
-*Restart your IDE or agent. When you prompt your agent, it automatically queries `get_task_context` and `impact_analysis` instead of wasting tokens running exploratory greps.*
 
-### 4. Verify in 5 seconds
+Restart the agent. It now calls `get_task_context` and `impact_analysis` instead of grepping.
+
+**4. Check it works**
+
 ```bash
-# Instant verification: query task context for an auth or core feature
 cortex context "how does authentication work?"
 ```
 
----
+## Before and after
 
-## 🧠 Mental Model: Before vs. After RepoCortex
-
-| Capability | Without RepoCortex (Vector RAG / Grep) | With RepoCortex (Deterministic Graph) |
+| | Without RepoCortex (RAG / grep) | With RepoCortex |
 |---|:---:|:---:|
-| **Task Discovery** | ❌ 15+ exploratory greps & file reads (~35k tokens, 30s) | ⚡ **1 call**: `get_task_context` (~800 tokens, 10ms) |
-| **Refactoring Blast Radius** | ❌ Misses callers with different names; breaks at runtime | ✅ **Complete, compiler-proven blast radius** with confidence tiers |
-| **Test Gap Detection** | ❌ Searches by filename matching; misses indirect tests | ✅ **Traces proven call edges** to identify covering tests (`cortex missed`) |
-| **Data Privacy & IP Safety** | ⚠️ Source code chunked & sent to third-party embedding APIs | ✅ **100% local SQLite**; zero source code ever leaves your machine |
-| **Resolution Accuracy** | ❌ Hallucinates edges based on textual similarity | ✅ **Compiler-backed `exact` (SCIP)** and AST-proven `high` edges |
-| **CI / CD Quality Gates** | ❌ None (Ad-hoc prompt rules) | ✅ **Blocking CI gates** (`arch`, `missed`, `impact`) with SARIF 2.1.0 output |
+| **Task discovery** | 15+ greps and reads (~35k tokens, 30s) | **1 call**, `get_task_context` (~800 tokens, 10ms) |
+| **Blast radius** | Misses callers with different names | **Complete and compiler-proven**, with confidence tiers |
+| **Test gaps** | Filename matching, misses indirect tests | **Traces proven call edges** (`cortex missed`) |
+| **Privacy** | Code chunked and sent to embedding APIs | **100% local SQLite**, nothing leaves your machine |
+| **Accuracy** | Edges guessed from text similarity | **`exact` (SCIP)** and AST-proven `high` edges |
+| **CI gates** | None | **Blocking gates** (`arch`, `missed`, `impact`) with SARIF 2.1.0 |
 
 > [!TIP]
-> **Deep Dive**: Curious why semantic search and vector embeddings fail on source code? Read our technical essay:  
-> [👉 Why Vector RAG Fails for Code: The Case for Deterministic Graph Intelligence](docs/WHY_NOT_VECTOR_RAG.md)
+> Why semantic search fails on source code: [Why Vector RAG Fails for Code](docs/WHY_NOT_VECTOR_RAG.md)
 
----
+## How it works
 
-## 🏗️ How It Works
-
-RepoCortex combines fast Tree-sitter AST extraction, compiler-backed SCIP indexers, and framework extractors into a unified relational graph stored in local SQLite.
+Tree-sitter AST extraction, compiler-backed SCIP indexers and framework extractors feed one relational graph in local SQLite.
 
 ```mermaid
 flowchart TD
@@ -197,6 +152,10 @@ flowchart TD
     KG <--> DB
 ```
 
+### The 4 confidence tiers
+
+Every edge carries immutable provenance, so a compiler fact is never confused with a regex guess.
+
 ### The 4 Confidence Tiers
 
 RepoCortex never conflates a compiler fact with a regex guess. Every edge in the graph carries immutable provenance:
@@ -208,9 +167,7 @@ RepoCortex never conflates a compiler fact with a regex guess. Every edge in the
 | `medium` | Multi-candidate type inference or package-level heuristics | **5.7% – 37.5%** | Treated as investigatory leads; never acted upon without human review. |
 | `low` | Loose identifier matches across unrelated packages | **0.0% – 2.8%** | Filtered by default. Exposed only when explicitly requested. |
 
----
-
-## 🚀 Key Features
+## Key features
 
 <table>
 <tr>
@@ -251,11 +208,9 @@ RepoCortex never conflates a compiler fact with a regex guess. Every edge in the
 </tr>
 </table>
 
----
+## Accuracy
 
-## 📊 Accuracy & Benchmarks
-
-RepoCortex publishes measured ground-truth numbers across five real-world production repositories (8,151 files, 91,548 symbols) adjudicated against compiler-backed ground truth:
+Measured on five real production repositories (8,151 files, 91,548 symbols), adjudicated against compiler ground truth:
 
 | Language | `high` Precision | `high` Recall | F1 Score | Adjudicated Edges |
 |---|:---:|:---:|:---:|:---:|
@@ -266,20 +221,9 @@ RepoCortex publishes measured ground-truth numbers across five real-world produc
 
 > **The Honest Engineering Headline**: Between one-third and two-fifths of call sites cannot be uniquely resolved by heuristic AST parsing alone. That is why RepoCortex explicitly reports **coverage gaps** rather than showing empty results, and provides a 1-command upgrade to compiler SCIP indexing (`cortex scip import`).
 
-<details>
-<summary><b>🔍 View Accuracy Methodology & Benchmark Repositories</b></summary>
+Methodology and reproduction: [docs/accuracy.md](docs/accuracy.md), [docs/BENCHMARKING.md](docs/BENCHMARKING.md). Run it on your own project with `cortex accuracy`.
 
-Full methodology, precision/recall curves, and reproduction steps are documented in [docs/accuracy.md](docs/accuracy.md) and [docs/BENCHMARKING.md](docs/BENCHMARKING.md).
-
-To run the accuracy evaluator against your local project:
-```bash
-cortex accuracy
-```
-</details>
-
----
-
-## ⚖️ RepoCortex vs. Alternatives
+## RepoCortex vs. alternatives
 
 | Capability | RepoCortex | Vector RAG Embeddings | Traditional LSP (gopls, tsserver) | Heavy SAST (CodeQL, Semgrep) | Text Greppers (`rg`) |
 |:---|:---:|:---:|:---:|:---:|:---:|
@@ -295,58 +239,18 @@ cortex accuracy
 | **100% Air-Gapped / Local Operation** | **✅ Yes** | ⚠️ Often needs cloud API | **✅ Yes** | ⚠️ Often cloud-hosted | **✅ Yes** |
 | **Single Standalone Static Binary** | **✅ Yes** (Zero CGO) | ❌ No | ❌ No | ❌ No | **✅ Yes** |
 
----
+## Connect your agent
 
-## 🛠️ Installation & Upgrades
+`cortex install --rules` registers RepoCortex in Cursor (`~/.cursor/mcp.json`), Windsurf (`~/.codeium/windsurf/mcp_config.json`), Claude Desktop, Antigravity (`~/.gemini/antigravity/mcp_config.json`) and Claude Code (`~/.claude.json`). It also adds guidance to `.cursorrules`, `CLAUDE.md` or `AGENTS.md`.
 
-<details open>
-<summary><b>📦 Installation Methods</b></summary>
+**Claude Code, one line:**
 
-### macOS & Linux (Checksum-Verified Install Script)
 ```bash
-curl -fsSL https://raw.githubusercontent.com/satyendrakumarsingh/repocortex/main/install.sh | sh
+claude mcp add cortex -- cortex --project "$(pwd)" serve
 ```
 
-### Windows (PowerShell)
-```powershell
-Invoke-WebRequest -Uri https://raw.githubusercontent.com/satyendrakumarsingh/repocortex/main/install.ps1 -OutFile install.ps1
-Unblock-File .\install.ps1
-.\install.ps1
-```
+**Any stdio MCP client** (Cursor, Windsurf, Zed, Claude Desktop):
 
-### Via Go 1.25+
-```bash
-go install github.com/satyendrakumarsingh/repocortex/cmd/cortex@latest
-```
-
-### Pre-Compiled Standalone Binaries (Air-Gapped Workstations)
-Pre-built, zero-CGO binaries are available on the [Releases](https://github.com/satyendrakumarsingh/repocortex/releases) page for:
-* **macOS Universal** (Apple Silicon M1-M4 & Intel x86_64)
-* **Linux AMD64 & ARM64**
-* **Windows AMD64**
-
-</details>
-
----
-
-## 🤖 Connecting Your Coding Agent
-
-RepoCortex provides an embedded stdio MCP server designed specifically for coding agents.
-
-### Automated Setup
-```bash
-cortex install --rules
-```
-This automatically registers RepoCortex in:
-* **Cursor**: `~/.cursor/mcp.json`
-* **Windsurf**: `~/.codeium/windsurf/mcp_config.json`
-* **Claude Desktop**: Native macOS, Windows (`%APPDATA%`), and Linux config paths
-* **Google Antigravity**: `~/.gemini/antigravity/mcp_config.json`
-* **Claude Code**: `~/.claude.json`
-
-And injects behavioral guidance into `.cursorrules`, `CLAUDE.md`, or `AGENTS.md` so agents query the graph instead of grepping.
-
-### Manual Setup (Any Stdio MCP Client)
 ```json
 {
   "mcpServers": {
@@ -359,7 +263,7 @@ And injects behavioral guidance into `.cursorrules`, `CLAUDE.md`, or `AGENTS.md`
 ```
 
 <details>
-<summary><b>🛠️ View Exposed MCP Tools & Profiles</b></summary>
+<summary>MCP tools and profiles</summary>
 
 | Tool | Purpose | Profile |
 |---|---|:---:|
@@ -378,185 +282,52 @@ And injects behavioral guidance into `.cursorrules`, `CLAUDE.md`, or `AGENTS.md`
 
 </details>
 
----
+## CI change-safety gate
 
-## 💻 CLI Command Reference
-
-Every command accepts `--project <dir>`, `--json`, `-q/--quiet`, and `-v/--verbose`. Commands can be run as `cortex`, `repocortex`, or `cortex`.
-
-<details>
-<summary><b>📖 Expand Complete CLI Reference (35+ Commands)</b></summary>
-
-### 1. Index Lifecycle
-* `cortex init` — Initialize the `.cortex/` SQLite database.
-* `cortex index` — Build or incrementally update the symbol index.
-* `cortex resolve` — Bind references to definitions and construct the call graph.
-* `cortex watch` — Start a file watcher for real-time index synchronization.
-* `cortex hooks install` — Install Git pre-commit hooks for 20ms incremental updates.
-* `cortex status` — Print index counts, committed revisions, and health.
-* `cortex doctor` — Verify database integrity, schema migrations, and invariants.
-* `cortex scip import <file.scip>` — Ingest compiler-proven facts.
-
-### 2. Code Intelligence & Navigation
-* `cortex context "<task>"` — Assemble a complete, pruned context pack for an LLM prompt.
-* `cortex symbol <name>` — Find symbol definitions by exact identifier.
-* `cortex callers <symbol>` / `callees <symbol>` — Upstream and downstream call edges.
-* `cortex references <symbol>` — All cross-file references.
-* `cortex search "<query>"` — Full-text FTS5 BM25 search.
-* `cortex prune <file>` — Strip method bodies, leaving signatures and docstrings.
-* `cortex diff-minimize <patch>` — Compress diffs to minimize token consumption.
-
-### 3. Change Safety & Architecture
-* `cortex impact --base <rev> --head <rev>` — Transitive blast radius analysis.
-* `cortex compile "<task>"` — Generate a verifiable task contract before making changes.
-* `cortex verify --contract <contract.json>` — Enforce that changes honored their contract.
-* `cortex rename <old> <new> --apply` — AST-aware safe renaming with automated rollback.
-* `cortex arch` — Audit architectural boundary rules and ADR compliance.
-* `cortex missed` — Audit code blindspots (unresolved calls, unmapped routes).
-* `cortex who <symbol>` — Context routing: find engineers with git history on affected code.
-
-### 4. Distributed Microservice Topologies
-* `cortex api` — List HTTP endpoints, routes, and handler functions.
-* `cortex db` — List database tables and reader/writer methods.
-* `cortex events` — Discover Kafka, RabbitMQ, SQS, and Pub/Sub event queues.
-* `cortex config` — Audit configuration keys and consumer locations.
-* `cortex deps` — Report declared dependencies vs actually imported packages.
-* `cortex system` — Federate multiple repositories into a unified system graph.
-
-### 5. Web Portal & Reporting
-* `cortex ui` — Launch the embedded interactive visual portal at `http://localhost:7777`.
-* `cortex report pr` — Generate GitHub PR markdown summaries with confidence breakdowns.
-* `cortex report sarif` — Generate SARIF 2.1.0 reports for GitHub Code Scanning.
-
-</details>
-
----
-
-## 🌐 Local Web Portal
-
-RepoCortex includes an embedded, high-performance visual dashboard that runs 100% offline with zero external web assets:
-
-```bash
-cortex ui
-# Opens interactive portal at http://localhost:7777
-```
-
-* **Interactive Code Maps**: Graph, Tree, and Treemap visualizers.
-* **Blast Radius Explorer**: Visually inspect affected upstream callers before editing code.
-* **Architecture Matrix**: Review boundary violations and data flow compliance.
-* **360° Symbol Inspector**: Jump from symbol definition to HTTP handlers, database queries, and covering unit tests.
-* **Offline & Secure**: Binds exclusively to loopback (`127.0.0.1`), strictly enforces CSP, and makes zero network requests.
-
----
-
-## 🚦 GitHub Actions CI / CD Integration
-
-RepoCortex ships a turnkey change-safety gate workflow ([`.github/workflows/cortex-gate.yml`](.github/workflows/cortex-gate.yml)). Add it to your repository to enforce change safety on every Pull Request:
+Fail pull requests that break architecture rules or add high-severity blindspots, and post a sticky PR comment with the risk score:
 
 ```yaml
-name: RepoCortex Change Safety Gate
-
-on:
-  pull_request:
-    types: [opened, synchronize, reopened]
-
-jobs:
-  gate:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: write
-      security-events: write
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version: '1.25'
-
-      - name: Install RepoCortex
-        run: go install github.com/satyendrakumarsingh/repocortex/cmd/cortex@latest
-
-      - name: Index & Resolve
-        run: |
-          cortex init
-          cortex index
-          cortex resolve
-
-      - name: Check Architecture & Blindspots
-        run: |
-          cortex arch --fail-on high
-          cortex missed --fail-on high
-
-      - name: Change Impact Analysis
-        run: |
-          cortex impact --base origin/${{ github.base_ref }} --head HEAD --json > impact.json
-          cortex report pr --impact impact.json
+- run: go install github.com/satyendrakumarsingh/repocortex/cmd/cortex@latest
+- run: cortex init && cortex index && cortex resolve
+- run: cortex arch --fail-on high && cortex missed --fail-on high
+- run: cortex impact --base origin/${{ github.base_ref }} --head HEAD --json > impact.json && cortex report pr --impact impact.json
 ```
 
----
+Ready-made workflow: [`cortex-gate.yml`](.github/workflows/cortex-gate.yml). Details and SARIF upload: [docs/operations/ci-cd-gates.md](docs/operations/ci-cd-gates.md).
 
-## 🔒 Security & Privacy Invariants
+## Also included
 
-1. **Local-First & Air-Gapped**: The SQLite registry resides inside `.cortex/` (or `.cortex/`). Indexing, resolution, and MCP serving make **zero outbound network connections**.
-2. **Zero Telemetry**: No tracking, no user analytics, no phone-home pings.
-3. **Automated Secret Redaction**: High-entropy strings, API keys, and credential patterns are stripped before entering the index.
-4. **No Code Execution via Repository Config**: `.cortex.yml` structurally forbids execution commands. A repository cannot trigger scripts on `index`.
-5. **Untrusted Evidence Labelling**: MCP server responses explicitly tag repository source code as untrusted evidence to prevent prompt injection attacks against your agent.
+- **CLI**: 35+ commands for indexing, navigation, safe rename, architecture audits and reports. See the [CLI reference](docs/CLI.md).
+- **Local web portal**: `cortex ui` opens code maps, a blast-radius explorer and a symbol inspector at `http://localhost:7777`. It is offline and binds to loopback only.
 
----
+## Security and privacy
 
-## ❓ Frequently Asked Questions (FAQ)
+- **Local and air-gapped**: indexing, resolution and MCP serving make zero outbound network connections.
+- **No telemetry** of any kind.
+- **Secret redaction**: high-entropy strings and credential patterns are stripped before indexing.
+- **No code execution from repo config**: `.cortex.yml` cannot run commands.
+- **Untrusted-evidence labelling**: MCP responses tag repository code as untrusted, to resist prompt injection.
 
-### What is RepoCortex?
-**RepoCortex** (`cortex`) is an open-source, local-first code intelligence engine and Model Context Protocol (MCP) server for AI coding agents such as Cursor, Claude Code, Windsurf, and Google Antigravity. It indexes your codebase into a deterministic relational knowledge graph (AST symbols, references, call graphs, HTTP routes, database models, and test linkages) stored in local SQLite.
+Full threat model: [docs/security.md](docs/security.md).
 
-### Why does RepoCortex outperform Vector RAG for source code?
-Vector RAG relies on semantic distance embeddings, which measure natural language similarity rather than programmatic truth. In source code, two completely different functions often look lexically similar, while interface implementations, dynamic dispatches, or downstream callers share zero textual similarity. RepoCortex uses compiler-grade SCIP indexers and Tree-sitter AST parsers to provide proven, deterministic relationships with calibrated confidence tiers (`exact`, `high`, `medium`, `low`).
+## FAQ
 
-### How does RepoCortex reduce token consumption by up to 90%?
-When an AI agent investigates a codebase using raw grep or file reads, it typically performs 15+ exploratory queries, consuming 35,000–50,000 tokens per task. With RepoCortex, the agent makes a single MCP call to `get_task_context(task="...")`, which traverses the call graph and returns only the directly relevant symbols, call chains, and covering unit tests in under 800 tokens.
+Short answers on what RepoCortex is, why it beats vector RAG for code, where the 90% token saving comes from, which agents work, and what stays local are in the [FAQ](docs/FAQ.md).
 
-### Which AI coding agents and IDEs work with RepoCortex?
-RepoCortex natively supports any client implementing the Model Context Protocol (MCP) over stdio:
-* **Cursor**: Automated 1-click injection into `~/.cursor/mcp.json` and `.cursorrules`
-* **Claude Code**: Single-line registration via `claude mcp add cortex -- cortex --project <dir> serve` or as a plugin (`claude --plugin-dir <dir>`)
-* **Windsurf**: Automated setup in `~/.codeium/windsurf/mcp_config.json`
-* **Google Antigravity**: Supported via `~/.gemini/antigravity/mcp_config.json`
-* **Claude Desktop & Zed**: Full stdio MCP server support
+## Documentation
 
-### Does RepoCortex send proprietary source code to external servers?
-**No.** RepoCortex is 100% local-first, air-gapped, and zero-CGO. The SQLite database resides in `.cortex/index.db` directly on your disk. It makes zero outbound network calls and collects zero telemetry. Your source code never leaves your local workstation or CI runner.
-
-### How do I use RepoCortex for change safety and blast radius analysis in CI/CD?
-RepoCortex provides `cortex impact --base <branch> --head <rev>`, which recursively traces all upstream callers of modified symbols and prunes uninformative hubs (like loggers). In CI/CD, the turnkey GitHub Action ([`.github/workflows/cortex-gate.yml`](.github/workflows/cortex-gate.yml)) automatically posts bounded PR comments with risk scores and uploads standard SARIF 2.1.0 reports to GitHub Code Scanning.
-
----
-
-## 📚 Documentation Directory
-
-| Guide | Description |
+| Guide | What it covers |
 |---|---|
-| [📖 User Guide](docs/USER_GUIDE.md) | Comprehensive enterprise user guide and tool comparison matrix |
-| [🧠 Why Not Vector RAG?](docs/WHY_NOT_VECTOR_RAG.md) | Technical essay on why deterministic graphs beat vector embeddings |
-| [🏛️ Architecture & Design](docs/DESIGN_AND_ARCHITECTURE.md) | Hexagonal architecture, package boundaries, coding standards & invariants |
-| [💻 CLI Reference Manual](docs/CLI.md) | Exhaustive command, flag, and option reference with outputs |
-| [🤖 Agent Integration Guide](docs/agent-integration.md) | Setting up Cursor, Claude, Windsurf, Antigravity, and custom MCP clients |
-| [📊 Accuracy & Ground Truth](docs/accuracy.md) | Measured precision and recall benchmarks against compiler ground truth |
-| [⚡ Performance & Benchmarks](docs/performance.md) | Query latencies, memory footprint, and scaling characteristics |
-| [🛡️ Security Model](docs/security.md) | Threat model, containment policies, and vulnerability reporting |
-| [❓ Frequently Asked Questions](docs/FAQ.md) | In-depth technical questions and honest trade-offs |
+| [User Guide](docs/USER_GUIDE.md) | Enterprise guide and tool comparison |
+| [Agent Integration](docs/agent-integration.md) | Cursor, Claude, Windsurf, Antigravity, custom clients |
+| [CLI Reference](docs/CLI.md) | Every command and flag |
+| [Architecture and Design](docs/DESIGN_AND_ARCHITECTURE.md) | Package boundaries and invariants |
+| [Accuracy](docs/accuracy.md) · [Performance](docs/performance.md) | Measured benchmarks |
+| [Security Model](docs/security.md) | Threat model and reporting |
+| [Why Not Vector RAG?](docs/WHY_NOT_VECTOR_RAG.md) | Technical essay |
 
----
+## Contributing
 
-## 👥 Contributing & License
+Contributions welcome. See [CONTRIBUTING.md](.github/CONTRIBUTING.md), the [Code of Conduct](.github/CODE_OF_CONDUCT.md) and the [Security Policy](.github/SECURITY.md).
 
-Contributions are warmly welcome! Please see [CONTRIBUTING.md](.github/CONTRIBUTING.md) and [CLAUDE.md](CLAUDE.md) for architecture guidelines.
-
-* [Code of Conduct](.github/CODE_OF_CONDUCT.md)
-* [Security Policy](.github/SECURITY.md)
-
-Licensed under the **[Apache License 2.0](LICENSE)**.
+Licensed under the [Apache License 2.0](LICENSE).
