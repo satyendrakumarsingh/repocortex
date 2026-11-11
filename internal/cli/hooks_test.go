@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -122,6 +123,9 @@ func TestInstallCommitHook(t *testing.T) {
 
 func TestInstallCommitHookIsExecutable(t *testing.T) {
 	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows has no POSIX execute bit; Git runs hooks through its own shell")
+	}
 	root := newRepo(t)
 	// A non-executable file already there: Git would silently never run it.
 	path := filepath.Join(root, ".git", "hooks", "post-commit")

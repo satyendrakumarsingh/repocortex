@@ -186,6 +186,10 @@ func (e *Editor) prepareOne(ctx context.Context, root *os.Root, fe FileEdit) (Pr
 	if err != nil {
 		return fail("cannot be read inside the project root: "+err.Error(), err)
 	}
+	// Commit renames a temp file over rel. Where the filesystem ignores case
+	// (NTFS, default APFS) a caller's "STORE.go" opens "store.go", and renaming
+	// over that spelling would rename the entry. Keep the name the user has.
+	rel = onDiskSpelling(root, rel)
 	if afs.HashBytes(src) != fe.WantHash {
 		return fail("changed since it was indexed; run 'cortex index' and try again", ErrStale)
 	}
@@ -561,4 +565,42 @@ func (e *Editor) rollback(root *os.Root, done []Prepared, cause error) error {
 		return cause
 	}
 	return errors.Join(append([]error{cause, ErrRollbackIncomplete}, failed...)...)
+}
+
+// onDiskSpelling returns rel spelled as the directory entries spell it. rel has
+// just been read successfully, so it can differ from the entries only on a
+// case-insensitive filesystem; on a case-sensitive one every component matches
+// exactly and rel comes back unchanged. Anything unexpected (an unreadable
+// directory, two entries that differ only by case) also returns rel unchanged.
+func onDiskSpelling(root *os.Root, rel string) string {
+	parts := strings.Split(rel, string(filepath.Separator))
+	out := make([]string, 0, len(parts))
+	dir := "."
+	for _, part := range parts {
+		entries, err := fs.ReadDir(root.FS(), dir)
+		if err != nil {
+			return rel
+		}
+		name, exact, folded := part, false, ""
+		matches := 0
+		for _, e := range entries {
+			switch {
+			case e.Name() == part:
+				exact = true
+			case strings.EqualFold(e.Name(), part):
+				folded = e.Name()
+				matches++
+			}
+		}
+		if !exact && matches == 1 {
+			name = folded
+		}
+		out = append(out, name)
+		if dir == "." {
+			dir = name
+		} else {
+			dir = dir + "/" + name
+		}
+	}
+	return filepath.Join(out...)
 }
