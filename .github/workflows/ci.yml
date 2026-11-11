@@ -324,14 +324,22 @@ jobs:
           cache-dependency-path: internal/web/e2e/package-lock.json
       - name: install the suite
         run: npm --prefix internal/web/e2e ci
-      # --with-deps runs apt-get, which fails intermittently on hosted runners
-      # (exit 100 from the package index). Retry the whole install rather than
-      # failing the suite on a network hiccup.
+      # The browser is cached by Playwright version, and the install does not
+      # touch apt. --with-deps was dropped: it runs apt-get on every run, and the
+      # hosted runner image already carries the Chromium runtime libraries. When
+      # the package mirrors are unreachable (exit 100 in a run), this step used
+      # to fail the whole suite.
+      - name: restore the browser cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ hashFiles('internal/web/e2e/package-lock.json') }}
+
       - name: install the browser
         run: |
           cd internal/web/e2e
           for attempt in 1 2 3; do
-            if npx playwright install --with-deps chromium; then exit 0; fi
+            if npx playwright install chromium; then exit 0; fi
             echo "::warning::playwright install attempt $attempt failed; retrying"
             sleep 20
           done
