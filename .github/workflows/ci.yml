@@ -308,7 +308,10 @@ jobs:
   portal-e2e:
     name: portal e2e (ci fixture)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # The suite takes about 5 minutes on a workstation and was cancelled at 20 on
+    # the hosted runner (the browser install, the Chromium download and a slower
+    # CPU together), so the limit is set above that, not to the workstation time.
+    timeout-minutes: 40
     needs: [lint]
     steps:
       - uses: actions/checkout@v4
