@@ -189,7 +189,12 @@ func (d *Detector) Detect(ctx context.Context, runID int64, opts Options) (*Repo
 			if count >= opts.MaxItemsPerKind {
 				break
 			}
-			if f.ParseStatus != "ok" {
+			// Only a file that was attempted and did not parse completely is a
+			// blindspot. "skipped" is a deliberate decision: no grammar claims
+			// the file (go.mod, LICENSE, Dockerfile), or discovery refused it
+			// (binary, oversized, symlink). Reporting those as parse failures
+			// made every such file a high-severity finding.
+			if f.ParseStatus == "partial" || f.ParseStatus == "failed" {
 				add(Blindspot{
 					Kind:        BlindspotUnparsedFile,
 					Severity:    "high",
@@ -215,6 +220,10 @@ func (d *Detector) Detect(ctx context.Context, runID int64, opts Options) (*Repo
 		count := 0
 		for _, s := range symbols {
 			if !s.Exported || (s.Kind != "function" && s.Kind != "method") {
+				continue
+			}
+			// A helper in a test file is not production code that needs a test.
+			if capability.IsTestPath(filePaths[s.FileID]) {
 				continue
 			}
 			// Estimate in-degree using edge lookup
