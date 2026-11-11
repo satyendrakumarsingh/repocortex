@@ -2,37 +2,51 @@
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/hero-dark.svg">
-  <img alt="RepoCortex — compiler-proven call graphs, blast radius and task context, served locally to your AI coding agent" src="docs/assets/hero-light.svg" width="100%">
+  <img alt="RepoCortex: a local MCP server that gives AI coding agents a code graph of calls, routes, tables and tests, with blast radius and task context" src="docs/assets/hero-light.svg" width="100%">
 </picture>
 
-<br>
+# RepoCortex: a code graph MCP server for AI coding agents
 
-[![Release](https://img.shields.io/github/v/release/satyendrakumarsingh/repocortex?include_prereleases&style=flat-square&color=2563eb)](https://github.com/satyendrakumarsingh/repocortex/releases)
 [![CI](https://img.shields.io/github/actions/workflow/status/satyendrakumarsingh/repocortex/ci.yml?branch=main&label=CI&style=flat-square)](https://github.com/satyendrakumarsingh/repocortex/actions/workflows/ci.yml)
-[![MCP](https://img.shields.io/badge/MCP-18_tools-059669?style=flat-square)](#mcp-tools)
+[![MCP server](https://img.shields.io/badge/MCP-7_tools_default_·_18_total-059669?style=flat-square)](#mcp-tools)
 [![Go 1.26+](https://img.shields.io/badge/Go-1.26%2B-00ADD8?logo=go&logoColor=white&style=flat-square)](https://go.dev)
+[![Local first](https://img.shields.io/badge/runs-100%25_local-2563eb?style=flat-square)](#security-and-privacy)
 [![License](https://img.shields.io/badge/license-Apache--2.0-475569?style=flat-square)](LICENSE)
 
-**[Quickstart](#quickstart)** · **[What it answers](#what-it-answers)** · **[MCP tools](#mcp-tools)** · **[How it works](#how-it-works)** · **[Accuracy](#accuracy)** · **[Docs](#documentation)** · **[Roadmap](docs/ROADMAP.md)**
+**Works with** Cursor · Claude Code · Claude Desktop · Windsurf · Antigravity · any MCP client over stdio
 
 </div>
 
----
+**Give your AI coding agent a map of your codebase, not a search box.**
 
-Your coding agent greps, reads twenty files and still misses the caller that breaks. **RepoCortex** indexes your repository into a graph of symbols, calls, routes, tables, configuration and tests, and serves it over the [Model Context Protocol](https://modelcontextprotocol.io). The agent asks one question and gets an answer that says how it knows.
+RepoCortex is an open-source MCP server and CLI (`cortex`) that indexes a repository into a graph of functions, call edges, HTTP routes, SQL tables, configuration keys and tests, and serves it to your coding agent over the [Model Context Protocol](https://modelcontextprotocol.io). Instead of grepping and reading twenty files, the agent asks one question, such as *what does this task touch?* or *what breaks if I change this?*, and gets callers, tests and blast radius, each marked with how it was found and what the index could not see.
+
+One Go binary. A SQLite file in `.cortex/`. Nothing leaves your machine.
+
+## Contents
+
+| Get started | Use it | Trust it | Reference |
+|---|---|---|---|
+| [Why RepoCortex](#why-repocortex) | [What it answers](#what-it-answers) | [How it works](#how-it-works) | [MCP tools](#mcp-tools) |
+| [Who it's for](#who-its-for) | [Recipes](#recipes) | [Confidence tiers](#confidence-tiers) | [Language support](#language-support) |
+| [Quickstart](#quickstart) | [How an agent uses it](#how-an-agent-uses-it) | [Accuracy](#accuracy) | [Guides and docs](#guides-and-documentation) |
+| [Install options](#install-options) | [Blast radius in CI](#blast-radius-in-ci) | [Performance](#performance) | [FAQ](#faq) |
+| [Connect your agent](#connect-your-agent) | [Local portal](#local-portal) | [Security and privacy](#security-and-privacy) | [Roadmap and community](#roadmap-and-community) |
+
+## Why RepoCortex
 
 <table>
 <tr>
 <td width="33%" valign="top">
 
 ### Proven, not guessed
-Every edge carries its source: **exact** when a compiler proved it, **high** when the syntax tree did, **medium** when it was inferred. Nothing is a similarity score.
+Every edge says how it was found: **exact** when a compiler proved it, **high** when the syntax tree and imports did, **medium** when it was inferred. Nothing is a similarity score.
 
 </td>
 <td width="33%" valign="top">
 
 ### Local by construction
-One static binary and a SQLite file in `.cortex/`. No account, no telemetry, no network calls when indexing or serving. Your code stays on your machine or your CI runner.
+One static binary and a SQLite file. No account, no telemetry, and no network calls while indexing or serving. Your code stays on your machine or your CI runner.
 
 </td>
 <td width="33%" valign="top">
@@ -46,138 +60,189 @@ One static binary and a SQLite file in `.cortex/`. No account, no telemetry, no 
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/demo-dark.svg">
-  <img alt="Terminal: cortex callers shows a compiler-proven caller; cortex languages shows 3 typed, 11 resolved and 192 parsed languages" src="docs/assets/demo-light.svg" width="100%">
+  <img alt="Terminal: cortex callers shows a caller marked exact (compiler); cortex languages shows 3 typed, 11 resolved and 192 parsed languages" src="docs/assets/demo-light.svg" width="100%">
 </picture>
 
-<sub>Real output from this repository. The caller is marked <code>exact (compiler)</code> because <code>scip-go</code> proved it.</sub>
+<div align="center"><sub>Real output from this repository. The caller is marked <code>exact (compiler)</code> because <code>scip-go</code> proved it.</sub></div>
+
+## Who it's for
+
+| You are | What you get |
+|---|---|
+| A developer using an AI agent on a real codebase | The agent finds every caller and the tests to run, instead of guessing from search results |
+| A reviewer or tech lead | The blast radius and architecture violations of a pull request, in the pull request |
+| A team that can't send code to a cloud index | The whole graph built and served locally or on your own CI runner |
+| An engineer new to a codebase | Its routes, tables, events, owners and call paths in minutes, from one index |
 
 ## Quickstart
 
 ```bash
-# 1. Install (Go 1.26+; one static binary, no CGO)
+# Install (Go 1.26+; one static binary, no CGO)
 go install github.com/satyendrakumarsingh/repocortex/cmd/cortex@latest
 
-# 2. Index your repository (writes .cortex/index.db)
+# Build the graph for your project (writes .cortex/index.db)
 cd your-project
 cortex init && cortex index && cortex resolve
 
-# 3. Connect your agent (Cursor, Claude Code, Claude Desktop, Windsurf, Antigravity)
+# Register with the agents installed on this machine and add their guidance
 cortex install --rules
 ```
 
-Restart the agent. It now calls `get_task_context` and `impact_analysis` instead of searching blind. Check it from the terminal:
+Restart your agent. Then try the same questions it will ask:
 
 ```bash
 cortex context "how does authentication work?"
+cortex impact --base main --head HEAD
 ```
 
+> [!NOTE]
+> No versioned release is published yet, so `go install` is the supported install today. `cortex install` points each agent at *this* repository; run it again when you switch projects.
+
+## Install options
+
+| Platform | Command | Available |
+|---|---|---|
+| Any OS with Go 1.26+ | `go install github.com/satyendrakumarsingh/repocortex/cmd/cortex@latest` | Now |
+| macOS / Linux (Homebrew) | `brew install satyendrakumarsingh/tap/cortex` | With the first tagged release |
+| macOS / Linux (script) | `curl -fsSL https://raw.githubusercontent.com/satyendrakumarsingh/repocortex/main/install.sh \| sh` | With the first tagged release |
+| Windows (PowerShell) | Download [`install.ps1`](install.ps1), then `Unblock-File .\install.ps1; .\install.ps1` | With the first tagged release |
+| Offline / air-gapped | An archive from [Releases](https://github.com/satyendrakumarsingh/repocortex/releases), checked against `SHA256SUMS` | With the first tagged release |
+
+Builds cover macOS (Apple Silicon and Intel), Linux (amd64, arm64) and Windows (amd64). The command is `cortex`; `repocortex` is an alias.
+
+## Connect your agent
+
+`cortex install --rules` writes the MCP entry for Cursor, Claude Code, Claude Desktop, Windsurf and Antigravity, and adds short guidance to `.cursorrules`, `CLAUDE.md` or `AGENTS.md` so the agent asks the graph before it searches.
+
+| Client | How |
+|---|---|
+| Cursor, Claude Desktop, Windsurf, Antigravity | `cortex install --rules` |
+| Claude Code | `cortex install --rules`, or `claude mcp add cortex -- cortex --project "$(pwd)" serve` |
+| Any other MCP client | Add the server below to its configuration |
+
+```json
+{
+  "mcpServers": {
+    "cortex": { "command": "cortex", "args": ["--project", "/absolute/path/to/repo", "serve"] }
+  }
+}
+```
+
+Per-client details: [docs/agent-integration.md](docs/agent-integration.md).
+
+## What it answers
+
+Every question is a CLI command, and most are also an MCP tool your agent calls directly.
+
+| You want to know | CLI | MCP tool |
+|---|---|---|
+| What does this task touch? | `cortex context "<task>"` | `get_task_context` |
+| Who calls this, and what does it call? | `cortex callers` · `cortex callees` | `find_callers` |
+| What breaks if I change it? | `cortex impact --base main --head HEAD` | `impact_analysis` |
+| Which tests reach it? | `cortex impact` (marks the tests it reaches) | `find_tests` |
+| Can I rename it safely? | `cortex rename <old> <new>` | `plan_rename` |
+| In what order should I make a large change? | `cortex plan-change <symbol>` | `plan_change` |
+| Which HTTP routes, tables and settings does the code use? | `cortex api` · `cortex db` · `cortex config` | `find_api_endpoints` · `find_db_access` · `get_config_key` |
+| What did a change do to the facts, not the text? | `cortex diff` · `cortex diff-minimize` | `minimize_diff` |
+| What can't the index see? | `cortex missed` · `cortex languages` | `detect_blindspots` · `resolution_coverage` |
+| Which queues and topics connect the services? | `cortex events` | CLI only |
+| What did a production request actually run? | `cortex trace` | CLI only |
+| Who has context on this code? | `cortex who` | CLI only |
+| Does the code follow the declared architecture? | `cortex arch` | CLI only |
+| Did the agent's change do what it was asked? | `cortex compile` → `cortex verify` | CLI only |
+| How does this fit with my other repositories? | `cortex system` | CLI only |
+
+Every command, its output and how to read it: **[CLI output guide](docs/guides/cli-output-guide.md)**.
+
+## How an agent uses it
+
+A typical task, as the agent sees it:
+
+| Step | The agent | RepoCortex returns |
+|---|---|---|
+| 1 | Calls `get_task_context` with the task in plain words | The ranked files, symbols, callers and tests, with why each was included and what was left out |
+| 2 | Calls `find_callers` or `impact_analysis` on the symbol it plans to change | Every known caller and what the change can reach, each marked `exact`, `high` or `medium` |
+| 3 | Calls `find_tests` before editing | The tests that reach the changed code, so it runs those first |
+| 4 | Makes the change, then you run `cortex verify` | Whether the change stayed inside the task it was given |
+
+Each answer ends by saying what it could not see, so an empty list is never read as "nothing calls this".
+
+## Recipes
+
 <details>
-<summary><b>Other ways to install</b></summary>
+<summary><b>Before a refactor: what breaks?</b></summary>
 
 <br>
 
-| Platform | Command |
-|---|---|
-| macOS / Linux (Homebrew) | `brew install satyendrakumarsingh/tap/cortex` |
-| macOS / Linux (script) | `curl -fsSL https://raw.githubusercontent.com/satyendrakumarsingh/repocortex/main/install.sh \| sh` |
-| Windows (PowerShell) | Download [`install.ps1`](install.ps1), then `Unblock-File .\install.ps1; .\install.ps1` |
-| Offline / air-gapped | Download an archive from [Releases](https://github.com/satyendrakumarsingh/repocortex/releases) and verify it against `SHA256SUMS` |
-
-The script and Homebrew install from tagged releases. Builds exist for macOS (Apple Silicon and Intel), Linux (amd64, arm64) and Windows (amd64). The command is `cortex`; `repocortex` is an alias.
+```bash
+cortex callers ParseConfig
+cortex impact --base main --head my-branch
+cortex rename ParseConfig LoadConfig     # dry run; --apply edits only the sites it can defend
+```
 
 </details>
 
 <details>
-<summary><b>Upgrade to compiler-proven edges</b></summary>
+<summary><b>Onboarding to an unfamiliar codebase</b></summary>
 
 <br>
 
-Syntax-tree resolution is fast and works for 206 grammars. For Go, TypeScript, Java and others, a compiler index turns most edges into `exact`:
+```bash
+cortex api        # HTTP routes and their handlers
+cortex db         # tables and who reads or writes them
+cortex events     # Kafka, RabbitMQ, SQS, SNS and Pub/Sub producers and consumers
+cortex ui         # read-only portal at http://localhost:7777
+```
+
+</details>
+
+<details>
+<summary><b>Check what an agent did</b></summary>
+
+<br>
+
+```bash
+cortex compile "add idempotency to payment callbacks" --json > contract.json
+# ... the agent makes the change ...
+cortex verify --contract contract.json
+```
+
+</details>
+
+<details>
+<summary><b>Turn on compiler-proven edges</b></summary>
+
+<br>
+
+Syntax-tree matching works out of the box. For Go, TypeScript, Java and other languages with a SCIP indexer, a compiler index turns most edges into `exact`:
 
 ```bash
 cortex indexers install --yes --out-dir .cortex/scip
 cortex scip import .cortex/scip/go.scip
 ```
 
-Indexers are pinned to a version and verified against a recorded digest before they run. Java is refused unless you pass `--allow-repo-build`, because indexing it runs the repository's own build.
-
-</details>
-
-## What it answers
-
-Every question below is a CLI command and, where marked, an MCP tool your agent can call.
-
-| You want to know | Command | MCP tool |
-|---|---|---|
-| What does this task touch? | `cortex context "<task>"` | `get_task_context` |
-| Who calls this, and what does it call? | `cortex callers` · `cortex callees` | `find_callers` |
-| What breaks if I change it? | `cortex impact --base main --head HEAD` | `impact_analysis` |
-| Which tests cover it? | | `find_tests` |
-| Can I rename it safely? | `cortex rename old new` | `plan_rename` |
-| In what order should I make a large change? | `cortex plan-change <symbol>` | `plan_change` |
-| Which HTTP routes, tables and settings does the code use? | `cortex api` · `cortex db` · `cortex config` | `find_api_endpoints` · `find_db_access` · `get_config_key` |
-| Which queues and topics connect the services? | `cortex events` | |
-| What did a production request actually run? | `cortex trace` | |
-| Who has context on this code? | `cortex who` | |
-| Does the code follow the declared architecture? | `cortex arch` | |
-| What did the change do to the facts, not the text? | `cortex diff` | `minimize_diff` |
-| Did the agent's change do what it was asked? | `cortex compile` → `cortex verify` | |
-| How does this fit with my other repositories? | `cortex system` | |
-| What can't the index see? | `cortex missed` · `cortex languages` | `detect_blindspots` · `resolution_coverage` |
-
-<details>
-<summary><b>Everything else in the CLI</b></summary>
-
-<br>
-
-| Area | Commands |
-|---|---|
-| Index lifecycle | `init` · `index` · `resolve` · `watch` · `hooks install` · `status` · `doctor` |
-| Compiler facts | `indexers pins` · `indexers install` · `scip import` · `accuracy` |
-| Navigation | `symbol` · `references` · `search` · `prune` · `diff-minimize` |
-| Reports | `report pr` · `report sarif` · `docs` · `export` · `infra` · `deps` |
-| Agents | `serve` · `agent` · `install` · `bench` |
-| Portal | `ui` |
-
-Every command takes `--project <dir>`, `--json`, `-q` and `-v`. Full reference: [docs/CLI.md](docs/CLI.md).
+Indexers are pinned to a version and checked against a recorded digest before they run. Java is refused unless you pass `--allow-repo-build`, because indexing it runs the repository's own build.
 
 </details>
 
 ## MCP tools
 
-The server exposes a deliberately small set by default: every tool's schema costs the agent context on every request. Choose a profile in `.cortex.yml` (`mcp: { profile: standard }`).
+Every tool's schema costs the agent context on every request, so the default profile is small. Set a larger one in `.cortex.yml` with `mcp: { profile: standard }`.
 
 | Tool | What it returns | Profile |
-|---|---|:---:|
-| `get_task_context` | Files, symbols, callers and tests for a task, in one call | minimal |
-| `get_project_overview` | Languages, size, entry points and index coverage | minimal |
-| `search_code` | Ranked text search over indexed code | minimal |
-| `find_symbol` · `get_symbol` | Definitions by name; a declaration with its signature and docs | minimal |
-| `find_references` · `find_callers` | Uses and callers across files, each with how sure it is | minimal |
+|---|---|---|
+| `get_task_context` | Files, symbols, callers and tests for a task, in one call | minimal (default) |
+| `get_project_overview` | Languages, size, entry points and index coverage | minimal (default) |
+| `search_code` | Ranked text search over indexed code | minimal (default) |
+| `find_symbol` · `get_symbol` | Definitions by name; a declaration with its signature and docs | minimal (default) |
+| `find_references` · `find_callers` | Uses and callers across files, each with how sure it is | minimal (default) |
 | `find_tests` · `impact_analysis` | Tests that reach a symbol; what a change can reach | standard |
 | `plan_rename` · `plan_change` | Every site a rename edits; an ordered, test-gated change plan | standard |
 | `find_api_endpoints` · `find_db_access` · `get_config_key` | Routes, table access and configuration readers | standard |
-| `get_file_outline` · `minimize_diff` | A file without its bodies; a diff reduced to structure | standard |
+| `get_file_outline` · `minimize_diff` | A file without its bodies; a diff reduced to its structure | standard |
 | `resolution_coverage` · `detect_blindspots` | How much of the index is bound; what it could not see | standard |
 
-`minimal` (the default) exposes 7 tools; `standard` and `full` expose all 18. Setup for each client: [docs/agent-integration.md](docs/agent-integration.md).
-
-<details>
-<summary><b>Manual MCP configuration</b></summary>
-
-<br>
-
-```json
-{
-  "mcpServers": {
-    "cortex": { "command": "cortex", "args": ["serve", "--project", "/absolute/path/to/repo"] }
-  }
-}
-```
-
-Claude Code: `claude mcp add cortex -- cortex --project "$(pwd)" serve`
-
-</details>
+`minimal` exposes 7 tools; `standard` and `full` expose all 18.
 
 ## How it works
 
@@ -188,14 +253,14 @@ flowchart LR
         Compiler["Compiler indexes<br/>SCIP"]
         Runtime["Traces, manifests,<br/>Git history"]
     end
-    subgraph Engine["cortex — one static binary"]
-        Parse["Parse &amp; extract<br/>symbols · routes · SQL · config · events"]
-        Resolve["Resolve<br/>bind references, tag each edge"]
+    subgraph Engine["cortex: one static binary"]
+        Parse["Parse and extract<br/>symbols · routes · SQL · config · events"]
+        Resolve["Bind references<br/>and mark each edge"]
         Graph[("SQLite graph<br/>.cortex/index.db")]
     end
     subgraph Use["Where answers go"]
         Agent["AI agent<br/>MCP over stdio"]
-        CLI["CLI &amp; local portal"]
+        CLI["CLI and local portal"]
         CI["CI gate<br/>PR comment · SARIF"]
     end
     Code --> Parse
@@ -207,55 +272,71 @@ flowchart LR
     Graph --> CI
 ```
 
-### Confidence tiers
+## Confidence tiers
 
-| Tier | Source | Measured precision | How to use it |
-|---|---|:---:|---|
-| `exact` | Compiler index (SCIP) | **100.0%** | Safe for automated refactors and blocking CI gates |
-| `high` | Syntax tree with explicit imports and receiver matching | **86.8 – 99.5%** | Primary guidance for exploring and planning |
-| `medium` | Inference between several candidates | **5.7 – 37.5%** | A lead to check, never acted on alone |
-| `low` | Loose name matches across packages | **0.0 – 2.8%** | Hidden unless asked for |
+| Tier | How the edge was found | Measured precision | How to use it |
+|---|---|---|---|
+| `exact` | A compiler index (SCIP) proved it | 100% | Safe for automated refactors and blocking CI gates |
+| `high` | Syntax tree, with explicit imports and receiver matching | 94.2–100% per language | Primary guidance for exploring and planning |
+| `medium` | Inferred between several candidates | Under 50%, varies widely by repository | A lead to check, never acted on alone |
+| `low` | A loose name match across packages | Under 3% | Hidden unless you ask for it |
 
-### Language support
+## Language support
 
 | Tier | Languages | What you get |
 |---|---|---|
-| **typed** (3) | Go, Java, TypeScript | Definitions, imports, receiver and arity matching; references can reach `high` |
-| **resolved** (11) | C, C#, C++, JavaScript, Kotlin, PHP, Python, Ruby, Rust, Scala, TSX | Definitions and imports; references bind across files |
-| **parsed** (192) | Everything else tree-sitter covers | Definitions and search; no cross-file references claimed |
+| typed (3) | Go, Java, TypeScript | Definitions, imports, receiver and arity matching; references can reach `high` |
+| resolved (11) | C, C#, C++, JavaScript, Kotlin, PHP, Python, Ruby, Rust, Scala, TSX | Definitions and imports; references bind across files |
+| parsed (192) | Every other language tree-sitter covers | Definitions and search; no cross-file references claimed |
 
-Run `cortex languages` for the list your build supports. Compiler indexes raise any of these to `exact`.
+Run `cortex languages` for your build. A compiler index raises any of these to `exact`.
 
 ## Accuracy
 
-Measured on five production repositories (8,151 files, 91,548 symbols) against compiler ground truth:
+Measured against compiler indexes on real repositories, including RepoCortex itself:
 
-| Language | `high` precision | `high` recall | F1 | Adjudicated edges |
-|---|:---:|:---:|:---:|:---:|
-| TypeScript | **99.5%** | 66.4% | 79.6% | 12,410 |
-| Go | **98.6%** | 60.4% | 75.0% | 11,353 |
-| Python | **94.2%** | 56.3% | 70.4% | 7,130 |
-| Java (Spring REST) | **100.0%** | 32.7% | 49.2% | 82 |
+| Language (repository) | `high` precision | `high` recall | F1 | Call sites checked |
+|---|---|---|---|---|
+| TypeScript | 99.5% | 66.4% | 79.6% | 2,330 |
+| Go (RepoCortex) | 98.6% | 60.4% | 75.0% | 8,315 |
+| Python | 94.2% | 56.3% | 70.4% | 3,277 |
+| Java (spring-petclinic-rest) | 100.0% | 32.7% | 49.2% | 251 |
 
 > [!NOTE]
-> Between a third and two fifths of call sites can't be bound from syntax alone. RepoCortex reports those gaps instead of returning an empty answer, and `cortex scip import` closes most of them. Run `cortex accuracy` on your own code. Method: [docs/accuracy.md](docs/accuracy.md).
+> Between a third and two fifths of call sites can't be bound from syntax alone. RepoCortex reports those gaps instead of returning an empty answer, and `cortex scip import` closes most of them. Run `cortex accuracy` on your own code. Method and every caveat: [docs/accuracy.md](docs/accuracy.md).
+
+## Performance
+
+Indexed and resolved on an Apple M4 Pro, from a shallow clone:
+
+| Repository | Language | Files indexed | Symbols | Time | Peak memory |
+|---|---|---|---|---|---|
+| prometheus | Go | 1,030 | 21,429 | 8.8 s | 664 MB |
+| nest | TypeScript | 1,929 | 13,916 | 3.7 s | 590 MB |
+| spring-boot | Java | 9,236 | 94,304 | 46.4 s | 756 MB |
+
+After the first run, `cortex index` only re-reads changed files, and `cortex hooks install` keeps the index current on every commit. Method: [docs/performance.md](docs/performance.md).
 
 ## Compared with other approaches
 
-| | RepoCortex | Vector search (RAG) | Language servers | SAST (CodeQL, Semgrep) | `grep` / `rg` |
-|---|:---:|:---:|:---:|:---:|:---:|
-| Call graph across many languages | ✓ | | one language | ✓ | |
-| States how sure each answer is | ✓ | | | | |
-| Routes, SQL, events and config in one graph | ✓ | | | partly | |
-| Blast radius of a commit range | ✓ | | | | |
-| Built as an MCP server for agents | ✓ | some | | | |
-| Runs fully offline from one binary | ✓ | rarely | ✓ | some | ✓ |
+| Capability | RepoCortex | Vector search (RAG) | Language servers | SAST (CodeQL, Semgrep) | `grep` / `rg` |
+|---|---|---|---|---|---|
+| Call graph across many languages | Yes | No | One language each | Yes | No |
+| Says how sure each answer is | Yes | No | No | No | No |
+| Routes, SQL, events and config in one graph | Yes | No | No | Partly | No |
+| Blast radius of a commit range | Yes | No | No | No | No |
+| Built as an MCP server for agents | Yes | Some | No | No | No |
+| Runs fully offline from one binary | Yes | Rarely | Yes | Some | Yes |
 
-## In CI
+<sub>"Partly", "some" and "rarely" are judgments about typical setups, not measurements. The longer argument: <a href="docs/WHY_NOT_VECTOR_RAG.md">why a graph instead of vector search</a>.</sub>
 
-The [change-safety workflow](.github/workflows/cortex-gate.yml) indexes the pull request, imports compiler facts, posts a sticky PR comment with the blast radius, uploads SARIF to code scanning, and fails on architecture violations or high-severity blindspots.
+## Blast radius in CI
+
+The [change-safety workflow](.github/workflows/cortex-gate.yml) indexes each pull request, imports compiler facts, posts a sticky comment with the blast radius, uploads SARIF to code scanning, and fails on architecture violations or high-severity blindspots.
 
 ```yaml
+- uses: actions/checkout@v4
+  with: { fetch-depth: 0 }          # impact compares against the base branch
 - run: go install github.com/satyendrakumarsingh/repocortex/cmd/cortex@latest
 - run: cortex init && cortex index && cortex resolve
 - run: cortex arch --fail-on high && cortex missed --fail-on high
@@ -267,32 +348,96 @@ Details: [docs/operations/ci-cd-gates.md](docs/operations/ci-cd-gates.md).
 
 ## Local portal
 
-`cortex ui` opens a read-only portal at `http://localhost:7777`: a map of the code, blast-radius explorer, routes and the tables they touch, test coverage, ownership and the agent's view of the index. It binds to loopback only and loads nothing from the network.
+`cortex ui` serves a read-only portal at `http://localhost:7777`: a map of the code, the blast radius of a change, routes and the tables they touch, test coverage, owners, and what your agent sees. It binds to loopback only and loads nothing from the network.
+
+<img alt="The RepoCortex portal's Index health screen: an answer line saying when the index was built, a layered view from inbound APIs to data tables, and counts of files, relationships, directories and exported symbols" src="docs/assets/portal/overview.png" width="100%">
+
+Screen-by-screen walkthrough with screenshots: **[portal guide](docs/guides/portal-guide.md)**.
 
 ## Security and privacy
 
-- **No outbound calls.** Indexing, resolution and the MCP server make no network requests. No telemetry.
-- **Secrets stay out.** High-entropy strings and credential patterns are redacted before anything is indexed.
-- **Repositories can't run code.** `.cortex.yml` describes what to index, never what to execute.
-- **Answers are marked as evidence.** MCP responses label repository text as untrusted, to blunt prompt injection.
+| Guarantee | What it means |
+|---|---|
+| No outbound calls | Indexing, binding and the MCP server make no network requests, and there is no telemetry. The only network step is the opt-in `cortex indexers install`. |
+| Secrets stay out | High-entropy strings and credential patterns are redacted before anything is indexed. |
+| Repositories can't run code | `.cortex.yml` describes what to index, never what to execute. |
+| Answers are labelled as evidence | MCP responses mark repository text as untrusted, to blunt prompt injection. |
 
 Threat model: [docs/security.md](docs/security.md). Report a vulnerability: [SECURITY.md](.github/SECURITY.md).
 
-## Documentation
+## FAQ
 
-| | |
+<details>
+<summary><b>What is RepoCortex?</b></summary>
+
+<br>An open-source MCP server and CLI that turns a repository into a code graph of symbols, calls, routes, SQL, configuration and tests for AI coding agents. The command is `cortex`; `repocortex` is an alias.
+</details>
+
+<details>
+<summary><b>Which agents does it work with?</b></summary>
+
+<br>Any MCP client that runs a server over stdio. `cortex install --rules` configures Cursor, Claude Code, Claude Desktop, Windsurf and Antigravity for you.
+</details>
+
+<details>
+<summary><b>How is it different from vector search over code?</b></summary>
+
+<br>Vector search returns text that looks similar. RepoCortex returns call and reference edges, each marked <code>exact</code>, <code>high</code>, <code>medium</code> or <code>low</code>, and says what it could not bind.
+</details>
+
+<details>
+<summary><b>Does my code leave my machine?</b></summary>
+
+<br>No. Indexing, binding and serving make no network requests and send no telemetry. Only <code>cortex indexers install</code>, which you run on purpose, downloads anything.
+</details>
+
+<details>
+<summary><b>How accurate is it?</b></summary>
+
+<br>Compiler-backed edges are exact. Syntax-tree <code>high</code> edges measured 94.2–100% precise across Go, TypeScript, Python and Java, with 33–66% recall. See <a href="docs/accuracy.md">docs/accuracy.md</a>.
+</details>
+
+<details>
+<summary><b>Does it reduce the tokens my agent uses?</b></summary>
+
+<br><code>get_task_context</code> returns the relevant files, symbols, callers and tests in one call, under a size budget, instead of many searches and whole-file reads. <code>cortex bench</code> measures retrieval on your own repository.
+</details>
+
+<details>
+<summary><b>What if I never import a compiler index?</b></summary>
+
+<br>Everything works from the syntax tree. Answers are <code>high</code> or <code>medium</code> instead of <code>exact</code>, and each one tells you so.
+</details>
+
+<details>
+<summary><b>Why is an empty result not proof that nothing calls a function?</b></summary>
+
+<br>Reflection, dependency injection, generated code and some dynamic calls are invisible to static analysis. Every answer states what the index could not see, so an empty list reads as "nothing found", never "nothing there".
+</details>
+
+More: [docs/FAQ.md](docs/FAQ.md).
+
+## Guides and documentation
+
+| Guide | What it covers |
 |---|---|
+| [CLI output guide](docs/guides/cli-output-guide.md) | Every command, a real run, and how to read each part of its output |
+| [Portal guide](docs/guides/portal-guide.md) | Every screen of `cortex ui`, with screenshots and layout |
 | [User guide](docs/USER_GUIDE.md) | Day-to-day use, end to end |
-| [Agent integration](docs/agent-integration.md) | Cursor, Claude Code, Claude Desktop, Windsurf, Antigravity, Zed |
+| [Agent integration](docs/agent-integration.md) | Setting up each MCP client |
 | [CLI reference](docs/CLI.md) | Every command and flag |
 | [Architecture](docs/DESIGN_AND_ARCHITECTURE.md) | Packages, invariants and design decisions |
-| [Accuracy](docs/accuracy.md) · [Performance](docs/performance.md) | How the numbers above are measured |
-| [Why not vector RAG?](docs/WHY_NOT_VECTOR_RAG.md) | The case for a graph |
-| [FAQ](docs/FAQ.md) · [Troubleshooting](docs/troubleshooting.md) | Common questions and fixes |
-| [Roadmap](docs/ROADMAP.md) | What is missing and what is next |
+| [Accuracy](docs/accuracy.md) | How precision and recall are measured |
+| [Performance](docs/performance.md) | Index time, memory and scaling |
+| [Why not vector search?](docs/WHY_NOT_VECTOR_RAG.md) | The case for a graph |
+| [Troubleshooting](docs/troubleshooting.md) | Common problems and fixes |
 
-## Contributing
+## Roadmap and community
 
-Issues and pull requests are welcome; start with [CONTRIBUTING.md](.github/CONTRIBUTING.md) and the [Code of Conduct](.github/CODE_OF_CONDUCT.md). Ideas and questions go to [Discussions](https://github.com/satyendrakumarsingh/repocortex/discussions).
-
-Licensed under [Apache 2.0](LICENSE).
+| Topic | Where |
+|---|---|
+| Roadmap | What is missing and what is next: [docs/ROADMAP.md](docs/ROADMAP.md) |
+| Questions and ideas | [GitHub Discussions](https://github.com/satyendrakumarsingh/repocortex/discussions) |
+| Bugs | [Open an issue](https://github.com/satyendrakumarsingh/repocortex/issues/new/choose) |
+| Contributing | [CONTRIBUTING.md](.github/CONTRIBUTING.md) and the [Code of Conduct](.github/CODE_OF_CONDUCT.md) |
+| License | [Apache 2.0](LICENSE) |

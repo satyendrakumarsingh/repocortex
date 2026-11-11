@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1280" height="400" viewBox="0 0 1280 400" role="img" aria-labelledby="t d">
-<title id="t">RepoCortex</title><desc id="d">Deterministic code intelligence for AI coding agents, served over MCP.</desc>
+<title id="t">RepoCortex</title><desc id="d">RepoCortex: a local MCP server that gives AI coding agents a code graph of calls, routes, tables and tests.</desc>
 <defs>
 <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#eef2f8"/></linearGradient>
 <radialGradient id="glow" cx="0.78" cy="0.5" r="0.45"><stop offset="0" stop-color="#93c5fd" stop-opacity="0.28"/><stop offset="1" stop-color="#93c5fd" stop-opacity="0"/></radialGradient>
@@ -40,8 +40,8 @@
 <text x="1140" y="376" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#475569">medium · inferred</text>
 <text x="64" y="104" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" letter-spacing="2.5" fill="#2563eb">CODE INTELLIGENCE FOR AI AGENTS · MCP</text>
 <text x="60" y="186" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="78" font-weight="750" letter-spacing="-2" fill="#0b1220">RepoCortex</text>
-<text x="64" y="232" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="22" fill="#475569">Compiler-proven call graphs, blast radius and task context,</text>
-<text x="64" y="262" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="22" fill="#475569">served from your machine to the agent you already use.</text>
+<text x="64" y="232" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="22" fill="#475569">Call graphs, blast radius and task context for your AI agent,</text>
+<text x="64" y="262" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="22" fill="#475569">proven by the compiler where one is available. Fully local.</text>
 <rect x="64" y="296" width="114" height="34" rx="17" fill="#ffffff" stroke="#d5dce7"/>
 <text x="79" y="318" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13.5" fill="#0b1220">100% local</text>
 <rect x="188.0" y="296" width="173" height="34" rx="17" fill="#ffffff" stroke="#d5dce7"/>

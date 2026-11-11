@@ -31,4 +31,25 @@ date; items move to the [CHANGELOG](../CHANGELOG.md) when they ship.
 | Incremental re-binding of cross-file handlers | Planned | `cortex resolve` binds route handlers declared in another file; an incremental update does not re-run that pass. |
 | Deeper resolution for more languages | Exploring | Go, Java and TypeScript are `typed`; 11 more languages are `resolved`; 192 are `parsed` (definitions and search only). See `cortex languages`. |
 
+## Known issues
+
+Found while writing the [CLI output guide](guides/cli-output-guide.md) and the [portal guide](guides/portal-guide.md) by running every command and screen.
+
+| Area | Issue |
+|---|---|
+| `rename` | Definition sites stay `high` after a compiler import, so the default `--floor exact` refuses every rename; only `--floor high` applies. |
+| `index` | An incremental index does not start a new run, so `diff` between two commits can compare a run with itself. `--full` works around it. |
+| `index` / `resolve` | Output says "unresolved until M2" (an internal milestone name), and `resolve` after an incremental index reports "Edges: 0" for new edges only. |
+| `compile` / `verify` | The 12-entry scope can fill with configuration keys and push the changed class out, so `verify` reports the file as in neither scope. |
+| `references` | A type used as a field or constructor parameter is not found as a reference. |
+| `callees` / `missed` | Fields used as receivers are listed as calls; `missed` totals change with `--limit`. |
+| `config` / `deps` | Keys in `.cortex.yml` and Compose files count as "declared and never read"; Maven coordinates never match Java package names, so every dependency reads "not imported". |
+| `trace` | A span matched by `code.function` and `code.namespace` is not joined to the method; only `http.route` matches. |
+| `plan-change` vs `impact` | The two report risk on different scales without saying so. |
+| `install --dry-run` | Prints "would updated" / "would created". |
+| Portal: Plan a refactor | Caller lines show `:undefined`, the example chips name symbols from another codebase, and `?sym=` is ignored. |
+| Portal: What changed | The empty state suggests `?from=`/`?to=`, but the page reads `dfrom`/`dto`. |
+| Portal: Test coverage vs Code blindspots | Test coverage shows symbols with no proven test while Code blindspots shows "Untested critical 0". |
+| `cortex ui --help`, CLI reference | Still say twenty screens; the rail has 23. |
+
 Suggestions and votes: [open a discussion](https://github.com/satyendrakumarsingh/repocortex/discussions).
