@@ -1929,34 +1929,41 @@ it finds on this machine.
 
 **Use it when:** You want one command to connect all your agents.
 
-**Run:** `cortex install --dry-run`
+**Run:** `cortex install --dry-run`, and `cortex install --list` to see every supported agent
 
 **Output:**
 
 ```console
 $ cortex install --dry-run
-would updated Antigravity ~/.gemini/antigravity/mcp_config.json
-would updated Claude Code ~/.claude.json
-would updated Claude Desktop ~/Library/Application Support/Claude/claude_desktop_config.json
-would created Cursor     ~/.cursor/mcp.json
-skip  Windsurf         (client directory not found)
+would update  Antigravity                  ~/.gemini/config/mcp_config.json
+would update  Claude Code                  ~/.claude.json
+would update  Claude Desktop               ~/Library/Application Support/Claude/claude_desktop_config.json
+would update  Codex CLI                    ~/.codex/config.toml
+would create  Copilot CLI                  ~/.copilot/mcp-config.json
+would create  Cursor                       ~/.cursor/mcp.json
+would create  VS Code (Copilot)            ~/Library/Application Support/Code/User/mcp.json
 
-Restart your agent, then ask it to use RepoCortex.
-Tip: Add guidance so your agent reaches for RepoCortex instead of grepping:
-     Run 'cortex install --rules' or 'cortex agent --guidance >> CLAUDE.md'
+Nothing was written. Run without --dry-run to apply.
 ```
 
 **How to read it:**
 
-- One line per known client: `would updated` (the config file exists and will
-  be edited), `would created` (the file will be made), or `skip` (client not
-  found). The odd grammar is in the tool's output.
-- Other servers and settings in those files are kept.
-- This edits files in your home directory. Run `--dry-run` first.
+- One line per agent detected on this machine: `would update` (its config file
+  exists and gains one entry), `would create` (the file is made). Without
+  `--dry-run` the same lines read `updated`, `created` or `unchanged`.
+- A `manual` line means the file could not be merged safely, usually JSON with
+  comments. The file is left untouched and the line says what to do.
+- Every other server and setting in those files is kept. Each agent gets the
+  shape its own documentation specifies (`mcpServers`, `servers`,
+  `context_servers`, a Codex TOML table, a Goose YAML extension, and so on).
+- `cortex install --list` shows all supported agents, which are detected here,
+  the exact file each one uses, and the manual step for agents that are
+  configured through their own command or settings screen.
+- Agents without detection are skipped; `--create` writes them anyway.
 
-**Useful flags:** `--dry-run`, `--create` (write configs for clients not
-detected), `--rules` (add guidance to `.cursorrules`, `CLAUDE.md` or
-`AGENTS.md`).
+**Useful flags:** `--dry-run`, `--list`, `--create` (write configs for agents
+not detected), `--rules` (add guidance to `AGENTS.md` and to any agent
+instruction file the project already has).
 
 ### `cortex context`
 

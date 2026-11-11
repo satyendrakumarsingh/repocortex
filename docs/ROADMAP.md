@@ -12,13 +12,16 @@ date; items move to the [CHANGELOG](../CHANGELOG.md) when they ship.
 | Container image on GHCR | Planned | A `Dockerfile` exists but no image is published. CI users would pull a pinned image instead of building. |
 | Windows package (winget / Scoop) | Planned | Windows users currently run `install.ps1` or download a zip. |
 | Signed releases, SBOM and provenance | Planned | The release job publishes `SHA256SUMS` only. Signing and an SBOM let users verify what they run. |
-| Listing in the MCP registry | Planned | `smithery.yaml` exists; the official MCP registry entry does not. |
+| Listing in the MCP registry | Planned | `smithery.yaml` exists; the official MCP registry entry does not. The registry accepts npm, PyPI, NuGet, Cargo, OCI and MCPB packages, so it needs an MCPB bundle or the GHCR image first. |
+| MCPB bundle | Planned | One-click install in Claude Desktop and other clients that read `.mcpb` files. |
 
 ## Integrations
 
 | Item | Status | Why it matters |
 |---|---|---|
 | Reusable GitHub Action (`uses: satyendrakumarsingh/repocortex@v1`) | Planned | Today the change-safety gate is a workflow you copy. A versioned action is one line and updates itself. |
+| Streamable HTTP transport for `cortex serve` | Planned | ChatGPT and Android Studio accept only remote MCP. Bound to `127.0.0.1` with a token by default. |
+| Install links for agents | Exploring | Cursor, VS Code and LM Studio accept install deeplinks; a link per agent in the docs and the portal saves a step. |
 | Editor extension (VS Code) | Exploring | Blast radius and callers inline, from the same local index the agent uses. |
 | Recorded demo | Planned | A short screen recording of an agent calling `get_task_context` and `impact_analysis`. |
 
@@ -46,7 +49,6 @@ Found while writing the [CLI output guide](guides/cli-output-guide.md) and the [
 | `config` / `deps` | Keys in `.cortex.yml` and Compose files count as "declared and never read"; Maven coordinates never match Java package names, so every dependency reads "not imported". |
 | `trace` | A span matched by `code.function` and `code.namespace` is not joined to the method; only `http.route` matches. |
 | `plan-change` vs `impact` | The two report risk on different scales without saying so. |
-| `install --dry-run` | Prints "would updated" / "would created". |
 | Portal: Plan a refactor | Caller lines show `:undefined`, the example chips name symbols from another codebase, and `?sym=` is ignored. |
 | Portal: What changed | The empty state suggests `?from=`/`?to=`, but the page reads `dfrom`/`dto`. |
 | Portal: Test coverage vs Code blindspots | Test coverage shows symbols with no proven test while Code blindspots shows "Untested critical 0". |

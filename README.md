@@ -13,7 +13,7 @@
 [![Local first](https://img.shields.io/badge/runs-100%25_local-2563eb?style=flat-square)](#security-and-privacy)
 [![License](https://img.shields.io/badge/license-Apache--2.0-475569?style=flat-square)](LICENSE)
 
-**Works with** Cursor · Claude Code · Claude Desktop · Windsurf · Antigravity · any MCP client over stdio
+**Works with** Claude Code · Codex · Cursor · Copilot · Gemini CLI · Windsurf · Antigravity · Zed · Goose · Kiro · [40+ agents](docs/guides/coding-agents.md) · any MCP client over stdio
 
 </div>
 
@@ -112,13 +112,21 @@ Builds cover macOS (Apple Silicon and Intel), Linux (amd64, arm64) and Windows (
 
 ## Connect your agent
 
-`cortex install --rules` writes the MCP entry for Cursor, Claude Code, Claude Desktop, Windsurf and Antigravity, and adds short guidance to `.cursorrules`, `CLAUDE.md` or `AGENTS.md` so the agent asks the graph before it searches.
+`cortex install --rules` finds the coding agents on this machine, adds RepoCortex to each one's MCP configuration in the format that agent expects, and writes short guidance to `AGENTS.md` (and to `CLAUDE.md`, `GEMINI.md`, `.cursorrules` and similar files that already exist) so the agent asks the graph before it searches. Other servers and settings in those files are kept.
 
-| Client | How |
+```bash
+cortex install --list      # supported agents, which are detected here, and the file each uses
+cortex install --rules     # write the configs and the guidance
+```
+
+| Agents | How they connect |
 |---|---|
-| Cursor, Claude Desktop, Windsurf, Antigravity | `cortex install --rules` |
-| Claude Code | `cortex install --rules`, or `claude mcp add cortex -- cortex --project "$(pwd)" serve` |
-| Any other MCP client | Add the server below to its configuration |
+| **CLI agents:** Claude Code, Codex CLI, Copilot CLI, Gemini CLI, Qwen Code, Amp, Auggie, Cline CLI, CodeBuddy, Codebuff, Factory Droid, Junie, Kilo Code, Kimi Code, Kiro, Qoder, Tabnine, Goose, Warp | `cortex install --rules` |
+| **Desktop apps and editors:** Cursor, VS Code (Copilot), Visual Studio, Windsurf, Devin Desktop, Antigravity, Claude Desktop, Zed, Continue, LM Studio, Neovim (mcphub.nvim) | `cortex install --rules` |
+| **Configured in their own UI or command:** Amazon Q CLI, Cline extension, Roo Code, JetBrains AI Assistant, Eclipse, OpenCode, Crush, Jan, Trae, Qoder IDE, Raycast, Cherry Studio | `cortex install --list` prints the exact step for each |
+| **No MCP:** Aider, Plandex | The CLI: `--rules` writes a `CONVENTIONS.md` block for Aider |
+| **Remote MCP only:** ChatGPT, Android Studio | Not yet: needs the HTTP transport on the [roadmap](docs/ROADMAP.md) |
+| **Any other MCP client** | Add the server below to its configuration |
 
 ```json
 {
@@ -128,7 +136,7 @@ Builds cover macOS (Apple Silicon and Intel), Linux (amd64, arm64) and Windows (
 }
 ```
 
-Per-client details: [docs/agent-integration.md](docs/agent-integration.md).
+Every agent, its config file and format, and the plan for the ones without local MCP: [docs/guides/coding-agents.md](docs/guides/coding-agents.md).
 
 ## What it answers
 
@@ -376,7 +384,7 @@ Threat model: [docs/security.md](docs/security.md). Report a vulnerability: [SEC
 <details>
 <summary><b>Which agents does it work with?</b></summary>
 
-<br>Any MCP client that runs a server over stdio. `cortex install --rules` configures Cursor, Claude Code, Claude Desktop, Windsurf and Antigravity for you.
+<br>Any MCP client that runs a server over stdio. `cortex install --rules` configures 30 agents for you, from Claude Code, Codex and Cursor to Zed, Goose and Kiro; see the [coding agents guide](docs/guides/coding-agents.md).
 </details>
 
 <details>
@@ -424,7 +432,8 @@ More: [docs/FAQ.md](docs/FAQ.md).
 | [CLI output guide](docs/guides/cli-output-guide.md) | Every command, a real run, and how to read each part of its output |
 | [Portal guide](docs/guides/portal-guide.md) | Every screen of `cortex ui`, with screenshots and layout |
 | [User guide](docs/USER_GUIDE.md) | Day-to-day use, end to end |
-| [Agent integration](docs/agent-integration.md) | Setting up each MCP client |
+| [Coding agents](docs/guides/coding-agents.md) | All 40+ supported agents, their config files, and agents without MCP |
+| [Agent integration](docs/agent-integration.md) | The Claude Code plugin, guidance and per-client details |
 | [CLI reference](docs/CLI.md) | Every command and flag |
 | [Architecture](docs/DESIGN_AND_ARCHITECTURE.md) | Packages, invariants and design decisions |
 | [Accuracy](docs/accuracy.md) | How precision and recall are measured |
