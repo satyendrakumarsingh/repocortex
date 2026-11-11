@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="446" viewBox="0 0 1280 446" role="img" aria-labelledby="t">
+<title id="t">cortex callers and cortex languages, run on the RepoCortex repository</title>
+<rect x="0.5" y="0.5" width="1279" height="445" rx="14" fill="#fbfcfe" stroke="#d5dce7"/>
+<path d="M0.5 14.5a14 14 0 0 1 14-14h1251a14 14 0 0 1 14 14v31h-1279z" fill="#eef2f8"/>
+<line x1="0.5" y1="46" x2="1279.5" y2="46" stroke="#d5dce7"/>
+<circle cx="26" cy="23" r="6" fill="#ff5f57"/>
+<circle cx="46" cy="23" r="6" fill="#febc2e"/>
+<circle cx="66" cy="23" r="6" fill="#28c840"/>
+<text x="640.0" y="28" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" fill="#475569">repocortex — real output, this repository</text>
+<text x="28" y="78" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="16" fill="#2563eb">$<tspan fill="#0f172a"> cortex callers BindEndpointHandlers</tspan></text>
+<text x="28" y="104" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="16" fill="#0f172a" xml:space="preserve">BindEndpointHandlers (method) at internal/registry/handlers.go:38</text>
+<text x="28" y="156" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="16" fill="#334155" font-weight="600" xml:space="preserve">KIND   SYMBOL   EVIDENCE                          CONFIDENCE</text>
+<text x="28" y="182" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="16" fill="#0f172a" xml:space="preserve">CALLS  Resolve  internal/pipeline/resolve.go:235  <tspan fill="#047857" font-weight="700">exact (compiler)</tspan></text>
+<text x="28" y="234" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="16" fill="#475569" xml:space="preserve">1 caller(s).</text>
+<text x="28" y="286" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="16" fill="#2563eb">$<tspan fill="#0f172a"> cortex languages</tspan></text>
+<text x="28" y="312" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="16" fill="#334155" font-weight="600" xml:space="preserve">TIER      COUNT  WHAT YOU GET</text>
+<text x="28" y="338" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="16" fill="#0f172a" xml:space="preserve">typed     3      definitions, imports, receiver and arity discrimination</text>
+<text x="28" y="364" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="16" fill="#0f172a" xml:space="preserve">resolved  11     definitions and imports — references bind across files</text>
+<text x="28" y="390" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="16" fill="#0f172a" xml:space="preserve">parsed    192    definitions and search only — no cross-file references claimed</text>
+</svg>
