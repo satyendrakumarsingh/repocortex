@@ -5,14 +5,16 @@ package cli
 // The merge is deliberately conservative: an MCP client's config file is the
 // user's, not ours. It holds other servers and unrelated settings, and losing
 // one because RepoCortex rewrote the file would be a far worse bug than failing
-// to install. So the file is parsed as a generic map, only the one key under
-// mcpServers is touched, and a file we cannot parse is an error rather than
-// something to overwrite.
+// to install. So each file is parsed, only RepoCortex's own entry is touched,
+// and a file that cannot be parsed safely is reported with the manual step
+// rather than overwritten. The clients and their formats live in clients.go.
 
 import (
-	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -20,12 +22,6 @@ import (
 
 	"github.com/spf13/cobra"
 )
-
-// mcpTarget is one client's config file and the label shown to the user.
-type mcpTarget struct {
-	Client string
-	Path   string
-}
 
 // claudeDesktopPath resolves the cross-platform path to Claude Desktop's config file.
 func claudeDesktopPath(home string) string {
@@ -45,119 +41,231 @@ func claudeDesktopPath(home string) string {
 	}
 }
 
-// mcpClientTargets lists the config files RepoCortex knows how to write.
-//
-// Only clients whose config path is documented, stable, and whose MCP
-// registration lives under a top-level "mcpServers" object are listed here.
-func mcpClientTargets(home string) []mcpTarget {
-	return []mcpTarget{
-		{Client: "Antigravity", Path: filepath.Join(home, ".gemini", "antigravity", "mcp_config.json")},
-		{Client: "Claude Code", Path: filepath.Join(home, ".claude.json")},
-		{Client: "Claude Desktop", Path: claudeDesktopPath(home)},
-		{Client: "Cursor", Path: filepath.Join(home, ".cursor", "mcp.json")},
-		{Client: "Windsurf", Path: filepath.Join(home, ".codeium", "windsurf", "mcp_config.json")},
-	}
-}
-
-// isClientInstalled checks if the target client appears to be installed on the system.
-func isClientInstalled(home string, t mcpTarget) bool {
-	if _, err := os.Stat(t.Path); err == nil {
-		return true
-	}
-	dir := filepath.Dir(t.Path)
-	if t.Client == "Claude Code" {
-		if fi, err := os.Stat(filepath.Join(home, ".claude")); err == nil && fi.IsDir() {
-			return true
-		}
-		return false
-	}
-	if fi, err := os.Stat(dir); err == nil && fi.IsDir() {
-		return true
-	}
-	return false
-}
-
 // mergeMCPConfig inserts spec under mcpServers[name], preserving every other
 // key. A nil or empty `existing` yields a fresh document.
 func mergeMCPConfig(existing []byte, name string, spec agentServerSpec) ([]byte, error) {
-	doc := map[string]any{}
-	if len(existing) > 0 {
-		if err := json.Unmarshal(existing, &doc); err != nil {
-			return nil, fmt.Errorf("existing config is not valid JSON (refusing to overwrite it): %w", err)
-		}
-	}
-
-	servers, ok := doc["mcpServers"].(map[string]any)
-	if !ok {
-		servers = map[string]any{}
-	}
-
-	entry := map[string]any{"command": spec.Command}
-	if len(spec.Args) > 0 {
-		entry["args"] = spec.Args
-	}
-	servers[name] = entry
-	doc["mcpServers"] = servers
-
-	out, err := json.MarshalIndent(doc, "", "  ")
-	if err != nil {
-		return nil, fmt.Errorf("encode config: %w", err)
-	}
-	return append(out, '\n'), nil
+	return mergeJSONKey(existing, "mcpServers", name, stdioEntry(spec))
 }
 
+// guidanceCreate is created when missing: most agents read AGENTS.md (Codex,
+// Cursor, Copilot, Devin/Windsurf, Antigravity, Zed, Cline, Roo, Junie, Amp,
+// Goose, Augment, Kiro, Warp, OpenCode, Qwen, CodeBuddy).
+const guidanceCreate = "AGENTS.md"
+
+// guidanceUpdate are agent-specific instruction files. They are updated when
+// the repository already has them and never created, so --rules does not
+// scatter a file per agent into the project.
+var guidanceUpdate = []string{
+	"CLAUDE.md",
+	"GEMINI.md",
+	"QWEN.md",
+	"CODEBUDDY.md",
+	"WARP.md",
+	".cursorrules",
+	".windsurfrules",
+	".clinerules",
+	".roorules",
+	filepath.Join(".github", "copilot-instructions.md"),
+}
+
+// cliGuidanceOpen marks the block for agents that cannot use MCP.
+const (
+	cliGuidanceOpen  = "<!-- cortex:cli-guidance -->"
+	cliGuidanceClose = "<!-- /cortex:cli-guidance -->"
+)
+
+// cliGuidance is for agents without an MCP client (Aider, for example). They
+// can run shell commands, so the same answers come from the CLI.
+const cliGuidance = cliGuidanceOpen + `
+## RepoCortex (command line)
+
+This repository has a RepoCortex index. Run these commands instead of grepping;
+add --json for machine-readable output.
+
+- Before changing code: ` + "`cortex context \"<the task in plain English>\"`" + `
+- Who calls a symbol: ` + "`cortex callers <symbol>`" + `
+- What a change can break: ` + "`cortex impact --base main --head HEAD`" + `
+- Routes, tables and settings: ` + "`cortex api`" + `, ` + "`cortex db`" + `, ` + "`cortex config`" + `
+
+Every relationship says how sure it is: exact means a compiler proved it;
+anything else is a lead to check. An empty result means nothing was found, not
+that nothing exists. If the index is missing, run ` + "`cortex index`" + ` then ` + "`cortex resolve`" + `.
+` + cliGuidanceClose + "\n"
+
+// injectAgentGuidance writes the guidance block into AGENTS.md (created when
+// missing) and into every agent-specific instruction file the repository
+// already has. Files that already carry the block are left alone.
 func injectAgentGuidance(cmd *cobra.Command, root string, dryRun bool) error {
-	candidates := []string{".cursorrules", "CLAUDE.md", "AGENTS.md"}
-	targetFile := ""
-	for _, c := range candidates {
-		p := filepath.Join(root, c)
-		if _, err := os.Stat(p); err == nil {
-			targetFile = p
-			break
+	out := cmd.OutOrStdout()
+	if err := ensureBlock(out, root, guidanceCreate, agentGuidance, agentGuidanceOpen, true, dryRun); err != nil {
+		return err
+	}
+	for _, name := range guidanceUpdate {
+		if err := ensureBlock(out, root, name, agentGuidance, agentGuidanceOpen, false, dryRun); err != nil {
+			return err
 		}
 	}
-	if targetFile == "" {
-		targetFile = filepath.Join(root, ".cursorrules")
-	}
+	// Aider has no MCP client. It reads CONVENTIONS.md when started with
+	// --read, so it gets the command-line block.
+	_, aiderErr := exec.LookPath("aider")
+	return ensureBlock(out, root, "CONVENTIONS.md", cliGuidance, cliGuidanceOpen, aiderErr == nil, dryRun)
+}
 
-	rel, err := filepath.Rel(root, targetFile)
-	if err != nil {
-		rel = targetFile
-	}
-
-	content, err := os.ReadFile(targetFile) //nolint:gosec
-	if err == nil {
-		if strings.Contains(string(content), agentGuidanceOpen) {
-			fmt.Fprintf(cmd.OutOrStdout(), "guidance already present in %s\n", rel)
+// ensureBlock appends block to root/name unless it already contains marker.
+// A missing file is created only when create is true.
+func ensureBlock(out io.Writer, root, name, block, marker string, create, dryRun bool) error {
+	path := filepath.Join(root, name)
+	content, err := os.ReadFile(path) //nolint:gosec // a fixed name under the project root
+	switch {
+	case err == nil:
+		if strings.Contains(string(content), marker) {
+			_, _ = fmt.Fprintf(out, "guidance already present in %s\n", name)
 			return nil
 		}
 		if dryRun {
-			fmt.Fprintf(cmd.OutOrStdout(), "would append guidance to %s\n", rel)
+			_, _ = fmt.Fprintf(out, "would append guidance to %s\n", name)
 			return nil
 		}
-		toAppend := "\n\n" + agentGuidance
-		f, err := os.OpenFile(targetFile, os.O_APPEND|os.O_WRONLY, 0o600) //nolint:gosec
+		f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o600) //nolint:gosec // a fixed name under the project root
 		if err != nil {
-			return fmt.Errorf("append guidance to %s: %w", rel, err)
+			return fmt.Errorf("append guidance to %s: %w", name, err)
 		}
 		defer func() { _ = f.Close() }()
-		if _, err := f.WriteString(toAppend); err != nil {
-			return fmt.Errorf("write guidance to %s: %w", rel, err)
+		if _, err := f.WriteString("\n\n" + block); err != nil {
+			return fmt.Errorf("write guidance to %s: %w", name, err)
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "appended agent guidance to %s\n", rel)
+		_, _ = fmt.Fprintf(out, "appended guidance to %s\n", name)
 		return nil
-	} else if os.IsNotExist(err) {
-		if dryRun {
-			fmt.Fprintf(cmd.OutOrStdout(), "would create %s with agent guidance\n", rel)
+	case errors.Is(err, os.ErrNotExist):
+		if !create {
 			return nil
 		}
-		if err := os.WriteFile(targetFile, []byte(agentGuidance), 0o600); err != nil {
-			return fmt.Errorf("create %s: %w", rel, err)
+		if dryRun {
+			_, _ = fmt.Fprintf(out, "would create %s with guidance\n", name)
+			return nil
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "created %s with agent guidance\n", rel)
+		if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+			return fmt.Errorf("create directory for %s: %w", name, err)
+		}
+		if err := os.WriteFile(path, []byte(block), 0o600); err != nil {
+			return fmt.Errorf("create %s: %w", name, err)
+		}
+		_, _ = fmt.Fprintf(out, "created %s with guidance\n", name)
 		return nil
+	default:
+		return fmt.Errorf("inspect %s: %w", name, err)
 	}
-	return fmt.Errorf("inspect %s: %w", rel, err)
+}
+
+// installResult is what happened to one client.
+type installResult struct {
+	Client string
+	Path   string
+	Action string // created, updated, unchanged, skipped, manual
+	Note   string
+}
+
+// installClients writes RepoCortex into every detected client (every client
+// with createAll). It never stops at one client's problem: a file it cannot
+// merge is reported as a manual step and the rest still install.
+func installClients(home, root string, spec agentServerSpec, createAll, dryRun bool) ([]installResult, error) {
+	clients := mcpClients(home, root)
+	sort.Slice(clients, func(i, j int) bool { return clients[i].Name < clients[j].Name })
+
+	var results []installResult
+	for _, c := range clients {
+		if c.OnlyIfExists {
+			if _, err := os.Stat(c.Path); err != nil {
+				continue
+			}
+		} else if !createAll && !clientInstalled(c) {
+			results = append(results, installResult{Client: c.Name, Path: c.Path, Action: "skipped", Note: "not detected"})
+			continue
+		}
+
+		existing, err := os.ReadFile(c.Path) // #nosec G304 -- path comes from the fixed client list
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			results = append(results, installResult{Client: c.Name, Path: c.Path, Action: "manual", Note: "could not read: " + err.Error()})
+			continue
+		}
+		merged, err := mergeClientConfig(c, existing, spec)
+		if err != nil {
+			results = append(results, installResult{Client: c.Name, Path: c.Path, Action: "manual", Note: err.Error() + "; see " + c.Docs})
+			continue
+		}
+
+		action := "updated"
+		switch {
+		case existing == nil:
+			action = "created"
+		case string(existing) == string(merged):
+			action = "unchanged"
+		}
+		if !dryRun && action != "unchanged" {
+			if err := os.MkdirAll(filepath.Dir(c.Path), 0o750); err != nil {
+				return results, fmt.Errorf("create directory for %s: %w", c.Name, err)
+			}
+			if err := os.WriteFile(c.Path, merged, 0o600); err != nil { //nolint:gosec // G703: the path comes from the fixed client list, not from input
+				return results, fmt.Errorf("write %s config: %w", c.Name, err)
+			}
+		}
+		results = append(results, installResult{Client: c.Name, Path: c.Path, Action: action})
+	}
+	return results, nil
+}
+
+// wouldVerb turns a past-tense action into its dry-run form.
+func wouldVerb(action string) string {
+	switch action {
+	case "created":
+		return "would create"
+	case "updated":
+		return "would update"
+	}
+	return action
+}
+
+func printInstallResults(w io.Writer, results []installResult, dryRun bool) (written int) {
+	for _, r := range results {
+		switch r.Action {
+		case "skipped":
+			continue
+		case "manual":
+			_, _ = fmt.Fprintf(w, "manual  %-28s %s\n        %s\n", r.Client, r.Path, r.Note)
+			continue
+		}
+		verb := r.Action
+		if dryRun {
+			verb = wouldVerb(r.Action)
+		}
+		_, _ = fmt.Fprintf(w, "%-13s %-28s %s\n", verb, r.Client, r.Path)
+		written++
+	}
+	return written
+}
+
+// printClientList shows every supported client: whether it was detected, the
+// file RepoCortex writes, and the agents that need a manual step.
+func printClientList(w io.Writer, home, root string, spec agentServerSpec) {
+	clients := mcpClients(home, root)
+	sort.Slice(clients, func(i, j int) bool { return clients[i].Name < clients[j].Name })
+	_, _ = fmt.Fprintln(w, "Configured automatically by `cortex install`:")
+	for _, c := range clients {
+		if c.OnlyIfExists {
+			continue
+		}
+		state := "not detected"
+		if clientInstalled(c) {
+			state = "detected"
+		}
+		_, _ = fmt.Fprintf(w, "  %-44s %-13s %s\n", c.Name, state, c.Path)
+	}
+	_, _ = fmt.Fprintln(w, "\nSet up by hand (their own command or settings screen):")
+	for _, m := range manualClients() {
+		_, _ = fmt.Fprintf(w, "  %s\n    %s\n", m.Name, m.Step(spec))
+	}
+	_, _ = fmt.Fprintln(w, "\nNo MCP client (use the CLI): Aider, Plandex. `cortex install --rules` writes CONVENTIONS.md for Aider.")
+	_, _ = fmt.Fprintln(w, "Remote MCP only: ChatGPT, Android Studio. Not supported yet: `cortex serve` speaks stdio.")
 }
 
 func newInstallCmd(g *Global) *cobra.Command {
@@ -165,19 +273,29 @@ func newInstallCmd(g *Global) *cobra.Command {
 		dryRun    bool
 		createAll bool
 		withRules bool
+		list      bool
 	)
 	cmd := &cobra.Command{
 		Use:   "install",
 		Short: "Register RepoCortex as an MCP server with detected coding agents",
 		Long: `Writes RepoCortex's MCP registration into the config file of every
-detected client, preserving every other server and setting already there.
+detected coding agent, preserving every other server and setting already there.
 
-If a supported client's configuration directory exists (e.g. ~/.cursor or
-~/.codeium/windsurf), RepoCortex creates or updates its MCP config. Pass --create
-to initialize configs for all known clients regardless of detection. Pass --rules
-to inject agent behavioral instructions into .cursorrules or CLAUDE.md.
+Supported: Amp, Antigravity, Augment, Claude Code, Claude Desktop, Cline CLI,
+Codebuff, CodeBuddy CLI, Codex CLI, Continue, Copilot CLI, Cursor (and its CLI),
+Devin Desktop, Factory Droid, Gemini CLI, Goose, Junie, Kilo Code, Kimi Code CLI,
+Kiro, LM Studio, mcphub.nvim, Qoder CLI, Qwen Code, Tabnine CLI, VS Code
+(Copilot), Visual Studio (Windows), Warp, Windsurf and Zed. Run --list to see
+which are detected here and the manual step for the rest.
 
-Run "cortex agent" to print the manual registration for any client not covered here.`,
+A client counts as detected when its config file, config directory or command
+exists. Pass --create to write every client's file regardless. A file RepoCortex
+cannot merge safely (for example JSON with comments) is reported with the manual
+step and left untouched.
+
+Pass --rules to add guidance to AGENTS.md and to any agent instruction file the
+project already has (CLAUDE.md, GEMINI.md, .cursorrules, ...), so the agent asks
+RepoCortex before it searches.`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			home, err := os.UserHomeDir()
 			if err != nil {
@@ -187,52 +305,19 @@ Run "cortex agent" to print the manual registration for any client not covered h
 			spec := agentServerSpec{
 				Name:    agentMCPName,
 				Command: "cortex",
-				Args:    []string{"serve", "--project", root},
+				Args:    []string{"--project", root, "serve"},
+			}
+			out := cmd.OutOrStdout()
+
+			if list {
+				printClientList(out, home, root, spec)
+				return nil
 			}
 
-			targets := mcpClientTargets(home)
-			sort.Slice(targets, func(i, j int) bool { return targets[i].Client < targets[j].Client })
-
-			written := 0
-			for _, t := range targets {
-				dir := filepath.Dir(t.Path)
-				installed := isClientInstalled(home, t) || createAll
-
-				existing, err := os.ReadFile(t.Path) // #nosec G304 -- path is from the fixed target list
-				if os.IsNotExist(err) {
-					if !installed {
-						fmt.Fprintf(cmd.OutOrStdout(), "skip  %-16s (client directory not found)\n", t.Client)
-						continue
-					}
-					existing = nil
-				} else if err != nil {
-					return fmt.Errorf("read %s config: %w", t.Client, err)
-				}
-
-				merged, err := mergeMCPConfig(existing, agentMCPName, spec)
-				if err != nil {
-					return fmt.Errorf("%s: %w", t.Client, err)
-				}
-
-				action := "updated"
-				if existing == nil {
-					action = "created"
-				}
-
-				if dryRun {
-					fmt.Fprintf(cmd.OutOrStdout(), "would %s %-10s %s\n", action, t.Client, t.Path)
-					written++
-					continue
-				}
-
-				if err := os.MkdirAll(dir, 0o750); err != nil {
-					return fmt.Errorf("create directory for %s: %w", t.Client, err)
-				}
-				if err := os.WriteFile(t.Path, merged, 0o600); err != nil {
-					return fmt.Errorf("write %s config: %w", t.Client, err)
-				}
-				fmt.Fprintf(cmd.OutOrStdout(), "%-7s %-16s %s\n", action, t.Client, t.Path)
-				written++
+			results, err := installClients(home, root, spec, createAll, dryRun)
+			written := printInstallResults(out, results, dryRun)
+			if err != nil {
+				return err
 			}
 
 			if withRules {
@@ -242,18 +327,23 @@ Run "cortex agent" to print the manual registration for any client not covered h
 			}
 
 			if written == 0 {
-				fmt.Fprintln(cmd.OutOrStdout(), "\nNo client config was found. Run 'cortex install --create' to force config creation, or 'cortex agent' to print the manual registration.")
+				_, _ = fmt.Fprintln(out, "\nNo coding agent was detected. Run 'cortex install --list' to see every supported agent, or 'cortex install --create' to write all their configs.")
 				return nil
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "\nRestart your agent, then ask it to use RepoCortex.\n")
+			if dryRun {
+				_, _ = fmt.Fprintln(out, "\nNothing was written. Run without --dry-run to apply.")
+				return nil
+			}
+			_, _ = fmt.Fprintln(out, "\nRestart your agent, then ask it to use RepoCortex.")
 			if !withRules {
-				fmt.Fprintln(cmd.OutOrStdout(), "Tip: Add guidance so your agent reaches for RepoCortex instead of grepping:\n     Run 'cortex install --rules' or 'cortex agent --guidance >> CLAUDE.md'")
+				_, _ = fmt.Fprintln(out, "Tip: add guidance so your agent reaches for RepoCortex instead of grepping: cortex install --rules")
 			}
 			return nil
 		},
 	}
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "report what would be written without writing it")
-	cmd.Flags().BoolVar(&createAll, "create", false, "create client config files even if the client directory was not detected")
-	cmd.Flags().BoolVar(&withRules, "rules", false, "inject or update agent guidance into .cursorrules, CLAUDE.md, or AGENTS.md")
+	cmd.Flags().BoolVar(&createAll, "create", false, "write every supported client's config, even where the client was not detected")
+	cmd.Flags().BoolVar(&withRules, "rules", false, "add agent guidance to AGENTS.md and to existing agent instruction files")
+	cmd.Flags().BoolVar(&list, "list", false, "list every supported agent, whether it is detected, and manual steps for the rest")
 	return cmd
 }

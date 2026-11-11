@@ -1427,26 +1427,30 @@ http://127.0.0.1:7777/
 
 ### `install`
 
-**Answers:** register RepoCortex's MCP server with every agent client detected on
-this machine, preserving everything else in each client's config file.
+**Answers:** register RepoCortex's MCP server with every coding agent detected on
+this machine, in the format each agent expects, preserving everything else in
+each config file.
 
 | Flag | Effect |
 |---|---|
 | `--dry-run` | report what would be written without writing it |
+| `--list` | list every supported agent, whether it is detected, its config file, and the manual step for agents set up by hand |
+| `--create` | also write configs for agents that are not detected |
+| `--rules` | add guidance to `AGENTS.md` (created if missing) and to agent instruction files that already exist; `CONVENTIONS.md` for Aider |
 
-Covers Claude Code, Claude Desktop, Cursor and Windsurf. A client whose config
-file does not exist is skipped rather than created, since creating one would
-guess at a layout the client may not accept. For Zed, which uses a different
-config key, use `agent` and place the output yourself.
+Covers 30 agents automatically, including Claude Code, Codex CLI, Copilot CLI,
+Gemini CLI, Cursor, VS Code, Windsurf, Antigravity, Zed, Goose and Kiro. A file
+that cannot be merged safely, such as JSON with comments, is left untouched and
+reported as `manual`. The full list is in the
+[coding agents guide](guides/coding-agents.md).
 
 ```
 $ cortex install --dry-run
-would write Claude Code      ~/.claude.json
-would write Claude Desktop   ~/Library/Application Support/Claude/claude_desktop_config.json
-skip  Cursor           (no config at ~/.cursor/mcp.json)
-skip  Windsurf         (no config at ~/.codeium/windsurf/mcp_config.json)
+would update  Claude Code                  ~/.claude.json
+would update  Codex CLI                    ~/.codex/config.toml
+would create  Cursor                       ~/.cursor/mcp.json
 
-Restart your agent, then ask it to use RepoCortex.
+Nothing was written. Run without --dry-run to apply.
 ```
 
 ### `agent`

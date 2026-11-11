@@ -89,55 +89,28 @@ func TestClaudeDesktopPath(t *testing.T) {
 	}
 }
 
-func TestIsClientInstalled(t *testing.T) {
-	tempHome := t.TempDir()
-
-	// Cursor target
-	cursorTarget := mcpTarget{Client: "Cursor", Path: filepath.Join(tempHome, ".cursor", "mcp.json")}
-
-	// Initially neither config nor directory exists
-	if isClientInstalled(tempHome, cursorTarget) {
-		t.Error("expected client to not be installed before dir exists")
-	}
-
-	// Create parent dir
-	if err := os.MkdirAll(filepath.Dir(cursorTarget.Path), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if !isClientInstalled(tempHome, cursorTarget) {
-		t.Error("expected client to be detected when parent directory exists")
-	}
-
-	// Claude Code target
-	claudeTarget := mcpTarget{Client: "Claude Code", Path: filepath.Join(tempHome, ".claude.json")}
-	if isClientInstalled(tempHome, claudeTarget) {
-		t.Error("expected Claude Code not installed before ~/.claude exists")
-	}
-	if err := os.MkdirAll(filepath.Join(tempHome, ".claude"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if !isClientInstalled(tempHome, claudeTarget) {
-		t.Error("expected Claude Code to be detected when ~/.claude directory exists")
-	}
-}
-
 func TestInjectAgentGuidance(t *testing.T) {
 	root := t.TempDir()
 	cmd := &cobra.Command{}
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 
-	// Injects into default .cursorrules when no file exists
+	// Creates AGENTS.md, which most agents read, when no file exists
 	if err := injectAgentGuidance(cmd, root, false); err != nil {
 		t.Fatalf("injectAgentGuidance: %v", err)
 	}
-	crPath := filepath.Join(root, ".cursorrules")
-	content, err := os.ReadFile(crPath)
+	content, err := os.ReadFile(filepath.Join(root, "AGENTS.md"))
 	if err != nil {
-		t.Fatalf("read created .cursorrules: %v", err)
+		t.Fatalf("read created AGENTS.md: %v", err)
 	}
 	if !strings.Contains(string(content), agentGuidanceOpen) {
-		t.Fatalf("guidance marker missing from .cursorrules:\n%s", content)
+		t.Fatalf("guidance marker missing from AGENTS.md:\n%s", content)
+	}
+	// It does not scatter a file per agent into the project.
+	for _, name := range []string{".cursorrules", "CLAUDE.md", "GEMINI.md"} {
+		if _, err := os.Stat(filepath.Join(root, name)); err == nil {
+			t.Errorf("%s was created; only files that already exist are updated", name)
+		}
 	}
 
 	// Re-running does not duplicate

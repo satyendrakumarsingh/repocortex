@@ -19,6 +19,11 @@ cortex agent
 
 ## 1. Register the MCP server
 
+`cortex install --rules` registers the server with every coding agent it finds
+on this machine, in each agent's own format. The
+[coding agents guide](guides/coding-agents.md) lists all of them, the file each
+uses, and the agents that need a manual step or have no MCP.
+
 ### Claude Code, one line
 
 ```

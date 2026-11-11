@@ -10,7 +10,7 @@ Configure these exact values in your GitHub repository's **"About"** section (cl
 
 ### Repository Description (Max 350 chars)
 ```text
-MCP server that indexes your repository into a call graph of symbols, HTTP routes, SQL tables, config and tests, and serves it to Cursor, Claude Code, Windsurf and Antigravity. Blast radius, safe renames and task context with a confidence label on every edge. Local, one Go binary.
+MCP server that indexes your repository into a call graph of symbols, HTTP routes, SQL tables, config and tests, and serves it to Claude Code, Codex, Cursor, Copilot, Gemini CLI, Windsurf and 40+ other coding agents. Blast radius, safe renames and task context with a confidence label on every edge. Local, one Go binary.
 ```
 
 ### Website URL

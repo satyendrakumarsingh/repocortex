@@ -14,7 +14,7 @@ An AI agent asks RepoCortex a question instead of searching: what a task touches
 
 ## Facts
 - Command: `cortex`; alias `repocortex`. Requires Go 1.26+ to build from source; no CGO.
-- Protocol: MCP over stdio. Clients configured by `cortex install --rules`: Cursor, Claude Code, Claude Desktop, Windsurf, Antigravity. Any stdio MCP client works.
+- Protocol: MCP over stdio. `cortex install --rules` configures 30 agents, including Claude Code, Codex CLI, Copilot CLI, Gemini CLI, Cursor, VS Code, Visual Studio, Windsurf, Devin Desktop, Antigravity, Claude Desktop, Zed, Goose, Kiro, Junie, Amp, Qwen Code, Continue and Warp, and writes AGENTS.md guidance. Any stdio MCP client works; Aider uses the CLI through CONVENTIONS.md. Full list: docs/guides/coding-agents.md.
 - Confidence tiers: `exact` (proven by a compiler index, SCIP), `high` (syntax tree with imports; 94.2–100% precise per language in measurements), `medium` (inferred; under 50%), `low` (loose name match; hidden by default). Details: docs/accuracy.md.
 - Languages: 206 tree-sitter grammars. Typed (3): Go, Java, TypeScript. Resolved (11): C, C#, C++, JavaScript, Kotlin, PHP, Python, Ruby, Rust, Scala, TSX. Parsed (192): definitions and search only.
 - Privacy: no network requests while indexing or serving, no telemetry. The opt-in `cortex indexers install` is the only command that downloads anything.
@@ -46,6 +46,7 @@ cortex install --rules
 - [README](README.md)
 - [CLI output guide](docs/guides/cli-output-guide.md)
 - [Portal guide](docs/guides/portal-guide.md)
+- [Coding agents](docs/guides/coding-agents.md)
 - [Agent integration](docs/agent-integration.md)
 - [CLI reference](docs/CLI.md)
 - [Accuracy](docs/accuracy.md)
@@ -1991,34 +1992,41 @@ it finds on this machine.
 
 **Use it when:** You want one command to connect all your agents.
 
-**Run:** `cortex install --dry-run`
+**Run:** `cortex install --dry-run`, and `cortex install --list` to see every supported agent
 
 **Output:**
 
 ```console
 $ cortex install --dry-run
-would updated Antigravity ~/.gemini/antigravity/mcp_config.json
-would updated Claude Code ~/.claude.json
-would updated Claude Desktop ~/Library/Application Support/Claude/claude_desktop_config.json
-would created Cursor     ~/.cursor/mcp.json
-skip  Windsurf         (client directory not found)
+would update  Antigravity                  ~/.gemini/config/mcp_config.json
+would update  Claude Code                  ~/.claude.json
+would update  Claude Desktop               ~/Library/Application Support/Claude/claude_desktop_config.json
+would update  Codex CLI                    ~/.codex/config.toml
+would create  Copilot CLI                  ~/.copilot/mcp-config.json
+would create  Cursor                       ~/.cursor/mcp.json
+would create  VS Code (Copilot)            ~/Library/Application Support/Code/User/mcp.json
 
-Restart your agent, then ask it to use RepoCortex.
-Tip: Add guidance so your agent reaches for RepoCortex instead of grepping:
-     Run 'cortex install --rules' or 'cortex agent --guidance >> CLAUDE.md'
+Nothing was written. Run without --dry-run to apply.
 ```
 
 **How to read it:**
 
-- One line per known client: `would updated` (the config file exists and will
-  be edited), `would created` (the file will be made), or `skip` (client not
-  found). The odd grammar is in the tool's output.
-- Other servers and settings in those files are kept.
-- This edits files in your home directory. Run `--dry-run` first.
+- One line per agent detected on this machine: `would update` (its config file
+  exists and gains one entry), `would create` (the file is made). Without
+  `--dry-run` the same lines read `updated`, `created` or `unchanged`.
+- A `manual` line means the file could not be merged safely, usually JSON with
+  comments. The file is left untouched and the line says what to do.
+- Every other server and setting in those files is kept. Each agent gets the
+  shape its own documentation specifies (`mcpServers`, `servers`,
+  `context_servers`, a Codex TOML table, a Goose YAML extension, and so on).
+- `cortex install --list` shows all supported agents, which are detected here,
+  the exact file each one uses, and the manual step for agents that are
+  configured through their own command or settings screen.
+- Agents without detection are skipped; `--create` writes them anyway.
 
-**Useful flags:** `--dry-run`, `--create` (write configs for clients not
-detected), `--rules` (add guidance to `.cursorrules`, `CLAUDE.md` or
-`AGENTS.md`).
+**Useful flags:** `--dry-run`, `--list`, `--create` (write configs for agents
+not detected), `--rules` (add guidance to `AGENTS.md` and to any agent
+instruction file the project already has).
 
 ### `cortex context`
 
@@ -3766,6 +3774,11 @@ cortex agent
 
 ## 1. Register the MCP server
 
+`cortex install --rules` registers the server with every coding agent it finds
+on this machine, in each agent's own format. The
+[coding agents guide](guides/coding-agents.md) lists all of them, the file each
+uses, and the agents that need a manual step or have no MCP.
+
 ### Claude Code, one line
 
 ```
@@ -5476,26 +5489,30 @@ http://127.0.0.1:7777/
 
 ### `install`
 
-**Answers:** register RepoCortex's MCP server with every agent client detected on
-this machine, preserving everything else in each client's config file.
+**Answers:** register RepoCortex's MCP server with every coding agent detected on
+this machine, in the format each agent expects, preserving everything else in
+each config file.
 
 | Flag | Effect |
 |---|---|
 | `--dry-run` | report what would be written without writing it |
+| `--list` | list every supported agent, whether it is detected, its config file, and the manual step for agents set up by hand |
+| `--create` | also write configs for agents that are not detected |
+| `--rules` | add guidance to `AGENTS.md` (created if missing) and to agent instruction files that already exist; `CONVENTIONS.md` for Aider |
 
-Covers Claude Code, Claude Desktop, Cursor and Windsurf. A client whose config
-file does not exist is skipped rather than created, since creating one would
-guess at a layout the client may not accept. For Zed, which uses a different
-config key, use `agent` and place the output yourself.
+Covers 30 agents automatically, including Claude Code, Codex CLI, Copilot CLI,
+Gemini CLI, Cursor, VS Code, Windsurf, Antigravity, Zed, Goose and Kiro. A file
+that cannot be merged safely, such as JSON with comments, is left untouched and
+reported as `manual`. The full list is in the
+[coding agents guide](guides/coding-agents.md).
 
 ```
 $ cortex install --dry-run
-would write Claude Code      ~/.claude.json
-would write Claude Desktop   ~/Library/Application Support/Claude/claude_desktop_config.json
-skip  Cursor           (no config at ~/.cursor/mcp.json)
-skip  Windsurf         (no config at ~/.codeium/windsurf/mcp_config.json)
+would update  Claude Code                  ~/.claude.json
+would update  Codex CLI                    ~/.codex/config.toml
+would create  Cursor                       ~/.cursor/mcp.json
 
-Restart your agent, then ask it to use RepoCortex.
+Nothing was written. Run without --dry-run to apply.
 ```
 
 ### `agent`
