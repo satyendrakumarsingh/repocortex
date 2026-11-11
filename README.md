@@ -32,6 +32,7 @@ One Go binary. A SQLite file in `.cortex/`. Nothing leaves your machine.
 | [Quickstart](#quickstart) | [How an agent uses it](#how-an-agent-uses-it) | [Accuracy](#accuracy) | [Guides and docs](#guides-and-documentation) |
 | [Install options](#install-options) | [Blast radius in CI](#blast-radius-in-ci) | [Performance](#performance) | [FAQ](#faq) |
 | [Connect your agent](#connect-your-agent) | [Local portal](#local-portal) | [Security and privacy](#security-and-privacy) | [Roadmap and community](#roadmap-and-community) |
+| [Set up with your AI agent](#set-up-with-your-ai-agent) | [CLI output guide](docs/guides/cli-output-guide.md) | [Troubleshooting](docs/troubleshooting.md) | [Agent integration](docs/agent-integration.md) |
 
 ## Why RepoCortex
 
@@ -97,6 +98,40 @@ cortex impact --base main --head HEAD
 
 > [!NOTE]
 > No versioned release is published yet, so `go install` is the supported install today. `cortex install` points each agent at *this* repository; run it again when you switch projects.
+
+## Set up with your AI agent
+
+Already in Claude Code, Cursor, Windsurf or another coding agent? Paste this prompt into it. The agent installs RepoCortex, builds the index for the repository you have open, and registers the server. It stops before it changes any agent configuration, so you can review it first.
+
+```text
+Set up RepoCortex for this repository. Follow the steps in order.
+
+1. Check the toolchain: run `go version`. RepoCortex needs Go 1.26 or newer.
+   If Go is missing or older, tell me what to install and stop.
+2. Install the binary: run
+   `go install github.com/satyendrakumarsingh/repocortex/cmd/cortex@latest`,
+   then `cortex --version` to confirm it works.
+3. Build the index for this repository: run `cortex init`, `cortex index`
+   and `cortex resolve`. These write only to `.cortex/` in this repository.
+4. Check the index: run `cortex status`. Report the file and symbol counts.
+5. Test it: run `cortex context "<describe a small task in this codebase>"`
+   and summarise which files and symbols it returned.
+6. Preview the agent registration: run `cortex install --rules --dry-run`
+   and show me every file it would change. Wait for my approval.
+7. After I approve, run `cortex install --rules` and tell me to restart you.
+8. Do not edit any file other than the ones `cortex` writes. Do not commit,
+   push, change git configuration or install anything else.
+9. End with a short summary: the version installed, the index location, and
+   the one command I should run first.
+```
+
+Prefer a shorter version? Give your agent this line instead, and it will read the steps from this README:
+
+```text
+Set up RepoCortex in this repository by following the "Set up with your AI agent" section of https://github.com/satyendrakumarsingh/repocortex/blob/main/README.md
+```
+
+Troubleshooting if a step fails: [docs/troubleshooting.md](docs/troubleshooting.md).
 
 ## Install options
 
