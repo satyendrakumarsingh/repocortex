@@ -8614,7 +8614,12 @@ async function runSearch() {
   estimated — and the command that produces the answer today. "Coming soon" is a
   promise; a command is a way to get the answer this afternoon.
 */
+// Pillar specs by screen id. The agent screen renders its guidance cards from
+// its spec inside its own loader, so the spec must outlive the registration.
+const PILLAR_SPECS = {};
+
 function pillarScreen(id, spec) {
+  PILLAR_SPECS[id] = spec;
   LOADERS[id] = async function () {
     const host = $('#screen-' + id);
     if (state.loaded[id]) return;
@@ -11600,6 +11605,20 @@ async function drawAgent() {
   table.appendChild(tbody);
   toolsBody.appendChild(el('div', { class: 'tablewrap' }, table));
   body.appendChild(toolsCard);
+
+  // The guidance this screen has always carried: what the pillar answers, why
+  // this index cannot show a transcript, and the command that produces one.
+  const spec = PILLAR_SPECS.agent;
+  if (spec) {
+    let overview = state.overview;
+    if (!overview) {
+      try { overview = await api('/api/overview', { min_confidence: state.q.floor }); }
+      catch (e) { return showError(body, e, 'Connect an agent'); }
+      state.overview = overview;
+    }
+    host.appendChild(answer(spec.answer(overview), { support: spec.lede }));
+    for (const node of pillarBody(overview, spec)) body.appendChild(node);
+  }
 }
 
 // ================================================================ COMMAND PALETTE & 360° INSPECTOR
