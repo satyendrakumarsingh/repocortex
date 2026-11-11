@@ -30,9 +30,9 @@ import { REPOS } from '../support/ports.mjs';
 const GROUPS = [
   ['', ['overview']],
   ['Understand the code', ['graph', 'search', 'metrics']],
-  ['Before you change something', ['blast', 'contract', 'verify', 'ownership', 'diff']],
-  ['How it runs', ['crossstack', 'tables', 'config', 'trace', 'estate']],
-  ['Quality', ['tests', 'governance', 'deps', 'accuracy']],
+  ['Before you change something', ['planchange', 'blast', 'contract', 'verify', 'ownership', 'diff']],
+  ['How it runs', ['crossstack', 'tables', 'events', 'config', 'trace', 'estate']],
+  ['Quality', ['tests', 'missed', 'governance', 'deps', 'accuracy']],
   ['For your AI agent', ['agent', 'retrieval']],
 ];
 const PILLARS = GROUPS.filter(([name]) => name !== '');
@@ -83,7 +83,7 @@ for (const key of Object.keys(REPOS)) {
       expect(rebuilt, 'the rail structure').toEqual(GROUPS);
     });
 
-    test('every one of the twenty entries reaches its screen and writes ?s= into the URL', async ({ page }) => {
+    test('every one of the twenty-three entries reaches its screen and writes ?s= into the URL', async ({ page }) => {
       await cold(page, repo);
       for (const screen of ALL) {
         await page.locator(`.nav[data-screen="${screen}"]`).click();
@@ -131,7 +131,7 @@ for (const key of Object.keys(REPOS)) {
         'rail entries are real buttons, not divs').toBe('BUTTON');
     });
 
-    test('the twenty-entry rail still scrolls as one row at 375x812 without widening the page', async ({ page }) => {
+    test('the twenty-three-entry rail still scrolls as one row at 375x812 without widening the page', async ({ page }) => {
       await page.setViewportSize({ width: 375, height: 812 });
       await cold(page, repo);
       const rail = page.locator('nav.rail');

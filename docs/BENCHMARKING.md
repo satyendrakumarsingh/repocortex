@@ -31,7 +31,7 @@ them as commands rather than as a table.
 ## Prerequisites
 
 ```bash
-CGO_ENABLED=0 go build -o /tmp/cortex ./cmd/cortex   # Go 1.25+
+CGO_ENABLED=0 go build -o /tmp/cortex ./cmd/cortex   # Go 1.26+
 ```
 
 Zero CGO is not incidental: it is what makes `go install` work without a C

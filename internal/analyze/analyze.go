@@ -26,6 +26,7 @@
 package analyze
 
 import (
+	"github.com/satyendrakumarsingh/repocortex/internal/capability"
 	"sort"
 	"strings"
 
@@ -124,7 +125,15 @@ func File(path string, src []byte, symbols []model.Symbol) Result {
 
 	enclosing := newEnclosureIndex(path, symbols)
 
+	// Test code registers routes and reads configuration for its own fixtures.
+	// Neither is served or deployed, so a route or setting that exists only in a
+	// test file is not an endpoint or a requirement of this service.
+	testCode := capability.IsTestPath(path)
+
 	for _, route := range api.Extract(path, src) {
+		if testCode {
+			break
+		}
 		sig := route.Signature()
 		fqn := endpointFQN(path, sig)
 		res.Symbols = append(res.Symbols, model.Symbol{
@@ -142,6 +151,10 @@ func File(path string, src []byte, symbols []model.Symbol) Result {
 			Exported:   true,
 			Confidence: route.Confidence,
 			Source:     model.SourceSourceCode,
+			// The handler's name, kept so a pass that sees the whole run can
+			// bind it when the handler lives in another file. Same-file
+			// bindings are written at parse time and do not need it.
+			Signature: route.Handler,
 		})
 		res.Exposures = append(res.Exposures, Exposure{
 			EndpointFQN: fqn,
@@ -197,6 +210,9 @@ func File(path string, src []byte, symbols []model.Symbol) Result {
 		})
 	}
 	for _, use := range cfg.Usages(path, src) {
+		if testCode {
+			break
+		}
 		res.ConfigReads = append(res.ConfigReads, ConfigRead{
 			Key:          use.Name,
 			Mechanism:    use.Mechanism,

@@ -162,7 +162,8 @@ func (g *Graph) LoadCSR(ctx context.Context, runID int64) (*CSRGraph, error) {
 	if err != nil {
 		return nil, fmt.Errorf("csr: begin tx for run %d: %w", runID, err)
 	}
-	defer tx.Rollback()
+	// Read-only transaction: Rollback is the normal release, its error is moot.
+	defer func() { _ = tx.Rollback() }()
 
 	// Pass 1: Stream node IDs and compute degree counts.
 	rows, err := tx.QueryContext(ctx, `
@@ -188,7 +189,7 @@ func (g *Graph) LoadCSR(ctx context.Context, runID int64) (*CSRGraph, error) {
 		if len(nodeToID) >= maxCSRIndex {
 			return 0, fmt.Errorf("csr: %d nodes exceeds the int32 index limit of %d", len(nodeToID)+1, maxCSRIndex)
 		}
-		idx := int32(len(nodeToID))
+		idx := int32(len(nodeToID)) //nolint:gosec // bounded by the maxCSRIndex check above
 		idToNode[id] = idx
 		nodeToID = append(nodeToID, id)
 		outDegree = append(outDegree, 0)

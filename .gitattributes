@@ -1,0 +1,4 @@
+# The API contract golden file is compared byte for byte against generated
+# output, so it must stay LF on Windows checkouts (autocrlf would convert it).
+*.golden text eol=lf
+*.golden.md text eol=lf

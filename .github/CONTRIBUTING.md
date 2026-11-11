@@ -4,7 +4,7 @@ Thanks for considering it. This document covers what you need to be productive.
 
 ## Getting set up
 
-Requires **Go 1.25+**. Nothing else — no C compiler, no CGO.
+Requires **Go 1.26+**. Nothing else — no C compiler, no CGO.
 
 ```bash
 git clone https://github.com/satyendrakumarsingh/repocortex && cd repocortex

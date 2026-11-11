@@ -50,16 +50,6 @@ func runAgent(t *testing.T, projectRoot string, args ...string) (string, error) 
 	return out.String(), err
 }
 
-func agentRepoFile(t *testing.T, rel string) string {
-	t.Helper()
-	// Tests run with the package directory as the working directory.
-	b, err := os.ReadFile(filepath.Join("..", "..", filepath.FromSlash(rel)))
-	if err != nil {
-		t.Fatalf("read %s: %v", rel, err)
-	}
-	return string(b)
-}
-
 // ------------------------------------------------------------------ drift
 
 // TestAgentGuidanceNamesOnlyRealTools stops the guidance from telling an agent

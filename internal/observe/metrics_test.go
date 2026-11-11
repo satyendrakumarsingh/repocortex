@@ -175,7 +175,7 @@ func TestParseFailureNormalisesLanguage(t *testing.T) {
 	seen := map[string]int64{}
 	for _, dp := range sum.DataPoints {
 		v, _ := dp.Attributes.Value(AttrLanguage)
-		seen[v.Emit()] = dp.Value
+		seen[v.String()] = dp.Value
 	}
 	if seen["go"] != 1 {
 		t.Errorf("go failures = %d, want 1", seen["go"])

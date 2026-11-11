@@ -38,15 +38,16 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  # Pinned to a PATCHED release, not the "1.25" line. govulncheck found 28
-  # standard-library vulnerabilities on go1.25.0; the fixes landed in 1.25.3+.
-  # A floating minor version would have quietly reintroduced them.
-  GO_VERSION: "1.25.13"
+  # Pinned to a PATCHED release, not the "1.26" line. govulncheck has repeatedly
+  # found standard-library vulnerabilities in earlier patch releases (28 on
+  # go1.25.0; more fixed only in 1.26.9+). A floating minor version would have
+  # quietly reintroduced them.
+  GO_VERSION: "1.26.11"
   # Pinned deliberately. `version: latest` is not reproducible — a golangci-lint
   # release can turn a green main red without a commit — and on this repo it was
   # actively wrong: golangci-lint-action@v6 resolves "latest" through the v1
   # manifest and installs v1.64.8, which cannot read a `version: "2"` config.
-  GOLANGCI_LINT_VERSION: "v2.12.2"
+  GOLANGCI_LINT_VERSION: "v2.15.0"
 
 jobs:
   # Tier 1 — every commit. Must stay fast.
@@ -148,6 +149,10 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@v4
+        with:
+          # TestPooledWalkReleasesItsDescriptors walks this checkout's own
+          # history; the default depth-1 clone has no parents to walk.
+          fetch-depth: 0
       - uses: actions/setup-go@v5
         with: { go-version: "${{ env.GO_VERSION }}", cache: true }
 
@@ -199,9 +204,11 @@ jobs:
       # means the two commands agree in unit tests and disagree in practice,
       # which is precisely the failure a fixture cannot catch.
       - name: compile → verify closes on this repository
+        shell: bash
         run: |
           set -euo pipefail
           go build -o /tmp/cortex ./cmd/cortex
+          /tmp/cortex init
           /tmp/cortex index
           /tmp/cortex resolve
           /tmp/cortex compile "Add a confidence floor to impact traversal" --json > /tmp/contract.json
@@ -227,6 +234,7 @@ jobs:
       # benchmark into a red build teaches everyone to ignore it. Make it a gate
       # when it is green.
       - name: retrieval benchmark on this repository (tracked, not gating)
+        shell: bash
         run: |
           set -euo pipefail
           /tmp/cortex bench fixtures/bench/self.yml || true
@@ -235,6 +243,7 @@ jobs:
       # The fixture benchmark IS a gate: it is small, it is green, and a
       # regression in it means the context engine broke.
       - name: retrieval benchmark on the bundled fixture (gating)
+        shell: bash
         run: |
           set -euo pipefail
           cd fixtures/payment-platform
@@ -255,6 +264,7 @@ jobs:
       # because the honest budget for a 425-file repo tells you nothing about a
       # 90,000-symbol one.
       - name: accuracy report runs end to end
+        shell: bash
         run: |
           set -euo pipefail
           start=$(date +%s)
@@ -278,6 +288,7 @@ jobs:
       # right gate for a USER's repository, where the committed document is the
       # artifact under review; here the claim under test is determinism.
       - name: generated documentation is byte-reproducible
+        shell: bash
         run: |
           set -euo pipefail
           /tmp/cortex docs --out /tmp/docs-a
@@ -297,7 +308,10 @@ jobs:
   portal-e2e:
     name: portal e2e (ci fixture)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # The suite takes about 5 minutes on a workstation and was cancelled at 20 on
+    # the hosted runner (the browser install, the Chromium download and a slower
+    # CPU together), so the limit is set above that, not to the workstation time.
+    timeout-minutes: 40
     needs: [lint]
     steps:
       - uses: actions/checkout@v4
@@ -310,8 +324,26 @@ jobs:
           cache-dependency-path: internal/web/e2e/package-lock.json
       - name: install the suite
         run: npm --prefix internal/web/e2e ci
+      # The browser is cached by Playwright version, and the install does not
+      # touch apt. --with-deps was dropped: it runs apt-get on every run, and the
+      # hosted runner image already carries the Chromium runtime libraries. When
+      # the package mirrors are unreachable (exit 100 in a run), this step used
+      # to fail the whole suite.
+      - name: restore the browser cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ hashFiles('internal/web/e2e/package-lock.json') }}
+
       - name: install the browser
-        run: cd internal/web/e2e && npx playwright install --with-deps chromium
+        run: |
+          cd internal/web/e2e
+          for attempt in 1 2 3; do
+            if npx playwright install chromium; then exit 0; fi
+            echo "::warning::playwright install attempt $attempt failed; retrying"
+            sleep 20
+          done
+          exit 1
       - name: run the ci tier
         env:
           CORTEX_E2E_TIER: ci
@@ -334,6 +366,10 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          # TestPooledWalkReleasesItsDescriptors walks this checkout's own
+          # history; the default depth-1 clone has no parents to walk.
+          fetch-depth: 0
       - uses: actions/setup-go@v5
         with: { go-version: "${{ env.GO_VERSION }}", cache: true }
 

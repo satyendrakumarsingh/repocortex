@@ -187,6 +187,11 @@ func prepareIndexerOutDir(raw string) (string, error) {
 	entries, err := os.ReadDir(abs)
 	switch {
 	case errors.Is(err, os.ErrNotExist):
+		// Windows reports ReadDir on a regular file as "path not found", which
+		// would otherwise surface as a confusing mkdir failure below.
+		if fi, statErr := os.Stat(abs); statErr == nil && !fi.IsDir() {
+			return "", fmt.Errorf("--out-dir %q is not a directory", raw)
+		}
 		if mkErr := os.MkdirAll(abs, 0o700); mkErr != nil {
 			return "", fmt.Errorf("--out-dir %q: create: %w", raw, mkErr)
 		}

@@ -98,6 +98,11 @@ func budget() time.Duration {
 // opener and cleaner, fsnotify's backend goroutine during a restart, and the
 // testing package's own. 16 sits in the empty space between those two
 // populations rather than splitting either.
+// harnessProducer stamps the harness registry and is passed to pipeline.Diff as
+// the running build. They must match: an empty or differing stamp makes Diff
+// treat every file as dirty, which would defeat the convergence oracle.
+const harnessProducer = "soak-harness"
+
 const goroutineSlack = 16
 
 // heapGrowthFactor and heapGrowthFloor gate the heap check, and BOTH must be
@@ -491,7 +496,7 @@ func newRepo(t *testing.T, nFiles int) *repo {
 		t.Fatalf("migrate: %v", err)
 	}
 	r.db = db
-	r.reg = registry.New(db)
+	r.reg = registry.New(db, registry.WithProducerVersion(harnessProducer))
 
 	walker, err := acqfs.NewWalker(root, config.Defaults())
 	if err != nil {
@@ -578,7 +583,7 @@ func (r *repo) applyChange(ctx context.Context, ch pipeline.FileChange) (raced b
 
 // reconcile is the full walk-and-diff path that cli/watch.go falls back to.
 func (r *repo) reconcile(ctx context.Context) (pipeline.IncrementalStats, error) {
-	changes, err := pipeline.Diff(ctx, r.reg, r.runID, r.walker)
+	changes, err := pipeline.Diff(ctx, r.reg, r.runID, r.walker, harnessProducer)
 	if err != nil {
 		return pipeline.IncrementalStats{}, err
 	}
@@ -593,7 +598,7 @@ func (r *repo) reconcile(ctx context.Context) (pipeline.IncrementalStats, error)
 // once the tree stops moving the index must catch up exactly. Anything left
 // here after quiesce is an event that was lost permanently rather than late.
 func (r *repo) divergence(ctx context.Context) ([]pipeline.FileChange, error) {
-	changes, err := pipeline.Diff(ctx, r.reg, r.runID, r.walker)
+	changes, err := pipeline.Diff(ctx, r.reg, r.runID, r.walker, harnessProducer)
 	if err != nil {
 		return nil, err
 	}

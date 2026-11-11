@@ -140,7 +140,7 @@ func injectAgentGuidance(cmd *cobra.Command, root string, dryRun bool) error {
 		if err != nil {
 			return fmt.Errorf("append guidance to %s: %w", rel, err)
 		}
-		defer f.Close()
+		defer func() { _ = f.Close() }()
 		if _, err := f.WriteString(toAppend); err != nil {
 			return fmt.Errorf("write guidance to %s: %w", rel, err)
 		}
@@ -225,7 +225,7 @@ Run "cortex agent" to print the manual registration for any client not covered h
 					continue
 				}
 
-				if err := os.MkdirAll(dir, 0o755); err != nil {
+				if err := os.MkdirAll(dir, 0o750); err != nil {
 					return fmt.Errorf("create directory for %s: %w", t.Client, err)
 				}
 				if err := os.WriteFile(t.Path, merged, 0o600); err != nil {

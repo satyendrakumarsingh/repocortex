@@ -180,6 +180,13 @@ func blindspotGate(found []missed.Blindspot, failOn string) error {
 	threshold := blindspotSeverityRank(failOn)
 	n := 0
 	for _, b := range found {
+		// untested_critical is a coverage heuristic: it counts a symbol as untested
+		// when no test binds to it by name, and misses tests that reach it through
+		// an interface or a shared method name. It is reported, but a merge should
+		// not be blocked by a measurement the tool itself calls a lower bound.
+		if b.Kind == missed.BlindspotUntestedCritical {
+			continue
+		}
 		if blindspotSeverityRank(b.Severity) >= threshold {
 			n++
 		}

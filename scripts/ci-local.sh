@@ -38,8 +38,8 @@ repo_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$repo_root"
 
 # Keep these in lockstep with `env:` in .github/workflows/ci.yml.
-GO_VERSION="1.25.13"
-GOLANGCI_LINT_VERSION="v2.12.2"
+GO_VERSION="1.26.11"
+GOLANGCI_LINT_VERSION="v2.15.0"
 TEST_TIMEOUT="20m"
 
 QUICK=0

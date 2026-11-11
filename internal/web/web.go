@@ -396,7 +396,7 @@ func (s *Server) routes() *http.ServeMux {
 		return mux
 	}
 	files := http.FileServerFS(sub)
-	mux.Handle("GET /assets/", http.StripPrefix("/assets/", files))
+	mux.HandleFunc("GET /assets/", s.serveAssets(files))
 	mux.HandleFunc("GET /{$}", s.serveIndex(sub))
 	// Any other path is the SPA shell too, so a deep link (#graph) survives a
 	// reload. It is still a 404 for anything under /api that does not exist,
@@ -898,3 +898,10 @@ var knownEdgeKinds = func() map[model.EdgeKind]struct{} {
 	}
 	return m
 }()
+
+// serveAssets serves the embedded static files under /assets/. A named handler
+// rather than an anonymous wrapper, so the route is attributed to the code that
+// serves it.
+func (s *Server) serveAssets(files http.Handler) http.HandlerFunc {
+	return http.StripPrefix("/assets/", files).ServeHTTP
+}

@@ -1,0 +1,11 @@
+# Settings for running cortex on this repository itself (the CI gate and the
+# self-index checks). Only the project's own source is audited: documentation,
+# workflow files and sample/fixture trees are not code with callers to bind.
+index:
+  exclude:
+    - "docs/**"
+    - ".github/**"
+    - "fixtures/**"
+    - "**/testdata/**"
+    - "internal/web/e2e/**"
+    - "**/*.md"

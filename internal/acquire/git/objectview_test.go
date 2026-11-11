@@ -192,6 +192,13 @@ func packedRepo(tb testing.TB) *Repo {
 		dir = parent
 	}
 
+	// A shallow clone (CI's default depth-1 checkout) records a boundary whose
+	// parents are absent, so a history walk fails with "object not found". That
+	// is a property of the checkout, not of the descriptor pool under test.
+	if _, err := os.Stat(filepath.Join(dir, ".git", "shallow")); err == nil {
+		tb.Skip("this checkout is shallow; there is no history to walk")
+	}
+
 	packs, _ := filepath.Glob(filepath.Join(dir, ".git", "objects", "pack", "*.pack"))
 	if len(packs) == 0 {
 		tb.Skip("this checkout has no packfile, so the descriptor pool has nothing to hold open")

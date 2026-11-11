@@ -50,6 +50,10 @@ type ResolveOptions struct {
 	// references, and widening it to carry a deployment pass's counters would
 	// put manifest analysis inside the reference resolver.
 	OnInfraUnits func(InfraBindSummary)
+
+	// OnHandlers reports the outcome of binding endpoint handlers across files,
+	// if set. A callback for the same reason OnClientCalls is one.
+	OnHandlers func(registry.HandlerBindStats)
 }
 
 // DefaultResolveBatch is how many edges accumulate before a write.
@@ -225,6 +229,17 @@ func Resolve(
 	// A binding failure fails the pass. The rows are staged and idempotent, so
 	// the alternative — swallowing the error — would leave CONSUMES silently
 	// absent, which is the failure mode this whole feature exists to end.
+	// Endpoint handlers declared in another file bind here for the same reason.
+	// Without this pass the route is reported with no handler at all, and a
+	// blindspot gate counts every such route as an unmapped endpoint.
+	handlers, err := reg.BindEndpointHandlers(ctx, runID)
+	if err != nil {
+		return stats, fmt.Errorf("bind endpoint handlers: %w", err)
+	}
+	if opts.OnHandlers != nil {
+		opts.OnHandlers(handlers)
+	}
+
 	calls, err := reg.BindClientCalls(ctx, runID)
 	if err != nil {
 		return stats, fmt.Errorf("bind client calls: %w", err)

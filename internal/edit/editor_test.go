@@ -692,3 +692,28 @@ func TestCommitReleasesTheLockOnFailure(t *testing.T) {
 	}
 	noTempFiles(t, root)
 }
+
+// TestOnDiskSpellingKeepsTheEntrysName: where the filesystem ignores case, a
+// differently spelled path that opens a file resolves to the spelling the
+// directory holds. onDiskSpelling is only ever called with a path that was just
+// read, so on a case-sensitive filesystem the differently spelled path is not a
+// valid input and there is nothing to assert.
+func TestOnDiskSpellingKeepsTheEntrysName(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "sub/store.go", storeSrc)
+	r, err := os.OpenRoot(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = r.Close() }()
+
+	if got := onDiskSpelling(r, filepath.Join("sub", "store.go")); got != filepath.Join("sub", "store.go") {
+		t.Errorf("an exact spelling changed: %q", got)
+	}
+	if _, err := r.Stat(filepath.Join("SUB", "STORE.GO")); err != nil {
+		t.Skip("case-sensitive filesystem: a differently cased path does not open the file")
+	}
+	if got := onDiskSpelling(r, filepath.Join("SUB", "STORE.GO")); got != filepath.Join("sub", "store.go") {
+		t.Errorf("case-insensitive filesystem: got %q, want sub/store.go", got)
+	}
+}

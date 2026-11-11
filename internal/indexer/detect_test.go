@@ -2,6 +2,7 @@ package indexer
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -66,6 +67,7 @@ func TestDetectMonorepo(t *testing.T) {
 		// Both a Node and a Python project in one directory is genuinely two
 		// projects and must produce two steps.
 		"tools/mixed/package.json":   "{}",
+		"tools/mixed/index.js":       "",
 		"tools/mixed/pyproject.toml": "",
 		// Must not be detected: build output and dependencies.
 		"node_modules/left-pad/package.json": "{}",
@@ -191,5 +193,28 @@ func TestSlugForIsPathSafe(t *testing.T) {
 		default:
 			t.Fatalf("slug %q contains %q", slug, r)
 		}
+	}
+}
+
+// A bare package.json with no JavaScript or TypeScript beneath it is not a
+// TypeScript project: scip-typescript would index nothing and report a failure.
+func TestBarePackageJSONWithoutSourcesIsNotAProject(t *testing.T) {
+	root := writeRepo(t, map[string]string{
+		"e2e/package.json": "{}",
+		"e2e/specs/a.mjs":  "",
+		"app/package.json": "{}",
+		"app/src/index.ts": "",
+	})
+	got, err := Detect(context.Background(), root)
+	if err != nil {
+		t.Fatalf("Detect: %v", err)
+	}
+	var dirs []string
+	for _, p := range got {
+		dirs = append(dirs, string(p.Language)+":"+p.Dir)
+	}
+	want := []string{"typescript:app"}
+	if fmt.Sprint(dirs) != fmt.Sprint(want) {
+		t.Fatalf("got %v, want %v", dirs, want)
 	}
 }
