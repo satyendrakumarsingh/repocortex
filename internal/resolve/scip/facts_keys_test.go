@@ -53,5 +53,10 @@ func TestRelationKeyIdentifiesOneRelationship(t *testing.T) {
 	}
 }
 
-// keyOf is the lookup a caller uses to deduplicate relations.
-func keyOf(r Relation) Key { return r.Key() }
+// keyOf is the lookup a caller uses to deduplicate relations. The method call
+// sits on a line of its own: on one line with the `Key` return type it would be
+// two compiler targets, and the call would not be bound to a single definition.
+func keyOf(r Relation) Key {
+	k := r.Key()
+	return k
+}
