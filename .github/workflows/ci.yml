@@ -204,6 +204,7 @@ jobs:
       # means the two commands agree in unit tests and disagree in practice,
       # which is precisely the failure a fixture cannot catch.
       - name: compile → verify closes on this repository
+        shell: bash
         run: |
           set -euo pipefail
           go build -o /tmp/cortex ./cmd/cortex
@@ -233,6 +234,7 @@ jobs:
       # benchmark into a red build teaches everyone to ignore it. Make it a gate
       # when it is green.
       - name: retrieval benchmark on this repository (tracked, not gating)
+        shell: bash
         run: |
           set -euo pipefail
           /tmp/cortex bench fixtures/bench/self.yml || true
@@ -241,6 +243,7 @@ jobs:
       # The fixture benchmark IS a gate: it is small, it is green, and a
       # regression in it means the context engine broke.
       - name: retrieval benchmark on the bundled fixture (gating)
+        shell: bash
         run: |
           set -euo pipefail
           cd fixtures/payment-platform
@@ -261,6 +264,7 @@ jobs:
       # because the honest budget for a 425-file repo tells you nothing about a
       # 90,000-symbol one.
       - name: accuracy report runs end to end
+        shell: bash
         run: |
           set -euo pipefail
           start=$(date +%s)
@@ -284,6 +288,7 @@ jobs:
       # right gate for a USER's repository, where the committed document is the
       # artifact under review; here the claim under test is determinism.
       - name: generated documentation is byte-reproducible
+        shell: bash
         run: |
           set -euo pipefail
           /tmp/cortex docs --out /tmp/docs-a
