@@ -238,11 +238,11 @@ func mcpClients(home, root string) []mcpClient {
 // manualClients are configured through their own CLI or UI. Their steps are
 // printed by `cortex agent` and `cortex install --list`.
 func manualClients() []manualClient {
-	args := func(s agentServerSpec) string { return strings.Join(append([]string{s.Command}, s.Args...), " ") }
+	args := func(s agentServerSpec) string { return shellJoin(append([]string{s.Command}, s.Args...)) }
 	return []manualClient{
 		{Name: "Amazon Q Developer CLI", Docs: "https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/command-line-mcp-config-CLI.html",
 			Step: func(s agentServerSpec) string {
-				return fmt.Sprintf("q mcp add --name %s --command %s --args '%s'", s.Name, s.Command, jsonArray(s.Args))
+				return fmt.Sprintf("q mcp add --name %s --command %s --args %s", shellWord(s.Name), shellWord(s.Command), shellWord(jsonArray(s.Args)))
 			}},
 		{Name: "Cline (VS Code extension)", Docs: "https://docs.cline.bot/mcp/configuring-mcp-servers",
 			Step: func(s agentServerSpec) string {
@@ -254,17 +254,17 @@ func manualClients() []manualClient {
 			}},
 		{Name: "Crush", Docs: "https://github.com/charmbracelet/crush/blob/main/docs/config/README.md",
 			Step: func(s agentServerSpec) string {
-				parts := []string{"crush mcp add", s.Name, "--type stdio --command", s.Command}
+				parts := []string{"crush mcp add", shellWord(s.Name), "--type stdio --command", shellWord(s.Command)}
 				for _, a := range s.Args {
-					parts = append(parts, "--args", a)
+					parts = append(parts, "--args", shellWord(a))
 				}
 				return strings.Join(parts, " ")
 			}},
 		{Name: "Jan", Docs: "https://www.jan.ai/docs/agent/cli",
 			Step: func(s agentServerSpec) string {
-				parts := []string{"jan cli mcp add", s.Name, "--command", s.Command}
+				parts := []string{"jan cli mcp add", shellWord(s.Name), "--command", shellWord(s.Command)}
 				for _, a := range s.Args {
-					parts = append(parts, "--arg", a)
+					parts = append(parts, "--arg", shellWord(a))
 				}
 				return strings.Join(append(parts, "--active"), " ")
 			}},
@@ -274,7 +274,7 @@ func manualClients() []manualClient {
 			}},
 		{Name: "OpenCode", Docs: "https://opencode.ai/docs/mcp-servers/",
 			Step: func(s agentServerSpec) string {
-				return fmt.Sprintf("opencode mcp add %s --global -- %s", s.Name, args(s))
+				return fmt.Sprintf("opencode mcp add %s --global -- %s", shellWord(s.Name), args(s))
 			}},
 		{Name: "Qoder, Lingma, CodeBuddy and Trae IDEs", Docs: "https://docs.qoder.com/user-guide/chat/model-context-protocol",
 			Step: func(s agentServerSpec) string {
@@ -282,7 +282,7 @@ func manualClients() []manualClient {
 			}},
 		{Name: "Raycast, Msty, Cherry Studio, 5ire", Docs: "https://manual.raycast.com/ai/model-context-protocol",
 			Step: func(s agentServerSpec) string {
-				return "add a stdio server in the app's MCP settings: command " + s.Command + ", arguments " + strings.Join(s.Args, " ")
+				return "add a stdio server in the app's MCP settings: command " + shellWord(s.Command) + ", arguments " + shellJoin(s.Args)
 			}},
 		{Name: "Roo Code", Docs: "https://roocodeinc.github.io/Roo-Code/features/mcp/using-mcp-in-roo",
 			Step: func(s agentServerSpec) string {
@@ -292,6 +292,27 @@ func manualClients() []manualClient {
 }
 
 func jsonArray(v []string) string { return string(mustJSON(v)) }
+
+// shellWord makes s one word for a POSIX shell. Words made only of safe
+// characters are returned as they are, so typical commands stay readable;
+// anything else is wrapped in single quotes with embedded quotes escaped.
+func shellWord(s string) string {
+	if s != "" && strings.IndexFunc(s, func(r rune) bool {
+		return (r < 'a' || r > 'z') && (r < 'A' || r > 'Z') && (r < '0' || r > '9') && !strings.ContainsRune("-_./:=@%+,", r)
+	}) < 0 {
+		return s
+	}
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
+// shellJoin quotes each word and joins them with spaces.
+func shellJoin(words []string) string {
+	q := make([]string, len(words))
+	for i, w := range words {
+		q[i] = shellWord(w)
+	}
+	return strings.Join(q, " ")
+}
 
 func mustJSON(v any) []byte {
 	b, err := json.Marshal(v)

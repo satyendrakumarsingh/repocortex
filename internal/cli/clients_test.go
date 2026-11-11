@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -311,5 +313,33 @@ func TestRulesUpdateExistingAgentFilesAndWriteCLIGuidanceForAider(t *testing.T) 
 	conv, _ := os.ReadFile(filepath.Join(root, "CONVENTIONS.md"))
 	if !strings.Contains(string(conv), cliGuidanceOpen) || !strings.HasPrefix(string(conv), "# notes\n") {
 		t.Errorf("CONVENTIONS.md should keep its content and gain the command-line block:\n%s", conv)
+	}
+}
+
+func TestShellWordRoundTripsThroughAShell(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX shell quoting")
+	}
+	for _, in := range []string{"plain", "/a b/c", "it's", `{"x":["--project","/o'k"]}`, "", "$HOME `x`"} {
+		out, err := exec.Command("sh", "-c", "printf %s "+shellWord(in)).Output()
+		if err != nil {
+			t.Fatalf("%q: %v", in, err)
+		}
+		if string(out) != in {
+			t.Errorf("shellWord(%q) came back as %q", in, out)
+		}
+	}
+	if got := shellWord("/usr/bin/cortex"); got != "/usr/bin/cortex" {
+		t.Errorf("a safe word should stay unquoted, got %s", got)
+	}
+}
+
+func TestManualStepsQuoteAProjectPathWithSpaces(t *testing.T) {
+	spec := agentServerSpec{Name: "cortex", Command: "cortex", Args: []string{"--project", "/My Repos/it's here", "serve"}}
+	for _, m := range manualClients() {
+		step := m.Step(spec)
+		if strings.Contains(step, " /My Repos/") {
+			t.Errorf("%s: path with spaces is not quoted: %s", m.Name, step)
+		}
 	}
 }
