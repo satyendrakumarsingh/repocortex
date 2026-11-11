@@ -288,6 +288,10 @@ func declaresClassSoon(lines []string, from int) bool {
 var (
 	// http.HandleFunc("/path", handler) / mux.HandleFunc("/path", handler)
 	goHandleFunc = regexp.MustCompile(`\.\s*(HandleFunc|Handle)\s*\(\s*"([^"]*)"\s*,\s*([\w.]+)?`)
+	// Go 1.22 ServeMux patterns carry the method in the pattern itself:
+	// mux.HandleFunc("GET /api/health", h). The optional host and the path
+	// follow the method, separated by a space.
+	goPatternMethod = regexp.MustCompile(`^([A-Z]+)\s+(\S*)$`)
 	// r.Get("/path", handler) — chi, gin, echo, fiber all share this shape.
 	goRouterVerb = regexp.MustCompile(`\.\s*(Get|Post|Put|Patch|Delete|GET|POST|PUT|PATCH|DELETE)\s*\(\s*"([^"]*)"\s*,\s*([\w.]+)?`)
 	// mux.Handle("/path", ...).Methods("POST") — gorilla/mux.
@@ -319,6 +323,15 @@ func extractGo(lines []string) []Route {
 				Path: m[2], Handler: lastIdent(m[3]),
 				Framework: FrameworkGoHTTP, Line: i + 1,
 				Confidence: model.ConfidenceHigh,
+			}
+			if pm := goPatternMethod.FindStringSubmatch(m[2]); pm != nil {
+				// A verb this package does not report means the registration is
+				// not one of the endpoints it claims to cover (same rule as the
+				// gorilla .Methods gate below), so it is skipped, not widened.
+				if !httpMethods[pm[1]] {
+					continue
+				}
+				r.Method, r.Path = pm[1], pm[2]
 			}
 			// gorilla/mux chains .Methods("POST") onto the registration.
 			//

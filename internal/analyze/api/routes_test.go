@@ -84,6 +84,32 @@ func main() {
 	}
 }
 
+// TestExtractGoMethodPatterns: Go 1.22's ServeMux takes the method inside the
+// pattern. Reading "GET /api/health" as a path made every such route an ANY
+// route on a path no client could call.
+func TestExtractGoMethodPatterns(t *testing.T) {
+	src := `package main
+
+func routes(mux *http.ServeMux) {
+	mux.HandleFunc("GET /api/health", s.handleHealth)
+	mux.HandleFunc("POST /api/reindex", s.handleReindex)
+	mux.HandleFunc("/assets/", s.handleAssets)
+	mux.HandleFunc("BREW /tea", teapot)
+}`
+	routes := Extract("main.go", []byte(src))
+	assertRoute(t, routes, "GET /api/health", "handleHealth")
+	assertRoute(t, routes, "POST /api/reindex", "handleReindex")
+	assertRoute(t, routes, "ANY /assets/", "handleAssets")
+	for _, r := range routes {
+		if strings.Contains(r.Path, " ") {
+			t.Errorf("a method leaked into the path: %q", r.Path)
+		}
+		if r.Path == "/tea" {
+			t.Errorf("a verb the package does not report was widened to ANY: %s %s", r.Method, r.Path)
+		}
+	}
+}
+
 func TestExtractPython(t *testing.T) {
 	src := `from fastapi import FastAPI
 
