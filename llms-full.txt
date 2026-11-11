@@ -14,7 +14,7 @@ An AI agent asks RepoCortex a question instead of searching: what a task touches
 
 ## Facts
 - Command: `cortex`; alias `repocortex`. Requires Go 1.26+ to build from source; no CGO.
-- Protocol: MCP over stdio. `cortex install --rules` configures 30 agents, including Claude Code, Codex CLI, Copilot CLI, Gemini CLI, Cursor, VS Code, Visual Studio, Windsurf, Devin Desktop, Antigravity, Claude Desktop, Zed, Goose, Kiro, Junie, Amp, Qwen Code, Continue and Warp, and writes AGENTS.md guidance. Any stdio MCP client works; Aider uses the CLI through CONVENTIONS.md. Full list: docs/guides/coding-agents.md.
+- Protocol: MCP over stdio, or Streamable HTTP with `cortex serve --http 127.0.0.1:7788` (bearer token required, loopback by default) for ChatGPT, Android Studio and other remote-only clients. `cortex install --rules` configures 30 agents, including Claude Code, Codex CLI, Copilot CLI, Gemini CLI, Cursor, VS Code, Visual Studio, Windsurf, Devin Desktop, Antigravity, Claude Desktop, Zed, Goose, Kiro, Junie, Amp, Qwen Code, Continue and Warp, and writes AGENTS.md guidance. Any stdio MCP client works; Aider uses the CLI through CONVENTIONS.md. Full list: docs/guides/coding-agents.md.
 - Confidence tiers: `exact` (proven by a compiler index, SCIP), `high` (syntax tree with imports; 94.2–100% precise per language in measurements), `medium` (inferred; under 50%), `low` (loose name match; hidden by default). Details: docs/accuracy.md.
 - Languages: 206 tree-sitter grammars. Typed (3): Go, Java, TypeScript. Resolved (11): C, C#, C++, JavaScript, Kotlin, PHP, Python, Ruby, Rust, Scala, TSX. Parsed (192): definitions and search only.
 - Privacy: no network requests while indexing or serving, no telemetry. The opt-in `cortex indexers install` is the only command that downloads anything.
@@ -1902,7 +1902,23 @@ time=… level=INFO msg="serving MCP on stdio" project=payment-platform profile=
   the repository's configuration.
 - The index does not see uncommitted edits; the metadata says so on every call.
 
-**Useful flags:** `--list-tools`.
+With `--http`, for clients that only connect to a URL, stderr shows the endpoint
+and how to send the token instead:
+
+```console
+$ cortex serve --http 127.0.0.1:7788
+MCP over HTTP: http://127.0.0.1:7788/mcp
+Token: new for this run, in /path/to/repo/.cortex/mcp-token (set CORTEX_MCP_TOKEN to keep one)
+Send it as 'Authorization: Bearer <token>', or use http://127.0.0.1:7788/mcp/<token> if the client cannot set headers.
+```
+
+- A request without the token gets `401`; a `Host` or `Origin` that is not this
+  machine (or a host given with `--allowed-host`) gets `403`.
+- The token itself is never printed. A generated one is in `.cortex/mcp-token`,
+  readable only by you; with `CORTEX_MCP_TOKEN` set the line reads
+  `Token: from CORTEX_MCP_TOKEN`.
+
+**Useful flags:** `--list-tools`, `--http`, `--allow-remote`, `--allowed-host`.
 
 ### `cortex agent`
 
@@ -3830,8 +3846,10 @@ and make sure it is on `PATH`.
 
 ### Any other MCP client
 
-RepoCortex speaks MCP over stdio. Whatever config format your client uses, these
-are the three facts it needs:
+RepoCortex speaks MCP over stdio, and over Streamable HTTP with
+`cortex serve --http 127.0.0.1:7788` for clients that only take a URL (see the
+[coding agents guide](guides/coding-agents.md#remote-mcp-over-http)). For a
+stdio client, whatever config format it uses, these are the three facts it needs:
 
 | | |
 | --- | --- |
@@ -5401,15 +5419,25 @@ THIRD_PARTY.md is current (147 modules)
 
 ### `serve`
 
-**Answers:** runs an MCP server on stdio, exposing the index to a coding agent.
+**Answers:** runs an MCP server on stdio, or on Streamable HTTP with `--http`,
+exposing the index to a coding agent.
 
 | Flag | Effect |
 |---|---|
 | `--list-tools` | print the exposed tools and exit |
+| `--http host:port` | serve MCP over Streamable HTTP at `/mcp` instead of stdio, for clients that only accept a remote server |
+| `--allow-remote` | with `--http`, allow a non-loopback listen address |
+| `--allowed-host name` | with `--http`, also accept this `Host`/`Origin` hostname, such as a tunnel's (repeatable) |
 
 ```bash
 claude mcp add cortex -- cortex --project /path/to/repo serve
+cortex --project /path/to/repo serve --http 127.0.0.1:7788
 ```
+
+Over HTTP every request needs the token from `CORTEX_MCP_TOKEN`, or the one
+generated for the run and written to `.cortex/mcp-token` (mode 0600), as `Authorization: Bearer <token>` or as the last path
+segment (`/mcp/<token>`). See the
+[coding agents guide](guides/coding-agents.md#remote-mcp-over-http).
 
 The tool set is governed by `mcp.profile` in `.cortex.yml` — `minimal`
 (default), `standard`, `full`. The default is deliberately small: every tool's

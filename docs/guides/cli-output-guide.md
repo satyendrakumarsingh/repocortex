@@ -1839,7 +1839,23 @@ time=… level=INFO msg="serving MCP on stdio" project=payment-platform profile=
   the repository's configuration.
 - The index does not see uncommitted edits; the metadata says so on every call.
 
-**Useful flags:** `--list-tools`.
+With `--http`, for clients that only connect to a URL, stderr shows the endpoint
+and how to send the token instead:
+
+```console
+$ cortex serve --http 127.0.0.1:7788
+MCP over HTTP: http://127.0.0.1:7788/mcp
+Token: new for this run, in /path/to/repo/.cortex/mcp-token (set CORTEX_MCP_TOKEN to keep one)
+Send it as 'Authorization: Bearer <token>', or use http://127.0.0.1:7788/mcp/<token> if the client cannot set headers.
+```
+
+- A request without the token gets `401`; a `Host` or `Origin` that is not this
+  machine (or a host given with `--allowed-host`) gets `403`.
+- The token itself is never printed. A generated one is in `.cortex/mcp-token`,
+  readable only by you; with `CORTEX_MCP_TOKEN` set the line reads
+  `Token: from CORTEX_MCP_TOKEN`.
+
+**Useful flags:** `--list-tools`, `--http`, `--allow-remote`, `--allowed-host`.
 
 ### `cortex agent`
 

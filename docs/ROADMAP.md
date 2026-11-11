@@ -20,7 +20,6 @@ date; items move to the [CHANGELOG](../CHANGELOG.md) when they ship.
 | Item | Status | Why it matters |
 |---|---|---|
 | Reusable GitHub Action (`uses: satyendrakumarsingh/repocortex@v1`) | Planned | Today the change-safety gate is a workflow you copy. A versioned action is one line and updates itself. |
-| Streamable HTTP transport for `cortex serve` | Planned | ChatGPT and Android Studio accept only remote MCP. Bound to `127.0.0.1` with a token by default. |
 | Install links for agents | Exploring | Cursor, VS Code and LM Studio accept install deeplinks; a link per agent in the docs and the portal saves a step. |
 | Editor extension (VS Code) | Exploring | Blast radius and callers inline, from the same local index the agent uses. |
 | Recorded demo | Planned | A short screen recording of an agent calling `get_task_context` and `impact_analysis`. |

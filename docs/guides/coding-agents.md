@@ -1,7 +1,9 @@
 # Coding agents
 
-RepoCortex is an MCP server that speaks stdio: `cortex --project <repo> serve`.
-Any agent that can launch a local MCP server can use it. This page lists every
+RepoCortex is an MCP server. It speaks stdio (`cortex --project <repo> serve`)
+for agents that launch a local server, and Streamable HTTP
+(`cortex serve --http 127.0.0.1:7788`) for agents that only connect to a URL.
+Any MCP client can use one of the two. This page lists every
 agent we know of, how RepoCortex reaches it, and what is missing for the few that
 cannot use it yet.
 
@@ -10,6 +12,7 @@ cannot use it yet.
 | [Configured automatically](#configured-automatically) | 30 agents that `cortex install` writes the config for |
 | [Set up by hand](#set-up-by-hand) | Agents configured through their own command or settings screen |
 | [Agents without local MCP](#agents-without-local-mcp) | Aider, Plandex, ChatGPT, Android Studio, and how each is served |
+| [Remote MCP over HTTP](#remote-mcp-over-http) | `cortex serve --http`: tokens, hosts, tunnels |
 | [Guidance files](#guidance-files) | What `--rules` writes so the agent reaches for the graph first |
 | [How `cortex install` edits config files](#how-cortex-install-edits-config-files) | The merge rules that keep your other servers safe |
 | [Adding an agent](#adding-an-agent) | How to add support for one we have missed |
@@ -96,14 +99,46 @@ step with your project path already filled in.
 |---|---|---|---|
 | [Aider](https://aider.chat/docs/usage/conventions.html) | No MCP. Reads a conventions file and runs shell commands. | `cortex install --rules` writes a `CONVENTIONS.md` block that tells Aider to run `cortex context`, `cortex callers` and `cortex impact`. Load it with `aider --read CONVENTIONS.md`. | Nothing in RepoCortex. Aider gains MCP or keeps using the CLI. |
 | [Plandex](https://docs.plandex.ai/) | No MCP. Loads files and command output into context. | Load command output: `cortex context "<task>" > ctx.md`, then `plandex load ctx.md`. | Nothing in RepoCortex. |
-| [ChatGPT (developer mode)](https://platform.openai.com/docs/guides/developer-mode) | Remote MCP over HTTPS only. | Not reachable: `cortex serve` speaks stdio. | A Streamable HTTP transport in `cortex serve` (see [Roadmap](../ROADMAP.md)), exposed through a tunnel you control. |
-| [Android Studio (Gemini)](https://developer.android.com/studio/gemini/add-mcp-server) | Remote MCP over HTTP only. | Not reachable: `cortex serve` speaks stdio. | The same Streamable HTTP transport, bound to `127.0.0.1` with a token. |
+| [ChatGPT (developer mode)](https://platform.openai.com/docs/guides/developer-mode) | Remote MCP over HTTPS only, from OpenAI's servers. | `cortex serve --http 127.0.0.1:7788 --allowed-host <tunnel host>` behind an HTTPS tunnel you run; the connector URL is `https://<tunnel host>/mcp/<token>`. See [Remote MCP over HTTP](#remote-mcp-over-http). | Nothing in RepoCortex. |
+| [Android Studio (Gemini)](https://developer.android.com/studio/gemini/add-mcp-server) | Remote MCP over HTTP only. | `cortex serve --http 127.0.0.1:7788`, then add `http://127.0.0.1:7788/mcp` with an `Authorization: Bearer <token>` header in its `mcp.json`. | Nothing in RepoCortex. |
 
 Every agent can also use the CLI directly. `cortex context`, `cortex callers`,
 `cortex impact` and `cortex tests` print plain text an agent can read from any
 shell tool.
 
-## Guidance files
+## Remote MCP over HTTP
+
+```bash
+export CORTEX_MCP_TOKEN="$(openssl rand -hex 32)"   # optional; otherwise one is generated per run into .cortex/mcp-token
+cortex --project /path/to/repo serve --http 127.0.0.1:7788
+```
+
+```console
+MCP over HTTP: http://127.0.0.1:7788/mcp
+Token: from CORTEX_MCP_TOKEN
+Send it as 'Authorization: Bearer <token>', or use http://127.0.0.1:7788/mcp/<token> if the client cannot set headers.
+```
+
+| Protection | What it does |
+|---|---|
+| Token on every request | `Authorization: Bearer <token>`, or the token as the last path segment for clients that only take a URL. Compared in constant time; a missing or wrong token gets `401`. `CORTEX_MCP_TOKEN` must be at least 24 characters. |
+| Loopback by default | `--http` refuses a non-loopback address such as `0.0.0.0:7788` unless `--allow-remote` is given. |
+| Host check | Requests whose `Host` is not this machine or a name in `--allowed-host` get `403`, which blocks DNS rebinding. |
+| Origin check | A request with an `Origin` that is not this machine or an allowed host gets `403`, so a web page open in your browser cannot call the server. |
+| Read-only index | The server opens `.cortex/index.db` read-only, over HTTP as over stdio. |
+
+**A client on this machine** (Android Studio, or any client that takes a URL and
+headers) connects to `http://127.0.0.1:7788/mcp` with the bearer header.
+
+**A cloud client** (ChatGPT) cannot reach `127.0.0.1`. Run an HTTPS tunnel you
+trust to `127.0.0.1:7788`, start the server with `--allowed-host` set to the
+tunnel's hostname, and give the client `https://<tunnel host>/mcp/<token>`.
+Anyone with that URL can query your index while the server runs, so keep the
+token secret, stop the server when you are done, and use a new token next time.
+The path form puts the token in the URL, which proxies may log; prefer the
+header wherever the client supports it.
+
+
 
 An MCP server alone does not make an agent use it; the agent also needs to know
 *when* to ask. `cortex install --rules` adds a short, marked block:

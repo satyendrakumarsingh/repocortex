@@ -75,8 +75,10 @@ and make sure it is on `PATH`.
 
 ### Any other MCP client
 
-RepoCortex speaks MCP over stdio. Whatever config format your client uses, these
-are the three facts it needs:
+RepoCortex speaks MCP over stdio, and over Streamable HTTP with
+`cortex serve --http 127.0.0.1:7788` for clients that only take a URL (see the
+[coding agents guide](guides/coding-agents.md#remote-mcp-over-http)). For a
+stdio client, whatever config format it uses, these are the three facts it needs:
 
 | | |
 | --- | --- |
