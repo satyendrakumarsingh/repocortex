@@ -136,7 +136,6 @@ AgentPayload.mcp_tools.benefit
 AgentPayload.mcp_tools.category
 AgentPayload.mcp_tools.description
 AgentPayload.mcp_tools.name
-AgentPayload.mcp_tools.savings_pct
 AgentPayload.project_name
 AgentPayload.query_benchmarks
 AgentPayload.query_benchmarks.explanation

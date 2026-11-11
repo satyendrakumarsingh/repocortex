@@ -11413,7 +11413,7 @@ async function drawAgent() {
     ' Connecting Claude, Cursor, Gemini, or Antigravity to RepoCortex MCP saves an estimated ',
     B(num(tm.total_tokens_saved) + ' tokens'), ' across this repository.'
   ], {
-    support: 'Standard Model Context Protocol (MCP) server running on stdio (`cortex mcp`). AI agents receive exact compiler-grounded call graphs, 90%+ pruned AST outlines, and semantic diffs instead of raw code dumps.',
+    support: 'Runs as a server on stdio (`cortex mcp`). Agents get answers from this index, each one saying how sure it is, instead of raw code dumps.',
     next: { label: 'Connect your agent', detail: 'Add cortex to your MCP configuration file', command: 'cortex mcp' }
   }));
 
@@ -11421,7 +11421,7 @@ async function drawAgent() {
   const kpis = el('div', { class: 'kpis' },
     kpi('Token Reduction', rateOf(tm.overall_savings_pct / 100), 'via structural AST pruning and semantic diffs', 'ok'),
     kpi('Tokens Saved', num(tm.total_tokens_saved), 'estimated tokens saved vs full file dumps', 'ok'),
-    kpi('MCP Tools Active', num(tools.length), '12 specialized tools for AST, callgraph, and safety', 'ok'),
+    kpi('MCP Tools Active', num(tools.length), 'registered tools an agent can call', 'ok'),
     kpi('Indexed Surface', num(tm.total_files_indexed) + ' files', num(tm.total_symbols) + ' symbols, ' + num(tm.total_edges) + ' edges', 'ok')
   );
   body.appendChild(kpis);
@@ -11582,7 +11582,6 @@ async function drawAgent() {
       el('tr', null,
         el('th', { text: 'TOOL NAME' }),
         el('th', { text: 'CATEGORY' }),
-        el('th', { text: 'TOKEN SAVINGS' }),
         el('th', { text: 'CAPABILITY & BENEFIT' })
       )
     )
@@ -11592,7 +11591,6 @@ async function drawAgent() {
     const tr = el('tr');
     tr.appendChild(el('td', null, el('code', { class: 'sym', text: t.name })));
     tr.appendChild(el('td', null, el('span', { class: 'badge', text: t.category })));
-    tr.appendChild(el('td', null, el('span', { class: 'pill pill-ok', text: t.savings_pct })));
     tr.appendChild(el('td', null,
       el('div', { text: t.description }),
       el('div', { class: 'small muted', style: 'margin-top:2px', text: '✦ ' + t.benefit })
