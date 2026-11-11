@@ -48,7 +48,7 @@ Authoritative specifications for commands, tools, and options.
 | Reference | Description |
 |---|---|
 | [**CLI Reference**](reference/cli.md) | Complete manual of all 35+ CLI commands, flags, and outputs |
-| [**MCP Tools Reference**](reference/mcp-tools.md) | Schemas and profiles for all 10 native Model Context Protocol tools |
+| [**MCP Tools Reference**](reference/mcp-tools.md) | Parameters and profiles for all 18 Model Context Protocol tools |
 | [**Configuration**](user-manual.md#configuration) | Local `.cortex.yml` schema and global configuration options |
 | [**FAQ**](FAQ.md) | Answers to common technical and architectural questions |
 
@@ -64,7 +64,6 @@ Running RepoCortex in production pipelines and automated environments.
 | [**Troubleshooting Catalogue**](operations/troubleshooting.md) | Comprehensive error catalog keyed to literal error strings with remedies |
 | [**Performance & Tuning**](operations/performance.md) | Memory-mapped I/O, SQLite pragmas, CSR memory footprints, and worker scaling |
 | [**Security & Threat Model**](security.md) | Path containment, secret redaction, and local execution boundaries |
-| [**SEO & AEO Specification**](operations/seo-and-aeo.md) | Search Engine & AI Engine Optimization metadata standards |
 
 ---
 

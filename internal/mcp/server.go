@@ -166,17 +166,11 @@ func (s *Server) Run(ctx context.Context, t sdk.Transport) error {
 // SDK exposes the underlying server, for tests using in-memory transports.
 func (s *Server) SDK() *sdk.Server { return s.sdk }
 
-// profileTools maps a profile to the tools it exposes.
-//
-// THE TOOL COUNT IS A PERFORMANCE CONSTRAINT, NOT A PREFERENCE.
-//
-// Every exposed tool's schema is injected into the agent's context on EVERY
-// request, and a long tool list measurably degrades tool selection. A server
-// exposing forty tools would spend context on descriptions the agent never
-// uses — which is precisely the waste RepoCortex exists to eliminate. Shipping a
-// small default is therefore part of the product, not a limitation of it.
-func profileTools(p config.MCPProfile) map[string]bool {
-	minimal := []string{
+// profileLists returns, in order, the tools the minimal and standard profiles
+// expose. Kept apart from profileTools so the portal's agent screen can list
+// the same tools; ProfileTools is the exported view.
+func profileLists() (minimal, standard []string) {
+	minimal = []string{
 		// First in the list because it is the tool an agent should reach for
 		// first: one call instead of a dozen exploratory ones.
 		"get_task_context",
@@ -187,15 +181,14 @@ func profileTools(p config.MCPProfile) map[string]bool {
 		"find_references",
 		"find_callers",
 	}
-	// `find_callees` and `get_file_outline` used to be listed here and are not
-	// registered anywhere — no such tools exist. The names were inert, so
-	// `standard` and `full` silently exposed an identical set and the profile
-	// promised a surface it did not have. Removed rather than implemented,
-	// because the argument above says the default surface should be small and
-	// inventing two tools to justify a stale list is the wrong direction.
+	// `find_callees` used to be listed here and is not registered anywhere — no
+	// such tool exists. The name was inert, so the profile promised a surface it
+	// did not have. It was removed rather than implemented, because the argument
+	// above says the default surface should be small. (`get_file_outline` was
+	// once in the same position; it is registered now and listed below.)
 	//
 	// TestProfilesOnlyNameRegisteredTools now fails the build on a repeat.
-	standard := append(append([]string{}, minimal...),
+	standard = append(append([]string{}, minimal...),
 		"find_tests",
 		"impact_analysis",
 		// Kept out of `minimal` because get_project_overview already states the
@@ -214,6 +207,27 @@ func profileTools(p config.MCPProfile) map[string]bool {
 		"plan_change",
 		"detect_blindspots",
 	)
+
+	return minimal, standard
+}
+
+// ProfileTools returns copies of the minimal and standard tool lists, in order.
+func ProfileTools() (minimal, standard []string) {
+	m, st := profileLists()
+	return append([]string(nil), m...), append([]string(nil), st...)
+}
+
+// profileTools maps a profile to the tools it exposes.
+//
+// THE TOOL COUNT IS A PERFORMANCE CONSTRAINT, NOT A PREFERENCE.
+//
+// Every exposed tool's schema is injected into the agent's context on EVERY
+// request, and a long tool list measurably degrades tool selection. A server
+// exposing forty tools would spend context on descriptions the agent never
+// uses — which is precisely the waste RepoCortex exists to eliminate. Shipping a
+// small default is therefore part of the product, not a limitation of it.
+func profileTools(p config.MCPProfile) map[string]bool {
+	minimal, standard := profileLists()
 
 	set := func(names []string) map[string]bool {
 		m := make(map[string]bool, len(names))

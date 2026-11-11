@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="400" viewBox="0 0 1280 400" role="img" aria-labelledby="t d">
+<title id="t">RepoCortex</title><desc id="d">RepoCortex: a local MCP server that gives AI coding agents a code graph of calls, routes, tables and tests.</desc>
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#eef2f8"/></linearGradient>
+<radialGradient id="glow" cx="0.78" cy="0.5" r="0.45"><stop offset="0" stop-color="#93c5fd" stop-opacity="0.28"/><stop offset="1" stop-color="#93c5fd" stop-opacity="0"/></radialGradient>
+<pattern id="dots" width="22" height="22" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r="1.2" fill="#dbe2ec"/></pattern>
+</defs>
+<rect width="1280" height="400" rx="20" fill="url(#bg)"/>
+<rect width="1280" height="400" rx="20" fill="url(#dots)" opacity="0.7"/>
+<rect width="1280" height="400" rx="20" fill="url(#glow)"/>
+<line x1="880" y1="90" x2="1010" y2="70" stroke="#059669" stroke-width="2.5" stroke-linecap="round" opacity="0.9"/>
+<line x1="1010" y1="70" x2="1140" y2="120" stroke="#059669" stroke-width="2.5" stroke-linecap="round" opacity="0.9"/>
+<line x1="880" y1="90" x2="940" y2="190" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round" opacity="0.9"/>
+<line x1="940" y1="190" x2="1080" y2="210" stroke="#059669" stroke-width="2.5" stroke-linecap="round" opacity="0.9"/>
+<line x1="1080" y1="210" x2="1140" y2="120" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round" opacity="0.9"/>
+<line x1="1080" y1="210" x2="1200" y2="240" stroke="#059669" stroke-width="2.5" stroke-linecap="round" opacity="0.9"/>
+<line x1="940" y1="190" x2="870" y2="290" stroke="#d97706" stroke-width="2.5" stroke-linecap="round" opacity="0.9" stroke-dasharray="6 6"/>
+<line x1="870" y1="290" x2="1000" y2="320" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round" opacity="0.9"/>
+<line x1="1000" y1="320" x2="1130" y2="330" stroke="#059669" stroke-width="2.5" stroke-linecap="round" opacity="0.9"/>
+<line x1="1130" y1="330" x2="1200" y2="240" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round" opacity="0.9"/>
+<line x1="1140" y1="120" x2="1210" y2="150" stroke="#059669" stroke-width="2.5" stroke-linecap="round" opacity="0.9"/>
+<line x1="1210" y1="150" x2="1200" y2="240" stroke="#d97706" stroke-width="2.5" stroke-linecap="round" opacity="0.9" stroke-dasharray="6 6"/>
+<line x1="1010" y1="70" x2="1080" y2="210" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round" opacity="0.9"/>
+<line x1="1000" y1="320" x2="1080" y2="210" stroke="#059669" stroke-width="2.5" stroke-linecap="round" opacity="0.9"/>
+<circle cx="880" cy="90" r="12" fill="#ffffff"/><circle cx="880" cy="90" r="9" fill="#0b1220"/>
+<circle cx="1010" cy="70" r="9.5" fill="#ffffff"/><circle cx="1010" cy="70" r="6.5" fill="#0b1220"/>
+<circle cx="1140" cy="120" r="9.5" fill="#ffffff"/><circle cx="1140" cy="120" r="6.5" fill="#0b1220"/>
+<circle cx="940" cy="190" r="9.5" fill="#ffffff"/><circle cx="940" cy="190" r="6.5" fill="#0b1220"/>
+<circle cx="1080" cy="210" r="12" fill="#ffffff"/><circle cx="1080" cy="210" r="9" fill="#0b1220"/>
+<circle cx="1200" cy="240" r="9.5" fill="#ffffff"/><circle cx="1200" cy="240" r="6.5" fill="#0b1220"/>
+<circle cx="870" cy="290" r="9.5" fill="#ffffff"/><circle cx="870" cy="290" r="6.5" fill="#0b1220"/>
+<circle cx="1000" cy="320" r="9.5" fill="#ffffff"/><circle cx="1000" cy="320" r="6.5" fill="#0b1220"/>
+<circle cx="1130" cy="330" r="12" fill="#ffffff"/><circle cx="1130" cy="330" r="9" fill="#0b1220"/>
+<circle cx="1210" cy="150" r="9.5" fill="#ffffff"/><circle cx="1210" cy="150" r="6.5" fill="#0b1220"/>
+<line x1="790" y1="372" x2="812" y2="372" stroke="#059669" stroke-width="3" stroke-linecap="round"/>
+<text x="820" y="376" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#475569">exact · compiler</text>
+<line x1="950" y1="372" x2="972" y2="372" stroke="#2563eb" stroke-width="3" stroke-linecap="round"/>
+<text x="980" y="376" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#475569">high · AST</text>
+<line x1="1110" y1="372" x2="1132" y2="372" stroke="#d97706" stroke-width="3" stroke-linecap="round" stroke-dasharray="5 5"/>
+<text x="1140" y="376" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#475569">medium · inferred</text>
+<text x="64" y="104" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" letter-spacing="2.5" fill="#2563eb">CODE INTELLIGENCE FOR AI AGENTS · MCP</text>
+<text x="60" y="186" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="78" font-weight="750" letter-spacing="-2" fill="#0b1220">RepoCortex</text>
+<text x="64" y="232" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="22" fill="#475569">Call graphs, blast radius and task context for your AI agent,</text>
+<text x="64" y="262" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="22" fill="#475569">proven by the compiler where one is available. Fully local.</text>
+<rect x="64" y="296" width="114" height="34" rx="17" fill="#ffffff" stroke="#d5dce7"/>
+<text x="79" y="318" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13.5" fill="#0b1220">100% local</text>
+<rect x="188.0" y="296" width="173" height="34" rx="17" fill="#ffffff" stroke="#d5dce7"/>
+<text x="203.0" y="318" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13.5" fill="#0b1220">one static binary</text>
+<rect x="370.8" y="296" width="131" height="34" rx="17" fill="#ffffff" stroke="#d5dce7"/>
+<text x="385.8" y="318" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13.5" fill="#0b1220">206 grammars</text>
+<rect x="511.6" y="296" width="131" height="34" rx="17" fill="#ffffff" stroke="#d5dce7"/>
+<text x="526.6" y="318" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13.5" fill="#0b1220">18 MCP tools</text>
+</svg>

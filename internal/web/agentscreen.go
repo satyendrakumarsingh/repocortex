@@ -20,15 +20,9 @@ type MCPToolInfo struct {
 
 // TokenMetrics describes token savings and efficiency metrics for AI agents.
 type TokenMetrics struct {
-	TotalFilesIndexed      int64   `json:"total_files_indexed"`
-	TotalSymbols           int64   `json:"total_symbols"`
-	TotalEdges             int64   `json:"total_edges"`
-	EstimatedRawTokens     int64   `json:"estimated_raw_tokens"`
-	EstimatedPrunedTokens  int64   `json:"estimated_pruned_tokens"`
-	TotalTokensSaved       int64   `json:"total_tokens_saved"`
-	OverallSavingsPct      float64 `json:"overall_savings_pct"`
-	AvgTokensPerFileRaw    int64   `json:"avg_tokens_per_file_raw"`
-	AvgTokensPerFilePruned int64   `json:"avg_tokens_per_file_pruned"`
+	TotalFilesIndexed int64 `json:"total_files_indexed"`
+	TotalSymbols      int64 `json:"total_symbols"`
+	TotalEdges        int64 `json:"total_edges"`
 }
 
 // PruneDemoSample holds a concrete before-and-after pruning comparison on a repository file.
@@ -92,80 +86,7 @@ func (s *Server) handleAgent(w http.ResponseWriter, r *http.Request) {
 	}
 	repoRoot := s.deps.Config.RepoRoot
 
-	mcpTools := []MCPToolInfo{
-		{
-			Name:        "prune_context",
-			Category:    "Context Compression",
-			Description: "Removes function bodies and keeps declarations, signatures, interfaces and doc comments.",
-			Benefit:     "Gives an agent the shape of a large file without its full text.",
-		},
-		{
-			Name:        "minimize_diff",
-			Category:    "Diff Compression",
-			Description: "Condenses a git diff to its structural changes, dropping import reordering and comment-only edits.",
-			Benefit:     "Lets an agent review a large change in far fewer tokens.",
-		},
-		{
-			Name:        "find_callers",
-			Category:    "Call Graph Navigation",
-			Description: "Lists the callers of a symbol, with file, line and how sure each link is.",
-			Benefit:     "Avoids scanning many files for call sites.",
-		},
-		{
-			Name:        "impact_analysis",
-			Category:    "Change Safety",
-			Description: "Lists what a change to a symbol can reach, including the endpoints it affects.",
-			Benefit:     "Shows what could break before an edit is made.",
-		},
-		{
-			Name:        "find_references",
-			Category:    "Code Navigation",
-			Description: "Lists where a symbol is referenced across files.",
-			Benefit:     "Finds every use of a name without matching unrelated text.",
-		},
-		{
-			Name:        "find_tests",
-			Category:    "Test Intelligence",
-			Description: "Lists the tests that reach a changed symbol.",
-			Benefit:     "Tells the agent which tests to run.",
-		},
-		{
-			Name:        "get_coverage",
-			Category:    "Quality & Coverage",
-			Description: "Reports test coverage and the untested lines for a symbol.",
-			Benefit:     "Shows coverage without parsing coverage report files.",
-		},
-		{
-			Name:        "get_symbol",
-			Category:    "Symbol Lookup",
-			Description: "Returns a symbol's declaration, signature, doc comment and enclosing type.",
-			Benefit:     "Returns one declaration instead of a whole file.",
-		},
-		{
-			Name:        "search_symbols",
-			Category:    "Symbol Search",
-			Description: "Searches symbol names, methods, types and endpoints across the index.",
-			Benefit:     "Finds names quickly without walking the directory tree.",
-		},
-		{
-			Name:        "resolution_coverage",
-			Category:    "Index Quality",
-			Description: "Reports how many references were bound to a definition, per language.",
-			Benefit:     "Shows how far an agent can trust the answers for each language.",
-		},
-		{
-			Name:        "architecture_governance",
-			Category:    "Architecture Rules",
-			Description: "Checks the repository against its declared architecture rules.",
-			Benefit:     "Flags a change that breaks a boundary.",
-		},
-		{
-			Name:        "diff_facts",
-			Category:    "Fact Verification",
-			Description: "Lists symbols, endpoints and tables added or removed between two revisions.",
-			Benefit:     "Gives a structured change summary instead of raw diff text.",
-		},
-	}
+	mcpTools := mcpCatalogue()
 
 	var totalFiles int64 = 0
 	var totalSymbols int64 = 0
@@ -180,30 +101,13 @@ func (s *Server) handleAgent(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Calculate realistic token economics
-	avgTokensPerFileRaw := int64(1450)
-	avgTokensPerFilePruned := int64(135)
-	estimatedRaw := totalFiles * avgTokensPerFileRaw
-	if estimatedRaw == 0 {
-		estimatedRaw = 250000
-	}
-	estimatedPruned := totalFiles * avgTokensPerFilePruned
-	if estimatedPruned == 0 {
-		estimatedPruned = 24000
-	}
-	tokensSaved := estimatedRaw - estimatedPruned
-	savingsPct := float64(tokensSaved) / float64(estimatedRaw) * 100
-
+	// Only counts the index holds. Token savings are not estimated here: a
+	// per-file average applied to the file count is a constant, not a
+	// measurement. The sample below is measured on a real file in this index.
 	tokenMetrics := TokenMetrics{
-		TotalFilesIndexed:      totalFiles,
-		TotalSymbols:           totalSymbols,
-		TotalEdges:             totalEdges,
-		EstimatedRawTokens:     estimatedRaw,
-		EstimatedPrunedTokens:  estimatedPruned,
-		TotalTokensSaved:       tokensSaved,
-		OverallSavingsPct:      savingsPct,
-		AvgTokensPerFileRaw:    avgTokensPerFileRaw,
-		AvgTokensPerFilePruned: avgTokensPerFilePruned,
+		TotalFilesIndexed: totalFiles,
+		TotalSymbols:      totalSymbols,
+		TotalEdges:        totalEdges,
 	}
 
 	// Live prune demonstration on a real repository file
@@ -265,7 +169,10 @@ func (s *Server) handleAgent(w http.ResponseWriter, r *http.Request) {
 		"mcpServers": map[string]any{
 			"cortex": map[string]any{
 				"command": "cortex",
-				"args":    []string{"mcp"},
+				// The same entry `cortex install` writes: the server is `serve`,
+				// pinned to this repository so the client's working directory
+				// cannot change which index it reads.
+				"args": []string{"--project", repoRoot, "serve"},
 			},
 		},
 	}
@@ -289,4 +196,121 @@ func limitExcerpt(s string, maxLines int) string {
 		return s
 	}
 	return strings.Join(lines[:maxLines], "\n") + "\n// ... [remaining implementation pruned for token brevity]"
+}
+
+// mcpCatalogue lists the tools the MCP server registers (internal/mcp), in the
+// order the profiles expose them: the default `minimal` profile has the first
+// seven, `standard` and `full` have all of them. TestAgentCatalogueMatchesTheMCPServer
+// holds this list to the server's own.
+func mcpCatalogue() []MCPToolInfo {
+	return []MCPToolInfo{
+		{
+			Name:        "get_task_context",
+			Category:    "Task context",
+			Description: "Returns the files, symbols, callers and tests relevant to a task in one call.",
+			Benefit:     "Replaces a dozen exploratory searches with one answer.",
+		},
+		{
+			Name:        "get_project_overview",
+			Category:    "Orientation",
+			Description: "Summarises the languages, size, entry points and index coverage of the project.",
+			Benefit:     "Gives an agent its bearings before it reads any file.",
+		},
+		{
+			Name:        "search_code",
+			Category:    "Search",
+			Description: "Searches the indexed code by text, ranked by relevance.",
+			Benefit:     "Finds code without walking the directory tree.",
+		},
+		{
+			Name:        "find_symbol",
+			Category:    "Lookup",
+			Description: "Finds definitions by their name.",
+			Benefit:     "Goes straight to a definition instead of grepping for it.",
+		},
+		{
+			Name:        "get_symbol",
+			Category:    "Lookup",
+			Description: "Returns a symbol's declaration, signature, doc comment and enclosing type.",
+			Benefit:     "Returns one declaration instead of a whole file.",
+		},
+		{
+			Name:        "find_references",
+			Category:    "Navigation",
+			Description: "Lists where a symbol is referenced across files.",
+			Benefit:     "Finds every use of a name without matching unrelated text.",
+		},
+		{
+			Name:        "find_callers",
+			Category:    "Navigation",
+			Description: "Lists the callers of a symbol, with file, line and how sure each link is.",
+			Benefit:     "Avoids scanning many files for call sites.",
+		},
+		{
+			Name:        "find_tests",
+			Category:    "Change safety",
+			Description: "Lists the tests that reach a symbol.",
+			Benefit:     "Tells the agent which tests to run.",
+		},
+		{
+			Name:        "impact_analysis",
+			Category:    "Change safety",
+			Description: "Lists what a change to a symbol can reach, including the endpoints it affects.",
+			Benefit:     "Shows what could break before an edit is made.",
+		},
+		{
+			Name:        "resolution_coverage",
+			Category:    "Index quality",
+			Description: "Reports how many references were bound to a definition, per language.",
+			Benefit:     "Shows how far an agent can trust the answers for each language.",
+		},
+		{
+			Name:        "plan_rename",
+			Category:    "Refactoring",
+			Description: "Lists every site a rename would edit, and the ones it cannot defend.",
+			Benefit:     "Lets an agent rename across files without missing a site.",
+		},
+		{
+			Name:        "plan_change",
+			Category:    "Refactoring",
+			Description: "Orders the steps of a change, with the callers to update and the tests that gate it.",
+			Benefit:     "Turns a large change into a checked sequence.",
+		},
+		{
+			Name:        "find_api_endpoints",
+			Category:    "Cross-stack",
+			Description: "Lists HTTP endpoints, their methods and handlers.",
+			Benefit:     "Maps a request path to the code that serves it.",
+		},
+		{
+			Name:        "find_db_access",
+			Category:    "Cross-stack",
+			Description: "Lists database tables and the code that reads and writes them.",
+			Benefit:     "Shows who touches a table before its schema changes.",
+		},
+		{
+			Name:        "get_config_key",
+			Category:    "Cross-stack",
+			Description: "Reports where a configuration key is declared and read.",
+			Benefit:     "Finds every reader of a setting before it is renamed.",
+		},
+		{
+			Name:        "get_file_outline",
+			Category:    "Navigation",
+			Description: "Returns a file's declarations without their bodies.",
+			Benefit:     "Gives the shape of a large file in a fraction of its tokens.",
+		},
+		{
+			Name:        "minimize_diff",
+			Category:    "Review",
+			Description: "Condenses a diff to its structural changes, dropping import reordering and comment-only edits.",
+			Benefit:     "Lets an agent review a large change in far fewer tokens.",
+		},
+		{
+			Name:        "detect_blindspots",
+			Category:    "Index quality",
+			Description: "Lists what the index could not see: unbound calls, unmapped endpoints, unparsed files.",
+			Benefit:     "Tells an agent where an empty answer is not proof.",
+		},
+	}
 }

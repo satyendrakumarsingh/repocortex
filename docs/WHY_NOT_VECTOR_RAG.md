@@ -84,13 +84,13 @@ None of these four operations are vectors. They are discrete relational algebra 
 A typical vector RAG pipeline retrieves the top 10–20 chunks (often 500–1,000 tokens each) to maximize recall. That dumps **10,000 to 20,000 tokens of raw file text** into the agent's prompt on every turn.
 
 This introduces two severe penalties:
-1. **Financial and Latency Tax**: At current frontier model pricing, 20k tokens per prompt across a 30-turn agent coding session burns \$1.50–\$5.00 per task and adds 5–15 seconds of time-to-first-token per request.
-2. **Cognitive Degradation ("Lost in the Middle")**: Extensive academic research demonstrates that LLM reasoning degrades sharply when critical needles are surrounded by large haystacks of irrelevant code. When the context is polluted with 80% irrelevant snippets, the agent produces weaker reasoning and introduces subtle logic bugs.
+1. **Cost and latency**: every token of retrieved text is paid for and read on every turn, so a long agent session multiplies the waste.
+2. **Diluted attention ("lost in the middle")**: models reason less reliably when the facts that matter are buried among irrelevant text, and an agent working from noisy context is more likely to miss a caller or misread a dependency.
 
 RepoCortex flips this equation. Instead of returning whole files or raw text chunks:
 - It returns **compact symbol signatures and 2-hop subgraphs**.
-- A full task context (the target file, exact callers, related database tables, and the specific test file) typically costs **under 800 tokens**.
-- The agent gets 95% less noise and 100% higher causal precision.
+- A task context (the target symbols, their callers, related tables and the tests that reach them) is assembled under a size budget you set, so the agent receives the relevant structure instead of whole files.
+- Every edge in it is marked with how it was found, so the agent can tell a proven call from a guess. `cortex bench` measures retrieval quality on your own repository.
 
 ---
 
@@ -183,9 +183,9 @@ Once candidates are found, RepoCortex immediately projects them onto the determi
 | Dimension | Vector RAG | RepoCortex Deterministic Graph |
 |---|---|---|
 | **Underlying Math** | High-dimensional float cosine distance | Discrete relational graph algebra & AST traversals |
-| **Edge Precision** | Uncalibrated probabilities (0.0 to 1.0) | Mathematically verified confidence tiers (`exact`, `high`, etc.) |
-| **Transitive Blast Radius** | Impossible (Semantic similarity does not chain) | Sub-millisecond recursive walks with hub pruning |
-| **Token Consumption** | 10k–30k tokens per query (raw file chunks) | 500–1,500 tokens per query (subgraph signatures) |
+| **Edge Precision** | Uncalibrated similarity scores (0.0 to 1.0) | Confidence tiers measured against compiler indexes (`exact`, `high`, etc.) |
+| **Transitive Blast Radius** | Not possible (similarity does not chain) | Recursive walks over call edges, with very common helpers pruned |
+| **What reaches the prompt** | Raw file chunks chosen by similarity | Symbols, signatures and edges chosen by the graph, under a size budget |
 | **Storage & Dependencies** | Python service, vector DB, API keys, GPU | Single self-contained static binary, pure Go, local SQLite |
 | **Privacy & Security** | Source code often sent to third-party embedding APIs | **100% offline**, zero telemetry, runs air-gapped on your laptop |
 | **Refactoring Safety** | Hallucination hazard; unsafe for edits | Atomic rollback with multi-file AST validation |

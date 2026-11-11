@@ -10,38 +10,40 @@ Configure these exact values in your GitHub repository's **"About"** section (cl
 
 ### Repository Description (Max 350 chars)
 ```text
-Deterministic Code Intelligence & Change Safety Engine for AI Coding Agents (Cursor, Claude Code, Windsurf, Antigravity). 100% local, zero-CGO code graph over Model Context Protocol (MCP).
+MCP server that indexes your repository into a call graph of symbols, HTTP routes, SQL tables, config and tests, and serves it to Cursor, Claude Code, Windsurf and Antigravity. Blast radius, safe renames and task context with a confidence label on every edge. Local, one Go binary.
 ```
 
 ### Website URL
+The documentation index, not the repository URL itself:
 ```text
-https://github.com/satyendrakumarsingh/repocortex
+https://github.com/satyendrakumarsingh/repocortex/tree/main/docs
 ```
 
-### GitHub Topics (Tags) — Exactly 20 tags
-Add these 20 high-intent topic tags in GitHub repository settings:
+### GitHub Topics (Tags): 20
 ```text
+mcp
 mcp-server
+model-context-protocol
 code-intelligence
-ai-coding-agents
 code-graph
-ast-parser
 call-graph
-blast-radius
-tree-sitter
-cursor
-claude-code
-windsurf
-antigravity
-static-analysis
-scip
-change-safety
-developer-tools
-golang
-sqlite
-rag
 code-search
+blast-radius
+impact-analysis
+ai-coding-agents
+claude-code
+cursor
+windsurf
+tree-sitter
+scip
+static-analysis
+refactoring
+developer-tools
+local-first
+golang
 ```
+
+Use only claims the code or a published measurement supports. No percentage of token savings is published; do not put one in the description.
 
 ---
 
@@ -51,8 +53,8 @@ Modern searchers increasingly use **Answer Engines** (Perplexity, ChatGPT Search
 
 ### 1. `llms.txt` & `llms-full.txt`
 RepoCortex implements the official [llmstxt.org](https://llmstxt.org) standard:
-* **[`/llms.txt`](../llms.txt)**: Fast 45-line executive summary of technical facts, commands, and MCP tools designed to fit into search model retrieval chunks.
-* **[`/llms-full.txt`](../llms-full.txt)**: Consolidated 160KB documentation manual containing the complete technical specification, user guide, architectural thesis, and CLI manual for direct ingestion by large-context reasoning models.
+* **[`/llms.txt`](../llms.txt)**: A short summary of facts, commands and MCP tools sized to fit a single retrieval chunk.
+* **[`/llms-full.txt`](../llms-full.txt)**: The main documents concatenated into one file for large-context models. Regenerate it with `scripts/gen-llms-full.sh`.
 
 ### 2. High-Intent Natural Language Question Headers (Q&A)
 Answer engines extract text matching conversational queries. `README.md` and `docs/FAQ.md` structure sections with exact query phrases:
@@ -62,11 +64,6 @@ Answer engines extract text matching conversational queries. `README.md` and `do
 * *Which AI coding agents and IDEs work with RepoCortex?*
 * *Does RepoCortex send proprietary source code to external servers?*
 * *How do I use RepoCortex for change safety and blast radius analysis in CI/CD?*
-
-### 3. Schema.org JSON-LD Structured Data
-`README.md` embeds a `SoftwareApplication` JSON-LD microdata block that web indexers (Googlebot, Bingbot, PerplexityBot) parse to extract application category, operating system support, licensing, and capabilities.
-
----
 
 ## 3. High-Intent Keyword Matrix
 
@@ -89,4 +86,4 @@ Search engines and GitHub's internal ranking algorithm favor repositories that d
 * **Issue Forms**: [`.github/ISSUE_TEMPLATE/bug_report.yml`](../.github/ISSUE_TEMPLATE/bug_report.yml) and [`.github/ISSUE_TEMPLATE/feature_request.yml`](../.github/ISSUE_TEMPLATE/feature_request.yml)
 * **PR Template**: [`.github/pull_request_template.md`](../.github/pull_request_template.md)
 * **CI / Change Safety Workflows**: [`.github/workflows/cortex-gate.yml`](../.github/workflows/cortex-gate.yml) and [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)
-* **Governance & Standards**: Apache-2.0 License, SLSA Level 3 provenance, OpenSSF scorecard, CGO-free zero-dependency binary.
+* **Governance & Standards**: Apache-2.0 license, one static binary with no CGO, `SHA256SUMS` published with each release.

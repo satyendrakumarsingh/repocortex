@@ -159,15 +159,9 @@ AgentPayload.sample.savings_pct
 AgentPayload.sample.tokens_saved
 AgentPayload.status
 AgentPayload.token_metrics
-AgentPayload.token_metrics.avg_tokens_per_file_pruned
-AgentPayload.token_metrics.avg_tokens_per_file_raw
-AgentPayload.token_metrics.estimated_pruned_tokens
-AgentPayload.token_metrics.estimated_raw_tokens
-AgentPayload.token_metrics.overall_savings_pct
 AgentPayload.token_metrics.total_edges
 AgentPayload.token_metrics.total_files_indexed
 AgentPayload.token_metrics.total_symbols
-AgentPayload.token_metrics.total_tokens_saved
 BenchResponse.case_file
 BenchResponse.case_file.absolute
 BenchResponse.case_file.defaulted
