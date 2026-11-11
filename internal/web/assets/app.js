@@ -4529,7 +4529,7 @@ function renderLiveSurfaceExplorer(d) {
 
 function renderAgentMCPCenter(d) {
   const pth = (d.meta && d.meta.index_path) ? d.meta.index_path.replace('/.cortex/index.db', '') : '.';
-  const mcpCmd = 'cortex mcp --project ' + pth;
+  const mcpCmd = 'cortex --project ' + pth + ' serve';
 
   return el('div', { class: 'agent-mcp-panel' },
     el('div', { class: 'surface-header' },
@@ -11413,20 +11413,18 @@ async function drawAgent() {
   const tools = d.mcp_tools || [];
 
   setAnswer(host, answer([
-    B(rateOf(tm.overall_savings_pct / 100) + ' context token reduction'),
-    ' achieved for AI assistants via structural AST pruning and semantic diff compression.',
-    ' Connecting Claude, Cursor, Gemini, or Antigravity to RepoCortex MCP saves an estimated ',
-    B(num(tm.total_tokens_saved) + ' tokens'), ' across this repository.'
+    'An agent connected to this index can ask about ',
+    B(num(tm.total_symbols) + ' symbols'), ' and ', B(num(tm.total_edges) + ' relationships'),
+    ' across ', B(num(tm.total_files_indexed) + ' files'), ', through ', B(num(tools.length) + ' tools'), '.'
   ], {
-    support: 'Runs as a server on stdio (`cortex mcp`). Agents get answers from this index, each one saying how sure it is, instead of raw code dumps.',
-    next: { label: 'Connect your agent', detail: 'Add cortex to your MCP configuration file', command: 'cortex mcp' }
+    support: 'The server runs on stdio (`cortex serve`). Each answer says how sure it is, instead of handing the agent whole files.',
+    next: { label: 'Connect your agent', detail: 'Register cortex with the agents on this machine', command: 'cortex install --rules' }
   }));
 
   // 1. Headline KPIs
   const kpis = el('div', { class: 'kpis' },
-    kpi('Token Reduction', rateOf(tm.overall_savings_pct / 100), 'via structural AST pruning and semantic diffs', 'ok'),
-    kpi('Tokens Saved', num(tm.total_tokens_saved), 'estimated tokens saved vs full file dumps', 'ok'),
-    kpi('MCP Tools Active', num(tools.length), 'registered tools an agent can call', 'ok'),
+    kpi('MCP Tools', num(tools.length), 'registered tools an agent can call', 'ok'),
+    kpi('Symbols', num(tm.total_symbols), 'what a tool call can name', 'ok'),
     kpi('Indexed Surface', num(tm.total_files_indexed) + ' files', num(tm.total_symbols) + ' symbols, ' + num(tm.total_edges) + ' edges', 'ok')
   );
   body.appendChild(kpis);
@@ -11452,9 +11450,9 @@ async function drawAgent() {
           el('h4', { style: 'margin:0 0 6px', text: '2. Cursor / VS Code / Antigravity' }),
           el('p', { class: 'small muted', style: 'margin-bottom:8px', text: 'Add to .cursor/mcp.json or workspace MCP settings:' }),
           el('pre', { class: 'mono small', style: 'padding:10px;background:var(--canvas-bg);border:1px solid var(--line);border-radius:6px;overflow-x:auto' },
-            el('code', { text: '{\n  "mcpServers": {\n    "cortex": {\n      "command": "cortex",\n      "args": ["mcp"]\n    }\n  }\n}' })
+            el('code', { text: configSnippetStr })
           ),
-          copyButton('{\n  "mcpServers": {\n    "cortex": {\n      "command": "cortex",\n      "args": ["mcp"]\n    }\n  }\n}', 'Copy Cursor Config')
+          copyButton(configSnippetStr, 'Copy Cursor Config')
         )
       )
     )
@@ -11576,8 +11574,8 @@ async function drawAgent() {
   // 6. Connected MCP Tools Table
   const toolsCard = el('div', { class: 'card' },
     el('header', { style: 'padding:14px 18px 0' },
-      el('h3', { text: 'Available MCP Tools & Token Reduction Capabilities' }),
-      el('div', { class: 'sub', text: 'Every tool exposed by `cortex mcp` is designed to provide compiler-grade intelligence without context window bloat.' })
+      el('h3', { text: 'MCP tools' }),
+      el('div', { class: 'sub', text: 'Every tool the server registers. The default profile exposes the first seven; set `mcp: { profile: standard }` in .cortex.yml for all of them.' })
     ),
     el('div', { class: 'body' })
   );

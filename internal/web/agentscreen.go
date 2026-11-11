@@ -20,15 +20,9 @@ type MCPToolInfo struct {
 
 // TokenMetrics describes token savings and efficiency metrics for AI agents.
 type TokenMetrics struct {
-	TotalFilesIndexed      int64   `json:"total_files_indexed"`
-	TotalSymbols           int64   `json:"total_symbols"`
-	TotalEdges             int64   `json:"total_edges"`
-	EstimatedRawTokens     int64   `json:"estimated_raw_tokens"`
-	EstimatedPrunedTokens  int64   `json:"estimated_pruned_tokens"`
-	TotalTokensSaved       int64   `json:"total_tokens_saved"`
-	OverallSavingsPct      float64 `json:"overall_savings_pct"`
-	AvgTokensPerFileRaw    int64   `json:"avg_tokens_per_file_raw"`
-	AvgTokensPerFilePruned int64   `json:"avg_tokens_per_file_pruned"`
+	TotalFilesIndexed int64 `json:"total_files_indexed"`
+	TotalSymbols      int64 `json:"total_symbols"`
+	TotalEdges        int64 `json:"total_edges"`
 }
 
 // PruneDemoSample holds a concrete before-and-after pruning comparison on a repository file.
@@ -107,30 +101,13 @@ func (s *Server) handleAgent(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Calculate realistic token economics
-	avgTokensPerFileRaw := int64(1450)
-	avgTokensPerFilePruned := int64(135)
-	estimatedRaw := totalFiles * avgTokensPerFileRaw
-	if estimatedRaw == 0 {
-		estimatedRaw = 250000
-	}
-	estimatedPruned := totalFiles * avgTokensPerFilePruned
-	if estimatedPruned == 0 {
-		estimatedPruned = 24000
-	}
-	tokensSaved := estimatedRaw - estimatedPruned
-	savingsPct := float64(tokensSaved) / float64(estimatedRaw) * 100
-
+	// Only counts the index holds. Token savings are not estimated here: a
+	// per-file average applied to the file count is a constant, not a
+	// measurement. The sample below is measured on a real file in this index.
 	tokenMetrics := TokenMetrics{
-		TotalFilesIndexed:      totalFiles,
-		TotalSymbols:           totalSymbols,
-		TotalEdges:             totalEdges,
-		EstimatedRawTokens:     estimatedRaw,
-		EstimatedPrunedTokens:  estimatedPruned,
-		TotalTokensSaved:       tokensSaved,
-		OverallSavingsPct:      savingsPct,
-		AvgTokensPerFileRaw:    avgTokensPerFileRaw,
-		AvgTokensPerFilePruned: avgTokensPerFilePruned,
+		TotalFilesIndexed: totalFiles,
+		TotalSymbols:      totalSymbols,
+		TotalEdges:        totalEdges,
 	}
 
 	// Live prune demonstration on a real repository file
@@ -192,7 +169,10 @@ func (s *Server) handleAgent(w http.ResponseWriter, r *http.Request) {
 		"mcpServers": map[string]any{
 			"cortex": map[string]any{
 				"command": "cortex",
-				"args":    []string{"mcp"},
+				// The same entry `cortex install` writes: the server is `serve`,
+				// pinned to this repository so the client's working directory
+				// cannot change which index it reads.
+				"args": []string{"--project", repoRoot, "serve"},
 			},
 		},
 	}
@@ -245,7 +225,7 @@ func mcpCatalogue() []MCPToolInfo {
 		{
 			Name:        "find_symbol",
 			Category:    "Lookup",
-			Description: "Finds definitions by exact name.",
+			Description: "Finds definitions by their name.",
 			Benefit:     "Goes straight to a definition instead of grepping for it.",
 		},
 		{

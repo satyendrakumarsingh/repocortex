@@ -181,12 +181,11 @@ func profileLists() (minimal, standard []string) {
 		"find_references",
 		"find_callers",
 	}
-	// `find_callees` and `get_file_outline` used to be listed here and are not
-	// registered anywhere — no such tools exist. The names were inert, so
-	// `standard` and `full` silently exposed an identical set and the profile
-	// promised a surface it did not have. Removed rather than implemented,
-	// because the argument above says the default surface should be small and
-	// inventing two tools to justify a stale list is the wrong direction.
+	// `find_callees` used to be listed here and is not registered anywhere — no
+	// such tool exists. The name was inert, so the profile promised a surface it
+	// did not have. It was removed rather than implemented, because the argument
+	// above says the default surface should be small. (`get_file_outline` was
+	// once in the same position; it is registered now and listed below.)
 	//
 	// TestProfilesOnlyNameRegisteredTools now fails the build on a repeat.
 	standard = append(append([]string{}, minimal...),
