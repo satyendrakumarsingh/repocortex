@@ -207,6 +207,7 @@ jobs:
         run: |
           set -euo pipefail
           go build -o /tmp/cortex ./cmd/cortex
+          /tmp/cortex init
           /tmp/cortex index
           /tmp/cortex resolve
           /tmp/cortex compile "Add a confidence floor to impact traversal" --json > /tmp/contract.json
