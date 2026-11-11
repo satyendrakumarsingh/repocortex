@@ -292,7 +292,9 @@ func TestDirectoryNamedLikeAFlagIsRefused(t *testing.T) {
 	t.Parallel()
 	root := writeRepo(t, map[string]string{
 		"--output/package.json": "{}",
+		"--output/index.js":     "",
 		"web/package.json":      "{}",
+		"web/index.js":          "",
 	})
 	r := newFakeRunner("node")
 	r.install("scip-typescript")

@@ -125,6 +125,7 @@ func Detect(ctx context.Context, repoRoot string) ([]Project, error) {
 	// Keyed by directory, then language, so several markers for one language
 	// collapse into one project carrying all of them as evidence.
 	found := map[string]map[Language][]string{}
+	var jsSourceDirs []string
 
 	walkErr := filepath.WalkDir(repoRoot, func(p string, d fs.DirEntry, err error) error {
 		// Checked first, and on every entry. This walks a whole repository, so
@@ -165,6 +166,10 @@ func Detect(ctx context.Context, repoRoot string) ([]Project, error) {
 			return nil
 		}
 
+		if d.Type()&fs.ModeSymlink == 0 && tsSourceExt[path.Ext(rel)] {
+			jsSourceDirs = append(jsSourceDirs, path.Dir(rel))
+		}
+
 		lang, ok := markerLanguages[path.Base(rel)]
 		if !ok {
 			return nil
@@ -191,6 +196,14 @@ func Detect(ctx context.Context, repoRoot string) ([]Project, error) {
 	for dir, byLang := range found {
 		for lang, markers := range byLang {
 			sort.Strings(markers)
+			// A bare package.json (no tsconfig.json) only means "JavaScript may be
+			// here". scip-typescript indexes nothing in a directory with no .ts,
+			// .tsx, .js or .jsx files, and that run is a failed indexer, not a
+			// project. Keep the project only where such a file exists beneath it.
+			if lang == LangTypeScript && len(markers) == 1 && markers[0] == "package.json" &&
+				!hasSourceUnder(dir, jsSourceDirs) {
+				continue
+			}
 			projects = append(projects, Project{Language: lang, Dir: dir, Markers: markers})
 		}
 	}
@@ -201,6 +214,20 @@ func Detect(ctx context.Context, repoRoot string) ([]Project, error) {
 		return projects[i].Language < projects[j].Language
 	})
 	return projects, nil
+}
+
+// tsSourceExt are the extensions scip-typescript indexes as program input.
+var tsSourceExt = map[string]bool{".ts": true, ".tsx": true, ".js": true, ".jsx": true}
+
+// hasSourceUnder reports whether any recorded source directory is dir or lies
+// beneath it. "." is the repository root and contains everything.
+func hasSourceUnder(dir string, sourceDirs []string) bool {
+	for _, sd := range sourceDirs {
+		if dir == "." || sd == dir || strings.HasPrefix(sd, dir+"/") {
+			return true
+		}
+	}
+	return false
 }
 
 // hasMarker reports whether the project was identified by this exact file name.
