@@ -9,7 +9,7 @@ Compiler-proven call graphs over [MCP](https://modelcontextprotocol.io), instead
 [![Release](https://img.shields.io/github/v/release/satyendrakumarsingh/repocortex?style=flat-square&color=007ec6)](https://github.com/satyendrakumarsingh/repocortex/releases)
 [![CI](https://img.shields.io/github/actions/workflow/status/satyendrakumarsingh/repocortex/ci.yml?label=CI&style=flat-square)](https://github.com/satyendrakumarsingh/repocortex/actions/workflows/ci.yml)
 [![MCP](https://img.shields.io/badge/MCP-native_server-00D26A?style=flat-square)](https://modelcontextprotocol.io)
-[![Go 1.25+](https://img.shields.io/badge/Go-1.25%2B-00ADD8?logo=go&style=flat-square)](https://go.dev)
+[![Go 1.26+](https://img.shields.io/badge/Go-1.26%2B-00ADD8?logo=go&style=flat-square)](https://go.dev)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue?style=flat-square)](LICENSE)
 
 Works with `Cursor` · `Claude Code` · `Windsurf` · `Antigravity` · `Claude Desktop` · `Zed`
@@ -56,7 +56,7 @@ brew install satyendrakumarsingh/tap/cortex      # macOS / Linux
 # macOS / Linux, checksum-verified
 curl -fsSL https://raw.githubusercontent.com/satyendrakumarsingh/repocortex/main/install.sh | sh
 
-# Go 1.25+ (no CGO, no external build dependencies)
+# Go 1.26+ (no CGO, no external build dependencies)
 go install github.com/satyendrakumarsingh/repocortex/cmd/cortex@latest
 ```
 
