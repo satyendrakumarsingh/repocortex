@@ -321,8 +321,18 @@ jobs:
           cache-dependency-path: internal/web/e2e/package-lock.json
       - name: install the suite
         run: npm --prefix internal/web/e2e ci
+      # --with-deps runs apt-get, which fails intermittently on hosted runners
+      # (exit 100 from the package index). Retry the whole install rather than
+      # failing the suite on a network hiccup.
       - name: install the browser
-        run: cd internal/web/e2e && npx playwright install --with-deps chromium
+        run: |
+          cd internal/web/e2e
+          for attempt in 1 2 3; do
+            if npx playwright install --with-deps chromium; then exit 0; fi
+            echo "::warning::playwright install attempt $attempt failed; retrying"
+            sleep 20
+          done
+          exit 1
       - name: run the ci tier
         env:
           CORTEX_E2E_TIER: ci
