@@ -42,7 +42,7 @@ env:
   # found standard-library vulnerabilities in earlier patch releases (28 on
   # go1.25.0; more fixed only in 1.26.9+). A floating minor version would have
   # quietly reintroduced them.
-  GO_VERSION: "1.26.10"
+  GO_VERSION: "1.26.11"
   # Pinned deliberately. `version: latest` is not reproducible — a golangci-lint
   # release can turn a green main red without a commit — and on this repo it was
   # actively wrong: golangci-lint-action@v6 resolves "latest" through the v1
