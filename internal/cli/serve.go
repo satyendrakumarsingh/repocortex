@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/satyendrakumarsingh/repocortex/internal/graph"
@@ -17,7 +18,12 @@ import (
 )
 
 func newServeCmd(g *Global) *cobra.Command {
-	var listTools bool
+	var (
+		listTools    bool
+		httpAddr     string
+		allowRemote  bool
+		allowedHosts []string
+	)
 
 	cmd := &cobra.Command{
 		Use:   "serve",
@@ -27,6 +33,17 @@ func newServeCmd(g *Global) *cobra.Command {
 Register with Claude Code:
 
     claude mcp add cortex -- cortex --project /path/to/repo serve
+
+With --http it serves MCP over Streamable HTTP instead, for clients that only
+accept a remote server (ChatGPT developer mode, Android Studio):
+
+    cortex serve --http 127.0.0.1:7788
+
+Every request needs the token from CORTEX_MCP_TOKEN, or the one generated for\nthe run and written to .cortex/mcp-token (readable only by you),
+as 'Authorization: Bearer <token>' or as the last path segment, /mcp/<token>.
+The server listens on loopback only unless --allow-remote is given, and accepts
+Host and Origin values that name this machine or a host in --allowed-host, such
+as the hostname of a tunnel you run.
 
 The exposed tool set is governed by mcp.profile in .cortex.yml
 (minimal | standard | full). The default is deliberately small: every tool's
@@ -39,6 +56,9 @@ someone other than you.`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx := cmd.Context()
 			cfg := g.Config()
+			if httpAddr == "" && (allowRemote || len(allowedHosts) > 0) {
+				return errors.New("--allow-remote and --allowed-host apply only with --http")
+			}
 
 			dbPath := g.DBPath()
 			if _, err := os.Stat(dbPath); errors.Is(err, os.ErrNotExist) {
@@ -78,6 +98,31 @@ someone other than you.`,
 				return nil
 			}
 
+			if httpAddr != "" {
+				token, generated, err := resolveToken()
+				if err != nil {
+					return err
+				}
+				tokenFrom := "from " + mcpTokenEnv
+				if generated {
+					tokenPath := filepath.Join(filepath.Dir(dbPath), "mcp-token")
+					if err := writeTokenFile(tokenPath, token); err != nil {
+						return err
+					}
+					tokenFrom = "new for this run, in " + tokenPath + " (set " + mcpTokenEnv + " to keep one)"
+				}
+				g.Log().Info("serving MCP over HTTP",
+					"project", cfg.ProjectName,
+					"profile", string(cfg.MCPProfile),
+					"tools", len(srv.Tools()))
+				return serveHTTP(ctx, srv.SDK(), httpServeOptions{
+					Addr:         httpAddr,
+					AllowRemote:  allowRemote,
+					AllowedHosts: allowedHosts,
+					Token:        token,
+				}, g.Log(), cmd.ErrOrStderr(), tokenFrom)
+			}
+
 			// Logs go to stderr; stdout is the MCP transport and any stray
 			// write to it corrupts the protocol stream.
 			g.Log().Info("serving MCP on stdio",
@@ -113,6 +158,9 @@ someone other than you.`,
 		},
 	}
 	cmd.Flags().BoolVar(&listTools, "list-tools", false, "print the exposed tools and exit")
+	cmd.Flags().StringVar(&httpAddr, "http", "", "serve MCP over Streamable HTTP on host:port instead of stdio (e.g. 127.0.0.1:7788)")
+	cmd.Flags().BoolVar(&allowRemote, "allow-remote", false, "with --http, allow listening on a non-loopback address")
+	cmd.Flags().StringSliceVar(&allowedHosts, "allowed-host", nil, "with --http, also accept this Host/Origin hostname (repeatable), e.g. a tunnel's hostname")
 	return cmd
 }
 

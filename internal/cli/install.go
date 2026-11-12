@@ -265,7 +265,7 @@ func printClientList(w io.Writer, home, root string, spec agentServerSpec) {
 		_, _ = fmt.Fprintf(w, "  %s\n    %s\n", m.Name, m.Step(spec))
 	}
 	_, _ = fmt.Fprintln(w, "\nNo MCP client (use the CLI): Aider, Plandex. `cortex install --rules` writes CONVENTIONS.md for Aider.")
-	_, _ = fmt.Fprintln(w, "Remote MCP only: ChatGPT, Android Studio. Not supported yet: `cortex serve` speaks stdio.")
+	_, _ = fmt.Fprintln(w, "Remote MCP only: ChatGPT, Android Studio. Run `cortex serve --http 127.0.0.1:7788` and see docs/guides/coding-agents.md.")
 }
 
 func newInstallCmd(g *Global) *cobra.Command {

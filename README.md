@@ -13,7 +13,7 @@
 [![Local first](https://img.shields.io/badge/runs-100%25_local-2563eb?style=flat-square)](#security-and-privacy)
 [![License](https://img.shields.io/badge/license-Apache--2.0-475569?style=flat-square)](LICENSE)
 
-**Works with** Claude Code · Codex · Cursor · Copilot · Gemini CLI · Windsurf · Antigravity · Zed · Goose · Kiro · [40+ agents](docs/guides/coding-agents.md) · any MCP client over stdio
+**Works with** Claude Code · Codex · Cursor · Copilot · Gemini CLI · Windsurf · Antigravity · Zed · Goose · Kiro · [40+ agents](docs/guides/coding-agents.md) · any MCP client over stdio or HTTP
 
 </div>
 
@@ -160,7 +160,7 @@ cortex install --rules     # write the configs and the guidance
 | **Desktop apps and editors:** Cursor, VS Code (Copilot), Visual Studio, Windsurf, Devin Desktop, Antigravity, Claude Desktop, Zed, Continue, LM Studio, Neovim (mcphub.nvim) | `cortex install --rules` |
 | **Configured in their own UI or command:** Amazon Q CLI, Cline extension, Roo Code, JetBrains AI Assistant, Eclipse, OpenCode, Crush, Jan, Trae, Qoder IDE, Raycast, Cherry Studio | `cortex install --list` prints the exact step for each |
 | **No MCP:** Aider, Plandex | The CLI: `--rules` writes a `CONVENTIONS.md` block for Aider |
-| **Remote MCP only:** ChatGPT, Android Studio | Not yet: needs the HTTP transport on the [roadmap](docs/ROADMAP.md) |
+| **Remote MCP only:** ChatGPT, Android Studio | `cortex serve --http 127.0.0.1:7788`, with a token on every request ([details](docs/guides/coding-agents.md#remote-mcp-over-http)) |
 | **Any other MCP client** | Add the server below to its configuration |
 
 ```json
@@ -419,7 +419,7 @@ Threat model: [docs/security.md](docs/security.md). Report a vulnerability: [SEC
 <details>
 <summary><b>Which agents does it work with?</b></summary>
 
-<br>Any MCP client that runs a server over stdio. `cortex install --rules` configures 30 agents for you, from Claude Code, Codex and Cursor to Zed, Goose and Kiro; see the [coding agents guide](docs/guides/coding-agents.md).
+<br>Any MCP client, over stdio or, with `cortex serve --http`, over Streamable HTTP. `cortex install --rules` configures 30 agents for you, from Claude Code, Codex and Cursor to Zed, Goose and Kiro; see the [coding agents guide](docs/guides/coding-agents.md).
 </details>
 
 <details>

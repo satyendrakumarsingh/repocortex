@@ -1339,15 +1339,25 @@ THIRD_PARTY.md is current (147 modules)
 
 ### `serve`
 
-**Answers:** runs an MCP server on stdio, exposing the index to a coding agent.
+**Answers:** runs an MCP server on stdio, or on Streamable HTTP with `--http`,
+exposing the index to a coding agent.
 
 | Flag | Effect |
 |---|---|
 | `--list-tools` | print the exposed tools and exit |
+| `--http host:port` | serve MCP over Streamable HTTP at `/mcp` instead of stdio, for clients that only accept a remote server |
+| `--allow-remote` | with `--http`, allow a non-loopback listen address |
+| `--allowed-host name` | with `--http`, also accept this `Host`/`Origin` hostname, such as a tunnel's (repeatable) |
 
 ```bash
 claude mcp add cortex -- cortex --project /path/to/repo serve
+cortex --project /path/to/repo serve --http 127.0.0.1:7788
 ```
+
+Over HTTP every request needs the token from `CORTEX_MCP_TOKEN`, or the one
+generated for the run and written to `.cortex/mcp-token` (mode 0600), as `Authorization: Bearer <token>` or as the last path
+segment (`/mcp/<token>`). See the
+[coding agents guide](guides/coding-agents.md#remote-mcp-over-http).
 
 The tool set is governed by `mcp.profile` in `.cortex.yml` — `minimal`
 (default), `standard`, `full`. The default is deliberately small: every tool's

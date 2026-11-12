@@ -257,6 +257,28 @@ A third property is a correctness control that happens to matter here:
 the index it is querying, so a prompt-injected tool call cannot corrupt state for
 the next session.
 
+## The HTTP transport
+
+`cortex serve` speaks stdio unless `--http` is given. Over HTTP:
+
+- Every request needs a bearer token (header, or the last path segment for
+  clients that only take a URL), compared with `crypto/subtle`. With no
+  `CORTEX_MCP_TOKEN` a 256-bit token is generated per run and written to
+  `.cortex/mcp-token` with mode 0600. The token is never printed or logged, so it
+  does not end up in terminal scrollback or CI logs.
+- The listen address must be loopback unless `--allow-remote` is passed, so a
+  typo such as `:7788` cannot publish the index to the local network.
+- `Host` must name this machine or a host given with `--allowed-host`, which
+  blocks DNS rebinding; an `Origin` header must pass the same check, so a web
+  page in the user's browser cannot drive the server.
+- The index is opened read-only, exactly as over stdio, and request bodies are
+  size-limited by the MCP SDK.
+
+What it does not protect: anyone holding the token and able to reach the port,
+including through a tunnel the user runs, can query the whole index for as long
+as the server runs. There is no TLS in the binary; a remote client should reach
+it through an HTTPS tunnel or proxy.
+
 ## Source content does not leave the machine
 
 By default, nothing RepoCortex does makes a network request.
