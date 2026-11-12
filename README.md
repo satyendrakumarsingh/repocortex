@@ -507,7 +507,7 @@ After the first run, `repocortex index` only re-reads changed files, and `repoco
 The [change-safety workflow](.github/workflows/repocortex-gate.yml) indexes each pull request, imports compiler facts, posts a sticky comment with the blast radius, uploads SARIF to code scanning, and fails on architecture violations or high-severity blindspots.
 
 ```yaml
-- uses: actions/checkout@v4
+- uses: actions/checkout@v5
   with: { fetch-depth: 0 }          # impact compares against the base branch
 - run: go install github.com/satyendrakumarsingh/repocortex/cmd/repocortex@latest
 - run: repocortex init && repocortex index && repocortex resolve

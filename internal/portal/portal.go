@@ -60,8 +60,24 @@ func Handler(api http.Handler) http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle(APIPrefix, api)
 	mux.Handle(APIPrefix+"/", api)
-	mux.Handle("/", static)
+	// No method on this pattern: "GET /" would conflict with the method-less
+	// API patterns above, which the mux refuses at registration.
+	mux.HandleFunc("/", serveAssets(static))
 	return guard(mux)
+}
+
+// serveAssets serves the embedded page and its files. It is a named handler,
+// not the file server passed straight to the mux, so the route has a symbol
+// that `repocortex blindspots` and a reader can both follow.
+func serveAssets(files http.Handler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			w.Header().Set("Allow", "GET, HEAD")
+			http.Error(w, "the portal's pages are read-only", http.StatusMethodNotAllowed)
+			return
+		}
+		files.ServeHTTP(w, r)
+	}
 }
 
 // guard applies the checks described in the package comment.

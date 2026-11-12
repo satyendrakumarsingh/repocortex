@@ -111,7 +111,7 @@ func (s *Server) auditMiddleware(next sdk.MethodHandler) sdk.MethodHandler {
 				cut, _ := json.Marshal(string(args[:auditArgBytes]))
 				ev.Arguments, ev.ArgsCut = cut, true
 			} else if json.Valid(args) {
-				ev.Arguments = json.RawMessage(args)
+				ev.Arguments = args
 			}
 		}
 		switch {

@@ -56,8 +56,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with: { go-version: "${{ env.GO_VERSION }}", cache: true }
 
       - name: gofmt
@@ -148,12 +148,12 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           # TestPooledWalkReleasesItsDescriptors walks this checkout's own
           # history; the default depth-1 clone has no parents to walk.
           fetch-depth: 0
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with: { go-version: "${{ env.GO_VERSION }}", cache: true }
 
       # -race needs a C toolchain on every supported platform. The runner
@@ -314,10 +314,10 @@ jobs:
     timeout-minutes: 40
     needs: [lint]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with: { go-version: "${{ env.GO_VERSION }}", cache: true }
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: "22"
           cache: npm
@@ -330,7 +330,7 @@ jobs:
       # the package mirrors are unreachable (exit 100 in a run), this step used
       # to fail the whole suite.
       - name: restore the browser cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/ms-playwright
           key: playwright-chromium-${{ hashFiles('internal/web/e2e/package-lock.json') }}
@@ -350,7 +350,7 @@ jobs:
         run: npm --prefix internal/web/e2e test
       - name: keep the traces of anything that failed
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: portal-e2e-traces
           path: |
@@ -365,12 +365,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           # TestPooledWalkReleasesItsDescriptors walks this checkout's own
           # history; the default depth-1 clone has no parents to walk.
           fetch-depth: 0
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with: { go-version: "${{ env.GO_VERSION }}", cache: true }
 
       - name: build all release targets from one runner
@@ -395,8 +395,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with: { go-version: "${{ env.GO_VERSION }}", cache: true }
 
       # ./internal/config/... covers TestRepoCannotSetExecutionSettings and
@@ -450,8 +450,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with: { go-version: "${{ env.GO_VERSION }}", cache: true }
       - name: index the regression corpus and assert its invariants
         run: go test -count=1 -run 'TestCorpus' -v ./internal/cli/
@@ -480,9 +480,9 @@ jobs:
           - { name: commons-lang, url: "https://github.com/apache/commons-lang.git", sha: "e66ad3dd2e8538e24940d97179c960a60dd25495", language: java }
           - { name: scrapy, url: "https://github.com/scrapy/scrapy.git", sha: "c7eacdbb30a4563bbbe04ed02781768f4e19eabb", language: python }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with: { path: repocortex }
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with: { go-version: "${{ env.GO_VERSION }}", cache: true }
 
       - name: build
@@ -546,8 +546,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with: { go-version: "${{ env.GO_VERSION }}", cache: true }
       - name: fuzz identifier splitter
         run: go test -run=NONE -fuzz=FuzzSplitIdentifier -fuzztime=5m ./internal/search/
@@ -562,8 +562,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with: { go-version: "${{ env.GO_VERSION }}", cache: true }
       # No -race: the budgets are wall-clock and heap figures, and the detector
       # multiplies both. The default run already covers this code under -race.
@@ -581,8 +581,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with: { go-version: "${{ env.GO_VERSION }}", cache: true }
 
       - name: the soak tag really does hide these from the default run
@@ -621,8 +621,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with: { go-version: "${{ env.GO_VERSION }}", cache: true }
       # No -race: the detector costs 5-20x here, so a latency budget asserted
       # against instrumented code measures the detector, not the product.

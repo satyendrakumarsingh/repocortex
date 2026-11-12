@@ -494,6 +494,6 @@ func rebasePaths(paths []string, prefix string) []string {
 }
 
 func dirExists(p string) bool {
-	info, err := os.Stat(p)
+	info, err := os.Stat(p) //nolint:gosec // G703: root is the directory the user ran the command in, joined with a fixed name
 	return err == nil && info.IsDir()
 }

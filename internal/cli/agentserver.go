@@ -105,7 +105,7 @@ func openAgentServer(ctx context.Context, g *Global, opts agentServerOptions) (*
 // what someone is working on.
 func openAuditFile(path string) (*os.File, error) {
 	if dir := filepath.Dir(path); dir != "." {
-		if err := os.MkdirAll(dir, 0o750); err != nil {
+		if err := os.MkdirAll(dir, 0o750); err != nil { //nolint:gosec // G703: the path is the user's own flag or environment value
 			return nil, fmt.Errorf("create audit log directory: %w", err)
 		}
 	}

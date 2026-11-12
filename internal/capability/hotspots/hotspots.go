@@ -98,11 +98,6 @@ const (
 	DefaultMinCoChanges   = 3
 	// couplingPerFile is how many partners are listed for one hotspot.
 	couplingPerFile = 3
-	// couplingCandidates bounds the files whose pairs are counted. Pair
-	// counting is quadratic in the files of one commit and linear in commits;
-	// restricting it to the most-changed files keeps the pair map bounded by
-	// this constant squared rather than by the repository.
-	couplingCandidates = 200
 )
 
 // Partner is a file that changes together with a hotspot.

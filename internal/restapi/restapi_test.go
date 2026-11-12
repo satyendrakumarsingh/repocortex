@@ -73,7 +73,14 @@ func serve(t *testing.T, inv Invoker) *httptest.Server {
 	return srv
 }
 
-func do(t *testing.T, method, url, body string, headers ...string) (*http.Response, string) {
+// reply carries the status and headers of a response whose body do has already
+// read and closed, so no test holds a response it would have to close.
+type reply struct {
+	StatusCode int
+	Header     http.Header
+}
+
+func do(t *testing.T, method, url, body string, headers ...string) (reply, string) {
 	t.Helper()
 	req, err := http.NewRequestWithContext(context.Background(), method, url, strings.NewReader(body))
 	if err != nil {
@@ -91,7 +98,7 @@ func do(t *testing.T, method, url, body string, headers ...string) (*http.Respon
 	if err != nil {
 		t.Fatal(err)
 	}
-	return resp, string(b)
+	return reply{StatusCode: resp.StatusCode, Header: resp.Header}, string(b)
 }
 
 func decode[T any](t *testing.T, body string) T {

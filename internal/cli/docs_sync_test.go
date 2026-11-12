@@ -38,7 +38,7 @@ func TestGateWorkflowCanFail(t *testing.T) {
 	for _, want := range []string{
 		"repocortex resolve", "--fail-on", "impact --base",
 		"report sarif", "report pr", "upload-sarif", "repocortex:pr-report",
-		"indexers pins", "indexers install --yes --out-dir", "scip import", "actions/cache@v4",
+		"indexers pins", "indexers install --yes --out-dir", "scip import", "actions/cache@v5",
 	} {
 		if !strings.Contains(text, want) {
 			t.Errorf("gate workflow is missing %q", want)

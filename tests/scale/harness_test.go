@@ -217,8 +217,8 @@ func newSyntheticHistory(files, commits int) syntheticHistory {
 	out := make([]hotspots.Commit, 0, commits)
 	for c := 0; c < commits; c++ {
 		var paths []string
-		switch {
-		case c%10 == 0: // a sweep: many files, many directories
+		switch c % 10 {
+		case 0: // a sweep: many files, many directories
 			for k := 0; k < 60; k++ {
 				paths = append(paths, path(next(files)))
 			}

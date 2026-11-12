@@ -22,7 +22,15 @@ func serve(t *testing.T) *httptest.Server {
 	return ts
 }
 
-func get(t *testing.T, ts *httptest.Server, path string, mutate func(*http.Request)) (*http.Response, string) {
+// reply is what a test needs from a response. The body is read and closed inside
+// get, so no caller is handed a response it would have to close.
+type reply struct {
+	status int
+	header http.Header
+	body   string
+}
+
+func get(t *testing.T, ts *httptest.Server, path string, mutate func(*http.Request)) reply {
 	t.Helper()
 	req, err := http.NewRequest(http.MethodGet, ts.URL+path, nil)
 	if err != nil {
@@ -37,7 +45,7 @@ func get(t *testing.T, ts *httptest.Server, path string, mutate func(*http.Reque
 	}
 	defer func() { _ = resp.Body.Close() }()
 	body, _ := io.ReadAll(resp.Body)
-	return resp, string(body)
+	return reply{status: resp.StatusCode, header: resp.Header, body: string(body)}
 }
 
 func TestServesThePageAndItsAssets(t *testing.T) {
@@ -47,9 +55,9 @@ func TestServesThePageAndItsAssets(t *testing.T) {
 		"/app.js":  "THE PAGE HAS NO DATA ROUTES OF ITS OWN",
 		"/app.css": "--accent:",
 	} {
-		resp, body := get(t, ts, path, nil)
-		if resp.StatusCode != http.StatusOK || !strings.Contains(body, want) {
-			t.Errorf("GET %s: status %d, missing %q", path, resp.StatusCode, want)
+		resp := get(t, ts, path, nil)
+		if resp.status != http.StatusOK || !strings.Contains(resp.body, want) {
+			t.Errorf("GET %s: status %d, missing %q", path, resp.status, want)
 		}
 	}
 }
@@ -57,7 +65,7 @@ func TestServesThePageAndItsAssets(t *testing.T) {
 func TestForwardsTheToolEndpoint(t *testing.T) {
 	ts := serve(t)
 	for _, path := range []string{APIPrefix, APIPrefix + "/tools", APIPrefix + "/tools/find_callers"} {
-		if _, body := get(t, ts, path, nil); body != "api:GET:"+path {
+		if body := get(t, ts, path, nil).body; body != "api:GET:"+path {
 			t.Errorf("GET %s was not forwarded to the API: %q", path, body)
 		}
 	}
@@ -67,13 +75,13 @@ func TestForwardsTheToolEndpoint(t *testing.T) {
 // server by a name it controls.
 func TestRefusesAForeignHost(t *testing.T) {
 	ts := serve(t)
-	resp, _ := get(t, ts, "/", func(r *http.Request) { r.Host = "attacker.example" })
-	if resp.StatusCode != http.StatusForbidden {
-		t.Errorf("a foreign Host got status %d, want 403", resp.StatusCode)
+	resp := get(t, ts, "/", func(r *http.Request) { r.Host = "attacker.example" })
+	if resp.status != http.StatusForbidden {
+		t.Errorf("a foreign Host got status %d, want 403", resp.status)
 	}
-	resp, _ = get(t, ts, APIPrefix+"/tools", func(r *http.Request) { r.Host = "attacker.example:7777" })
-	if resp.StatusCode != http.StatusForbidden {
-		t.Errorf("a foreign Host reached the API: status %d", resp.StatusCode)
+	resp = get(t, ts, APIPrefix+"/tools", func(r *http.Request) { r.Host = "attacker.example:7777" })
+	if resp.status != http.StatusForbidden {
+		t.Errorf("a foreign Host reached the API: status %d", resp.status)
 	}
 }
 
@@ -81,26 +89,26 @@ func TestRefusesAForeignHost(t *testing.T) {
 // be able to make one.
 func TestRefusesACrossOriginRequest(t *testing.T) {
 	ts := serve(t)
-	resp, _ := get(t, ts, APIPrefix+"/tools", func(r *http.Request) { r.Header.Set("Origin", "https://evil.example") })
-	if resp.StatusCode != http.StatusForbidden {
-		t.Errorf("a cross-origin request got status %d, want 403", resp.StatusCode)
+	resp := get(t, ts, APIPrefix+"/tools", func(r *http.Request) { r.Header.Set("Origin", "https://evil.example") })
+	if resp.status != http.StatusForbidden {
+		t.Errorf("a cross-origin request got status %d, want 403", resp.status)
 	}
 	// Another port on this machine is another origin.
-	resp, _ = get(t, ts, APIPrefix+"/tools", func(r *http.Request) { r.Header.Set("Origin", "http://127.0.0.1:1") })
-	if resp.StatusCode != http.StatusForbidden {
-		t.Errorf("another local port got status %d, want 403", resp.StatusCode)
+	resp = get(t, ts, APIPrefix+"/tools", func(r *http.Request) { r.Header.Set("Origin", "http://127.0.0.1:1") })
+	if resp.status != http.StatusForbidden {
+		t.Errorf("another local port got status %d, want 403", resp.status)
 	}
 	// The page's own origin is allowed.
-	resp, _ = get(t, ts, APIPrefix+"/tools", func(r *http.Request) { r.Header.Set("Origin", ts.URL) })
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("the page's own origin got status %d, want 200", resp.StatusCode)
+	resp = get(t, ts, APIPrefix+"/tools", func(r *http.Request) { r.Header.Set("Origin", ts.URL) })
+	if resp.status != http.StatusOK {
+		t.Errorf("the page's own origin got status %d, want 200", resp.status)
 	}
 }
 
 func TestSendsALockedDownPolicy(t *testing.T) {
 	ts := serve(t)
-	resp, _ := get(t, ts, "/", nil)
-	csp := resp.Header.Get("Content-Security-Policy")
+	resp := get(t, ts, "/", nil)
+	csp := resp.header.Get("Content-Security-Policy")
 	for _, want := range []string{"default-src 'none'", "script-src 'self'", "style-src 'self'", "connect-src 'self'", "frame-ancestors 'none'"} {
 		if !strings.Contains(csp, want) {
 			t.Errorf("Content-Security-Policy is missing %q: %s", want, csp)
@@ -109,8 +117,8 @@ func TestSendsALockedDownPolicy(t *testing.T) {
 	if strings.Contains(csp, "unsafe-inline") || strings.Contains(csp, "unsafe-eval") {
 		t.Errorf("the policy allows inline or evaluated code: %s", csp)
 	}
-	if resp.Header.Get("Cache-Control") != "no-store" || resp.Header.Get("X-Content-Type-Options") != "nosniff" {
-		t.Errorf("missing no-store or nosniff: %v", resp.Header)
+	if resp.header.Get("Cache-Control") != "no-store" || resp.header.Get("X-Content-Type-Options") != "nosniff" {
+		t.Errorf("missing no-store or nosniff: %v", resp.header)
 	}
 }
 
@@ -278,5 +286,25 @@ func TestLoopbackHostAndSameOrigin(t *testing.T) {
 		if got := sameOrigin(tc.origin, tc.host); got != tc.want {
 			t.Errorf("sameOrigin(%q, %q) = %v, want %v", tc.origin, tc.host, got, tc.want)
 		}
+	}
+}
+
+// The pages are files; nothing is meant to be sent to them.
+func TestRefusesAWriteToAPage(t *testing.T) {
+	ts := serve(t)
+	req, err := http.NewRequest(http.MethodPost, ts.URL+"/", strings.NewReader("x"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusMethodNotAllowed {
+		t.Errorf("POST / got status %d, want 405", resp.StatusCode)
+	}
+	if got := resp.Header.Get("Allow"); got != "GET, HEAD" {
+		t.Errorf("Allow = %q, want the methods a page accepts", got)
 	}
 }

@@ -34,12 +34,12 @@ jobs:
       security-events: write # Uploads SARIF to GitHub Code Scanning
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: Setup Go Environment
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: '1.26.x'
           cache: true
@@ -77,7 +77,7 @@ jobs:
 
       - name: Upload SARIF to GitHub Code Scanning
         if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: repocortex-out/repocortex.sarif
           category: repocortex

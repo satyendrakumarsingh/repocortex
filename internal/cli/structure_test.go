@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -294,7 +295,9 @@ func TestToolCallWritesTheAuditLog(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if perm := info.Mode().Perm(); perm&0o077 != 0 {
+	// Windows has no owner/group/other bits: Go reports 0666 for any writable
+	// file there, and access is governed by the directory's ACL instead.
+	if perm := info.Mode().Perm(); runtime.GOOS != "windows" && perm&0o077 != 0 {
 		t.Errorf("audit log is readable beyond its owner: %o", perm)
 	}
 }
@@ -436,7 +439,11 @@ func TestHotspotsWithoutARepositoryExplainsItself(t *testing.T) {
 	if err != nil {
 		t.Fatalf("no history is an answer, not an error: %v\n%s", err, out)
 	}
-	if !strings.Contains(out, "No hotspots to rank") || !strings.Contains(out, "not a git repository") {
+	// The message is wrapped to the terminal width and names the temporary
+	// directory, whose length differs by platform, so the phrase can be split
+	// across a line break. Compare with the wrapping removed.
+	flat := strings.Join(strings.Fields(out), " ")
+	if !strings.Contains(flat, "No hotspots to rank") || !strings.Contains(flat, "not a git repository") {
 		t.Errorf("the output should say why nothing was ranked:\n%s", out)
 	}
 }

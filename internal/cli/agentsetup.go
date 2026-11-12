@@ -544,17 +544,10 @@ func agentWiringChecks(ctx stdctx.Context, root string) ([]check, error) {
 			Impact: "whether this project registers RepoCortex could not be determined",
 			Remedy: "check .mcp.json is valid JSON",
 		})
-	case slices.Contains(registered, "repocortex") || slices.Contains(registered, "repocortex"):
-		matched := agentMCPName
-		for _, name := range []string{"repocortex", "repocortex"} {
-			if slices.Contains(registered, name) {
-				matched = name
-				break
-			}
-		}
+	case slices.Contains(registered, agentMCPName):
 		out = append(out, check{
 			Name: "mcp registration", Status: "ok",
-			Detail: fmt.Sprintf("%q in .mcp.json (project scope)", matched),
+			Detail: fmt.Sprintf("%q in .mcp.json (project scope)", agentMCPName),
 		})
 	default:
 		out = append(out, check{
