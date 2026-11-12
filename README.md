@@ -43,11 +43,11 @@ One Go binary. A SQLite file in `.cortex/`. Nothing leaves your machine.
 
 <table>
 <tr>
-<td align="center" width="20%"><h3>206</h3><sub>languages parsed<br>(tree-sitter)</sub></td>
-<td align="center" width="20%"><h3>18</h3><sub>MCP tools<br>(7 on by default)</sub></td>
-<td align="center" width="20%"><h3>30</h3><sub>agents configured<br>by one command</sub></td>
-<td align="center" width="20%"><h3>94–100%</h3><sub>precision of <code>high</code><br>edges, measured</sub></td>
-<td align="center" width="20%"><h3>0</h3><sub>network calls while<br>indexing or serving</sub></td>
+<td align="center" width="20%"><h3>206</h3><sub>languages parsed with tree-sitter grammars</sub></td>
+<td align="center" width="20%"><h3>18</h3><sub>MCP tools for agents, 7 of them on by default</sub></td>
+<td align="center" width="20%"><h3>30</h3><sub>coding agents configured by one install command</sub></td>
+<td align="center" width="20%"><h3>94–100%</h3><sub>measured precision of syntax-tree <code>high</code> edges</sub></td>
+<td align="center" width="20%"><h3>0</h3><sub>network calls while indexing or serving your code</sub></td>
 </tr>
 </table>
 
@@ -145,7 +145,7 @@ CALLS  mergeMCPConfig                                     internal/cli/install.g
 
 ## What's new
 
-| | Change |
+| Feature | What changed |
 |---|---|
 | **HTTP transport** | `cortex serve --http` serves MCP over Streamable HTTP, with a token on every request, so ChatGPT, Android Studio and other remote-only clients can connect. [Details](docs/guides/coding-agents.md#remote-mcp-over-http) |
 | **30 agents in one command** | `cortex install` writes each agent's own config format (JSON, TOML or YAML), keeps everything else in the file, and prints the steps for 10 more. [Coding agents guide](docs/guides/coding-agents.md) |
