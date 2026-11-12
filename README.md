@@ -13,7 +13,25 @@
 [![Local first](https://img.shields.io/badge/runs-100%25_local-2563eb?style=flat-square)](#security-and-privacy)
 [![License](https://img.shields.io/badge/license-Apache--2.0-475569?style=flat-square)](LICENSE)
 
-**Works with** Claude Code · Codex · Cursor · Copilot · Gemini CLI · Windsurf · Antigravity · Zed · Goose · Kiro · [40+ agents](docs/guides/coding-agents.md) · any MCP client over stdio or HTTP
+<p>
+<a href="docs/guides/coding-agents.md">
+<img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-1f2937?style=flat-square&logo=claude&logoColor=white">
+<img alt="Codex" src="https://img.shields.io/badge/Codex-1f2937?style=flat-square">
+<img alt="Cursor" src="https://img.shields.io/badge/Cursor-1f2937?style=flat-square&logo=cursor&logoColor=white">
+<img alt="GitHub Copilot" src="https://img.shields.io/badge/GitHub_Copilot-1f2937?style=flat-square&logo=githubcopilot&logoColor=white">
+<img alt="Gemini CLI" src="https://img.shields.io/badge/Gemini_CLI-1f2937?style=flat-square&logo=googlegemini&logoColor=white">
+<img alt="Windsurf" src="https://img.shields.io/badge/Windsurf-1f2937?style=flat-square&logo=windsurf&logoColor=white">
+<img alt="Zed" src="https://img.shields.io/badge/Zed-1f2937?style=flat-square&logo=zedindustries&logoColor=white">
+<img alt="JetBrains Junie" src="https://img.shields.io/badge/JetBrains_Junie-1f2937?style=flat-square&logo=jetbrains&logoColor=white">
+<img alt="VS Code" src="https://img.shields.io/badge/VS_Code-1f2937?style=flat-square">
+<img alt="Goose" src="https://img.shields.io/badge/Goose-1f2937?style=flat-square">
+<img alt="Kiro" src="https://img.shields.io/badge/Kiro-1f2937?style=flat-square">
+<img alt="Neovim" src="https://img.shields.io/badge/Neovim-1f2937?style=flat-square&logo=neovim&logoColor=white">
+<img alt="and 30 more" src="https://img.shields.io/badge/and_30+_more_→-059669?style=flat-square">
+</a>
+</p>
+
+**[Quickstart](#quickstart)** · **[Supported agents](#connect-your-agent)** · **[What it answers](#what-it-answers)** · **[Docs](#guides-and-documentation)** · **[Roadmap](docs/ROADMAP.md)**
 
 </div>
 
@@ -23,16 +41,27 @@ RepoCortex is an open-source MCP server and CLI (`cortex`) that indexes a reposi
 
 One Go binary. A SQLite file in `.cortex/`. Nothing leaves your machine.
 
+<table>
+<tr>
+<td align="center" width="20%"><h3>206</h3><sub>languages parsed with tree-sitter grammars</sub></td>
+<td align="center" width="20%"><h3>18</h3><sub>MCP tools for agents, 7 of them on by default</sub></td>
+<td align="center" width="20%"><h3>30</h3><sub>coding agents configured by one install command</sub></td>
+<td align="center" width="20%"><h3>94–100%</h3><sub>measured precision of syntax-tree <code>high</code> edges</sub></td>
+<td align="center" width="20%"><h3>0</h3><sub>network calls while indexing or serving your code</sub></td>
+</tr>
+</table>
+
 ## Contents
 
-| Get started | Use it | Trust it | Reference |
-|---|---|---|---|
-| [Why RepoCortex](#why-repocortex) | [What it answers](#what-it-answers) | [How it works](#how-it-works) | [MCP tools](#mcp-tools) |
-| [Who it's for](#who-its-for) | [Recipes](#recipes) | [Confidence tiers](#confidence-tiers) | [Language support](#language-support) |
-| [Quickstart](#quickstart) | [How an agent uses it](#how-an-agent-uses-it) | [Accuracy](#accuracy) | [Guides and docs](#guides-and-documentation) |
-| [Install options](#install-options) | [Blast radius in CI](#blast-radius-in-ci) | [Performance](#performance) | [FAQ](#faq) |
-| [Connect your agent](#connect-your-agent) | [Local portal](#local-portal) | [Security and privacy](#security-and-privacy) | [Roadmap and community](#roadmap-and-community) |
-| [Set up with your AI agent](#set-up-with-your-ai-agent) | [CLI output guide](docs/guides/cli-output-guide.md) | [Troubleshooting](docs/troubleshooting.md) | [Agent integration](docs/agent-integration.md) |
+| Get started | Use it | Trust it | Reference | Go deeper |
+|---|---|---|---|---|
+| [Why RepoCortex](#why-repocortex) | [What it answers](#what-it-answers) | [How it works](#how-it-works) | [MCP tools](#mcp-tools) | [User guide](docs/USER_GUIDE.md) |
+| [Who it's for](#who-its-for) | [Recipes](#recipes) | [Confidence tiers](#confidence-tiers) | [Language support](#language-support) | [Portal guide](docs/guides/portal-guide.md) |
+| [Quickstart](#quickstart) | [How an agent uses it](#how-an-agent-uses-it) | [Accuracy](#accuracy) | [Guides and docs](#guides-and-documentation) | [CLI reference](docs/CLI.md) |
+| [Install options](#install-options) | [Blast radius in CI](#blast-radius-in-ci) | [Performance](#performance) | [FAQ](#faq) | [Architecture](docs/DESIGN_AND_ARCHITECTURE.md) |
+| [Connect your agent](#connect-your-agent) | [Local portal](#local-portal) | [Security and privacy](#security-and-privacy) | [Roadmap and community](#roadmap-and-community) | [Why not vector search](docs/WHY_NOT_VECTOR_RAG.md) |
+| [Set up with your AI agent](#set-up-with-your-ai-agent) | [CLI output guide](docs/guides/cli-output-guide.md) | [Troubleshooting](docs/troubleshooting.md) | [Agent integration](docs/agent-integration.md) | [Security model](docs/security.md) |
+| [Before and after](#before-and-after) | [What's new](#whats-new) | [Compared with other approaches](#compared-with-other-approaches) | [Coding agents guide](docs/guides/coding-agents.md) | [Changelog](CHANGELOG.md) |
 
 ## Why RepoCortex
 
@@ -65,6 +94,64 @@ One static binary and a SQLite file. No account, no telemetry, and no network ca
 </picture>
 
 <div align="center"><sub>Real output from this repository. The caller is marked <code>exact (compiler)</code> because <code>scip-go</code> proved it.</sub></div>
+
+## Before and after
+
+The same task, *"change how `mergeJSONKey` writes agent configs"*, as an agent works it:
+
+<table>
+<tr>
+<th width="50%">Without RepoCortex</th>
+<th width="50%">With RepoCortex</th>
+</tr>
+<tr>
+<td valign="top">
+
+1. Searches the repository for `mergeJSONKey`
+2. Opens each file the search returns, top to bottom
+3. Guesses which hits are calls and which are comments or strings
+4. Edits, and hopes no caller was missed
+5. Runs the whole test suite, or none of it
+
+</td>
+<td valign="top">
+
+1. Calls `find_callers` once
+2. Gets every caller with file, line and how sure the edge is
+3. Calls `find_tests` and runs the tests that reach the change
+4. Reads the note on what the index could not see before trusting an empty list
+
+</td>
+</tr>
+<tr>
+<td colspan="2">
+
+```console
+$ cortex callers mergeJSONKey
+mergeJSONKey (function) at internal/cli/clients.go:367
+
+KIND   SYMBOL                                             EVIDENCE                         CONFIDENCE
+CALLS  mergeClientConfig                                  internal/cli/clients.go:355      high (source_code)
+CALLS  TestMergeJSONKeyUsesEachClientsKeyAndKeepsTheRest  internal/cli/clients_test.go:65  high (source_code)
+CALLS  TestMergeJSONKeyRefusesJSONWithComments            internal/cli/clients_test.go:96  high (source_code)
+CALLS  mergeMCPConfig                                     internal/cli/install.go:47       high (source_code)
+```
+
+<sub>Real output from this repository, shortened to one line per caller. The agent gets the same answer from <code>find_callers</code>.</sub>
+
+</td>
+</tr>
+</table>
+
+## What's new
+
+| Feature | What changed |
+|---|---|
+| **HTTP transport** | `cortex serve --http` serves MCP over Streamable HTTP, with a token on every request, so ChatGPT, Android Studio and other remote-only clients can connect. [Details](docs/guides/coding-agents.md#remote-mcp-over-http) |
+| **30 agents in one command** | `cortex install` writes each agent's own config format (JSON, TOML or YAML), keeps everything else in the file, and prints the steps for 10 more. [Coding agents guide](docs/guides/coding-agents.md) |
+| **Agent setup prompt** | Paste one prompt into your coding agent and it installs, indexes and registers RepoCortex for you. [Set up with your AI agent](#set-up-with-your-ai-agent) |
+
+Full history: [CHANGELOG.md](CHANGELOG.md).
 
 ## Who it's for
 
@@ -302,7 +389,7 @@ flowchart LR
         Graph[("SQLite graph<br/>.cortex/index.db")]
     end
     subgraph Use["Where answers go"]
-        Agent["AI agent<br/>MCP over stdio"]
+        Agent["AI agent<br/>MCP over stdio or HTTP"]
         CLI["CLI and local portal"]
         CI["CI gate<br/>PR comment · SARIF"]
     end
@@ -338,12 +425,12 @@ Run `cortex languages` for your build. A compiler index raises any of these to `
 
 Measured against compiler indexes on real repositories, including RepoCortex itself:
 
-| Language (repository) | `high` precision | `high` recall | F1 | Call sites checked |
-|---|---|---|---|---|
-| TypeScript | 99.5% | 66.4% | 79.6% | 2,330 |
-| Go (RepoCortex) | 98.6% | 60.4% | 75.0% | 8,315 |
-| Python | 94.2% | 56.3% | 70.4% | 3,277 |
-| Java (spring-petclinic-rest) | 100.0% | 32.7% | 49.2% | 251 |
+| Language (repository) | `high` precision | `high` recall | F1 | Call sites checked | In plain terms |
+|---|---|---|---|---|---|
+| TypeScript | 99.5% | 66.4% | 79.6% | 2,330 | About 1 wrong `high` edge in 200 |
+| Go (RepoCortex) | 98.6% | 60.4% | 75.0% | 8,315 | About 1 wrong `high` edge in 70 |
+| Python | 94.2% | 56.3% | 70.4% | 3,277 | About 1 wrong `high` edge in 17 |
+| Java (spring-petclinic-rest) | 100.0% | 32.7% | 49.2% | 251 | No wrong `high` edge among the sites checked |
 
 > [!NOTE]
 > Between a third and two fifths of call sites can't be bound from syntax alone. RepoCortex reports those gaps instead of returning an empty answer, and `cortex scip import` closes most of them. Run `cortex accuracy` on your own code. Method and every caveat: [docs/accuracy.md](docs/accuracy.md).
@@ -352,11 +439,11 @@ Measured against compiler indexes on real repositories, including RepoCortex its
 
 Indexed and resolved on an Apple M4 Pro, from a shallow clone:
 
-| Repository | Language | Files indexed | Symbols | Time | Peak memory |
-|---|---|---|---|---|---|
-| prometheus | Go | 1,030 | 21,429 | 8.8 s | 664 MB |
-| nest | TypeScript | 1,929 | 13,916 | 3.7 s | 590 MB |
-| spring-boot | Java | 9,236 | 94,304 | 46.4 s | 756 MB |
+| Repository | Language | Files indexed | Symbols | Time | Peak memory | Throughput |
+|---|---|---|---|---|---|---|
+| prometheus | Go | 1,030 | 21,429 | 8.8 s | 664 MB | about 117 files a second |
+| nest | TypeScript | 1,929 | 13,916 | 3.7 s | 590 MB | about 521 files a second |
+| spring-boot | Java | 9,236 | 94,304 | 46.4 s | 756 MB | about 199 files a second |
 
 After the first run, `cortex index` only re-reads changed files, and `cortex hooks install` keeps the index current on every commit. Method: [docs/performance.md](docs/performance.md).
 
@@ -458,6 +545,12 @@ Threat model: [docs/security.md](docs/security.md). Report a vulnerability: [SEC
 <br>Reflection, dependency injection, generated code and some dynamic calls are invisible to static analysis. Every answer states what the index could not see, so an empty list reads as "nothing found", never "nothing there".
 </details>
 
+<details>
+<summary><b>Can ChatGPT use it?</b></summary>
+
+<br>Yes, through <code>cortex serve --http</code>. ChatGPT connects only to a remote HTTPS server, so it reaches RepoCortex through a tunnel you run, with a secret token in the URL. The <a href="docs/guides/coding-agents.md#remote-mcp-over-http">coding agents guide</a> has the steps and what the token does and does not protect.
+</details>
+
 More: [docs/FAQ.md](docs/FAQ.md).
 
 ## Guides and documentation
@@ -465,23 +558,31 @@ More: [docs/FAQ.md](docs/FAQ.md).
 | Guide | What it covers |
 |---|---|
 | [CLI output guide](docs/guides/cli-output-guide.md) | Every command, a real run, and how to read each part of its output |
-| [Portal guide](docs/guides/portal-guide.md) | Every screen of `cortex ui`, with screenshots and layout |
-| [User guide](docs/USER_GUIDE.md) | Day-to-day use, end to end |
+| [Portal guide](docs/guides/portal-guide.md) | Every screen of `cortex ui`, with screenshots, layout and what each number means |
+| [User guide](docs/USER_GUIDE.md) | Day-to-day use, end to end: indexing, asking questions, keeping the index current |
 | [Coding agents](docs/guides/coding-agents.md) | All 40+ supported agents, their config files, and agents without MCP |
 | [Agent integration](docs/agent-integration.md) | The Claude Code plugin, guidance and per-client details |
-| [CLI reference](docs/CLI.md) | Every command and flag |
+| [CLI reference](docs/CLI.md) | Every command and flag, with the exit codes CI can rely on |
 | [Architecture](docs/DESIGN_AND_ARCHITECTURE.md) | Packages, invariants and design decisions |
-| [Accuracy](docs/accuracy.md) | How precision and recall are measured |
-| [Performance](docs/performance.md) | Index time, memory and scaling |
-| [Why not vector search?](docs/WHY_NOT_VECTOR_RAG.md) | The case for a graph |
-| [Troubleshooting](docs/troubleshooting.md) | Common problems and fixes |
+| [Accuracy](docs/accuracy.md) | How precision and recall are measured against compiler indexes, and every caveat |
+| [Performance](docs/performance.md) | Index time, memory and scaling, and how to reproduce the numbers |
+| [Why not vector search?](docs/WHY_NOT_VECTOR_RAG.md) | The case for a call graph over similarity search when an agent edits code |
+| [Troubleshooting](docs/troubleshooting.md) | Common problems and fixes, from a missing index to files left out of it |
 
 ## Roadmap and community
 
-| Topic | Where |
+| Topic | Where to go |
 |---|---|
-| Roadmap | What is missing and what is next: [docs/ROADMAP.md](docs/ROADMAP.md) |
-| Questions and ideas | [GitHub Discussions](https://github.com/satyendrakumarsingh/repocortex/discussions) |
-| Bugs | [Open an issue](https://github.com/satyendrakumarsingh/repocortex/issues/new/choose) |
-| Contributing | [CONTRIBUTING.md](.github/CONTRIBUTING.md) and the [Code of Conduct](.github/CODE_OF_CONDUCT.md) |
-| License | [Apache 2.0](LICENSE) |
+| Roadmap | What is missing, what is being built next, and the known issues found so far: [docs/ROADMAP.md](docs/ROADMAP.md) |
+| Questions and ideas | Ask, propose or vote in [GitHub Discussions](https://github.com/satyendrakumarsingh/repocortex/discussions) |
+| Bugs | [Open an issue](https://github.com/satyendrakumarsingh/repocortex/issues/new/choose) with the command, its output and `cortex --version` |
+| Contributing | Start with [CONTRIBUTING.md](.github/CONTRIBUTING.md) and the [Code of Conduct](.github/CODE_OF_CONDUCT.md) |
+| License | [Apache 2.0](LICENSE): free for personal and commercial use, with a patent grant |
+
+<div align="center">
+
+**If RepoCortex saves your agent a search, [star the repository](https://github.com/satyendrakumarsingh/repocortex) so other developers find it.**
+
+<sub>[Back to top](#repocortex-a-code-graph-mcp-server-for-ai-coding-agents)</sub>
+
+</div>
