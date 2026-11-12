@@ -573,7 +573,7 @@ More: [docs/FAQ.md](docs/FAQ.md).
 
 | Topic | Where to go |
 |---|---|
-| Roadmap | What is missing and what is next: [docs/ROADMAP.md](docs/ROADMAP.md) |
+| Roadmap | What is missing, what is being built next, and the known issues found so far: [docs/ROADMAP.md](docs/ROADMAP.md) |
 | Questions and ideas | Ask, propose or vote in [GitHub Discussions](https://github.com/satyendrakumarsingh/repocortex/discussions) |
 | Bugs | [Open an issue](https://github.com/satyendrakumarsingh/repocortex/issues/new/choose) with the command, its output and `cortex --version` |
 | Contributing | Start with [CONTRIBUTING.md](.github/CONTRIBUTING.md) and the [Code of Conduct](.github/CODE_OF_CONDUCT.md) |
