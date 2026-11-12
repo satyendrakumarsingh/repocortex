@@ -62,15 +62,11 @@ format.
   implemented" list. Overstating readiness is how a project loses the trust it
   needs most in its first weeks.
 
-**Trailer** — every commit in this repository ends with a co-authorship trailer,
-separated from the body by a blank line:
-
-```
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
-```
-
-Use it when an AI assistant contributed materially to the change. It is a
-standard Git trailer, so `git log --format='%(trailers)'` picks it up.
+**Trailers** — none. A commit carries its author and nothing else: do not add a
+`Co-Authored-By` line or any other attribution for an AI assistant or a tool,
+in commit messages, tag messages or pull-request text. To check a branch before
+pushing, `git log --format='%an | %cn%n%(trailers)'` should show only its
+author.
 
 ### Worked shape
 
@@ -97,8 +93,6 @@ indexed is worse than a brief spike.
 Throughput on ordinary code is unchanged, because ordinary files are
 small: 54s before, 54s after on the 10,920-file tree, at 1,595 MB rather
 than 6,531 MB peak.
-
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 ```
 
 ## Before you commit
