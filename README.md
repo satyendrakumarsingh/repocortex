@@ -53,15 +53,15 @@ One Go binary. A SQLite file in `.cortex/`. Nothing leaves your machine.
 
 ## Contents
 
-| Get started | Use it | Trust it | Reference |
-|---|---|---|---|
-| [Why RepoCortex](#why-repocortex) | [What it answers](#what-it-answers) | [How it works](#how-it-works) | [MCP tools](#mcp-tools) |
-| [Who it's for](#who-its-for) | [Recipes](#recipes) | [Confidence tiers](#confidence-tiers) | [Language support](#language-support) |
-| [Quickstart](#quickstart) | [How an agent uses it](#how-an-agent-uses-it) | [Accuracy](#accuracy) | [Guides and docs](#guides-and-documentation) |
-| [Install options](#install-options) | [Blast radius in CI](#blast-radius-in-ci) | [Performance](#performance) | [FAQ](#faq) |
-| [Connect your agent](#connect-your-agent) | [Local portal](#local-portal) | [Security and privacy](#security-and-privacy) | [Roadmap and community](#roadmap-and-community) |
-| [Set up with your AI agent](#set-up-with-your-ai-agent) | [CLI output guide](docs/guides/cli-output-guide.md) | [Troubleshooting](docs/troubleshooting.md) | [Agent integration](docs/agent-integration.md) |
-| [Before and after](#before-and-after) | [What's new](#whats-new) | [Compared with other approaches](#compared-with-other-approaches) | [Coding agents guide](docs/guides/coding-agents.md) |
+| Get started | Use it | Trust it | Reference | Go deeper |
+|---|---|---|---|---|
+| [Why RepoCortex](#why-repocortex) | [What it answers](#what-it-answers) | [How it works](#how-it-works) | [MCP tools](#mcp-tools) | [User guide](docs/USER_GUIDE.md) |
+| [Who it's for](#who-its-for) | [Recipes](#recipes) | [Confidence tiers](#confidence-tiers) | [Language support](#language-support) | [Portal guide](docs/guides/portal-guide.md) |
+| [Quickstart](#quickstart) | [How an agent uses it](#how-an-agent-uses-it) | [Accuracy](#accuracy) | [Guides and docs](#guides-and-documentation) | [CLI reference](docs/CLI.md) |
+| [Install options](#install-options) | [Blast radius in CI](#blast-radius-in-ci) | [Performance](#performance) | [FAQ](#faq) | [Architecture](docs/DESIGN_AND_ARCHITECTURE.md) |
+| [Connect your agent](#connect-your-agent) | [Local portal](#local-portal) | [Security and privacy](#security-and-privacy) | [Roadmap and community](#roadmap-and-community) | [Why not vector search](docs/WHY_NOT_VECTOR_RAG.md) |
+| [Set up with your AI agent](#set-up-with-your-ai-agent) | [CLI output guide](docs/guides/cli-output-guide.md) | [Troubleshooting](docs/troubleshooting.md) | [Agent integration](docs/agent-integration.md) | [Security model](docs/security.md) |
+| [Before and after](#before-and-after) | [What's new](#whats-new) | [Compared with other approaches](#compared-with-other-approaches) | [Coding agents guide](docs/guides/coding-agents.md) | [Changelog](CHANGELOG.md) |
 
 ## Why RepoCortex
 
@@ -425,12 +425,12 @@ Run `cortex languages` for your build. A compiler index raises any of these to `
 
 Measured against compiler indexes on real repositories, including RepoCortex itself:
 
-| Language (repository) | `high` precision | `high` recall | F1 | Call sites checked |
-|---|---|---|---|---|
-| TypeScript | 99.5% | 66.4% | 79.6% | 2,330 |
-| Go (RepoCortex) | 98.6% | 60.4% | 75.0% | 8,315 |
-| Python | 94.2% | 56.3% | 70.4% | 3,277 |
-| Java (spring-petclinic-rest) | 100.0% | 32.7% | 49.2% | 251 |
+| Language (repository) | `high` precision | `high` recall | F1 | Call sites checked | In plain terms |
+|---|---|---|---|---|---|
+| TypeScript | 99.5% | 66.4% | 79.6% | 2,330 | About 1 wrong `high` edge in 200 |
+| Go (RepoCortex) | 98.6% | 60.4% | 75.0% | 8,315 | About 1 wrong `high` edge in 70 |
+| Python | 94.2% | 56.3% | 70.4% | 3,277 | About 1 wrong `high` edge in 17 |
+| Java (spring-petclinic-rest) | 100.0% | 32.7% | 49.2% | 251 | No wrong `high` edge among the sites checked |
 
 > [!NOTE]
 > Between a third and two fifths of call sites can't be bound from syntax alone. RepoCortex reports those gaps instead of returning an empty answer, and `cortex scip import` closes most of them. Run `cortex accuracy` on your own code. Method and every caveat: [docs/accuracy.md](docs/accuracy.md).
@@ -439,11 +439,11 @@ Measured against compiler indexes on real repositories, including RepoCortex its
 
 Indexed and resolved on an Apple M4 Pro, from a shallow clone:
 
-| Repository | Language | Files indexed | Symbols | Time | Peak memory |
-|---|---|---|---|---|---|
-| prometheus | Go | 1,030 | 21,429 | 8.8 s | 664 MB |
-| nest | TypeScript | 1,929 | 13,916 | 3.7 s | 590 MB |
-| spring-boot | Java | 9,236 | 94,304 | 46.4 s | 756 MB |
+| Repository | Language | Files indexed | Symbols | Time | Peak memory | Throughput |
+|---|---|---|---|---|---|---|
+| prometheus | Go | 1,030 | 21,429 | 8.8 s | 664 MB | about 117 files a second |
+| nest | TypeScript | 1,929 | 13,916 | 3.7 s | 590 MB | about 521 files a second |
+| spring-boot | Java | 9,236 | 94,304 | 46.4 s | 756 MB | about 199 files a second |
 
 After the first run, `cortex index` only re-reads changed files, and `cortex hooks install` keeps the index current on every commit. Method: [docs/performance.md](docs/performance.md).
 
@@ -558,26 +558,26 @@ More: [docs/FAQ.md](docs/FAQ.md).
 | Guide | What it covers |
 |---|---|
 | [CLI output guide](docs/guides/cli-output-guide.md) | Every command, a real run, and how to read each part of its output |
-| [Portal guide](docs/guides/portal-guide.md) | Every screen of `cortex ui`, with screenshots and layout |
-| [User guide](docs/USER_GUIDE.md) | Day-to-day use, end to end |
+| [Portal guide](docs/guides/portal-guide.md) | Every screen of `cortex ui`, with screenshots, layout and what each number means |
+| [User guide](docs/USER_GUIDE.md) | Day-to-day use, end to end: indexing, asking questions, keeping the index current |
 | [Coding agents](docs/guides/coding-agents.md) | All 40+ supported agents, their config files, and agents without MCP |
 | [Agent integration](docs/agent-integration.md) | The Claude Code plugin, guidance and per-client details |
-| [CLI reference](docs/CLI.md) | Every command and flag |
+| [CLI reference](docs/CLI.md) | Every command and flag, with the exit codes CI can rely on |
 | [Architecture](docs/DESIGN_AND_ARCHITECTURE.md) | Packages, invariants and design decisions |
-| [Accuracy](docs/accuracy.md) | How precision and recall are measured |
-| [Performance](docs/performance.md) | Index time, memory and scaling |
-| [Why not vector search?](docs/WHY_NOT_VECTOR_RAG.md) | The case for a graph |
-| [Troubleshooting](docs/troubleshooting.md) | Common problems and fixes |
+| [Accuracy](docs/accuracy.md) | How precision and recall are measured against compiler indexes, and every caveat |
+| [Performance](docs/performance.md) | Index time, memory and scaling, and how to reproduce the numbers |
+| [Why not vector search?](docs/WHY_NOT_VECTOR_RAG.md) | The case for a call graph over similarity search when an agent edits code |
+| [Troubleshooting](docs/troubleshooting.md) | Common problems and fixes, from a missing index to files left out of it |
 
 ## Roadmap and community
 
-| Topic | Where |
+| Topic | Where to go |
 |---|---|
 | Roadmap | What is missing and what is next: [docs/ROADMAP.md](docs/ROADMAP.md) |
-| Questions and ideas | [GitHub Discussions](https://github.com/satyendrakumarsingh/repocortex/discussions) |
-| Bugs | [Open an issue](https://github.com/satyendrakumarsingh/repocortex/issues/new/choose) |
-| Contributing | [CONTRIBUTING.md](.github/CONTRIBUTING.md) and the [Code of Conduct](.github/CODE_OF_CONDUCT.md) |
-| License | [Apache 2.0](LICENSE) |
+| Questions and ideas | Ask, propose or vote in [GitHub Discussions](https://github.com/satyendrakumarsingh/repocortex/discussions) |
+| Bugs | [Open an issue](https://github.com/satyendrakumarsingh/repocortex/issues/new/choose) with the command, its output and `cortex --version` |
+| Contributing | Start with [CONTRIBUTING.md](.github/CONTRIBUTING.md) and the [Code of Conduct](.github/CODE_OF_CONDUCT.md) |
+| License | [Apache 2.0](LICENSE): free for personal and commercial use, with a patent grant |
 
 <div align="center">
 
