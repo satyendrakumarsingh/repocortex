@@ -5,7 +5,7 @@ import subprocess
 import signal
 from playwright.sync_api import sync_playwright
 
-SCREENSHOTS_DIR = "/tmp/cortex_e2e_screenshots"
+SCREENSHOTS_DIR = "/tmp/repocortex_e2e_screenshots"
 os.makedirs(SCREENSHOTS_DIR, exist_ok=True)
 
 PROJECTS_TO_TEST = [
@@ -46,7 +46,7 @@ def run_project_e2e(p, binary_path, project_info, port=7788):
     print(f"Testing RepoCortex UX on project: {proj_name} ({proj_path})")
     print(f"=======================================================")
 
-    # Start cortex ui
+    # Start repocortex ui
     cmd = [binary_path, "ui", "--port", str(port), "--project", proj_path]
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     
@@ -68,8 +68,8 @@ def run_project_e2e(p, binary_path, project_info, port=7788):
 
     if not ready or proc.poll() is not None:
         out, err = proc.communicate(timeout=2.0) if proc.poll() is not None else ("", "")
-        print(f"Failed to start cortex ui for {proj_name}: {out}\n{err}")
-        return False, ["Failed to start cortex ui server"]
+        print(f"Failed to start repocortex ui for {proj_name}: {out}\n{err}")
+        return False, ["Failed to start repocortex ui server"]
 
     errors = []
     warnings = []
@@ -111,7 +111,7 @@ def run_project_e2e(p, binary_path, project_info, port=7788):
         print(f"  Page title: {title}")
         project_badge = page.locator("#project").inner_text()
         print(f"  Project badge: {project_badge}")
-        assert proj_name.lower() in project_badge.lower() or "cortex" in project_badge.lower()
+        assert proj_name.lower() in project_badge.lower() or "repocortex" in project_badge.lower()
 
         # Check KPIs
         kpi_count = page.locator(".kpi").count()
@@ -269,7 +269,7 @@ def run_project_e2e(p, binary_path, project_info, port=7788):
     return len(errors) == 0, errors
 
 def main():
-    binary_path = "/Users/satyendra/Documents/AI-TOOLS/cortex/bin/cortex"
+    binary_path = "/Users/satyendra/Documents/AI-TOOLS/repocortex/bin/repocortex"
     if not os.path.exists(binary_path):
         print(f"Error: binary {binary_path} does not exist. Run go build first.")
         sys.exit(1)

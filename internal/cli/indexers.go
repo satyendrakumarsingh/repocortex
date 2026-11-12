@@ -24,7 +24,7 @@ only way an edge earns 'exact' confidence. Everything else RepoCortex infers.
 These are third-party tools that run build systems, so RepoCortex will not
 install one without being asked. Which indexers may be installed, and whether
 installation may happen without prompting, is controlled by your USER config
-(~/.config/cortex/config.yml) and never by the repository — a cloned repo
+(~/.config/repocortex/config.yml) and never by the repository — a cloned repo
 must not be able to decide what runs on your machine.`,
 	}
 	cmd.AddCommand(newIndexersListCmd(g), newIndexersInstallCmd(g), newIndexersPinsCmd(g))
@@ -142,7 +142,7 @@ The output depends on nothing but the binary — no repository, config or
 network is read — which makes it a sound CI cache key: when a pin changes, the
 key changes.
 
-  cortex indexers pins > indexer-pins.txt`,
+  repocortex indexers pins > indexer-pins.txt`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			pins := indexer.Pins()

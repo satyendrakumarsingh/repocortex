@@ -8,7 +8,7 @@ import (
 
 // FuzzIgnoreMatcher drives the ignore-rule parser and matcher with arbitrary
 // input, because both are reached directly from attacker-controlled bytes: a
-// cloned repository's .gitignore and .cortexignore. CONTRIBUTING.md requires
+// cloned repository's .gitignore and .repocortexignore. CONTRIBUTING.md requires
 // a fuzz target for anything reading untrusted input.
 //
 // The properties asserted are the ones a hostile repository could otherwise

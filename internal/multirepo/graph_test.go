@@ -426,8 +426,8 @@ func TestUnavailableMemberIsReportedNotDropped(t *testing.T) {
 	members := webAndAPI(t)
 	members = append(members, Member{
 		Name:        "billing",
-		IndexPath:   "/tmp/billing/.cortex/index.db",
-		Unavailable: "no index at /tmp/billing/.cortex/index.db. Build one in that checkout.",
+		IndexPath:   "/tmp/billing/.repocortex/index.db",
+		Unavailable: "no index at /tmp/billing/.repocortex/index.db. Build one in that checkout.",
 	})
 
 	rep := build(t, members)

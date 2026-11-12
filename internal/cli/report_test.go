@@ -28,7 +28,7 @@ func TestReportSARIF(t *testing.T) {
 		`{"architecture_declared":true,"violations":[{"rule_id":"r1","severity":"medium","file_path":"x.go","line":5}],"data_violations":[]}`)
 	out := filepath.Join(dir, "out.sarif")
 
-	if _, err := run(t, root, "report", "sarif", "--missed", m, "--arch", a, "--out", out); err != nil {
+	if _, err := run(t, root, "report", "sarif", "--blindspots", m, "--arch", a, "--out", out); err != nil {
 		t.Fatal(err)
 	}
 	data, err := os.ReadFile(out)
@@ -53,7 +53,7 @@ func TestReportSARIF(t *testing.T) {
 	for _, r := range log.Runs[0].Results {
 		got[r.RuleID] = true
 	}
-	for _, want := range []string{"cortex/blindspot/orphan_table", "cortex/arch/r1"} {
+	for _, want := range []string{"repocortex/blindspot/orphan_table", "repocortex/arch/r1"} {
 		if !got[want] {
 			t.Errorf("missing rule ID %q in %s", want, data)
 		}
@@ -73,7 +73,7 @@ func TestReportRequiresAnInput(t *testing.T) {
 func TestReportRejectsMalformedJSON(t *testing.T) {
 	root := isolate(t)
 	bad := writeJSONFixture(t, t.TempDir(), "bad.json", `{"blindspots": [`)
-	_, err := run(t, root, "report", "sarif", "--missed", bad)
+	_, err := run(t, root, "report", "sarif", "--blindspots", bad)
 	if err == nil || !strings.Contains(err.Error(), "bad.json") {
 		t.Errorf("malformed input error must name the file, got %v", err)
 	}
@@ -82,11 +82,11 @@ func TestReportRejectsMalformedJSON(t *testing.T) {
 func TestReportPRToStdout(t *testing.T) {
 	root := isolate(t)
 	m := writeJSONFixture(t, t.TempDir(), "missed.json", `{"blindspots":[]}`)
-	out, err := run(t, root, "report", "pr", "--missed", m)
+	out, err := run(t, root, "report", "pr", "--blindspots", m)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out, "<!-- cortex:pr-report -->") || !strings.Contains(out, "| Blast radius | not run |") {
+	if !strings.Contains(out, "<!-- repocortex:pr-report -->") || !strings.Contains(out, "| Blast radius | not run |") {
 		t.Errorf("unexpected PR body:\n%s", out)
 	}
 }
@@ -96,7 +96,7 @@ func TestReportSARIFPathPrefix(t *testing.T) {
 	dir := t.TempDir()
 	m := writeJSONFixture(t, dir, "missed.json",
 		`{"blindspots":[{"kind":"orphan_table","severity":"high","target":"t","path":"s.sql","line":2,"description":"d"}]}`)
-	out, err := run(t, root, "report", "sarif", "--missed", m, "--path-prefix", "services/api")
+	out, err := run(t, root, "report", "sarif", "--blindspots", m, "--path-prefix", "services/api")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,7 +145,7 @@ func TestReportRejectsWrongShape(t *testing.T) {
 	for _, tc := range []struct {
 		flag, file, name string
 	}{
-		{"--missed", arch, "arch.json"},
+		{"--blindspots", arch, "arch.json"},
 		{"--impact", missed, "missed.json"},
 		{"--arch", missed, "missed.json"},
 	} {
@@ -196,7 +196,7 @@ func TestReportDeclaredArch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{`"cortex/arch/r1"`, `"cortex/data/d1"`, "pay.go"} {
+	for _, want := range []string{`"repocortex/arch/r1"`, `"repocortex/data/d1"`, "pay.go"} {
 		if !strings.Contains(sarif, want) {
 			t.Errorf("SARIF missing %s:\n%s", want, sarif)
 		}

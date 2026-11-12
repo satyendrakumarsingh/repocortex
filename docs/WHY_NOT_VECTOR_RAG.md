@@ -90,7 +90,7 @@ This introduces two severe penalties:
 RepoCortex flips this equation. Instead of returning whole files or raw text chunks:
 - It returns **compact symbol signatures and 2-hop subgraphs**.
 - A task context (the target symbols, their callers, related tables and the tests that reach them) is assembled under a size budget you set, so the agent receives the relevant structure instead of whole files.
-- Every edge in it is marked with how it was found, so the agent can tell a proven call from a guess. `cortex bench` measures retrieval quality on your own repository.
+- Every edge in it is marked with how it was found, so the agent can tell a proven call from a guess. `repocortex bench` measures retrieval quality on your own repository.
 
 ---
 
@@ -151,7 +151,7 @@ RepoCortex never lies about how much it knows. Every edge in the graph is tagged
 | `medium` | Multi-candidate type inference or package-level heuristics | **5.7% – 37.5%** | Treated as investigatory leads; never acted upon without verification. |
 | `low` | Loose identifier matches across unrelated packages | **0.0% – 2.8%** | Filtered by default. Exposed only when explicitly requested. |
 
-When an agent calls `cortex`, it doesn't get a vague similarity score. It gets:
+When an agent calls `repocortex`, it doesn't get a vague similarity score. It gets:
 > *"Symbol `SubmitOrder` reaches `ChargeCard` at Depth 2 (Confidence: `exact`, proven by compiler)."*
 
 If an edge is heuristic (`medium`), RepoCortex attaches an advisory notice:

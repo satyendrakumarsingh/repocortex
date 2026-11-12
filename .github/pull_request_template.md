@@ -23,7 +23,7 @@
 - [ ] Ran `go test -race ./...` and all tests pass.
 - [ ] Ran `gofmt -l .` and no formatting diffs exist.
 - [ ] Ran `go vet ./...` with zero issues.
-- [ ] Verified backwards compatibility with existing `.cortex` databases/indexes (or added schema migration).
+- [ ] Verified backwards compatibility with existing `.repocortex` databases/indexes (or added schema migration).
 - [ ] Updated user guides, CLI reference, or agent skills if adding new flags, commands, or behaviors.
 
 ## Related Issues & Discussions

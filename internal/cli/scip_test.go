@@ -59,7 +59,7 @@ func TestSCIPImportRequiresACommittedIndex(t *testing.T) {
 	if err == nil {
 		t.Fatal("import succeeded with nothing indexed")
 	}
-	if !strings.Contains(err.Error(), "cortex index") {
+	if !strings.Contains(err.Error(), "repocortex index") {
 		t.Errorf("error should name the missing step; got %q", err)
 	}
 }

@@ -59,18 +59,18 @@ import (
 // point — each entry is a reviewed decision that this dimension cannot
 // identify a user or their code.
 const (
-	AttrLanguage     = "cortex.language"         // "go", "python", "other"
-	AttrSizeBucket   = "cortex.file.size_bucket" // "1k", "64k", "1m+"
-	AttrParseStatus  = "cortex.parse_status"     // ok | partial | failed | skipped
-	AttrConfidence   = "cortex.confidence"       // exact | high | medium | low
-	AttrAccuracyMode = "cortex.accuracy_mode"    // fast | auto | exact
-	AttrEdgeKind     = "cortex.edge_kind"        // CALLS, IMPORTS, ...
-	AttrEntityKind   = "cortex.entity_kind"      // function, file, ...
-	AttrTool         = "cortex.mcp.tool"         // RepoCortex's own tool names
-	AttrStatus       = "cortex.status"           // ok | error | denied | timeout
-	AttrCacheHit     = "cortex.cache.hit"        // bool
-	AttrOperation    = "db.operation"            // select | insert | migrate | ...
-	AttrErrorType    = "error.type"              // Go type name, set by RecordError
+	AttrLanguage     = "repocortex.language"         // "go", "python", "other"
+	AttrSizeBucket   = "repocortex.file.size_bucket" // "1k", "64k", "1m+"
+	AttrParseStatus  = "repocortex.parse_status"     // ok | partial | failed | skipped
+	AttrConfidence   = "repocortex.confidence"       // exact | high | medium | low
+	AttrAccuracyMode = "repocortex.accuracy_mode"    // fast | auto | exact
+	AttrEdgeKind     = "repocortex.edge_kind"        // CALLS, IMPORTS, ...
+	AttrEntityKind   = "repocortex.entity_kind"      // function, file, ...
+	AttrTool         = "repocortex.mcp.tool"         // RepoCortex's own tool names
+	AttrStatus       = "repocortex.status"           // ok | error | denied | timeout
+	AttrCacheHit     = "repocortex.cache.hit"        // bool
+	AttrOperation    = "db.operation"                // select | insert | migrate | ...
+	AttrErrorType    = "error.type"                  // Go type name, set by RecordError
 )
 
 var registeredKeys = map[string]struct{}{
@@ -190,8 +190,16 @@ var deniedKeySubstrings = []string{
 	"auth", "cookie", "session", "email", "user", "home", "host", "url", "uri", "env",
 }
 
+// attrNamespace is the prefix every attribute this product emits carries.
+//
+// It contains "repo", which is one of the denied words, so it is removed
+// before the key is checked. Only as a leading namespace: `repocortex.repo.path`
+// is still caught by what follows the prefix, and a key that merely contains
+// the product's name somewhere else gets no exemption at all.
+const attrNamespace = "repocortex."
+
 func unsafeKey(key string) string {
-	lower := strings.ToLower(key)
+	lower := strings.TrimPrefix(strings.ToLower(key), attrNamespace)
 	for _, bad := range deniedKeySubstrings {
 		if strings.Contains(lower, bad) {
 			return fmt.Sprintf("key contains %q, which names data RepoCortex does not export", bad)
@@ -348,7 +356,7 @@ func guardAttrs(attrs []attribute.KeyValue) {
 // refuse panics in strict mode and reports otherwise.
 //
 // The asymmetry is the whole design. A panic during `go test` is a bug report
-// delivered to the person who can fix it. A panic in a user's `cortex index`
+// delivered to the person who can fix it. A panic in a user's `repocortex index`
 // would be telemetry — an optional feature — crashing the tool, which is
 // unacceptable for something that exists only to observe.
 func refuse(err error) {

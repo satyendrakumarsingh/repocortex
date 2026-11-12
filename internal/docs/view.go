@@ -315,7 +315,7 @@ type View struct {
 	ConfigPath string
 	Limits     Limits
 
-	// ComponentsDeclared is false when .cortex.yml declares no components.
+	// ComponentsDeclared is false when .repocortex.yml declares no components.
 	// The documents then say so instead of inventing a component model.
 	ComponentsDeclared bool
 	RulesDeclared      int

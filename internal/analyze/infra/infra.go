@@ -539,7 +539,7 @@ func clip(s string, n int) string {
 //
 // `Dockerfile.prod` and `Dockerfile.alpine` are a real convention, so the prefix
 // rule has to exist. But it also matched `dockerfile.go` — this package's own
-// parser — and `cortex infra` duly reported that Go file as a container build
+// parser — and `repocortex infra` duly reported that Go file as a container build
 // with two stages named `stage1` and `stage2` at lines 83 and 85. Every one of
 // those "facts" was invented from Go source.
 //

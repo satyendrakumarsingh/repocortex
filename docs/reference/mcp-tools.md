@@ -1,10 +1,10 @@
 # MCP tools reference
 
-RepoCortex runs as an MCP server over stdio (`cortex --project <repo> serve`). This page lists the tools the server registers, generated from the server's own `tools/list` response.
+RepoCortex runs as an MCP server over stdio (`repocortex --project <repo> serve`). This page lists the tools the server registers, generated from the server's own `tools/list` response.
 
 ## Profiles
 
-Every tool's schema is sent to the agent on every request, so the default profile is small. Set the profile in `.cortex.yml`:
+Every tool's schema is sent to the agent on every request, so the default profile is small. Set the profile in `.repocortex.yml`:
 
 ```yaml
 mcp:
@@ -29,16 +29,16 @@ mcp:
 | `find_references` | minimal (default) | `name` (required), `path`, `min_confidence` | Find where a symbol is used. |
 | `find_callers` | minimal (default) | `name` (required), `path`, `min_confidence` | Find the functions and methods that call a symbol — the callers, not merely the files mentioning it. |
 | `find_tests` | standard | `symbol` (required), `min_confidence`, `hub_degree_limit` | Find the tests covering a symbol, and which signal found each one — a proven call edge is far stronger evidence than a matching filename, and the response names which you got. |
-| `impact_analysis` | standard | `symbol` (required), `min_confidence`, `hub_degree_limit` | Before changing a symbol, find out what depends on it. |
-| `resolution_coverage` | standard | none | Ask this when a find_callers, find_references or impact_analysis result came back shorter than you expected, BEFORE concluding anything from it. |
+| `analyze_impact` | standard | `symbol` (required), `min_confidence`, `hub_degree_limit` | Before changing a symbol, find out what depends on it. |
+| `get_resolution_coverage` | standard | none | Ask this when a find_callers, find_references or analyze_impact result came back shorter than you expected, BEFORE concluding anything from it. |
 | `plan_rename` | standard | `name` (required), `new_name` (required), `path`, `min_confidence` | Plan a symbol rename. |
-| `find_api_endpoints` | standard | `method` | List the HTTP endpoints this service exposes, with the handler that serves each one and where it is declared. |
-| `find_db_access` | standard | `table` | Report which code reads and which code writes each database table, with per-table read/write counts. |
+| `list_api_endpoints` | standard | `method` | List the HTTP endpoints this service exposes, with the handler that serves each one and where it is declared. |
+| `list_db_tables` | standard | `table` | Report which code reads and which code writes each database table, with per-table read/write counts. |
 | `get_config_key` | standard | `key` (required) | Look up one configuration key by name: where it is declared and how many places read it, joined into a single mismatch check. |
 | `get_file_outline` | standard | `path` (required) | Get a token-efficient structural outline of a source file by pruning implementation bodies while preserving all imports, types, interfaces, structs, function signatures, and docstrings. |
 | `minimize_diff` | standard | `diff` (required) | Compress unified git diffs into structured, token-efficient representations. |
 | `plan_change` | standard | `symbol` (required), `min_confidence`, `hub_degree_limit` | Generate a deterministic refactoring and change plan for a symbol. |
-| `detect_blindspots` | standard | none | Audit the repository for code intelligence blindspots and hidden risks. |
+| `list_blindspots` | standard | none | Audit the repository for code intelligence blindspots and hidden risks. |
 
 ## Parameters
 
@@ -118,7 +118,7 @@ Find the tests covering a symbol, and which signal found each one — a proven c
 | `min_confidence` | string | no | Lowest confidence to return: exact, high, medium or low. Default low. Recommended: 'high' for safe automated code changes and blast radius analysis to filter out heuristic false positives. |
 | `hub_degree_limit` | integer | no | Stop the walk from expanding THROUGH any symbol with more than this many edges. Default 0 (off), which is what every result you have seen so far used. Set it (50 is a reasonable start) when a result is enormous because the walk crossed a logger, a util or a base class; pruned symbols are still listed, only their neighbours are not explored, and the response says how many were cut. |
 
-### `impact_analysis`
+### `analyze_impact`
 
 Before changing a symbol, find out what depends on it. Separates DIRECT callers (a proven call edge) from INDIRECT reach and from dispatch rows the runtime MAY execute but no call site proves, and names what it CANNOT see — dynamic dispatch, unresolved references, traversal limits. The risk score and its factors are only as good as the resolution behind them; the response states the coverage rate ahead of the score so you know whether to trust it. The result is a LOWER BOUND: treat an empty or short result as 'nothing found', never as proof that changing the symbol is safe.
 
@@ -128,9 +128,9 @@ Before changing a symbol, find out what depends on it. Separates DIRECT callers 
 | `min_confidence` | string | no | Lowest confidence to return: exact, high, medium or low. Default low. Recommended: 'high' for safe automated code changes and blast radius analysis to filter out heuristic false positives. |
 | `hub_degree_limit` | integer | no | Stop the walk from expanding THROUGH any symbol with more than this many edges. Default 0 (off), which is what every result you have seen so far used. Set it (50 is a reasonable start) when a result is enormous because the walk crossed a logger, a util or a base class; pruned symbols are still listed, only their neighbours are not explored, and the response says how many were cut. |
 
-### `resolution_coverage`
+### `get_resolution_coverage`
 
-Ask this when a find_callers, find_references or impact_analysis result came back shorter than you expected, BEFORE concluding anything from it. It reports how many of this index's references were actually bound to a definition, and names the two populations excluded from that rate: the ambiguous ones, where several definitions matched and RepoCortex refused to guess, and the ones that matched nothing here at all, which are mostly library calls. A low figure means every relationship answer from this index is a LOWER BOUND drawn from a minority of the evidence — an empty result then tells you about the index, not about the code — and the response names the command that raises it. Takes no arguments.
+Ask this when a find_callers, find_references or analyze_impact result came back shorter than you expected, BEFORE concluding anything from it. It reports how many of this index's references were actually bound to a definition, and names the two populations excluded from that rate: the ambiguous ones, where several definitions matched and RepoCortex refused to guess, and the ones that matched nothing here at all, which are mostly library calls. A low figure means every relationship answer from this index is a LOWER BOUND drawn from a minority of the evidence — an empty result then tells you about the index, not about the code — and the response names the command that raises it. Takes no arguments.
 
 No parameters.
 
@@ -145,7 +145,7 @@ Plan a symbol rename. Returns the edit SITES — a file and a line each, with no
 | `path` | string | no | Optional file path to disambiguate when several symbols share a name. |
 | `min_confidence` | string | no | Lowest confidence to return: exact, high, medium or low. Default low. Recommended: 'high' for safe automated code changes and blast radius analysis to filter out heuristic false positives. |
 
-### `find_api_endpoints`
+### `list_api_endpoints`
 
 List the HTTP endpoints this service exposes, with the handler that serves each one and where it is declared. Routes are recognised from the framework's own syntax — a Spring annotation, a Go router registration, a FastAPI or Flask decorator, an Express member call — never from a string that merely looks like a path, which is what keeps a log message mentioning 'GET /users' out of the result. Pass method to filter to one HTTP verb. NOT covered: OpenAPI documents, GraphQL schemas, gRPC service definitions and API-gateway configuration — a service defined entirely in those reports no endpoints here, which is a coverage limit, not a finding about the code. Prefer this over grepping route decorators by hand.
 
@@ -153,7 +153,7 @@ List the HTTP endpoints this service exposes, with the handler that serves each 
 |---|---|---|---|
 | `method` | string | no | Filter to one HTTP method, e.g. GET. Case-insensitive. |
 
-### `find_db_access`
+### `list_db_tables`
 
 Report which code reads and which code writes each database table, with per-table read/write counts. Pass table to look up one table by name. READ and WRITE are counted separately: 'what touches this table' is a weaker question than 'what writes it', and the second is the one to check before changing a column. A table no migration here declares is still reported — that is the normal shape of a service reading a database another service owns. Some statements are assembled at run time; the response says how many, because whether that exact statement executes as written cannot be established by a static read. Prefer this over grepping for SQL string literals or ORM calls: those are exactly the queries this scan may also miss, and this tool says so instead of reporting a false all-clear.
 
@@ -195,10 +195,34 @@ Generate a deterministic refactoring and change plan for a symbol. Identifies al
 | `min_confidence` | string | no | Lowest confidence to return: exact, high, medium or low. Default low. Recommended: 'high' for safe automated code changes and blast radius analysis to filter out heuristic false positives. |
 | `hub_degree_limit` | integer | no | Stop the walk from expanding THROUGH any symbol with more than this many edges. Default 0 (off), which is what every result you have seen so far used. Set it (50 is a reasonable start) when a result is enormous because the walk crossed a logger, a util or a base class; pruned symbols are still listed, only their neighbours are not explored, and the response says how many were cut. |
 
-### `detect_blindspots`
+### `list_blindspots`
 
 Audit the repository for code intelligence blindspots and hidden risks. Detects unresolved external and internal calls, untested critical functions with high fan-in, unmapped HTTP endpoints, orphan database tables, missing config declarations, and unparsed files. Use this to audit codebase health and find coverage gaps.
 
 No parameters.
 
 Setup for each client: [agent integration](../agent-integration.md).
+
+## Full-profile tools
+
+Exposed only with `mcp: { profile: full }`, and always available through
+`repocortex tool call` and the REST endpoint when the server runs on that profile.
+
+| Tool | Arguments | Returns |
+|---|---|---|
+| `find_callees` | `name`, `path`, `min_confidence` | What a symbol calls, inside this repository |
+| `find_implementations` | `name`, `path`, `min_confidence` | What implements or extends a type, and what it implements or extends |
+| `trace_call_path` | `from`, `to`, `from_path`, `to_path`, `max_depth` | Up to three shortest routes, one row per hop |
+| `list_dead_code` | `path`, `min_certainty`, `include_exported`, `limit` | Definitions nothing calls, graded `likely` or `possible` |
+| `list_hotspots` | `path`, `commits`, `limit`, `include_tests` | Files ranked by commits times size, each followed by the files that change with it |
+
+## Names
+
+Every tool is `<verb>_<noun>`, with one name and no aliases; see
+[naming conventions](naming-conventions.md).
+
+## Prompts and instructions
+
+The server sends under 900 bytes of session instructions and offers three
+prompts: `plan_refactor` (argument `symbol`), `analyze_change` (argument
+`symbols`) and `get_oriented`. See [protocols](../guides/protocols.md#mcp).

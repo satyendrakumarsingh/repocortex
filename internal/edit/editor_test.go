@@ -46,7 +46,7 @@ func editFor(rel, body string, lines map[int][]int) FileEdit {
 func noTempFiles(t *testing.T, root string) {
 	t.Helper()
 	_ = filepath.WalkDir(root, func(p string, d os.DirEntry, err error) error {
-		if err == nil && (strings.HasPrefix(d.Name(), ".cortex-edit-") || d.Name() == lockName) {
+		if err == nil && (strings.HasPrefix(d.Name(), ".repocortex-edit-") || d.Name() == lockName) {
 			t.Errorf("temporary file left behind: %s", p)
 		}
 		return nil

@@ -27,7 +27,7 @@ const DefaultMaxFileBytes int64 = 8 << 20
 
 // tempPrefix names every temporary file the editor creates, so a test (or a
 // user cleaning up after a crash) can find them.
-const tempPrefix = ".cortex-edit-"
+const tempPrefix = ".repocortex-edit-"
 
 // FileEdit is every replacement of Old by New in one file.
 type FileEdit struct {
@@ -191,7 +191,7 @@ func (e *Editor) prepareOne(ctx context.Context, root *os.Root, fe FileEdit) (Pr
 	// over that spelling would rename the entry. Keep the name the user has.
 	rel = onDiskSpelling(root, rel)
 	if afs.HashBytes(src) != fe.WantHash {
-		return fail("changed since it was indexed; run 'cortex index' and try again", ErrStale)
+		return fail("changed since it was indexed; run 'repocortex index' and try again", ErrStale)
 	}
 	// A read-only file is a statement by its owner (generated, vendored,
 	// checked out read-only). Replacing it by rename would ignore that, and
@@ -364,7 +364,7 @@ func (e *Editor) Commit(ctx context.Context, prepared []Prepared) (err error) {
 // lockName is the per-root commit lock, at the top of the project root so
 // every editor of that root agrees on where it is whether or not the index
 // directory exists.
-const lockName = ".cortex-edit.lock"
+const lockName = ".repocortex-edit.lock"
 
 // ErrLocked: another Commit holds the project root's lock, or one crashed
 // and left it behind. The lock is never stolen — a stale one has to be
@@ -382,7 +382,7 @@ var ErrLockRelease = errors.New("edit: release lock")
 func lock(root *os.Root) error {
 	f, err := root.OpenFile(lockName, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if errors.Is(err, fs.ErrExist) {
-		return fmt.Errorf("%w (%s: %s); if no cortex process is running, delete %s and retry",
+		return fmt.Errorf("%w (%s: %s); if no repocortex process is running, delete %s and retry",
 			ErrLocked, lockName, describeLock(root), filepath.Join(root.Name(), lockName))
 	}
 	if err != nil {

@@ -4,7 +4,7 @@
 // already-indexed repository on your machine. The shipped fixture,
 // fixtures/payment-platform, is declared in ports.mjs and needs nothing from
 // you; everything here is optional and is skipped entirely under
-// CORTEX_E2E_TIER=ci.
+// REPOCORTEX_E2E_TIER=ci.
 //
 // Every value a spec pins lives on the fixture, never in a spec. The fields:
 //   name, port, root            required; `port` from PORTS so nothing collides

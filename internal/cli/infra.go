@@ -23,7 +23,7 @@ import (
 // always: deployment manifests were extracted but never persisted, so `infra`
 // scanned the repository from disk on every run and printed "NOT INDEXED" at
 // the bottom of its own output — honest, and useless to everything else, since
-// no MCP tool, no `cortex context` and no graph query reads the filesystem.
+// no MCP tool, no `repocortex context` and no graph query reads the filesystem.
 //
 // The disk path is KEPT, behind --disk, and the justification is narrow: this
 // command is most useful on a repository someone has just cloned and is about
@@ -81,9 +81,9 @@ Terraform is read as block headers — resource, data, module, provider, variabl
 — and never as attribute values. That is a coverage limit and it is also why a
 password sitting in a .tf file has no path into this output.
 
-INDEXED. These facts are stored by 'cortex index': a service is a node in the
+INDEXED. These facts are stored by 'repocortex index': a service is a node in the
 same graph as the code, a configuration key name is the same node the code that
-reads it binds to, and 'cortex resolve' joins a service to the endpoints built
+reads it binds to, and 'repocortex resolve' joins a service to the endpoints built
 from its build context. Two questions follow from that and neither is answerable
 from manifests alone:
 
@@ -128,7 +128,7 @@ reading.`,
 	cmd.Flags().StringVar(&format, "format", "",
 		"restrict the report to one format: dockerfile, compose, kubernetes, helm, terraform")
 	cmd.Flags().BoolVar(&fromDisk, "disk", false,
-		"scan manifests from disk instead of reading the index (works without 'cortex index')")
+		"scan manifests from disk instead of reading the index (works without 'repocortex index')")
 	cmd.Flags().StringVar(&forPath, "for", "",
 		"which deployment unit does this file run in (repo-relative path)")
 	cmd.Flags().StringVar(&forKey, "key", "",
@@ -239,8 +239,8 @@ func renderInfra(cmd *cobra.Command, g *Global, files []infra.File, scanned int,
 			// statements, and the fix differs: re-index, versus accept that
 			// this repository declares no deployment.
 			fmt.Fprintln(out, "The index holds no deployment manifests. "+
-				"If you expected some, re-run 'cortex index'; to check the "+
-				"working tree directly, run 'cortex infra --disk'.")
+				"If you expected some, re-run 'repocortex index'; to check the "+
+				"working tree directly, run 'repocortex infra --disk'.")
 		}
 		fmt.Fprintln(out, "\nRead: Dockerfile, docker-compose.yml, Kubernetes manifests, "+
 			"Chart.yaml and values.yaml, and .tf files. CloudFormation, systemd units and "+
@@ -283,7 +283,7 @@ func renderInfra(cmd *cobra.Command, g *Global, files []infra.File, scanned int,
 		"their source and their location only.")
 	if fromDisk {
 		fmt.Fprintln(out, "Read from disk just now (--disk). These rows are NOT the index; "+
-			"run 'cortex index' and drop --disk to query them against symbols.")
+			"run 'repocortex index' and drop --disk to query them against symbols.")
 	} else {
 		fmt.Fprintln(out, "Read from the index. Try --for <path> for the service a file runs in, "+
 			"or --key <NAME> for what changing a key restarts.")
@@ -469,7 +469,7 @@ func limitSummary(limits []infra.Limit) string {
 func indexedInfra(ctx stdctx.Context, g *Global) ([]infra.File, error) {
 	sess, err := openQuery(ctx, g)
 	if err != nil {
-		return nil, fmt.Errorf("%w (or run 'cortex infra --disk' to scan the working tree)", err)
+		return nil, fmt.Errorf("%w (or run 'repocortex infra --disk' to scan the working tree)", err)
 	}
 	defer sess.close()
 
@@ -567,7 +567,7 @@ func runInfraForPath(cmd *cobra.Command, g *Global, target string) error {
 		// need different actions and an empty list looks the same either way.
 		fmt.Fprintln(out, "\nEither no manifest here names a build context (pure Kubernetes, "+
 			"images built in CI), or this file is outside every context that is named. "+
-			"'cortex infra' lists what was found.")
+			"'repocortex infra' lists what was found.")
 		return nil
 	}
 	if units[0].Ambiguous {
@@ -614,7 +614,7 @@ func runInfraForKey(cmd *cobra.Command, g *Global, key string) error {
 	if len(impact.Units) == 0 {
 		fmt.Fprintf(out, "No indexed deployment unit sets %s.\n", key)
 		fmt.Fprintln(out, "\nThat does not mean nothing reads it: a key supplied by a Secret "+
-			"created outside this repository is invisible here. 'cortex config' reports "+
+			"created outside this repository is invisible here. 'repocortex config' reports "+
 			"the keys code reads.")
 		return nil
 	}

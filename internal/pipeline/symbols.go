@@ -31,7 +31,7 @@ func resolveFQNs(path string, syms []model.Symbol) {
 // declarations; both land on (file, "path:json", 152).
 //
 // Before this, the second insert failed the UNIQUE constraint and took the
-// WHOLE index down — `cortex index` exited 1 at 80% on an 8,094-file
+// WHOLE index down — `repocortex index` exited 1 at 80% on an 8,094-file
 // repository and committed nothing, so one line of one test file made the tool
 // unusable on that project.
 //

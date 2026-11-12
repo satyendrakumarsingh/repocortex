@@ -18,7 +18,7 @@ import (
 // rendering one on a dashboard is how a governance screen becomes decorative.
 //
 // What this handler adds is the CI gate projection: for each severity a pipeline
-// could gate on, whether `cortex arch --fail-on <severity>` would fail right
+// could gate on, whether `repocortex arch --fail-on <severity>` would fail right
 // now. That turns a list of findings into the one thing a team acts on — a
 // decision about whether to turn the gate on — and it is computed from the same
 // severities the command uses, not from a second table that could drift.
@@ -190,15 +190,15 @@ func (s *Server) handleGovernance(w http.ResponseWriter, r *http.Request) {
 				"description of the code's current shape, and checking code against a description of itself " +
 				"finds nothing by construction — so this screen reports nothing rather than reporting a pass.",
 			Steps: []string{
-				"Add an `architecture:` block to .cortex.yml naming your components and the rules between them.",
-				"cortex arch --help  — the block's shape, with a worked example",
-				"cortex arch --fail-on high  — the CI gate, once the rules exist",
+				"Add an `architecture:` block to .repocortex.yml naming your components and the rules between them.",
+				"repocortex arch --help  — the block's shape, with a worked example",
+				"repocortex arch --fail-on high  — the CI gate, once the rules exist",
 			},
 		}
 		resp.Next = NextAction{
-			Label:   "Declare components in .cortex.yml",
+			Label:   "Declare components in .repocortex.yml",
 			Detail:  "Until then, the graph explorer groups by directory, and no rule can be broken because no rule exists.",
-			Command: "cortex arch --help",
+			Command: "repocortex arch --help",
 			Screen:  "graph",
 		}
 		s.writeJSON(w, http.StatusOK, resp)
@@ -248,7 +248,7 @@ func (s *Server) handleGovernance(w http.ResponseWriter, r *http.Request) {
 	om.Hide(ReasonOutsideDeclaredComponents, rep.Unassigned,
 		"Symbols no declared component matches. No rule was evaluated against them, so a forbidden "+
 			"dependency routed through one of them does not appear above.",
-		"widen your component include patterns in .cortex.yml")
+		"widen your component include patterns in .repocortex.yml")
 	if floor != "" {
 		om.Hide(ReasonBelowConfidenceFloor, idx.edgeConf.Below(floor),
 			fmt.Sprintf("Relationships weaker than %s were excluded from this check entirely, so a "+
@@ -269,10 +269,10 @@ func (s *Server) handleGovernance(w http.ResponseWriter, r *http.Request) {
 			"rule was evaluated over them. This is the difference between a component's files_matched and "+
 			"its files_with_symbols, and it is why the two are reported separately rather than as one "+
 			"number called `files`.",
-		"cortex indexers status — a parser for the missing language raises this coverage")
+		"repocortex indexers status — a parser for the missing language raises this coverage")
 
 	// The CI gate projection, in the same order and with the same semantics as
-	// `cortex arch --fail-on`.
+	// `repocortex arch --fail-on`.
 	for _, sev := range []string{"high", "medium", "low"} {
 		worst := rep.HighestSeverity()
 		fails := worst != "" && severityRank(worst) <= severityRank(sev)
@@ -283,7 +283,7 @@ func (s *Server) handleGovernance(w http.ResponseWriter, r *http.Request) {
 		}
 		resp.Gates = append(resp.Gates, GateOutcome{
 			FailOn: sev, Passes: !fails,
-			Command: "cortex arch --fail-on " + sev,
+			Command: "repocortex arch --fail-on " + sev,
 			Detail:  detail,
 		})
 	}
@@ -294,7 +294,7 @@ func (s *Server) handleGovernance(w http.ResponseWriter, r *http.Request) {
 			Label: fmt.Sprintf("%d component(s) matched nothing", resp.EmptyComponents),
 			Detail: "A component whose include patterns match no file is a component every rule naming it " +
 				"silently ignores. This is the single most useful finding on this screen.",
-			Command: "cortex arch --crossings",
+			Command: "repocortex arch --crossings",
 		}
 	case len(rep.Violations) > 0:
 		resp.Next = NextAction{
@@ -302,19 +302,19 @@ func (s *Server) handleGovernance(w http.ResponseWriter, r *http.Request) {
 			Detail: "Fix the violations first, then wire the command into CI so the next one fails the build " +
 				"rather than landing. Read the confidence on each row: a violation on a compiler-proven edge " +
 				"is a fact, one on a `low` edge is a lead.",
-			Command: "cortex arch --fail-on " + rep.HighestSeverity(),
+			Command: "repocortex arch --fail-on " + rep.HighestSeverity(),
 		}
 	case rep.Unassigned > 0:
 		resp.Next = NextAction{
 			Label:   fmt.Sprintf("%d symbol(s) are outside every component", rep.Unassigned),
 			Detail:  "No rule was checked against them. Widen the include patterns until this number is small.",
-			Command: "cortex arch --crossings",
+			Command: "repocortex arch --crossings",
 		}
 	default:
 		resp.Next = NextAction{
 			Label:   "Wire the gate into CI",
 			Detail:  fmt.Sprintf("%d rule(s) evaluated, no violations. Keep it that way.", rep.RulesEvaluated),
-			Command: "cortex arch --fail-on high",
+			Command: "repocortex arch --fail-on high",
 		}
 	}
 

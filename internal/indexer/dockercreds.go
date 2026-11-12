@@ -136,7 +136,7 @@ func (p *Provisioner) credentialHelperPreflight(ctx context.Context, pin Pin) er
 		"%s did not answer within %s, so `docker pull` would block before reaching the daemon. "+
 			"Docker Desktop's helper hangs from a shell with no Desktop session. "+
 			"The pinned image is public and verified by digest, so no credential is needed: "+
-			"run with DOCKER_CONFIG pointing at an empty directory (`DOCKER_CONFIG=$(mktemp -d) cortex indexers install`), "+
+			"run with DOCKER_CONFIG pointing at an empty directory (`DOCKER_CONFIG=$(mktemp -d) repocortex indexers install`), "+
 			"or open Docker Desktop and retry",
 		helper, credHelperTimeout))
 }

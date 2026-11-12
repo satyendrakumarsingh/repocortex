@@ -93,10 +93,10 @@ them possible.
 ## Method
 
 ```bash
-cortex index && cortex resolve
+repocortex index && repocortex resolve
 scip-go --output index.scip          # compiler ground truth
-cortex scip import index.scip      # lands as REFERENCES/exact/compiler
-cortex doctor --resolution-precision
+repocortex scip import index.scip      # lands as REFERENCES/exact/compiler
+repocortex doctor --resolution-precision
 ```
 
 A heuristic `CALLS` edge is adjudicated by asking the compiler what the
@@ -125,7 +125,7 @@ one that says so.
 ## What this is not
 
 **It is not recall** — but recall *is* now measured, separately, by
-`cortex accuracy`. This paragraph used to end the discussion, and it was half
+`repocortex accuracy`. This paragraph used to end the discussion, and it was half
 right.
 
 The objection is sound as an objection to the **denominator**: SCIP records that
@@ -143,7 +143,7 @@ That restriction is the whole soundness argument, so the report states it inline
 rather than in a footnote.
 
 The measurement changes the unit: precision here counts *edges*, while a missed
-call site has no edge to count, so `cortex accuracy` collapses each call site
+call site has no edge to count, so `repocortex accuracy` collapses each call site
 to one outcome and computes precision, recall and F1 over that. Every tier then
 shares one denominator, tier recalls sum to the all-tiers recall, and F1 is a
 harmonic mean of two fractions over the same set.
@@ -152,7 +152,7 @@ harmonic mean of two fractions over the same set.
 show**: `high` is 98.6% precise and catches **61.5%** of adjudicable calls.
 2,855 of 8,315 known call sites produce no edge at all — 2,504 unresolved, 351
 ambiguous. For a change-safety product that is the important half: an empty
-`cortex callers` result means *unknown*, not *none*, and roughly a third of
+`repocortex callers` result means *unknown*, not *none*, and roughly a third of
 known calls are in that gap.
 
 It is still not recall over the calls in the repository. The call-site oracle is
@@ -169,7 +169,7 @@ against themselves. They are `exact` because a typechecker produced them, and
 for the numbers, and for how small the pool is.
 
 **Five repositories is still a small sample**, and one of them is this
-project's own code, which the resolver was developed against — cortex's 96.1%
+project's own code, which the resolver was developed against — repocortex's 96.1%
 is the least trustworthy number in the table for that reason, and it is the
 highest. Prometheus, nest and scrapy are third-party code the resolver has
 never been tuned against, and they agree with each other at 86.8%, 87.0% and
@@ -282,11 +282,11 @@ would have to be fixed.
    build opt-in" -- and `AllowRepoBuild` appeared nowhere outside tests. No
    flag, no documented config key. The instruction could not be followed, so
    some unknown share of "3 of 3 repos failed" was this, not the indexer.
-   Fixed: `cortex indexers install --allow-repo-build`.
+   Fixed: `repocortex indexers install --allow-repo-build`.
 
 2. **The documented config path is wrong on macOS.** Code comments named
-   `~/.config/cortex/config.yml`; `os.UserConfigDir()` resolves to
-   `~/Library/Application Support/cortex/config.yml` there. A config written
+   `~/.config/repocortex/config.yml`; `os.UserConfigDir()` resolves to
+   `~/Library/Application Support/repocortex/config.yml` there. A config written
    to the documented path is read by nothing, so the tool repeated the same
    "set accuracy.indexers.runner" instruction after it had been set. Fixed.
 
@@ -360,7 +360,7 @@ wrong on that language. `scip-java` failing on four of four repositories is a
 real limitation and it is recorded as one; a 0.85 that nothing produced is a
 different kind of problem, and it does not show up as a limitation anywhere.
 
-**`cortex accuracy` took about twenty minutes on this repository when these
+**`repocortex accuracy` took about twenty minutes on this repository when these
 figures were first produced. It now takes 4 seconds, for byte-identical output.**
 
 Two joins had nothing to stand on. `edges(evidence_file, evidence_line)` had no
@@ -400,7 +400,7 @@ the 86.8% floor.
 two fifths of known call sites produce no edge at all. That number is the same
 shape in Go, Python and TypeScript, which says it is a property of heuristic
 resolution rather than of any one language's grammar — and it is the number a
-consumer needs, because it is what makes an empty `cortex callers` result mean
+consumer needs, because it is what makes an empty `repocortex callers` result mean
 *unknown* rather than *none*.
 
 Java, measured later and on a much smaller pool (82 judged edges, 251
@@ -434,7 +434,7 @@ to RepoCortex:
 | Build driven | `clean verify -DskipTests -Dmaven.test.skip=true ...` as `java.go` constructs it |
 | Wall clock | 3 m 27 s from `docker run` to a 2.8 MiB `java.scip` |
 
-Adjudicated with `cortex accuracy` after `cortex scip import`, excerpted,
+Adjudicated with `repocortex accuracy` after `repocortex scip import`, excerpted,
 unedited — the block omits the tool's preamble:
 
 ```
@@ -485,7 +485,7 @@ This section used to read "attempted, not measured", and the reason was
 recorded because it is a property of the product and not only of the effort:
 **compiler-backed indexing for Java runs the repository's real build, so it
 inherits every constraint that build has.** TypeScript and Python were
-straightforward by comparison — `cortex indexers install --yes` provisioned
+straightforward by comparison — `repocortex indexers install --yes` provisioned
 `scip-typescript` and `scip-python` and both produced usable indexes on the
 first attempt. Java did not, across three repositories and seven builds, though
 `scip-java` itself worked when pointed at a two-class Java 17 Maven project:
@@ -625,7 +625,7 @@ freeze the corpus first, or the measurement moves under the thing being measured
 `MaxCandidates` bounds fan-out, and dropped candidates were folded into
 `Ambiguous`. So "this name is too common to weigh" and "two candidates and no
 evidence to choose" were the same number. That mattered more once
-`cortex accuracy` began publishing recall, because this was a named blind spot
+`repocortex accuracy` began publishing recall, because this was a named blind spot
 inside it.
 
 Counters only — nothing in the binding path reads them — and the proof is that
@@ -709,7 +709,7 @@ them will recur.
 our parser. `ref.Receiver == ""` means the receiver query could not express the
 receiver, not that the source wrote none — `receiverQueries` captures only a simple
 identifier receiver, so `s.repo.Save(id)` arrives with an empty receiver and every
-chained call in Go was read as bare. `cortex callers Save` went from two bound
+chained call in Go was read as bare. `repocortex callers Save` went from two bound
 callers to zero. Every unit test passed throughout, because they set `Receiver`
 directly; only the end-to-end CLI path exercised the parser that leaves it empty.
 
@@ -828,7 +828,7 @@ idea rather than of the plumbing.
 
 **Measured on nest** (`nestjs/nest` at `39fbddae51281ca56bf2fed9123d98e61509066c`,
 `--depth 1`), against the root `scip-typescript` 0.3.14 index (9.2 MB, produced
-by `cortex indexers install --yes` without `node_modules`, so third-party
+by `repocortex indexers install --yes` without `node_modules`, so third-party
 imports do not resolve and the index is smaller than a full build would give).
 One tree and one index in both arms, only the binary differing.
 
@@ -902,7 +902,7 @@ across worker counts — three distinct digests across six repeats.
 
 Indexing was not at fault: index-only runs were identical 4 of 4. `resolve` was,
 and it reproduced with the deferred inherited-dispatch pass disabled, so it was
-not new work. `cortex diff` between two divergent runs named the cause exactly:
+not new work. `repocortex diff` between two divergent runs named the cause exactly:
 
 ```
 orphaned migrations/0003_data_access.sql:table:table_accesses  inbound 14 -> 0

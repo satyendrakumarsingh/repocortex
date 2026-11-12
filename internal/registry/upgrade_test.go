@@ -14,7 +14,7 @@ import (
 // UpgradeEdges decides whether to replace an edge inside a SQL WHERE clause,
 // using a CASE that duplicates model.Confidence.Rank. The duplication is
 // deliberate — deciding in Go would be a read-modify-write race against
-// `cortex watch` — but a duplicated rule is a rule that can drift, and drift
+// `repocortex watch` — but a duplicated rule is a rule that can drift, and drift
 // here is silent: the upgrade simply stops happening, or starts happening in
 // the wrong direction, and nothing errors.
 //

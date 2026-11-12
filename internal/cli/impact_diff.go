@@ -31,7 +31,7 @@ const defaultImpactListLimit = 40
 //
 // # Why a diff and not a symbol
 //
-// `cortex who` and the MCP tool impact_analysis both start from ONE symbol
+// `repocortex owners` and the MCP tool analyze_impact both start from ONE symbol
 // the caller already knows to be interesting, which presumes the caller has
 // already worked out what their change touches. A branch does not arrive in
 // that form. It arrives as a range of commits, and the interesting question —
@@ -56,9 +56,9 @@ func newImpactCmd(g *Global) *cobra.Command {
 		Long: `Reads the files a git range changed, finds the symbols defined in them, and
 walks INWARD from each one to everything that depends on it.
 
-  cortex impact --base HEAD~1 --head HEAD
-  cortex impact --base main --head my-branch --depth 3
-  cortex impact --base origin/main --json
+  repocortex impact --base HEAD~1 --head HEAD
+  repocortex impact --base main --head my-branch --depth 3
+  repocortex impact --base origin/main --json
 
 The direction is the whole point. A change to a symbol threatens the code that
 DEPENDS ON it, not the code it calls, so this walks callers rather than callees.

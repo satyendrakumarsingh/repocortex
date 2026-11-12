@@ -10,7 +10,7 @@ import (
 
 // corpusRoot copies fixtures/corpus into a temporary directory.
 //
-// A copy, not the fixture in place: indexing writes .cortex/, and a gate that
+// A copy, not the fixture in place: indexing writes .repocortex/, and a gate that
 // mutates the repository it is run from is a gate people learn to skip.
 func corpusRoot(t *testing.T) string {
 	t.Helper()
@@ -47,7 +47,7 @@ func corpusRoot(t *testing.T) string {
 
 func corpusDB(t *testing.T, root string) *sql.DB {
 	t.Helper()
-	db, err := sql.Open("sqlite", filepath.Join(root, ".cortex", "index.db"))
+	db, err := sql.Open("sqlite", filepath.Join(root, ".repocortex", "index.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -193,7 +193,7 @@ func indexDigest(t *testing.T, root string) string {
 	return rest[:strings.Index(rest, `"`)]
 }
 
-// TestCorpusInvariantsHold runs the same structural checks `cortex doctor`
+// TestCorpusInvariantsHold runs the same structural checks `repocortex doctor`
 // offers a user, over the corpus.
 //
 // These are the checks that can catch a defect nobody has seen. A user hitting

@@ -13,6 +13,6 @@ configSchema:
 
 commandFunction: |-
   (config) => ({
-    command: 'cortex',
+    command: 'repocortex',
     args: config.projectPath ? ['--project', config.projectPath, 'serve'] : ['serve']
   })

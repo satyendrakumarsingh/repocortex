@@ -16,7 +16,7 @@ func newPruneCmd(g *Global) *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "prune <file>",
+		Use:   "outline <file>",
 		Short: "Strip implementation bodies from a source file, keeping signatures and docstrings",
 		Long: `AST Pruning removes method and function bodies from source files while preserving
 type declarations, interfaces, function signatures, return types, and docstrings.

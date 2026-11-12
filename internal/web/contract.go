@@ -14,7 +14,7 @@ import (
 //
 // # Why this is a screen and not a command's output
 //
-// `cortex compile` already prints a contract. What a page adds is the thing
+// `repocortex compile` already prints a contract. What a page adds is the thing
 // prose cannot do: it puts the UNKNOWNS at the top, in the reader's way, at the
 // same weight as the scope. That ordering is the whole argument. Most bad agent
 // output comes from an under-specified task, and the part of a brief that is
@@ -161,7 +161,7 @@ func (s *Server) handleContract(w http.ResponseWriter, r *http.Request) {
 			Steps: []string{
 				`Try: "Add idempotency to payment callback processing"`,
 				"Everything is derived from this index. A constraint with no evidence is an opinion, and this refuses to emit one.",
-				"cortex compile \"<your task>\" --json  — the same contract on the command line",
+				"repocortex compile \"<your task>\" --json  — the same contract on the command line",
 			},
 		}
 		s.writeJSON(w, http.StatusOK, resp)
@@ -177,7 +177,7 @@ func (s *Server) handleContract(w http.ResponseWriter, r *http.Request) {
 			Detail: "The portal was constructed without the context-pack port. The graph screens read the " +
 				"index directly; a contract additionally needs full-text file search and file excerpting, " +
 				"and this server was handed a narrower reader than that.",
-			Steps: []string{"cortex compile \"<your task>\" — the command has the same sources"},
+			Steps: []string{"repocortex compile \"<your task>\" — the command has the same sources"},
 		}
 		s.writeJSON(w, http.StatusOK, resp)
 		return
@@ -247,9 +247,9 @@ func (s *Server) handleContract(w http.ResponseWriter, r *http.Request) {
 	om.Hide(ReasonBelowConfidenceFloor, contract.ImpactHidden,
 		fmt.Sprintf("Symbols an unbounded impact walk would have reached but %s kept out of the blast "+
 			"radius. They are still in the index; the standard is inherited from the analysis so that a later "+
-			"`cortex verify` accuses nobody of missing a caller across an edge this brief never walked.",
+			"`repocortex verify` accuses nobody of missing a caller across an edge this brief never walked.",
 			impactFloor),
-		"lower the impact standard of proof with `cortex compile --json`, then verify against that contract")
+		"lower the impact standard of proof with `repocortex compile --json`, then verify against that contract")
 	if unresolved > 0 {
 		om.Hide(ReasonUnresolvedReferences, unresolved,
 			"Scope entries that name a FILE rather than a symbol. No impact analysis ran for those, so "+
@@ -281,8 +281,8 @@ func (s *Server) handleContract(w http.ResponseWriter, r *http.Request) {
 	default:
 		resp.Next = NextAction{
 			Label:   "Hand this to the agent, then mark the result",
-			Detail:  "`cortex verify` checks the change that follows against this contract. The verify screen does the same over this index.",
-			Command: "cortex compile \"" + truncateIntent(intent) + "\" --json > contract.json",
+			Detail:  "`repocortex verify` checks the change that follows against this contract. The verify screen does the same over this index.",
+			Command: "repocortex compile \"" + truncateIntent(intent) + "\" --json > contract.json",
 			Screen:  "verify",
 		}
 	}

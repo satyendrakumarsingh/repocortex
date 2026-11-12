@@ -59,7 +59,7 @@ const (
 	// Real instances: a shipped migration edited after being applied
 	// (checksum mismatch), edges claiming confidence=exact without
 	// source=compiler, edges straddling two index runs, dangling edges found
-	// by `cortex doctor`, foreign_keys failing to take effect,
+	// by `repocortex doctor`, foreign_keys failing to take effect,
 	// SQLITE_CORRUPT / SQLITE_NOTADB.
 	KindCorrupt Kind = "corrupt"
 
@@ -89,7 +89,7 @@ const (
 	//
 	// This has teeth in RepoCortex: pipeline.Run already special-cases
 	// context.Canceled so a cancelled pass is not mistaken for a broken one,
-	// and `cortex index` refuses to publish a cancelled run because a
+	// and `repocortex index` refuses to publish a cancelled run because a
 	// partial index that looks complete is worse than no new index. A
 	// cancelled operation is also NOT retryable — the caller wanted it to
 	// stop.
@@ -322,7 +322,7 @@ func classifyLeaf(err error) Kind {
 	switch {
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 		// Requirement: a cancelled or timed-out operation must never be
-		// reported as an internal fault. pipeline.Run and `cortex index`
+		// reported as an internal fault. pipeline.Run and `repocortex index`
 		// both already depend on telling these apart from real failures.
 		return KindCancelled
 	case errors.Is(err, sql.ErrNoRows):

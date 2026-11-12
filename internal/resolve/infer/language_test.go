@@ -412,7 +412,7 @@ func TestInteropIsSymmetric(t *testing.T) {
 // TestResolvedTierLanguagesDeclareTheirTestFiles covers the DESCRIPTIVE field
 // for the languages added after the measured three. Like TestTestFileConventions
 // above, it exists precisely because nothing in the binding path reads
-// TestFiles — `cortex verify` classifies through capability.IsTestPath, not
+// TestFiles — `repocortex verify` classifies through capability.IsTestPath, not
 // through the spec — and an unexercised convention is one that quietly rots.
 // The language's convention is recorded here so that the two classifiers
 // (this one and capability.IsTestPath) can be compared, and so a spec that

@@ -530,7 +530,7 @@ func (s *Server) buildContainerView(
 			"cost one: %d nodes on this canvas is a hairball with no legible label. Selection is by "+
 			"symbol count, so what is missing is the smallest %d, not an alphabetical tail.",
 			budget, available, available-min(available, budget)),
-		fmt.Sprintf("?nodes= up to %d to draw more, or declare an architecture in .cortex.yml so the "+
+		fmt.Sprintf("?nodes= up to %d to draw more, or declare an architecture in .repocortex.yml so the "+
 			"explorer groups by component instead of directory", maxContainers))
 	sort.Slice(drawn, func(i, j int) bool { return drawn[i].ID < drawn[j].ID })
 	resp.Containers = drawn
@@ -1177,7 +1177,7 @@ func (idx *structuralIndex) symbolNode(id int64, external bool) SymbolNode {
 	if !ok {
 		// The graph and the symbol table disagree. Report the id rather than
 		// dropping the node: silently losing a symbol is the failure mode this
-		// whole package is built to avoid, and `cortex doctor --verify-index`
+		// whole package is built to avoid, and `repocortex doctor --verify-index`
 		// exists to find the cause.
 		return SymbolNode{ID: id, Name: fmt.Sprintf("symbol#%d", id), Kind: "unknown", External: external}
 	}

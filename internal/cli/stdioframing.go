@@ -10,7 +10,7 @@ import (
 // A malformed line from the client must not end the session.
 //
 // MCP over stdio is newline-delimited JSON, and the SDK treats a line it cannot
-// parse as a fatal transport error: `cortex serve` exited on the first bad
+// parse as a fatal transport error: `repocortex serve` exited on the first bad
 // frame, and every request after it went unanswered. A client that emits one
 // stray line — a debug print, a truncated write, a log statement that escaped
 // onto stdout — killed the whole session.

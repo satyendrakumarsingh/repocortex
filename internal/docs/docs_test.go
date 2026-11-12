@@ -139,7 +139,7 @@ func TestEveryDiagramNodeCarriesEvidence(t *testing.T) {
 	for _, want := range []string{
 		"internal/api/users.go:10",
 		"internal/store/users.go:17",
-		".cortex.yml",
+		".repocortex.yml",
 	} {
 		if !strings.Contains(doc, want) {
 			t.Errorf("rendered document does not cite %q", want)

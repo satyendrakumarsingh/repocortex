@@ -10,8 +10,8 @@ import (
 // It leads with the counts a reader checks first and then with the two findings
 // that are worth acting on — a Secret or ConfigMap a workload consumes that this
 // repository never declares, and the files that could not be read. Both are
-// mismatches rather than inventory, which is the same shape `cortex config`
-// and `cortex deps` settled on: the inventory is the boring half.
+// mismatches rather than inventory, which is the same shape `repocortex config`
+// and `repocortex deps` settled on: the inventory is the boring half.
 type Summary struct {
 	Files      int            `json:"files"`
 	ByFormat   map[Format]int `json:"by_format"`

@@ -26,7 +26,7 @@ type targetArgs struct {
 // impactArgs takes its own min_confidence wording, and that is the ONE place
 // this parameter is described twice on purpose.
 //
-// impact_analysis has always walked at impact.DefaultMinConfidence (medium),
+// analyze_impact has always walked at impact.DefaultMinConfidence (medium),
 // not low, and it must keep doing so when the parameter is absent: dropping
 // the floor to low would widen every existing caller's blast radius and weaken
 // the risk score computed from it. Embedding minConfidenceArg here would
@@ -55,8 +55,8 @@ func (s *Server) registerCapabilities(allowed map[string]bool) {
 	descs := toolDescriptions()
 
 	addTool(s, allowed, &sdk.Tool{
-		Name:        "impact_analysis",
-		Description: descs["impact_analysis"],
+		Name:        "analyze_impact",
+		Description: descs["analyze_impact"],
 	}, s.impactAnalysis)
 
 	addTool(s, allowed, &sdk.Tool{
@@ -70,15 +70,15 @@ func (s *Server) registerCapabilities(allowed map[string]bool) {
 	}, s.planChange)
 
 	addTool(s, allowed, &sdk.Tool{
-		Name:        "detect_blindspots",
-		Description: descs["detect_blindspots"],
+		Name:        "list_blindspots",
+		Description: descs["list_blindspots"],
 	}, s.detectBlindspots)
 }
 
 func (s *Server) impactAnalysis(ctx stdctx.Context, req *sdk.CallToolRequest, args impactArgs) (*sdk.CallToolResult, *Response, error) {
 	if strings.TrimSpace(args.Symbol) == "" {
 		return failWith("invalid_argument",
-			"Pass a non-empty symbol name, then call impact_analysis again.",
+			"Pass a non-empty symbol name, then call analyze_impact again.",
 			"symbol must not be empty")
 	}
 	// Zero value when absent, so AnalyzeWith applies its own default. See

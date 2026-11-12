@@ -11,7 +11,7 @@ import (
 	"github.com/satyendrakumarsingh/repocortex/internal/registry"
 )
 
-// TestRenameCollectAgreesWithPlanRename: `cortex rename` must act on the
+// TestRenameCollectAgreesWithPlanRename: `repocortex rename` must act on the
 // sites plan_rename shows an agent, or the two surfaces describe different
 // renames. The definition site is the one deliberate addition.
 func TestRenameCollectAgreesWithPlanRename(t *testing.T) {

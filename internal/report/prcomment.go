@@ -12,10 +12,10 @@ import (
 
 // PRMarker identifies RepoCortex's comment so CI updates it instead of adding a
 // new one on every push.
-const PRMarker = "<!-- cortex:pr-report -->"
+const PRMarker = "<!-- repocortex:pr-report -->"
 
 // LegacyPRMarker is preserved for backward-compatibility with older CI workflows.
-const LegacyPRMarker = "<!-- cortex:pr-report -->"
+const LegacyPRMarker = "<!-- repocortex:pr-report -->"
 
 // DefaultPRRows bounds each table. GitHub truncates comments past 65,536
 // characters, and a comment cut off mid-table hides exactly the rows at the end.
@@ -24,7 +24,7 @@ const DefaultPRRows = 20
 // MaxPRCommentChars caps the whole comment body, below GitHub's 65,536 limit.
 const MaxPRCommentChars = 60000
 
-const prTruncatedNote = "\n\n_Report truncated to fit GitHub's comment limit; run `cortex impact`, `cortex arch` and `cortex missed` for the full results._\n"
+const prTruncatedNote = "\n\n_Report truncated to fit GitHub's comment limit; run `repocortex impact`, `repocortex arch` and `repocortex blindspots` for the full results._\n"
 
 const prFooter = "\n---\n<sub>Reported by [RepoCortex](https://github.com/satyendrakumarsingh/repocortex) — Deterministic code intelligence for engineers & agents. Local-first, offline, and verifiable.</sub>\n"
 
@@ -177,8 +177,8 @@ func writeConfidence(b *strings.Builder, r *impact.DiffReport) {
 	}
 	b.WriteString("._\n")
 	if m.counts[model.ConfidenceExact] == 0 {
-		b.WriteString("\n_No part of this blast radius is compiler-proven. Set `CORTEX_ACCURACY: auto` in the gate workflow, " +
-			"or import a SCIP index with `cortex scip import`, to prove it._\n")
+		b.WriteString("\n_No part of this blast radius is compiler-proven. Set `REPOCORTEX_ACCURACY: auto` in the gate workflow, " +
+			"or import a SCIP index with `repocortex scip import`, to prove it._\n")
 	}
 }
 

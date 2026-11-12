@@ -12,7 +12,7 @@ import (
 // published number, so it is pinned against a hand-computed fixture rather than
 // against whatever the code happens to produce.
 //
-// The fixture is deliberately the same shape `cortex accuracy`'s own fixture
+// The fixture is deliberately the same shape `repocortex accuracy`'s own fixture
 // has always had, because that is the shape whose answer is already known and
 // argued: ten adjudicable call sites, six answered correctly, one missed
 // entirely, one ambiguous line excluded, and one unambiguous compiler line that
@@ -272,7 +272,7 @@ func TestAccuracyAdjudicationCoverageIsWhatTheRatesWereComputedOver(t *testing.T
 // TestAccuracyAdjudicationNamesTheCauseOfEachMiss.
 //
 // "Missed" without a cause is unactionable, and the causes have different
-// owners: unresolved is a resolver defect, pending means `cortex resolve` was
+// owners: unresolved is a resolver defect, pending means `repocortex resolve` was
 // never run, and resolved-with-no-edge is a call outside any indexed symbol.
 func TestAccuracyAdjudicationNamesTheCauseOfEachMiss(t *testing.T) {
 	reg := seedAdjudication(t, true)
@@ -333,7 +333,7 @@ func TestAccuracyAdjudicationCarriesUnmeasuredLanguages(t *testing.T) {
 // models in this package to one answer.
 //
 // They count different relations through different joins, and both publish a
-// number a reader compares: doctor's precision and `cortex accuracy`'s. If
+// number a reader compares: doctor's precision and `repocortex accuracy`'s. If
 // they ever disagree about how many CALLS edges the RESOLVER claimed on one
 // index, the disagreement is unlocatable from either report alone.
 func TestAccuracyAdjudicationAgreesWithResolutionPrecision(t *testing.T) {

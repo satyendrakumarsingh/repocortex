@@ -15,7 +15,7 @@ import (
 	"github.com/satyendrakumarsingh/repocortex/internal/report"
 )
 
-// `cortex report`: CI artefacts rendered from other commands' --json output.
+// `repocortex report`: CI artefacts rendered from other commands' --json output.
 //
 // It reads files rather than the index on purpose. CI already runs `arch`,
 // `missed` and `impact`; re-running them here would produce a second answer
@@ -26,12 +26,12 @@ func newReportCmd() *cobra.Command {
 		Short: "Render SARIF or a pull-request comment from other commands' --json output",
 		Long: `Turns the --json output of arch, missed and impact into CI artefacts.
 
-  cortex --json arch   > arch.json
-  cortex --json missed > missed.json
-  cortex --json impact --base origin/main --head HEAD > impact.json
+  repocortex --json arch   > arch.json
+  repocortex --json blindspots > missed.json
+  repocortex --json impact --base origin/main --head HEAD > impact.json
 
-  cortex report sarif --arch arch.json --missed missed.json --out cortex.sarif
-  cortex report pr --impact impact.json --arch arch.json --missed missed.json --out comment.md
+  repocortex report sarif --arch arch.json --blindspots missed.json --out repocortex.sarif
+  repocortex report pr --impact impact.json --arch arch.json --blindspots missed.json --out comment.md
 
 An input you do not pass is reported as "not run", never as zero findings.`,
 	}
@@ -45,16 +45,16 @@ type reportInputs struct {
 
 func (in *reportInputs) bind(cmd *cobra.Command, withImpact bool) {
 	if withImpact {
-		cmd.Flags().StringVar(&in.impactPath, "impact", "", "output of 'cortex --json impact'")
+		cmd.Flags().StringVar(&in.impactPath, "impact", "", "output of 'repocortex --json impact'")
 	}
-	cmd.Flags().StringVar(&in.missedPath, "missed", "", "output of 'cortex --json missed'")
-	cmd.Flags().StringVar(&in.archPath, "arch", "", "output of 'cortex --json arch'")
+	cmd.Flags().StringVar(&in.missedPath, "blindspots", "", "output of 'repocortex --json blindspots'")
+	cmd.Flags().StringVar(&in.archPath, "arch", "", "output of 'repocortex --json arch'")
 }
 
 func (in *reportInputs) load() (report.PRInput, error) {
 	var pr report.PRInput
 	if in.impactPath == "" && in.missedPath == "" && in.archPath == "" {
-		return pr, errors.New("pass at least one of --impact, --missed, --arch")
+		return pr, errors.New("pass at least one of --impact, --blindspots, --arch")
 	}
 	if in.impactPath != "" {
 		pr.Impact = &impact.DiffReport{}
@@ -162,7 +162,7 @@ func readJSONFile(path, requiredKey string, v any) error {
 		return fmt.Errorf("parse %s: %w", path, err)
 	}
 	if _, ok := keys[requiredKey]; !ok {
-		return fmt.Errorf("%s does not look like 'cortex --json <cmd>' output (missing %q)", path, requiredKey)
+		return fmt.Errorf("%s does not look like 'repocortex --json <cmd>' output (missing %q)", path, requiredKey)
 	}
 	if err := json.Unmarshal(data, v); err != nil {
 		return fmt.Errorf("parse %s: %w", path, err)

@@ -131,7 +131,7 @@ func TestNoPackageLevelMutableStateInTheEngines(t *testing.T) {
 // TestCLIOpensTheIndexThroughOneDoor enforces CLAUDE.md §3 (SRP/DRY) for the
 // one invariant that has already broken silently: schema currency.
 //
-// store.Migrate was called only by `cortex init`, so every other command
+// store.Migrate was called only by `repocortex init`, so every other command
 // opened the database at whatever version it happened to be and used it as-is.
 // Upgrading the binary therefore never upgraded the index — migration 0005's
 // indexes were never created for existing users, and an older index met a

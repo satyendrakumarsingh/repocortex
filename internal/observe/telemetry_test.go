@@ -190,7 +190,7 @@ func (b blockingExporter) Shutdown(context.Context) error {
 	return nil
 }
 
-// TestShutdownIsBounded is the Spec §60 guarantee: `cortex` exiting never
+// TestShutdownIsBounded is the Spec §60 guarantee: `repocortex` exiting never
 // waits on telemetry. Without the wall-clock bound in doShutdown this test
 // hangs until the go test timeout, which is the failure mode being prevented.
 func TestShutdownIsBounded(t *testing.T) {
@@ -283,7 +283,7 @@ func TestReInitRebindsMetrics(t *testing.T) {
 	_, reader := enableForTest(t)
 	m.SearchLatency(context.Background(), 5*time.Millisecond)
 
-	if got := collectSum(t, reader, "cortex.search.latency"); got == 0 {
+	if got := collectSum(t, reader, "repocortex.search.latency"); got == 0 {
 		t.Fatal("a Metrics created before Init recorded nothing after Init; instruments did not rebind")
 	}
 }

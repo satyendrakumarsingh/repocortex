@@ -3,7 +3,6 @@ package missed
 import (
 	"context"
 	"fmt"
-	"sort"
 
 	"github.com/satyendrakumarsingh/repocortex/internal/capability"
 	"github.com/satyendrakumarsingh/repocortex/internal/capability/tests"
@@ -209,8 +208,14 @@ func (d *Detector) Detect(ctx context.Context, runID int64, opts Options) (*Repo
 	}
 
 	// 6. Untested Critical Symbols
-	symbols, err := d.reg.Symbols(ctx, runID)
-	if err == nil && d.caps.Graph != nil {
+	//
+	// Candidates come from ONE aggregate query, widest first, and are capped.
+	// This used to load every symbol in the run and count each exported one's
+	// incoming edges with its own query: a round trip per exported function,
+	// and the whole symbol table in memory. The cap is generous relative to
+	// what is reported (MaxItemsPerKind), and a symbol outside the widest few
+	// hundred is by definition not the most critical untested one.
+	if d.caps.Graph != nil {
 		type candidate struct {
 			sym      registry.SymbolHit
 			path     string
@@ -218,41 +223,33 @@ func (d *Detector) Detect(ctx context.Context, runID int64, opts Options) (*Repo
 		}
 		var candidates []candidate
 		count := 0
-		for _, s := range symbols {
-			if !s.Exported || (s.Kind != "function" && s.Kind != "method") {
-				continue
-			}
-			// A helper in a test file is not production code that needs a test.
-			if capability.IsTestPath(filePaths[s.FileID]) {
-				continue
-			}
-			// Estimate in-degree using edge lookup
-			edges, _ := d.reg.IncomingEdgeCount(ctx, runID, s.ID, registry.EdgeFilter{}, nil)
-			if edges >= 2 {
-				candidates = append(candidates, candidate{
-					sym: registry.SymbolHit{
-						ID:       s.ID,
-						Name:     s.Name,
-						FQN:      s.FQN,
-						FilePath: filePaths[s.FileID],
-						Kind:     string(s.Kind),
-					},
-					path:     filePaths[s.FileID],
-					inDegree: edges,
-				})
-			}
+		fanIn, ferr := d.reg.HighFanInSymbols(ctx, runID, 2, criticalCandidateCap(opts.MaxItemsPerKind))
+		if ferr != nil {
+			fanIn = nil
 		}
-
-		sort.Slice(candidates, func(i, j int) bool {
-			return candidates[i].inDegree > candidates[j].inDegree
-		})
+		for _, s := range fanIn {
+			// A helper in a test file is not production code that needs a test.
+			if capability.IsTestPath(s.FilePath) {
+				continue
+			}
+			candidates = append(candidates, candidate{
+				sym:      registry.SymbolHit{ID: s.ID, Name: s.Name, FQN: s.FQN, FilePath: s.FilePath, Kind: s.Kind},
+				path:     s.FilePath,
+				inDegree: s.InDegree,
+			})
+		}
 
 		for _, cand := range candidates {
 			if count >= opts.MaxItemsPerKind {
 				break
 			}
-			hit, err := tests.FindTestsWith(ctx, d.caps, runID, cand.sym.FQN, tests.Options{})
-			if err == nil && len(hit.Tests) == 0 {
+			// A bounded probe, not a full discovery: this loop asks "is there
+			// any test near it" of dozens of the widest symbols in the run.
+			// A probe that stopped at its bound without finding one has not
+			// established anything, so that symbol is skipped, never
+			// reported as untested.
+			hit, err := tests.FindTestsWith(ctx, d.caps, runID, cand.sym.FQN, tests.ProbeOptions())
+			if err == nil && len(hit.Tests) == 0 && !hit.Inconclusive() {
 				add(Blindspot{
 					Kind:        BlindspotUntestedCritical,
 					Severity:    "high",
@@ -268,4 +265,12 @@ func (d *Detector) Detect(ctx context.Context, runID int64, opts Options) (*Repo
 
 	rep.TotalBlindspots = len(rep.Blindspots)
 	return rep, nil
+}
+
+// criticalCandidateCap is how many high fan-in symbols are examined for
+// missing tests: ten for every one that may be reported, and never fewer than
+// a few hundred, so a repository whose widest symbols are all tested still
+// finds the untested ones below them.
+func criticalCandidateCap(maxItems int) int {
+	return max(maxItems*10, 300)
 }

@@ -28,7 +28,7 @@ import (
 // declared nowhere" is a deployment about to fail at start-up, and "9 you
 // declare are read by nothing" is either dead configuration or a lookup this
 // scan cannot see. So the two mismatches lead and the full inventory follows,
-// exactly as `cortex config` orders them.
+// exactly as `repocortex config` orders them.
 //
 // # Where the confidence tier comes from, and where it honestly cannot
 //
@@ -218,7 +218,7 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		resp.Help = meta.Help
 		resp.Next = NextAction{
-			Label: "Index this repository", Command: "cortex index",
+			Label: "Index this repository", Command: "repocortex index",
 			Detail: "Configuration keys are extracted during indexing; there is nothing committed to read.",
 		}
 		s.writeJSON(w, http.StatusOK, resp)
@@ -233,12 +233,12 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 				"source. That is missing wiring, not a repository without configuration — reporting " +
 				"zero keys here would be a claim nothing checked.",
 			Steps: []string{
-				"cortex ui — the shipped portal wires the full registry",
-				"cortex config — the same report in the terminal",
+				"repocortex ui — the shipped portal wires the full registry",
+				"repocortex config — the same report in the terminal",
 			},
 		}
 		resp.Next = NextAction{
-			Label: "Read it in the terminal instead", Command: "cortex config --all",
+			Label: "Read it in the terminal instead", Command: "repocortex config --all",
 			Detail: "Same source, no portal wiring required.",
 		}
 		s.writeJSON(w, http.StatusOK, resp)
@@ -313,13 +313,13 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 
 	resp.ReadNotDeclared = capped(missing, maxRows, &om, ReasonRowBudget,
 		fmt.Sprintf("Keys read but not declared beyond the first %d (alphabetical) are not listed. "+
-			"counts.read_but_not_declared is the full figure.", maxRows), "cortex config")
+			"counts.read_but_not_declared is the full figure.", maxRows), "repocortex config")
 	resp.DeclaredNotRead = capped(unread, maxRows, &om, ReasonRowBudget,
 		fmt.Sprintf("Keys declared but never read beyond the first %d are not listed.", maxRows),
-		"cortex config --all")
+		"repocortex config --all")
 	resp.Keys = capped(rows, maxRows, &om, ReasonRowBudget,
 		fmt.Sprintf("The full inventory is shortened to the first %d key(s). counts.keys is the full "+
-			"figure.", maxRows), "cortex config --all")
+			"figure.", maxRows), "repocortex config --all")
 	for _, p := range []*[]ConfigKeyRow{&resp.ReadNotDeclared, &resp.DeclaredNotRead, &resp.Keys} {
 		if *p == nil {
 			*p = []ConfigKeyRow{}
@@ -336,7 +336,7 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 				"and one example location per key, not as edges with per-site evidence, so the readers "+
 				"figure is stated without a tier rather than each read being presented as a proven "+
 				"relationship.",
-			"cortex config --all, then grep the key name")
+			"repocortex config --all, then grep the key name")
 	}
 
 	switch {
@@ -346,15 +346,15 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 			Detail: configCoverageLimit + " An empty screen here means no declaration file and no lookup " +
 				"was recognised, not that this service is configuration-free.",
 			Steps: []string{
-				"cortex index — configuration keys are extracted during indexing",
-				"cortex config — the same report in the terminal, with the coverage note",
+				"repocortex index — configuration keys are extracted during indexing",
+				"repocortex config — the same report in the terminal, with the coverage note",
 				"If your settings live only in Helm charts or CI definitions, they are outside what this index reads",
 			},
 		}
 		resp.Next = NextAction{
 			Label:   "Confirm the declaration sources are ones this index reads",
 			Detail:  "Kubernetes, Helm, Terraform and CI definitions are not read, so a service configured entirely through them reports nothing here by construction.",
-			Command: "cortex config",
+			Command: "repocortex config",
 		}
 	case len(missing) > 0:
 		resp.Next = NextAction{
@@ -362,19 +362,19 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 			Detail: "A service that needs these and finds nothing fails at start-up. Each can also be a " +
 				"key assembled at run time or supplied by the platform, which is why this is a prompt to " +
 				"check rather than a verdict.",
-			Command: "cortex config",
+			Command: "repocortex config",
 		}
 	case len(unread) > 0:
 		resp.Next = NextAction{
 			Label:   fmt.Sprintf("%d key(s) are declared and read by nothing", len(unread)),
 			Detail:  "Either dead configuration, or a lookup this scan cannot see — a key read through a computed name will not be found.",
-			Command: "cortex config --all",
+			Command: "repocortex config --all",
 		}
 	default:
 		resp.Next = NextAction{
 			Label:   "Every declared key has a reader, and every read key is declared",
 			Detail:  fmt.Sprintf("%d key(s), %d labelled sensitive by name.", len(rows), resp.Counts.SensitiveByName),
-			Command: "cortex config --all",
+			Command: "repocortex config --all",
 		}
 	}
 

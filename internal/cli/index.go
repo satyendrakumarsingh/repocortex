@@ -70,7 +70,7 @@ revision in place.`,
 	cmd.Flags().BoolVar(&showDig, "digest", false, "print the registry digest (determinism gate)")
 	cmd.Flags().StringVar(&accuracy, "accuracy", "", "override accuracy mode: fast|auto|exact")
 	cmd.Flags().BoolVar(&full, "full", false,
-		"rebuild from scratch instead of updating incrementally (discards resolved edges; re-run 'cortex resolve')")
+		"rebuild from scratch instead of updating incrementally (discards resolved edges; re-run 'repocortex resolve')")
 	return cmd
 }
 
@@ -98,7 +98,7 @@ func tryIncremental(cmd *cobra.Command, g *Global, showDigest bool) (bool, error
 
 	dbPath := g.DBPath()
 	if _, err := os.Stat(dbPath); errors.Is(err, os.ErrNotExist) {
-		return false, fmt.Errorf("no index at %s — run 'cortex init' first", dbPath)
+		return false, fmt.Errorf("no index at %s — run 'repocortex init' first", dbPath)
 	}
 
 	db, err := openWritable(ctx, g, dbPath)
@@ -221,7 +221,7 @@ func runIndex(cmd *cobra.Command, g *Global, workers int, showDigest bool, accur
 
 	dbPath := g.DBPath()
 	if _, err := os.Stat(dbPath); errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("no index at %s — run 'cortex init' first", dbPath)
+		return fmt.Errorf("no index at %s — run 'repocortex init' first", dbPath)
 	}
 
 	db, err := openWritable(ctx, g, dbPath)
@@ -281,7 +281,7 @@ func runIndex(cmd *cobra.Command, g *Global, workers int, showDigest bool, accur
 	defer func() {
 		if !committed {
 			if err := reg.AbortRun(context.WithoutCancel(ctx), run.ID); err != nil {
-				log.Error("failed to abort staging run; 'cortex index' will reclaim it", "run", run.ID, "error", err)
+				log.Error("failed to abort staging run; 'repocortex index' will reclaim it", "run", run.ID, "error", err)
 			}
 		}
 	}()

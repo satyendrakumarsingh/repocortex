@@ -14,7 +14,7 @@ import (
 // Resolution must stay close to linear in reference count, and must not hold
 // the run's outcomes in memory while it runs.
 //
-// It did neither. `cortex resolve` over a synthetic Java tree took 3.5s at
+// It did neither. `repocortex resolve` over a synthetic Java tree took 3.5s at
 // 1,000 files and 203s at 25,000 — 58x the time for 25x the input — and an
 // instrumented pass attributed 164s of that 203s to two write calls:
 // registry.MarkResolutions and registry.AddResolvedEdges. MarkResolutions took

@@ -14,7 +14,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-var testSpec = agentServerSpec{Name: "cortex", Command: "cortex", Args: []string{"--project", "/repo", "serve"}}
+var testSpec = agentServerSpec{Name: "repocortex", Command: "repocortex", Args: []string{"--project", "/repo", "serve"}}
 
 // isolateHome points every environment variable the client paths read at a
 // temporary home, so a test never touches the real one.
@@ -37,7 +37,7 @@ func TestMergeJSONKeyUsesEachClientsKeyAndKeepsTheRest(t *testing.T) {
 		check func(t *testing.T, e map[string]any)
 	}{
 		{"mcpServers", stdioEntry, func(t *testing.T, e map[string]any) {
-			if e["command"] != "cortex" {
+			if e["command"] != "repocortex" {
 				t.Errorf("command = %v", e["command"])
 			}
 		}},
@@ -50,7 +50,7 @@ func TestMergeJSONKeyUsesEachClientsKeyAndKeepsTheRest(t *testing.T) {
 		{"amp.mcpServers", stdioEntry, nil},
 		{"mcp", kiloEntry, func(t *testing.T, e map[string]any) {
 			cmd, _ := e["command"].([]any)
-			if len(cmd) != 4 || cmd[0] != "cortex" || cmd[3] != "serve" {
+			if len(cmd) != 4 || cmd[0] != "repocortex" || cmd[3] != "serve" {
 				t.Errorf("Kilo command must be one array of command and args, got %v", e["command"])
 			}
 		}},
@@ -62,7 +62,7 @@ func TestMergeJSONKeyUsesEachClientsKeyAndKeepsTheRest(t *testing.T) {
 	}
 	for _, c := range cases {
 		existing := []byte(`{"theme":"dark","` + c.key + `":{"other":{"command":"x"}}}`)
-		out, err := mergeJSONKey(existing, c.key, "cortex", c.entry(testSpec))
+		out, err := mergeJSONKey(existing, c.key, "repocortex", c.entry(testSpec))
 		if err != nil {
 			t.Fatalf("%s: %v", c.key, err)
 		}
@@ -77,14 +77,14 @@ func TestMergeJSONKeyUsesEachClientsKeyAndKeepsTheRest(t *testing.T) {
 		if _, ok := servers["other"]; !ok {
 			t.Errorf("%s: another server was dropped", c.key)
 		}
-		entry, ok := servers["cortex"].(map[string]any)
+		entry, ok := servers["repocortex"].(map[string]any)
 		if !ok {
-			t.Fatalf("%s: cortex entry missing: %s", c.key, out)
+			t.Fatalf("%s: repocortex entry missing: %s", c.key, out)
 		}
 		if c.check != nil {
 			c.check(t, entry)
 		}
-		again, err := mergeJSONKey(out, c.key, "cortex", c.entry(testSpec))
+		again, err := mergeJSONKey(out, c.key, "repocortex", c.entry(testSpec))
 		if err != nil || !bytes.Equal(again, out) {
 			t.Errorf("%s: a second run changed the file", c.key)
 		}
@@ -93,10 +93,10 @@ func TestMergeJSONKeyUsesEachClientsKeyAndKeepsTheRest(t *testing.T) {
 
 func TestMergeJSONKeyRefusesJSONWithComments(t *testing.T) {
 	jsonc := []byte("{\n  // my servers\n  \"context_servers\": {}\n}\n")
-	if _, err := mergeJSONKey(jsonc, "context_servers", "cortex", stdioEntry(testSpec)); err == nil {
+	if _, err := mergeJSONKey(jsonc, "context_servers", "repocortex", stdioEntry(testSpec)); err == nil {
 		t.Fatal("a file with comments was accepted; it would be rewritten without them")
 	}
-	if _, err := mergeJSONKey([]byte(`{"mcpServers":[]}`), "mcpServers", "cortex", stdioEntry(testSpec)); err == nil {
+	if _, err := mergeJSONKey([]byte(`{"mcpServers":[]}`), "mcpServers", "repocortex", stdioEntry(testSpec)); err == nil {
 		t.Fatal("a non-object mcpServers was accepted")
 	}
 }
@@ -107,9 +107,9 @@ func TestMergeCodexTOMLAppendsAndReplacesOnlyItsTable(t *testing.T) {
 	if !strings.HasPrefix(out, "model = \"gpt-5\"\n\n[mcp_servers.other]\ncommand = \"other\"\n") {
 		t.Fatalf("existing settings changed:\n%s", out)
 	}
-	want := "[mcp_servers.cortex]\ncommand = \"cortex\"\nargs = [\"--project\", \"/repo\", \"serve\"]\n"
+	want := "[mcp_servers.repocortex]\ncommand = \"repocortex\"\nargs = [\"--project\", \"/repo\", \"serve\"]\n"
 	if !strings.Contains(out, want) {
-		t.Fatalf("cortex table missing:\n%s", out)
+		t.Fatalf("repocortex table missing:\n%s", out)
 	}
 
 	// A second run with a new path replaces the table, keeping what follows it.
@@ -117,11 +117,11 @@ func TestMergeCodexTOMLAppendsAndReplacesOnlyItsTable(t *testing.T) {
 	moved := testSpec
 	moved.Args = []string{"--project", "/elsewhere", "serve"}
 	out2 := string(mergeCodexTOML([]byte(withTail), moved))
-	if strings.Count(out2, "[mcp_servers.cortex]") != 1 || !strings.Contains(out2, "/elsewhere") || strings.Contains(out2, "\"/repo\"") {
-		t.Fatalf("the cortex table was not replaced in place:\n%s", out2)
+	if strings.Count(out2, "[mcp_servers.repocortex]") != 1 || !strings.Contains(out2, "/elsewhere") || strings.Contains(out2, "\"/repo\"") {
+		t.Fatalf("the repocortex table was not replaced in place:\n%s", out2)
 	}
 	if !strings.Contains(out2, "[profiles.fast]\nmodel = \"x\"") || !strings.Contains(out2, "[mcp_servers.other]") {
-		t.Fatalf("a table after or before cortex was lost:\n%s", out2)
+		t.Fatalf("a table after or before repocortex was lost:\n%s", out2)
 	}
 	if string(mergeCodexTOML([]byte(out2), moved)) != out2 {
 		t.Error("a second identical run changed the file")
@@ -148,9 +148,9 @@ func TestMergeGooseYAMLKeepsOtherExtensionsAndComments(t *testing.T) {
 	if _, ok := ext["developer"]; !ok {
 		t.Errorf("another extension was dropped:\n%s", out)
 	}
-	c := ext["cortex"].(map[string]any)
-	if c["cmd"] != "cortex" || c["type"] != "stdio" || c["enabled"] != true {
-		t.Errorf("cortex extension is wrong: %v", c)
+	c := ext["repocortex"].(map[string]any)
+	if c["cmd"] != "repocortex" || c["type"] != "stdio" || c["enabled"] != true {
+		t.Errorf("repocortex extension is wrong: %v", c)
 	}
 	again, err := mergeGooseYAML(out, testSpec)
 	if err != nil || !bytes.Equal(again, out) {
@@ -174,7 +174,7 @@ func TestContinueYAMLIsAStandaloneV1File(t *testing.T) {
 		t.Errorf("a standalone Continue file needs name, version and schema v1: %s", out)
 	}
 	servers := doc["mcpServers"].([]any)
-	if s := servers[0].(map[string]any); s["command"] != "cortex" || s["type"] != "stdio" {
+	if s := servers[0].(map[string]any); s["command"] != "repocortex" || s["type"] != "stdio" {
 		t.Errorf("server entry is wrong: %v", s)
 	}
 }
@@ -329,13 +329,13 @@ func TestShellWordRoundTripsThroughAShell(t *testing.T) {
 			t.Errorf("shellWord(%q) came back as %q", in, out)
 		}
 	}
-	if got := shellWord("/usr/bin/cortex"); got != "/usr/bin/cortex" {
+	if got := shellWord("/usr/bin/repocortex"); got != "/usr/bin/repocortex" {
 		t.Errorf("a safe word should stay unquoted, got %s", got)
 	}
 }
 
 func TestManualStepsQuoteAProjectPathWithSpaces(t *testing.T) {
-	spec := agentServerSpec{Name: "cortex", Command: "cortex", Args: []string{"--project", "/My Repos/it's here", "serve"}}
+	spec := agentServerSpec{Name: "repocortex", Command: "repocortex", Args: []string{"--project", "/My Repos/it's here", "serve"}}
 	for _, m := range manualClients() {
 		step := m.Step(spec)
 		if strings.Contains(step, " /My Repos/") {

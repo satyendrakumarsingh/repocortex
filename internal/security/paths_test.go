@@ -185,7 +185,7 @@ func TestValidatePathSymlinkedRoot(t *testing.T) {
 	if resolved, err := filepath.EvalSymlinks("/tmp"); err != nil || resolved == "/tmp" {
 		t.Skip("/tmp is not a symlink on this platform")
 	}
-	tmpRoot, err := os.MkdirTemp("/tmp", "cortex-security-")
+	tmpRoot, err := os.MkdirTemp("/tmp", "repocortex-security-")
 	if err != nil {
 		t.Skipf("cannot create a repo under /tmp: %v", err)
 	}

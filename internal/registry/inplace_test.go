@@ -48,7 +48,7 @@ func seedCommitted(t *testing.T) (*Registry, int64) {
 }
 
 // TestCommittedRunRejectsWritesByDefault: full indexing must never be able to
-// mutate the live revision. That is what makes an interrupted `cortex index`
+// mutate the live revision. That is what makes an interrupted `repocortex index`
 // leave the previous revision intact.
 func TestCommittedRunRejectsWritesByDefault(t *testing.T) {
 	ctx := context.Background()

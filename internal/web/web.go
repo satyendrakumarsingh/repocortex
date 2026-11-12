@@ -597,7 +597,7 @@ type HealthReason struct {
 // any screen.
 type IndexHealth struct {
 	// Status is the run's own recorded status, verbatim, so a reader comparing
-	// the portal against `cortex status` sees the same word.
+	// the portal against `repocortex status` sees the same word.
 	Status string `json:"status"`
 
 	Severity HealthSeverity `json:"severity"`
@@ -640,7 +640,7 @@ func healthFor(run *model.IndexRun, ageSeconds int64) IndexHealth {
 			Code: "run_failed",
 			Detail: "The indexing run recorded itself as failed. What was committed is whatever it " +
 				"managed before it stopped, and nothing here says which part that is.",
-			Remedy: "cortex index",
+			Remedy: "repocortex index",
 		})
 	case "degraded", "partial":
 		worsen(HealthWarn)
@@ -648,7 +648,7 @@ func healthFor(run *model.IndexRun, ageSeconds int64) IndexHealth {
 			Code: "run_degraded",
 			Detail: "The indexing run recorded itself as degraded: it committed, but not everything it " +
 				"set out to do succeeded. Every count on every screen is a LOWER BOUND.",
-			Remedy: "cortex doctor",
+			Remedy: "repocortex doctor",
 		})
 	}
 	if !run.Complete() {
@@ -657,7 +657,7 @@ func healthFor(run *model.IndexRun, ageSeconds int64) IndexHealth {
 			Code: "index_incomplete",
 			Detail: "The index state is " + string(run.IndexState) + " — the pass that binds references " +
 				"into edges has not finished, so relationship answers are partial by construction.",
-			Remedy: "cortex resolve",
+			Remedy: "repocortex resolve",
 		})
 	}
 	if run.FilesUnaccounted > 0 {
@@ -668,7 +668,7 @@ func healthFor(run *model.IndexRun, ageSeconds int64) IndexHealth {
 			Detail: fmt.Sprintf("%d file(s) were discovered and never accounted for. They hold symbols "+
 				"nothing on any screen can mention, and an empty answer about them is not evidence of "+
 				"absence.", run.FilesUnaccounted),
-			Remedy: "cortex doctor --verify-index",
+			Remedy: "repocortex doctor --verify-index",
 		})
 	}
 	if run.ParseFailures > 0 {
@@ -678,7 +678,7 @@ func healthFor(run *model.IndexRun, ageSeconds int64) IndexHealth {
 			Count: run.ParseFailures,
 			Detail: fmt.Sprintf("%d file(s) failed to parse. Nothing was extracted from them, so every "+
 				"edge that ran through one is missing rather than absent.", run.ParseFailures),
-			Remedy: "cortex doctor",
+			Remedy: "repocortex doctor",
 		})
 	}
 	if ageSeconds > staleAfterSeconds {
@@ -688,7 +688,7 @@ func healthFor(run *model.IndexRun, ageSeconds int64) IndexHealth {
 			Count: ageSeconds / 86400,
 			Detail: "This index is more than a day old, so it describes the tree as it was, not as it " +
 				"is. Anything changed since is invisible here.",
-			Remedy: "cortex index",
+			Remedy: "repocortex index",
 		})
 	}
 
@@ -715,7 +715,7 @@ func unindexedHealth() IndexHealth {
 		Reasons: []HealthReason{{
 			Code:   "no_committed_run",
 			Detail: "No indexing pass has been committed. Readers only ever see a committed run.",
-			Remedy: "cortex index",
+			Remedy: "repocortex index",
 		}},
 	}
 }
@@ -751,9 +751,9 @@ func (s *Server) notIndexed(detail string) Meta {
 			Title:  "This repository has no committed index yet",
 			Detail: detail,
 			Steps: []string{
-				"cortex init    — write .cortex.yml and create the index",
-				"cortex index   — parse the tree and extract symbols",
-				"cortex resolve — bind references into edges, which is what every view here reads",
+				"repocortex init    — write .repocortex.yml and create the index",
+				"repocortex index   — parse the tree and extract symbols",
+				"repocortex resolve — bind references into edges, which is what every view here reads",
 			},
 		},
 	}
@@ -818,8 +818,8 @@ func (s *Server) fail(w http.ResponseWriter, r *http.Request, err error) {
 			Title:  "The portal could not answer this view",
 			Detail: "The index may be from an older schema, or partially written.",
 			Steps: []string{
-				"cortex doctor — check the index for the fault above",
-				"cortex index  — rebuild it if doctor reports damage",
+				"repocortex doctor — check the index for the fault above",
+				"repocortex index  — rebuild it if doctor reports damage",
 			},
 		},
 	})

@@ -26,7 +26,7 @@ for (const key of Object.keys(REPOS)) {
         const et = (await empty.innerText()).trim();
         expect(et, 'it distinguishes "nothing declared" from "no violations"')
           .toMatch(/different from .the code has no violations|nothing to check against/i);
-        expect(et, 'it names the file to declare in').toMatch(/\.cortex\.yml/);
+        expect(et, 'it names the file to declare in').toMatch(/\.repocortex\.yml/);
       } else {
         expect(text, 'a declared architecture renders a gate verdict').toMatch(/CI gate/i);
         const rows = await page.locator('#screen-governance tbody tr').count();

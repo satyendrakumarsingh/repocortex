@@ -261,7 +261,7 @@ func TestCompilerResolutionDeclinesTwoSymbolsOfTheSameName(t *testing.T) {
 // TestCompilerResolutionRecordsItsProvenance. "Bound by a typechecker" and
 // "bound by name matching plus an import heuristic" are different claims to
 // anyone deciding whether to trust an empty callers result, and the resolver's
-// own verdict has to survive because `cortex accuracy` reads it.
+// own verdict has to survive because `repocortex accuracy` reads it.
 func TestCompilerResolutionRecordsItsProvenance(t *testing.T) {
 	f := newCRFixture(t)
 	f.addCompilerEdge(t, 100, "Save")

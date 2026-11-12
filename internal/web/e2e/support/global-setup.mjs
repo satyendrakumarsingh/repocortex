@@ -22,7 +22,7 @@ export default async function globalSetup() {
     if (REPOS.payment) {
       fixtureRoot = prepareCiFixture(BINARY);
       REPOS.payment.root = fixtureRoot;
-      process.env.CORTEX_E2E_PAYMENT_ROOT = fixtureRoot;
+      process.env.REPOCORTEX_E2E_PAYMENT_ROOT = fixtureRoot;
       process.stdout.write(`fixture prepared: ${REPOS.payment.name} at ${fixtureRoot}\n`);
     }
 

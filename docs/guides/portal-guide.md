@@ -1,6 +1,6 @@
 # The RepoCortex portal: a screen-by-screen guide
 
-`cortex ui` serves a local web portal over your RepoCortex index. It is a
+`repocortex ui` serves a local web portal over your RepoCortex index. It is a
 reading tool. It shows what the index holds, how sure the index is about each
 fact, and what the index cannot see. It never edits your code or your index.
 
@@ -47,18 +47,18 @@ Contents
 The portal reads an existing index, so build one first:
 
 ```sh
-cortex init
-cortex index
-cortex resolve
-cortex ui
+repocortex init
+repocortex index
+repocortex resolve
+repocortex ui
 ```
 
-`cortex ui` prints the address and stays in the foreground. Press Ctrl-C to
+`repocortex ui` prints the address and stays in the foreground. Press Ctrl-C to
 stop it.
 
 ```text
 RepoCortex portal: http://127.0.0.1:7777/
-  index      /path/to/repo/.cortex/index.db (opened read-only; this portal never writes)
+  index      /path/to/repo/.repocortex/index.db (opened read-only; this portal never writes)
   binding    loopback only — not reachable from other machines.
 ```
 
@@ -80,7 +80,7 @@ What the portal guarantees:
 - **Loopback only.** It binds to `127.0.0.1` and refuses any request whose
   `Host` header is not a loopback address. A web page on the internet cannot
   use your browser to read your index.
-- **Offline.** All assets are inside the `cortex` binary. There is no npm, no
+- **Offline.** All assets are inside the `repocortex` binary. There is no npm, no
   CDN, and the page's content policy blocks loading anything from another
   origin.
 
@@ -100,7 +100,7 @@ Every screen shares the same frame:
 |                  | ANSWER LINE                                                   |
 |  Index health    |  One sentence with the key numbers in bold.                   |
 |  UNDERSTAND...   |  A supporting sentence.                                       |
-|   Map of the code|  Next step: [Copy: cortex <command>]  why it helps            |
+|   Map of the code|  Next step: [Copy: repocortex <command>]  why it helps            |
 |   ...            +---------------------------------------------------------------+
 |  BEFORE YOU...   | CONTROLS  (input, depth, filters — only where the screen      |
 |  HOW IT RUNS     |            takes a question)                                  |
@@ -267,14 +267,14 @@ that gives the same answer in a terminal.
 
 **Answers:** How fresh and how complete is this index, and where is it blind?
 **Data comes from:** `/api/overview` (with `/api/indexstate` for the build
-panel). CLI: `cortex status` and `cortex doctor`.
+panel). CLI: `repocortex status` and `repocortex doctor`.
 
-![Index health: answer line saying the index was built seconds ago and every file was read, a Copy cortex watch button, a summary banner, three entry cards, and counts for files, relationships, directories and exported symbols](../assets/portal/overview.png)
+![Index health: answer line saying the index was built seconds ago and every file was read, a Copy repocortex watch button, a summary banner, three entry cards, and counts for files, relationships, directories and exported symbols](../assets/portal/overview.png)
 
 **Layout skeleton:**
 
 ```text
-[ANSWER  Indexed 27 seconds ago. Every file was read.  [Copy: cortex watch]]
+[ANSWER  Indexed 27 seconds ago. Every file was read.  [Copy: repocortex watch]]
 [System banner: inbound APIs -> services -> repositories -> tables]
 [Entry cards: architecture | change safety | agents]
 [FILES] [RELATIONSHIPS] [DIRECTORIES] [EXPORTED SURFACE]
@@ -292,7 +292,7 @@ panel). CLI: `cortex status` and `cortex doctor`.
 
 - **Answer line.** Good: "Every file was read." Worrying: a partial run, parse
   failures, or an age over a day. The button under it is the next step the
-  server suggests: `cortex watch` when all is well, `cortex index` when the
+  server suggests: `repocortex watch` when all is well, `repocortex index` when the
   index is partial or stale.
 - **Summary cards.** Files, relationships, directories (or components, if you
   declared an architecture) and exported symbols. These are the totals every
@@ -319,7 +319,7 @@ panel). CLI: `cortex status` and `cortex doctor`.
 **Answers:** Which parts of the code talk to each other, and how sure is each
 link?
 **Data comes from:** `/api/graph` (and `/api/source` for the Code view). CLI:
-`cortex export --format svg|json|dot|graphml|csv`.
+`repocortex export --format svg|json|dot|graphml|csv`.
 
 ![Map of the code: answer line saying 10 directories talk to each other through 6 relationships, view tabs Graph, Tree, Treemap and Code, scope and detail controls, and a layered drawing of directory boxes joined by arrows](../assets/portal/graph.png)
 
@@ -364,8 +364,8 @@ link?
 ### Find a symbol (`?s=search`)
 
 **Answers:** Is this name in the index at all, and where is it defined?
-**Data comes from:** `/api/symbols`. CLI: `cortex symbol <name>` (exact
-match) or `cortex search <text>` (full text).
+**Data comes from:** `/api/symbols`. CLI: `repocortex symbol <name>` (exact
+match) or `repocortex search <text>` (full text).
 
 ![Find a symbol: answer line saying 8 definitions are named CallbackController, a search box, counts for matches, shown and exported, and a table of definitions with kind, match type, edges, confidence and a Blast radius button per row](../assets/portal/search.png)
 
@@ -394,7 +394,7 @@ match) or `cortex search <text>` (full text).
 
 **Answers:** Which symbols are most connected, so a change there is most
 dangerous, and are there cycles?
-**Data comes from:** `/api/metrics`. CLI: `cortex export` (the full ranking
+**Data comes from:** `/api/metrics`. CLI: `repocortex export` (the full ranking
 under the same keys).
 
 ![Shape of the code: answer line naming the 5 most connected symbols and 0 cycles, level and filter controls, and a ranked table with score, fan-in, fan-out, instability and location](../assets/portal/metrics.png)
@@ -402,7 +402,7 @@ under the same keys).
 **Layout skeleton:**
 
 ```text
-[ANSWER  The 5 most connected symbols ... and the 0 cycles between them.  [Copy: cortex export]]
+[ANSWER  The 5 most connected symbols ... and the 0 cycles between them.  [Copy: repocortex export]]
 [LEVEL symbol v]  [FILTERS: callable kinds only | exclude test files]
 (note: level, standard of proof, filters applied)
 [Where change is dangerous: rank | what | kind | score | fan-in | fan-out | instability | where]
@@ -426,7 +426,7 @@ under the same keys).
 
 **Answers:** In what order should a change to this symbol be made, and what
 must hold before and after?
-**Data comes from:** `/api/planchange`. CLI: `cortex plan-change <symbol>`.
+**Data comes from:** `/api/planchange`. CLI: `repocortex plan-change <symbol>`.
 
 ![Plan a refactor: a symbol box containing findById, a summary card with its file and a moderate risk score, and numbered steps to modify the method and update its two direct callers](../assets/portal/planchange.png)
 
@@ -458,8 +458,8 @@ Execution Blueprint (ordered steps)
 ### What could break (`?s=blast`)
 
 **Answers:** If I change this symbol, what else could be affected?
-**Data comes from:** `/api/blast`. CLI: `cortex callers <name>` gives the
-first step; the full walk is the MCP tool `impact_analysis`.
+**Data comes from:** `/api/blast`. CLI: `repocortex callers <name>` gives the
+first step; the full walk is the MCP tool `analyze_impact`.
 
 ![What could break for findById: answer line saying 3 things could be affected, 2 directly and 1 further along, with moderate risk; the target card; counts for direct, indirect, covering tests and risk](../assets/portal/blast.png)
 
@@ -502,7 +502,7 @@ first step; the full walk is the MCP tool `impact_analysis`.
 
 **Answers:** For this task, what is in scope, what is not, and what could the
 index not find out?
-**Data comes from:** `/api/contract`. CLI: `cortex compile "<task>"` (add
+**Data comes from:** `/api/contract`. CLI: `repocortex compile "<task>"` (add
 `--json` to save the contract for Check a change).
 
 ![Task brief for "Add idempotency to payment callback processing": answer line with 9 entries in scope, 0 covering tests and 6 unknowns, a task box with a scope budget, count cards, and the "What was asked, and what was understood" card](../assets/portal/contract.png)
@@ -536,14 +536,14 @@ index not find out?
 **Answers:** Did a finished change stay inside its brief and break nothing
 the index can see?
 **Data comes from:** `/api/verify`. CLI:
-`cortex verify --contract contract.json --changed <files>`.
+`repocortex verify --contract contract.json --changed <files>`.
 
 ![Check a change: answer line reading Pass with 0 things broken and 0 that might be, task and changed-files boxes, a green PASS banner, and counts for changed files, in scope, undeclared and facts](../assets/portal/verify.png)
 
 **Layout skeleton:**
 
 ```text
-[ANSWER  Pass: 0 things this change broke, 0 it might have.  [Copy: cortex verify ...]]
+[ANSWER  Pass: 0 things this change broke, 0 it might have.  [Copy: repocortex verify ...]]
 [TASK THE CHANGE WAS COMPILED FROM ____] [CHANGED FILES ____] [Verify]
 [PASS | ADVISORY | UNVERIFIED banner, exit code]
 [CHANGED FILES] [IN SCOPE] [UNDECLARED] [FACTS]
@@ -567,7 +567,7 @@ the index can see?
 ### Who knows this code (`?s=ownership`)
 
 **Answers:** Who has touched the code that a change to this symbol can reach?
-**Data comes from:** `/api/who`. CLI: `cortex who <symbol>`.
+**Data comes from:** `/api/who`. CLI: `repocortex owners <symbol>`.
 
 ![Who knows this code for findById: answer line saying 1 person has touched the reachable code, counts for symbols reached, attributable, files reached and people found, and a ranking table](../assets/portal/ownership.png)
 
@@ -597,14 +597,14 @@ the index can see?
 ### What changed (`?s=diff`)
 
 **Answers:** Which facts about the code changed between two indexed runs?
-**Data comes from:** `/api/diff`. CLI: `cortex diff`.
+**Data comes from:** `/api/diff`. CLI: `repocortex diff`.
 
-![What changed: answer line saying the index holds only one run so there is nothing to compare, a Copy cortex index button, and base and head run boxes with not-compared counts](../assets/portal/diff.png)
+![What changed: answer line saying the index holds only one run so there is nothing to compare, a Copy repocortex index button, and base and head run boxes with not-compared counts](../assets/portal/diff.png)
 
 **Layout skeleton:**
 
 ```text
-[ANSWER  This index holds only one run, so there is nothing to compare.  [Copy: cortex index]]
+[ANSWER  This index holds only one run, so there is nothing to compare.  [Copy: repocortex index]]
 [BASE RUN ____] [HEAD RUN ____] [Compare]
 [RELATIONSHIPS GAINED] [LOST] [RE-GRADED DOWNWARDS] [COVERING TESTS LOST]
 [why there is nothing to compare / the diff rows]
@@ -614,7 +614,7 @@ the index can see?
 
 - One index file normally holds one committed run, so this screen is usually
   empty. That is the normal state, not a fault. To compare across commits, run
-  `cortex diff --from-index <other index.db> ...` in a terminal.
+  `repocortex diff --from-index <other index.db> ...` in a terminal.
 - With two runs, watch "lost" and "re-graded downwards": a relationship that
   got weaker or a test that stopped covering code.
 - The run ids go in the URL as `dfrom` and `dto`. (The empty-state text
@@ -624,7 +624,7 @@ the index can see?
 
 **Answers:** For each endpoint, which handler serves it and which database
 tables it reaches?
-**Data comes from:** `/api/crossstack`. CLI: `cortex api`.
+**Data comes from:** `/api/crossstack`. CLI: `repocortex api`.
 
 ![APIs and what they touch: answer line saying 1 endpoint reaches a database table, walk depth and page controls, counts for routes, with a handler, with a caller and reaching a table, and a table explaining where chains stop](../assets/portal/crossstack.png)
 
@@ -653,7 +653,7 @@ tables it reaches?
 ### Database tables (`?s=tables`)
 
 **Answers:** Which tables does this code use, and who writes and reads each?
-**Data comes from:** `/api/db`. CLI: `cortex db` and `cortex db table <name>`.
+**Data comes from:** `/api/db`. CLI: `repocortex db` and `repocortex db table <name>`.
 
 ![Database tables: answer line saying 2 tables, 2 written and 1 read by the code, count cards, and a table of every table with read and write statement counts](../assets/portal/tables.png)
 
@@ -677,7 +677,7 @@ tables it reaches?
 ### Events and queues (`?s=events`)
 
 **Answers:** Which message topics does this code publish to or consume from?
-**Data comes from:** `/api/events`. CLI: `cortex events`.
+**Data comes from:** `/api/events`. CLI: `repocortex events`.
 
 ![Events and queues: answer line saying 0 topics, 0 publishers and 0 consumers, and an empty-state card naming the supported brokers](../assets/portal/events.png)
 
@@ -699,14 +699,14 @@ tables it reaches?
 
 **Answers:** Which configuration keys exist, which are read, and which look
 sensitive?
-**Data comes from:** `/api/config`. CLI: `cortex config`.
+**Data comes from:** `/api/config`. CLI: `repocortex config`.
 
-![Settings and secrets: answer line saying no setting is recorded and the reason is stated below, a Copy cortex config button, and counts for keys, read but declared nowhere, declared but never read, and sensitive by name](../assets/portal/config.png)
+![Settings and secrets: answer line saying no setting is recorded and the reason is stated below, a Copy repocortex config button, and counts for keys, read but declared nowhere, declared but never read, and sensitive by name](../assets/portal/config.png)
 
 **Layout skeleton:**
 
 ```text
-[ANSWER  No setting is recorded in this index, and the reason is stated below.  [Copy: cortex config]]
+[ANSWER  No setting is recorded in this index, and the reason is stated below.  [Copy: repocortex config]]
 [KEYS] [READ, DECLARED NOWHERE] [DECLARED, NEVER READ] [SENSITIVE BY NAME]
 [keys table]  or  [why this index recorded no configuration]
 > What this screen never does, and what it cannot see
@@ -725,14 +725,14 @@ sensitive?
 ### What actually ran (`?s=trace`)
 
 **Answers:** Which endpoints and code paths were exercised in a real trace?
-**Data comes from:** `/api/trace`. CLI: `cortex trace cortex.trace.json`.
+**Data comes from:** `/api/trace`. CLI: `repocortex trace repocortex.trace.json`.
 
-![What actually ran: answer line saying no trace export was placed at cortex.trace.json, a Copy command button, and counts for spans, indexed endpoints, indexed symbols and exercised entities](../assets/portal/trace.png)
+![What actually ran: answer line saying no trace export was placed at repocortex.trace.json, a Copy command button, and counts for spans, indexed endpoints, indexed symbols and exercised entities](../assets/portal/trace.png)
 
 **Layout skeleton:**
 
 ```text
-[ANSWER  No trace export has been placed at cortex.trace.json.  [Copy: cortex trace ...]]
+[ANSWER  No trace export has been placed at repocortex.trace.json.  [Copy: repocortex trace ...]]
 [SPANS] [INDEXED ENDPOINTS] [INDEXED SYMBOLS] [EXERCISED ENTITIES]
 [The file this screen reads: where it looked]
 [hot / cold endpoints]  or  [why there is nothing to lay over the graph]
@@ -741,7 +741,7 @@ sensitive?
 **How to read it:**
 
 - Export an OpenTelemetry (OTLP/JSON) or Jaeger trace and save it as
-  `cortex.trace.json` in the repository root, or pass `?export=<path>`.
+  `repocortex.trace.json` in the repository root, or pass `?export=<path>`.
 - Without a trace, endpoints are "unobserved", which is different from "cold".
   The screen will not call code dead because no trace was given.
 
@@ -749,14 +749,14 @@ sensitive?
 
 **Answers:** How does this repository connect to the other repositories in the
 system?
-**Data comes from:** `/api/system`. CLI: `cortex system --members cortex.system.yml`.
+**Data comes from:** `/api/system`. CLI: `repocortex system --members repocortex.system.yml`.
 
-![Across repositories: answer line saying there is no estate manifest at cortex.system.yml, a Copy command button, and counts for members declared, cross-repository calls, shared tables and completeness](../assets/portal/estate.png)
+![Across repositories: answer line saying there is no estate manifest at repocortex.system.yml, a Copy command button, and counts for members declared, cross-repository calls, shared tables and completeness](../assets/portal/estate.png)
 
 **Layout skeleton:**
 
 ```text
-[ANSWER  No estate manifest at cortex.system.yml.  [Copy: cortex system --members ...]]
+[ANSWER  No estate manifest at repocortex.system.yml.  [Copy: repocortex system --members ...]]
 [MEMBERS DECLARED] [CROSS-REPOSITORY CALLS] [SHARED TABLES] [COMPLETE]
 [The file this screen reads]
 [members, cross-repo calls, shared tables]  or  [why it is empty]
@@ -765,7 +765,7 @@ system?
 **How to read it:**
 
 - Which repositories make up your system is not something one index can
-  know, so you list them in a committed `cortex.system.yml` (or pass
+  know, so you list them in a committed `repocortex.system.yml` (or pass
   `?estate=<path>`).
 - Once declared, each cross-repository call has a confidence word and a file
   and line on both ends. Shared tables written by more than one member are
@@ -777,12 +777,12 @@ system?
 **Data comes from:** `/api/tests`. There is no separate CLI command in this
 build; the MCP tool `find_tests` gives the same answer for one symbol.
 
-![Test coverage: answer line saying 0 of 48 symbols have a test that reaches them through a recorded relationship, a Copy cortex resolve button, a symbol box and depth, and count cards](../assets/portal/tests.png)
+![Test coverage: answer line saying 0 of 48 symbols have a test that reaches them through a recorded relationship, a Copy repocortex resolve button, a symbol box and depth, and count cards](../assets/portal/tests.png)
 
 **Layout skeleton:**
 
 ```text
-[ANSWER  0 of 48 symbols have a test that reaches them ...  [Copy: cortex resolve]]
+[ANSWER  0 of 48 symbols have a test that reaches them ...  [Copy: repocortex resolve]]
 [COVERAGE FOR ONE SYMBOL (optional) ____] [TRAVERSAL DEPTH v]
 [TEST FILES] [NON-TEST SYMBOLS] [WITH A PROVEN COVERING TEST] [WITH NO PROVEN COVERING TEST]
 > What each of the 3 verdicts means
@@ -806,7 +806,7 @@ build; the MCP tool `find_tests` gives the same answer for one symbol.
 ### Code blindspots (`?s=missed`)
 
 **Answers:** Where can the index see code but not prove anything about it?
-**Data comes from:** `/api/missed`. CLI: `cortex missed`.
+**Data comes from:** `/api/missed`. CLI: `repocortex blindspots`.
 
 ![Code blindspots: answer line saying 37 blindspots were found, count cards for unresolved calls, untested critical symbols, unmapped endpoints and orphan tables, and a findings table with severity, category, target, location and remediation](../assets/portal/missed.png)
 
@@ -829,22 +829,22 @@ build; the MCP tool `find_tests` gives the same answer for one symbol.
 ### Architecture rules (`?s=governance`)
 
 **Answers:** Does the code cross any line the declared architecture forbids?
-**Data comes from:** `/api/governance`. CLI: `cortex arch` (add
+**Data comes from:** `/api/governance`. CLI: `repocortex arch` (add
 `--fail-on <severity>` in CI).
 
-![Architecture rules: answer line saying no architecture is declared so there is nothing to check, a Copy cortex arch --help button, and a standard-of-proof selector](../assets/portal/governance.png)
+![Architecture rules: answer line saying no architecture is declared so there is nothing to check, a Copy repocortex arch --help button, and a standard-of-proof selector](../assets/portal/governance.png)
 
 **Layout skeleton:**
 
 ```text
-[ANSWER  No architecture is declared, so there is nothing to check ...  [Copy: cortex arch --help]]
+[ANSWER  No architecture is declared, so there is nothing to check ...  [Copy: repocortex arch --help]]
 [STANDARD OF PROOF FOR A VIOLATION v]
 [violations table]  or  [No architecture is declared for this repository]
 ```
 
 **How to read it:**
 
-- Declare components and rules in `.cortex.yml`. Until then the map groups by
+- Declare components and rules in `.repocortex.yml`. Until then the map groups by
   directory and no rule can be broken. That is different from "no
   violations".
 - Once rules exist, each violation has a confidence word. Choose the standard
@@ -854,14 +854,14 @@ build; the MCP tool `find_tests` gives the same answer for one symbol.
 
 **Answers:** What does this repository declare it depends on, and does anything
 import each one?
-**Data comes from:** `/api/deps`. CLI: `cortex deps`.
+**Data comes from:** `/api/deps`. CLI: `repocortex deps`.
 
 ![Dependencies: answer line saying no dependency manifest was read and the reason is stated below, and counts for declared, declared but imported by nothing, declared and imported, and imported but declared nowhere](../assets/portal/deps.png)
 
 **Layout skeleton:**
 
 ```text
-[ANSWER  No dependency manifest was read ...  [Copy: cortex deps]]
+[ANSWER  No dependency manifest was read ...  [Copy: repocortex deps]]
 [DECLARED] [DECLARED, IMPORTED BY NOTHING] [DECLARED AND IMPORTED] [IMPORTED, DECLARED NOWHERE]
 [dependency table]  or  [why this screen has no manifest to read]
 [language tiers]
@@ -879,14 +879,14 @@ import each one?
 
 **Answers:** How often are this index's relationships right, measured against
 a compiler?
-**Data comes from:** `/api/accuracy`. CLI: `cortex accuracy`.
+**Data comes from:** `/api/accuracy`. CLI: `repocortex accuracy`.
 
-![How accurate is this index: answer line saying accuracy is not measured yet and a compiler-backed index must be imported first, a Copy cortex scip import button, and precision, recall and F1 cards all reading not measured](../assets/portal/accuracy.png)
+![How accurate is this index: answer line saying accuracy is not measured yet and a compiler-backed index must be imported first, a Copy repocortex scip import button, and precision, recall and F1 cards all reading not measured](../assets/portal/accuracy.png)
 
 **Layout skeleton:**
 
 ```text
-[ANSWER  Not measured yet: import a compiler-backed index first ...  [Copy: cortex scip import index.scip]]
+[ANSWER  Not measured yet: import a compiler-backed index first ...  [Copy: repocortex scip import index.scip]]
 [PRECISION] [RECALL] [F1] [COMPILER FACTS IN THIS INDEX]
 [why recall was not measured]
 > how the rates are computed
@@ -902,15 +902,15 @@ a compiler?
 ### Connect an agent (`?s=agent`)
 
 **Answers:** How do I connect an AI coding agent to this index over MCP?
-**Data comes from:** `/api/agent`. CLI: `cortex agent` (prints the
-registration) and `cortex install` (registers with detected agents).
+**Data comes from:** `/api/agent`. CLI: `repocortex agent` (prints the
+registration) and `repocortex install` (registers with detected agents).
 
 ![Connect an agent: answer line with the symbols, relationships, files and tools the index offers, count cards for MCP tools, symbols and indexed surface, and configuration snippets for two agent clients](../assets/portal/agent.png)
 
 **Layout skeleton:**
 
 ```text
-[ANSWER  An agent ... can ask about <N> symbols and <N> relationships ... through <N> tools.  [Copy: cortex install --rules]]
+[ANSWER  An agent ... can ask about <N> symbols and <N> relationships ... through <N> tools.  [Copy: repocortex install --rules]]
 [MCP TOOLS] [SYMBOLS] [INDEXED SURFACE]
 [Connect via MCP:  client 1 config JSON [Copy]   client 2 config JSON [Copy]]
 [sample file before and after pruning, when a readable file exists]
@@ -924,8 +924,8 @@ registration) and `cortex install` (registers with detected agents).
   savings; the only token figures are on the sample file, measured by pruning
   a real file from this repository.
 - Copy the configuration block for your agent client into its MCP settings
-  file. It runs `cortex --project <repo> serve`, the same entry
-  `cortex install` writes.
+  file. It runs `repocortex --project <repo> serve`, the same entry
+  `repocortex install` writes.
 - The tool list is the server's own: the default `minimal` profile exposes the
   first seven tools, `standard` all 18.
 - The guidance cards at the end explain why the portal cannot show an agent
@@ -934,14 +934,14 @@ registration) and `cortex install` (registers with detected agents).
 ### Retrieval quality (`?s=retrieval`)
 
 **Answers:** Does the context engine hand an agent the right code for a task?
-**Data comes from:** `/api/bench`. CLI: `cortex bench cortex.bench.yml`.
+**Data comes from:** `/api/bench`. CLI: `repocortex bench repocortex.bench.yml`.
 
-![Retrieval quality: answer line saying there is no benchmark case file at cortex.bench.yml, a Copy cortex bench button, and cards for cases, mean recall, mean forbid score and cases with no forbid list](../assets/portal/retrieval.png)
+![Retrieval quality: answer line saying there is no benchmark case file at repocortex.bench.yml, a Copy repocortex bench button, and cards for cases, mean recall, mean forbid score and cases with no forbid list](../assets/portal/retrieval.png)
 
 **Layout skeleton:**
 
 ```text
-[ANSWER  No benchmark case file at cortex.bench.yml.  [Copy: cortex bench cortex.bench.yml]]
+[ANSWER  No benchmark case file at repocortex.bench.yml.  [Copy: repocortex bench repocortex.bench.yml]]
 [CASES] [MEAN RECALL] [MEAN FORBID SCORE] [CASES WITH NO FORBID LIST]
 [The file this screen reads]
 [per-case scores]  or  [why there is no score]
@@ -950,7 +950,7 @@ registration) and `cortex install` (registers with detected agents).
 **How to read it:**
 
 - You write the cases: a task, the code a correct answer must contain, and the
-  code it must not. Save them as `cortex.bench.yml` or pass `?cases=<path>`.
+  code it must not. Save them as `repocortex.bench.yml` or pass `?cases=<path>`.
 - Recall is the share of expected items each context pack contained. The
   forbid score catches packs that are simply too big. A case with no forbid
   list cannot tell a good pack from a large one.
@@ -993,20 +993,20 @@ them on every screen.
 
 ## Troubleshooting
 
-**`error: no index at .../.cortex/index.db`**
-The portal needs an index. Run `cortex init`, `cortex index` and
-`cortex resolve` in the project root, or pass `--project <dir>`.
+**`error: no index at .../.repocortex/index.db`**
+The portal needs an index. Run `repocortex init`, `repocortex index` and
+`repocortex resolve` in the project root, or pass `--project <dir>`.
 
 **`listen on 127.0.0.1:7777: ... bind: address already in use`**
-Another process (often an earlier `cortex ui`) holds the port. Stop it, or
-start on another port with `cortex ui --port 7790`, or let the system choose
+Another process (often an earlier `repocortex ui`) holds the port. Stop it, or
+start on another port with `repocortex ui --port 7790`, or let the system choose
 with `--port 0` and read the printed address.
 
 **The index bar is amber or red**
 Click the verdict. Index health shows why: a partial run, parse failures, or an
-index more than a day old. Run `cortex index` (and `cortex resolve`), then
+index more than a day old. Run `repocortex index` (and `repocortex resolve`), then
 reload. Start the portal with `--allow-refresh` to get a Refresh index button
-in the bar. Run `cortex watch` in another terminal to keep the index current
+in the bar. Run `repocortex watch` in another terminal to keep the index current
 while you work.
 
 **The index is older than my latest commit**
@@ -1017,18 +1017,18 @@ A matching revision still does not include uncommitted edits. Re-index.
 Read its answer line and the card under it; each one says why. Common causes:
 
 - Trace, estate and retrieval need a file you write
-  (`cortex.trace.json`, `cortex.system.yml`, `cortex.bench.yml`).
+  (`repocortex.trace.json`, `repocortex.system.yml`, `repocortex.bench.yml`).
 - What changed needs two runs.
-- Architecture rules needs components declared in `.cortex.yml`.
-- How accurate is this index needs `cortex scip import`.
+- Architecture rules needs components declared in `.repocortex.yml`.
+- How accurate is this index needs `repocortex scip import`.
 - Settings and dependencies only read the file formats they list.
 - What could break, Task brief, Check a change and Who knows this code wait for
   input; Plan a refactor waits for a symbol name.
 
 **Counts look too low, or Test coverage shows nothing proven**
 Check Resolution coverage and Blind spots on Index health. If many references
-are unbound, run `cortex resolve`, and for full accuracy install a
-compiler-backed indexer (`cortex indexers status`). Lower the standard of proof
+are unbound, run `repocortex resolve`, and for full accuracy install a
+compiler-backed indexer (`repocortex indexers status`). Lower the standard of proof
 to "a guess" in the index bar to see what is being held back.
 
 **"This name matches several definitions"**
@@ -1037,4 +1037,4 @@ Find a symbol, such as `src/main/java/com/pay/repository/TransactionRepository.j
 
 **A screen says "could not load"**
 The error card under it gives the reason. Check the terminal running
-`cortex ui`; if the process stopped, start it again and reload.
+`repocortex ui`; if the process stopped, start it again and reload.

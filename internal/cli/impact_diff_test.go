@@ -21,7 +21,7 @@ import (
 	"github.com/satyendrakumarsingh/repocortex/internal/registry"
 )
 
-// Tests for `cortex impact --base/--head`.
+// Tests for `repocortex impact --base/--head`.
 //
 // They drive the whole stack — a real repository, a real index, a real
 // traversal — for the reason who_test.go gives: everything that can go wrong on

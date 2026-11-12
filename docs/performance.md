@@ -17,9 +17,9 @@ that made the change is named instead, so the original evidence is one
 |---|---|
 | Host | Apple M4 Pro, 14 cores, macOS 26.5.1 |
 | Toolchain | Go 1.25.13, `darwin/amd64` — an amd64 toolchain under Rosetta 2 |
-| Build | `CGO_ENABLED=0 go build -o /tmp/di-docs ./cmd/cortex` |
+| Build | `CGO_ENABLED=0 go build -o /tmp/di-docs ./cmd/repocortex` |
 | Tree | commit `6a7b909` |
-| Cache | cold database each trial (`.cortex` removed, `cortex init` re-run) |
+| Cache | cold database each trial (`.repocortex` removed, `repocortex init` re-run) |
 
 Go's own benchmark headers on this host print `goarch: amd64` and
 `cpu: VirtualApple @ 2.50GHz`, which is the emulated view, not the silicon. The
@@ -95,10 +95,10 @@ func Drive3(total int) int { ... }             # calls into file002 of pkg000
 Method, for every timing below:
 
 ```bash
-CGO_ENABLED=0 go build -o /tmp/di-docs ./cmd/cortex
+CGO_ENABLED=0 go build -o /tmp/di-docs ./cmd/repocortex
 cp -R <corpus> /tmp/work/repo && cd /tmp/work/repo && git init && git commit -am init
 for trial in 1 2 3; do
-  rm -rf .cortex && /tmp/di-docs init
+  rm -rf .repocortex && /tmp/di-docs init
   /tmp/di-docs index --full          # full index into an empty database
   /tmp/di-docs index                 # re-index, nothing changed
   echo '// touched' >> <first file>
@@ -113,7 +113,7 @@ Database sizes are `index.db` on disk. Peak memory is
 with the exact command quoted in each section.
 
 **One thing the synthetic corpus cannot measure.** Its identifiers repeat across
-packages by construction, so `cortex resolve` on it reports 0 resolved and
+packages by construction, so `repocortex resolve` on it reports 0 resolved and
 80,000 ambiguous. Its resolve timings measure the throughput of the binding
 path; they say nothing about binding *accuracy*. Every accuracy figure in this
 document comes from a real corpus instead.
@@ -243,19 +243,19 @@ The identical symbol count is the part that makes the rest trustworthy: the
 indexes changed how rows are found, not which rows exist.
 
 The asymmetry is the point. A full index is something a developer runs rarely and
-knowingly; a one-file re-index is what `cortex watch` runs on every save. Paying
+knowingly; a one-file re-index is what `repocortex watch` runs on every save. Paying
 11% on the rare operation to take 84% off the common one is the right side of that
 trade, and 6% more disk is the cheapest currency available.
 
 ## A full re-index costs about what a first index costs
 
-An earlier revision of this document recorded that `cortex index --full`
+An earlier revision of this document recorded that `repocortex index --full`
 against a database already holding a committed run cost roughly **ten times** the
 same command against an empty one, and told readers to keep `index --full` out of
 loops and hooks for that reason.
 
 **That is no longer true**, and the advice built on it has been removed. Four
-consecutive `cortex index --full` runs over RepoCortex's own source, on one
+consecutive `repocortex index --full` runs over RepoCortex's own source, on one
 database, with no source changes between them:
 
 | Run | Duration | `index.db` after |
@@ -269,8 +269,8 @@ Retiring a previous run now costs about 15%, not 900%. The cascade delete that
 dominated it is the same cascade — what changed is that migration 0005 gave it
 indexes to use instead of table scans.
 
-For the same reason, `cortex init --force` followed by `cortex index` is no
-longer meaningfully cheaper than `cortex index --full`: 1.75 s against 2.11 s
+For the same reason, `repocortex init --force` followed by `repocortex index` is no
+longer meaningfully cheaper than `repocortex index --full`: 1.75 s against 2.11 s
 on the same tree. It remains a different *operation* — it discards everything
 already indexed, so it is a rebuild rather than a refresh — but it is no longer a
 performance workaround.
@@ -297,7 +297,7 @@ Five runs: 427.4 / 420.1 / 420.8 / 421.6 / 416.6 µs per operation, 785 KB and
 2,003 allocations per operation. Divided by the 500 references in the fixture,
 that is 833–855 ns per reference.
 
-**Do not read that as the cost of resolving a repository.** `cortex resolve`
+**Do not read that as the cost of resolving a repository.** `repocortex resolve`
 over RepoCortex's own source — 18,429 references, 7,708 edges written, plus
 data-access and config binding — took 627 / 507 / 518 ms over three samples, each
 after a fresh full index. That is **28 µs per reference end to end, roughly 33x
@@ -319,7 +319,7 @@ Resolution's peak memory is flat in repository size. It did not use to be: the
 run's entire symbol index was loaded into one map before anything was bound, so
 memory tracked the repository rather than the work.
 
-Synthetic Go corpus, ~15 references per file, `cortex resolve` alone, peak RSS:
+Synthetic Go corpus, ~15 references per file, `repocortex resolve` alone, peak RSS:
 
 | files | symbols | before | after |
 |---|---|---|---|
@@ -344,7 +344,7 @@ list is paged by key rather than materialised.
 An earlier revision recorded that resolution scaled superlinearly — 44.2x for
 25x the input, reduced to 34.2x (exponent 1.10) by writing resolution outcomes
 in key order. **The residual does not reproduce here.** Measured on this
-machine, native `darwin/arm64`, `cortex resolve` on prebuilt indexes:
+machine, native `darwin/arm64`, `repocortex resolve` on prebuilt indexes:
 
 | corpus | 25x input costs | exponent |
 |---|---|---|
@@ -376,7 +376,7 @@ On RepoCortex's own source, identically across all three trials:
   Data access: 329 statement(s), 320 bound to a declared table, 320 edges
 ```
 
-On the payment fixture, `cortex resolve` reconstructs the callback flow from
+On the payment fixture, `repocortex resolve` reconstructs the callback flow from
 source — `handleCallback -> updateStatus -> {save, findById}` — in 25 / 36 / 38 ms:
 
 ```
@@ -424,7 +424,7 @@ replacing them.
 ## Parallelism and peak memory
 
 Measured on the 5,000-file synthetic corpus, `/usr/bin/time -l` around
-`cortex index --full --workers N`, one run each:
+`repocortex index --full --workers N`, one run each:
 
 | Workers | Peak RSS | Elapsed |
 |---|---|---|
@@ -494,7 +494,7 @@ re-measure on their own corpus rather than trust a number from a tree they canno
 see.
 
 Skipped files are still recorded in the `files` table with `parse_status =
-'skipped'` and a reason, so the gap is visible in `cortex status` and in the
+'skipped'` and a reason, so the gap is visible in `repocortex status` and in the
 index rather than looking like the file never existed.
 
 ## Two more allocation controls
@@ -523,7 +523,7 @@ reproducible here and have been removed.
 
 There is also a final unconditional drain when a run ends. Without it, the
 indexer's peak footprint stays resident for the lifetime of a long-running
-`cortex watch`.
+`repocortex watch`.
 
 ### Tagger pools
 
@@ -608,7 +608,7 @@ revisited against measurements rather than impressions.
 
 ## Rename and edit
 
-`cortex rename` does no indexing of its own: it reads the committed index,
+`repocortex rename` does no indexing of its own: it reads the committed index,
 then locates each site on its line, splices bottom-up, and writes each file once
 atomically. The two costs worth knowing are measured on the machine above
 (`darwin/amd64` under Rosetta 2, so the absolute numbers are the emulated view):
@@ -628,7 +628,7 @@ size and site count. Writing adds one hash check, one
 temporary file and one rename per changed file.
 
 A dry run end to end, on a copy of `fixtures/payment-platform` that was already
-indexed and resolved (`cortex rename updateStatus applyStatus`, five runs):
+indexed and resolved (`repocortex rename updateStatus applyStatus`, five runs):
 wall time 0.09-0.11 s, most of it process start and opening the index. A dry
 run reads the database only.
 
@@ -679,7 +679,7 @@ running. A dedicated indexing machine can afford more.
 above, and read the warning attached to it:
 
 ```bash
-cortex index --full --workers 8
+repocortex index --full --workers 8
 ```
 
 Watch peak RSS. The knee moves with average file size: a repository of small files
@@ -689,7 +689,7 @@ applies to the full-index path; see the caveats below.
 **Raise `MaxSourceBytes` only if you must index generated code.** It is a
 compile-time constant in `internal/parse/generic.go`, not a flag, precisely
 because raising it is a decision with a memory price rather than a preference.
-Before raising it, check what you would actually gain — `cortex status` reports
+Before raising it, check what you would actually gain — `repocortex status` reports
 skipped files, and the `files` table records the reason per path.
 
 **Exclude generated trees instead.** Almost always the better answer. Repository
@@ -706,7 +706,7 @@ index:
 An excluded file is never read, never hashed and never parsed. A file skipped by
 `MaxSourceBytes` has already been read and hashed.
 
-**Use `cortex watch` rather than repeated full indexes.** On the 5,000-file
+**Use `repocortex watch` rather than repeated full indexes.** On the 5,000-file
 corpus a full index is 20–35 s while an incremental pass over an unchanged tree is
 under a second, and a one-file change is around 0.8 s — one hash per file plus a
 reparse of what actually changed.
@@ -714,12 +714,12 @@ reparse of what actually changed.
 ### Caveats worth knowing before you tune
 
 - `--workers` and `--accuracy` take effect only on the **full** index path.
-  Without `--full`, `cortex index` takes the incremental path and neither is
+  Without `--full`, `repocortex index` takes the incremental path and neither is
   applied. They are, however, **validated on every path** — a typo fails
   immediately rather than being silently discarded:
 
   ```
-  $ cortex index --accuracy nonsense
+  $ repocortex index --accuracy nonsense
   error: --accuracy "nonsense": want fast, auto or exact     # exit 1
   ```
 

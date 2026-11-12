@@ -681,7 +681,7 @@ func checkIndexedRevision(ctx context.Context, req DiffRequest, runID int64) (st
 			Kind: UnknownStaleIndex,
 			Detail: fmt.Sprintf("Index run %d recorded no git revision, so it cannot be compared against %s. "+
 				"This is the state of an index built outside a git repository, or by a version of "+
-				"`cortex index` that did not stamp one; either way the report below is unverified "+
+				"`repocortex index` that did not stamp one; either way the report below is unverified "+
 				"against the change it claims to describe.", runID, rangeName),
 		}}, nil
 	}
@@ -760,7 +760,7 @@ func checkIndexedRevision(ctx context.Context, req DiffRequest, runID int64) (st
 		Kind: UnknownStaleIndex,
 		Detail: fmt.Sprintf("STALE INDEX: this index was built at commit %s, which is neither end of the "+
 			"analysed range %s. The blast radius below was computed from symbols, files and edges as they "+
-			"existed at %s — it does not describe the change you asked about. Re-run `cortex index` at "+
+			"existed at %s — it does not describe the change you asked about. Re-run `repocortex index` at "+
 			"one end of the range and ask again.", shortRev(revSHA), rangeName, shortRev(revSHA)),
 	}}, nil
 }

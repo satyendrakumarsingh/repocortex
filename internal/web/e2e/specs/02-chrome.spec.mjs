@@ -103,7 +103,7 @@ for (const key of Object.keys(REPOS)) {
     test('the rail states the index path it is reading', async ({ page }) => {
       await cold(page, repo);
       const path = (await page.locator('#index-path').innerText()).trim();
-      expect(path, 'rail shows the index file').toBe(`${repo.root}/.cortex/index.db`);
+      expect(path, 'rail shows the index file').toBe(`${repo.root}/.repocortex/index.db`);
       await expect(page.locator('#project')).toHaveText(repo.name);
     });
   });

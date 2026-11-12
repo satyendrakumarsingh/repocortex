@@ -151,7 +151,7 @@ RepoCortex never lies about how much it knows. Every edge in the graph is tagged
 | `medium` | Multi-candidate type inference or package-level heuristics | **5.7% – 37.5%** | Treated as investigatory leads; never acted upon without verification. |
 | `low` | Loose identifier matches across unrelated packages | **0.0% – 2.8%** | Filtered by default. Exposed only when explicitly requested. |
 
-When an agent calls `cortex`, it doesn't get a vague similarity score. It gets:
+When an agent calls `repocortex`, it doesn't get a vague similarity score. It gets:
 > *"Symbol `SubmitOrder` reaches `ChargeCard` at Depth 2 (Confidence: `exact`, proven by compiler)."*
 
 If an edge is heuristic (`medium`), RepoCortex attaches an advisory notice:

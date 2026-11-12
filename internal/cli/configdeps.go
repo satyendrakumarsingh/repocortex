@@ -134,9 +134,8 @@ func newDepsCmd(g *Global) *cobra.Command {
 	var showAll bool
 
 	cmd := &cobra.Command{
-		Use:     "deps",
-		Aliases: []string{"dependencies"},
-		Short:   "Report declared dependencies and whether anything imports them",
+		Use:   "deps",
+		Short: "Report declared dependencies and whether anything imports them",
 		Long: `Reports what the project declares it depends on, and joins that against
 the imports actually recorded in the index.
 

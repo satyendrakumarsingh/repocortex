@@ -377,7 +377,7 @@ func TestDeletedDirectoryStopsBeingWatched(t *testing.T) {
 
 func TestIgnoredDirectoriesAreNeverWatched(t *testing.T) {
 	root := tempRoot(t)
-	for _, dir := range []string{".git/objects", "node_modules/pkg", ".cortex/store", "vendor/lib", "src"} {
+	for _, dir := range []string{".git/objects", "node_modules/pkg", ".repocortex/store", "vendor/lib", "src"} {
 		if err := os.MkdirAll(filepath.Join(root, filepath.FromSlash(dir)), 0o755); err != nil {
 			t.Fatalf("mkdir %s: %v", dir, err)
 		}

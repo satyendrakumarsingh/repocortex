@@ -13,7 +13,7 @@ import (
 	"github.com/satyendrakumarsingh/repocortex/internal/registry"
 )
 
-// `cortex accuracy` — what RepoCortex gets right and what it misses, on YOUR
+// `repocortex accuracy` — what RepoCortex gets right and what it misses, on YOUR
 // repository, adjudicated against YOUR compiler.
 //
 // The distinction that justifies a command of its own, rather than another flag
@@ -63,10 +63,10 @@ target is known, and an edge RepoCortex did not produce is a caller it missed.
 
 It needs a run holding both the heuristic graph and compiler facts:
 
-    cortex index && cortex resolve
+    repocortex index && repocortex resolve
     scip-go --output index.scip
-    cortex scip import index.scip
-    cortex accuracy
+    repocortex scip import index.scip
+    repocortex accuracy
 
 A language with no SCIP index imported reports NOT MEASURED. It is never shown
 as 0% and never dropped from the table: an unmeasured language that reads like a
@@ -142,7 +142,7 @@ type accuracyLanguage struct {
 //
 // Reported because "missed" without a cause is unactionable, and the causes
 // have different owners: an unresolved reference is a resolver problem, a
-// pending one means `cortex resolve` was never run, and a resolved reference
+// pending one means `repocortex resolve` was never run, and a resolved reference
 // with no edge is a call outside any indexed symbol — no caller to attribute
 // it to, which is a modelling choice rather than a defect.
 type accuracyMiss struct {
@@ -304,15 +304,15 @@ func accuracyWarnings(rep accuracyReport) []string {
 	}
 	// Recall is the number this command exists to surface, so a low one is
 	// stated as a consequence rather than left for the reader to derive: a
-	// missed call site is a caller `cortex callers` will not list. The two
+	// missed call site is a caller `repocortex callers` will not list. The two
 	// ways of failing are separated, because only one of them is invisible to
 	// precision and they have different fixes.
 	if rep.Overall.All.Recall < accuracyRecallFloor {
 		out = append(out, fmt.Sprintf(
 			"Recall across all tiers is %s: %s of %s adjudicated call site(s) did not get a "+
 				"correct CALLS edge — %s produced no edge at all and %s named the wrong "+
-				"definition. The missed ones are absent from `cortex callers`, from blast "+
-				"radius, and from `cortex verify` — treat an empty result there as unknown "+
+				"definition. The missed ones are absent from `repocortex callers`, from blast "+
+				"radius, and from `repocortex verify` — treat an empty result there as unknown "+
 				"rather than as none.",
 			bench.Rate(rep.Overall.All.Recall, rep.Overall.All.Measured),
 			humanCount(rep.Overall.Adjudicated-rep.Overall.All.TruePositives),
@@ -356,7 +356,7 @@ func renderAccuracy(out io.Writer, rep accuracyReport) {
 			"Not measured. No call site in this index could be adjudicated: it holds no\n"+
 				"compiler facts, or none of them landed on a line the parser saw a call on.\n"+
 				"Nothing here — including every language listed below — has been checked\n"+
-				"against a compiler. Run 'cortex scip import <index.scip>' first.\n")
+				"against a compiler. Run 'repocortex scip import <index.scip>' first.\n")
 		renderAccuracyLanguages(out, rep)
 		return
 	}

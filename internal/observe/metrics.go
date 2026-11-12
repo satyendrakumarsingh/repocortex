@@ -180,35 +180,35 @@ func newInstruments(p *providers) (*instruments, error) {
 	i := &instruments{
 		gen: p.gen,
 
-		indexDuration: f64hist("cortex.index.duration", "s",
+		indexDuration: f64hist("repocortex.index.duration", "s",
 			"Wall time of one indexing run.", indexDurationBuckets),
-		indexFiles: i64count("cortex.index.files", "{file}",
+		indexFiles: i64count("repocortex.index.files", "{file}",
 			"Files indexed, by language."),
-		indexParseFailures: i64count("cortex.index.parse_failures", "{file}",
+		indexParseFailures: i64count("repocortex.index.parse_failures", "{file}",
 			"Files whose parse failed or degraded, by language."),
-		indexSymbols: i64count("cortex.index.symbols", "{symbol}",
+		indexSymbols: i64count("repocortex.index.symbols", "{symbol}",
 			"Symbols extracted."),
-		indexRelationships: i64count("cortex.index.relationships", "{relationship}",
+		indexRelationships: i64count("repocortex.index.relationships", "{relationship}",
 			"Graph edges recorded, by confidence."),
 
-		searchLatency: f64hist("cortex.search.latency", "s",
+		searchLatency: f64hist("repocortex.search.latency", "s",
 			"End-to-end search query latency.", latencyBuckets),
-		searchResultCount: i64hist("cortex.search.result_count", "{result}",
+		searchResultCount: i64hist("repocortex.search.result_count", "{result}",
 			"Results returned per search.", countBuckets),
 
-		contextLatency: f64hist("cortex.context.latency", "s",
+		contextLatency: f64hist("repocortex.context.latency", "s",
 			"Context assembly latency.", latencyBuckets),
-		contextCacheHit: i64count("cortex.context.cache_hit", "{lookup}",
+		contextCacheHit: i64count("repocortex.context.cache_hit", "{lookup}",
 			"Context cache lookups, labelled hit or miss."),
 
-		mcpRequests: i64count("cortex.mcp.request_count", "{request}",
+		mcpRequests: i64count("repocortex.mcp.request_count", "{request}",
 			"MCP tool invocations, by tool and status."),
-		mcpLatency: f64hist("cortex.mcp.latency", "s",
+		mcpLatency: f64hist("repocortex.mcp.latency", "s",
 			"MCP request handling latency, by tool.", latencyBuckets),
 
-		graphTraversalDepth: i64hist("cortex.graph.traversal.depth", "{hop}",
+		graphTraversalDepth: i64hist("repocortex.graph.traversal.depth", "{hop}",
 			"Depth reached by a graph traversal.", depthBuckets),
-		dbQueryLatency: f64hist("cortex.database.query.latency", "s",
+		dbQueryLatency: f64hist("repocortex.database.query.latency", "s",
 			"SQLite query latency, by operation.", latencyBuckets),
 	}
 

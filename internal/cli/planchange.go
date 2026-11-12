@@ -27,9 +27,9 @@ func newPlanChangeCmd(g *Global) *cobra.Command {
   - Produces an ordered, step-by-step execution plan with pre/post-conditions
 
 Examples:
-  cortex plan-change updateStatus
-  cortex plan-change service.TransactionService --min-confidence high
-  cortex plan-change auth.Login --json`,
+  repocortex plan-change updateStatus
+  repocortex plan-change service.TransactionService --min-confidence high
+  repocortex plan-change auth.Login --json`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
@@ -47,7 +47,7 @@ Examples:
 				return fmt.Errorf("read current index run: %w", err)
 			}
 			if currentRun == nil {
-				return fmt.Errorf("index is empty: run 'cortex index' first")
+				return fmt.Errorf("index is empty: run 'repocortex index' first")
 			}
 
 			gr := graph.New(db)

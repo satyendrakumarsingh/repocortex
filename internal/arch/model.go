@@ -21,7 +21,7 @@
 // finds nothing by construction.
 //
 // It does NOT compile patterns to regular expressions. This model is read from
-// the repository's own .cortex.yml, which is untrusted; a regex from an
+// the repository's own .repocortex.yml, which is untrusted; a regex from an
 // untrusted file is a catastrophic-backtracking denial of service waiting to
 // happen. The matcher below is a hand-written dynamic program that cannot
 // backtrack, over inputs bounded in both length and depth.
@@ -110,7 +110,7 @@ const (
 	//
 	// ComponentOf walks every component's every pattern for every FILE, so the
 	// cost is components x patterns x files — and all three come from
-	// .cortex.yml, which arrives with the repository and is untrusted.
+	// .repocortex.yml, which arrives with the repository and is untrusted.
 	// Bounding the pattern LENGTH, as the next two constants do, does nothing
 	// about a model declaring hundreds of thousands of them.
 	//
@@ -497,7 +497,7 @@ func matchSegs(pattern string, segs []string) bool {
 // long path costs exponential time — from an untrusted config file, that is a
 // hang, not a slow answer. The table below is O(len(pats) x len(segs)), never
 // revisits a cell, and both dimensions are capped, so the worst case any
-// .cortex.yml can buy is a fixed few thousand boolean writes.
+// .repocortex.yml can buy is a fixed few thousand boolean writes.
 //
 // next[j] means "pats[i+1:] matches segs[j:]"; cur[j] is the same for pats[i:].
 // Both live in fixed-size arrays so a match allocates nothing on the hot path.

@@ -170,13 +170,13 @@ func TestWalkGitignoreSemantics(t *testing.T) {
 			want: []string{".gitignore", "sub/conf.yml"},
 		},
 		{
-			name: "cortexignore uses the same syntax",
+			name: "repocortexignore uses the same syntax",
 			files: map[string]string{
-				".cortexignore": "*.gen.go\n",
-				"a.gen.go":      "package a",
-				"a.go":          "package a",
+				".repocortexignore": "*.gen.go\n",
+				"a.gen.go":          "package a",
+				"a.go":              "package a",
 			},
-			want: []string{".cortexignore", "a.go"},
+			want: []string{".repocortexignore", "a.go"},
 		},
 		{
 			name: "comments and blank lines are not rules",
@@ -490,13 +490,13 @@ func TestWalkPathsUseForwardSlashes(t *testing.T) {
 
 	root := t.TempDir()
 	writeTree(t, root, map[string]string{
-		"a/b/c/deep.go":   "package c",
-		"top.go":          "package main",
-		"x/y/.cortexkeep": "keep",
+		"a/b/c/deep.go":       "package c",
+		"top.go":              "package main",
+		"x/y/.repocortexkeep": "keep",
 	})
 
 	got := walkTree(t, root, minimalCfg())
-	want := []string{"a/b/c/deep.go", "top.go", "x/y/.cortexkeep"}
+	want := []string{"a/b/c/deep.go", "top.go", "x/y/.repocortexkeep"}
 	if !reflect.DeepEqual(indexedPaths(got), want) {
 		t.Fatalf("paths = %v, want %v", indexedPaths(got), want)
 	}
@@ -511,7 +511,7 @@ func TestWalkPathsUseForwardSlashes(t *testing.T) {
 }
 
 // TestWalkConfigExcludeCannotBeNegated is the security test for the config
-// boundary: .cortex.yml is attacker-controlled and its exclude entries are
+// boundary: .repocortex.yml is attacker-controlled and its exclude entries are
 // appended to the defaults, so a repository must not be able to append a
 // negation that re-includes .git or node_modules.
 func TestWalkConfigExcludeCannotBeNegated(t *testing.T) {
@@ -528,7 +528,7 @@ func TestWalkConfigExcludeCannotBeNegated(t *testing.T) {
 	})
 
 	cfg := config.Defaults()
-	// Exactly what a hostile .cortex.yml produces after config.applyRepo.
+	// Exactly what a hostile .repocortex.yml produces after config.applyRepo.
 	cfg.Exclude = append(cfg.Exclude,
 		"!.git/**", "!node_modules/**", "!vendor/**", "!**/*.min.js", "!**")
 

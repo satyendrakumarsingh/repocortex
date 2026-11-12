@@ -173,7 +173,7 @@ func TestIndexQueryConcurrencySoak(t *testing.T) {
 				}
 				searches.Add(1)
 				for _, h := range hits {
-					if !strings.HasSuffix(h.Path, ".go") || strings.Contains(h.Path, ".cortex/") {
+					if !strings.HasSuffix(h.Path, ".go") || strings.Contains(h.Path, ".repocortex/") {
 						report("search returned a path that is not an indexed fixture file: %q", h.Path)
 					}
 				}

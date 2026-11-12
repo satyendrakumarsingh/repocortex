@@ -1,7 +1,7 @@
 // Package plain is the negative fixture: real data access, no ORM. The raw SQL
 // here is the other extractor's job, and ORMStatements must return nothing for
 // it — reporting a table twice through two mechanisms would double every count
-// `cortex db` prints.
+// `repocortex db` prints.
 package plain
 
 import (

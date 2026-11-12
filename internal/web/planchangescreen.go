@@ -27,7 +27,7 @@ func (s *Server) handlePlanChange(w http.ResponseWriter, r *http.Request) {
 	}
 	if run == nil {
 		s.writeJSON(w, http.StatusOK, map[string]any{
-			"error": "No index run found. Run 'cortex index' first.",
+			"error": "No index run found. Run 'repocortex index' first.",
 		})
 		return
 	}

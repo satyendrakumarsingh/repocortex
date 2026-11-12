@@ -61,7 +61,7 @@ type AuditSink interface {
 	Record(AuditRecord)
 }
 
-// MemoryAudit collects records in memory. Used by `cortex indexers list` to
+// MemoryAudit collects records in memory. Used by `repocortex indexers list` to
 // show what a run did, and by tests to assert what it did not do.
 type MemoryAudit struct {
 	mu      sync.Mutex

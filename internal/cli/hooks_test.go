@@ -99,7 +99,7 @@ func TestInstallCommitHook(t *testing.T) {
 					t.Fatalf("seed hook: %v", err)
 				}
 			}
-			st, err := InstallCommitHook(root, "/usr/local/bin/cortex")
+			st, err := InstallCommitHook(root, "/usr/local/bin/repocortex")
 			if err != nil {
 				t.Fatalf("install: %v", err)
 			}
@@ -107,7 +107,7 @@ func TestInstallCommitHook(t *testing.T) {
 
 			// Every case must also be idempotent.
 			before := readHook(t, root)
-			st2, err := InstallCommitHook(root, "/usr/local/bin/cortex")
+			st2, err := InstallCommitHook(root, "/usr/local/bin/repocortex")
 			if err != nil {
 				t.Fatalf("second install: %v", err)
 			}
@@ -132,7 +132,7 @@ func TestInstallCommitHookIsExecutable(t *testing.T) {
 	if err := os.WriteFile(path, []byte("#!/bin/sh\nexisting\n"), 0o644); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
-	if _, err := InstallCommitHook(root, "cortex"); err != nil {
+	if _, err := InstallCommitHook(root, "repocortex"); err != nil {
 		t.Fatalf("install: %v", err)
 	}
 	info, err := os.Stat(path)
@@ -150,7 +150,7 @@ func TestUninstallCommitHook(t *testing.T) {
 	t.Run("removes the file when RepoCortex wrote all of it", func(t *testing.T) {
 		t.Parallel()
 		root := newRepo(t)
-		if _, err := InstallCommitHook(root, "cortex"); err != nil {
+		if _, err := InstallCommitHook(root, "repocortex"); err != nil {
 			t.Fatalf("install: %v", err)
 		}
 		removed, err := UninstallCommitHook(root)
@@ -173,7 +173,7 @@ func TestUninstallCommitHook(t *testing.T) {
 		if err := os.WriteFile(path, []byte(theirs), 0o755); err != nil {
 			t.Fatalf("seed: %v", err)
 		}
-		if _, err := InstallCommitHook(root, "cortex"); err != nil {
+		if _, err := InstallCommitHook(root, "repocortex"); err != nil {
 			t.Fatalf("install: %v", err)
 		}
 		if _, err := UninstallCommitHook(root); err != nil {
@@ -208,7 +208,7 @@ func TestCommitHookStatus(t *testing.T) {
 	if st := CommitHookStatus(root); st.Installed {
 		t.Error("reported installed before anything was written")
 	}
-	if _, err := InstallCommitHook(root, "cortex"); err != nil {
+	if _, err := InstallCommitHook(root, "repocortex"); err != nil {
 		t.Fatalf("install: %v", err)
 	}
 	if st := CommitHookStatus(root); !st.Installed {
@@ -227,9 +227,9 @@ func TestShellQuoteHandlesAwkwardPaths(t *testing.T) {
 	tests := []struct {
 		in, want string
 	}{
-		{"/usr/local/bin/cortex", `'/usr/local/bin/cortex'`},
-		{"/Users/a b/cortex", `'/Users/a b/cortex'`},
-		{"/tmp/it's/cortex", `'/tmp/it'\''s/cortex'`},
+		{"/usr/local/bin/repocortex", `'/usr/local/bin/repocortex'`},
+		{"/Users/a b/repocortex", `'/Users/a b/repocortex'`},
+		{"/tmp/it's/repocortex", `'/tmp/it'\''s/repocortex'`},
 	}
 	for _, tc := range tests {
 		if got := shellQuote(tc.in); got != tc.want {
@@ -240,7 +240,7 @@ func TestShellQuoteHandlesAwkwardPaths(t *testing.T) {
 
 func TestHookBodyCannotFailACommit(t *testing.T) {
 	t.Parallel()
-	body := hookBody("/usr/local/bin/cortex")
+	body := hookBody("/usr/local/bin/repocortex")
 	// The commit must survive a missing binary, a failed index and a slow run.
 	if !strings.Contains(body, "command -v") {
 		t.Error("hook does not check the binary exists before calling it")

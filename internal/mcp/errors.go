@@ -37,7 +37,7 @@ func hintForKind(k errs.Kind) (code string, hint string) {
 
 	case errs.KindCorrupt:
 		return "index_corrupt",
-			"The stored index violates an invariant and cannot be repaired in place. Run `cortex index` to rebuild it."
+			"The stored index violates an invariant and cannot be repaired in place. Run `repocortex index` to rebuild it."
 
 	case errs.KindTransient:
 		return "transient",

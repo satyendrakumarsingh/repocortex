@@ -86,19 +86,19 @@ func TestAllSpecMetricsRecord(t *testing.T) {
 	m.DBQueryLatency(ctx, "select", 900*time.Microsecond)
 
 	want := map[string]float64{
-		"cortex.index.duration":         1,
-		"cortex.index.files":            400,
-		"cortex.index.parse_failures":   1,
-		"cortex.index.symbols":          9000,
-		"cortex.index.relationships":    1200,
-		"cortex.search.latency":         1,
-		"cortex.search.result_count":    1,
-		"cortex.context.latency":        1,
-		"cortex.context.cache_hit":      2,
-		"cortex.mcp.request_count":      1,
-		"cortex.mcp.latency":            1,
-		"cortex.graph.traversal.depth":  1,
-		"cortex.database.query.latency": 1,
+		"repocortex.index.duration":         1,
+		"repocortex.index.files":            400,
+		"repocortex.index.parse_failures":   1,
+		"repocortex.index.symbols":          9000,
+		"repocortex.index.relationships":    1200,
+		"repocortex.search.latency":         1,
+		"repocortex.search.result_count":    1,
+		"repocortex.context.latency":        1,
+		"repocortex.context.cache_hit":      2,
+		"repocortex.mcp.request_count":      1,
+		"repocortex.mcp.latency":            1,
+		"repocortex.graph.traversal.depth":  1,
+		"repocortex.database.query.latency": 1,
 	}
 	for name, wantVal := range want {
 		if got := collectSum(t, reader, name); got != wantVal {
@@ -116,7 +116,7 @@ func TestDurationsAreSeconds(t *testing.T) {
 	m.SearchLatency(context.Background(), 250*time.Millisecond)
 
 	metrics := collect(t, reader)
-	got, ok := metrics["cortex.search.latency"]
+	got, ok := metrics["repocortex.search.latency"]
 	if !ok {
 		t.Fatal("search latency not recorded")
 	}
@@ -143,7 +143,7 @@ func TestLatencyBucketsAreUsable(t *testing.T) {
 		m.SearchLatency(ctx, d)
 	}
 
-	hist := collect(t, reader)["cortex.search.latency"].Data.(metricdata.Histogram[float64])
+	hist := collect(t, reader)["repocortex.search.latency"].Data.(metricdata.Histogram[float64])
 	dp := hist.DataPoints[0]
 	nonEmpty := 0
 	for _, c := range dp.BucketCounts {
@@ -168,7 +168,7 @@ func TestParseFailureNormalisesLanguage(t *testing.T) {
 	m.ParseFailure(ctx, "totally-made-up-language")
 	m.ParseFailure(ctx, "another-made-up-one")
 
-	sum, ok := collect(t, reader)["cortex.index.parse_failures"].Data.(metricdata.Sum[int64])
+	sum, ok := collect(t, reader)["repocortex.index.parse_failures"].Data.(metricdata.Sum[int64])
 	if !ok {
 		t.Fatal("parse failures not recorded as a counter")
 	}

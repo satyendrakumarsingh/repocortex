@@ -24,7 +24,7 @@ const (
 // Source is per-side rather than per-Differ because of a fact about the
 // registry that the CLI has to live with: CommitRun retires the previous
 // committed run and deletes its rows, so ONE index database holds exactly one
-// committed run. The two sides of `cortex diff <ref>..<ref>` therefore
+// committed run. The two sides of `repocortex diff <ref>..<ref>` therefore
 // normally live in two databases — the working index and a second index built
 // at the other ref. Nothing here assumes they share a store, and nothing
 // assumes they do not: two Sides over the same *registry.Registry with two run

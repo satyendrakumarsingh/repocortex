@@ -254,7 +254,7 @@ func TestGraphDepthBoundIsHonoured(t *testing.T) {
 }
 
 // TestNilGraphStillProducesAContextPack keeps the engine usable before
-// `cortex resolve` has run: with no call graph there is no expansion, but
+// `repocortex resolve` has run: with no call graph there is no expansion, but
 // name and text matches still answer the question, and the pack says so by
 // simply containing less.
 func TestNilGraphStillProducesAContextPack(t *testing.T) {

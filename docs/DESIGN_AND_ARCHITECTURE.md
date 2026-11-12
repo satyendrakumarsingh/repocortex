@@ -27,7 +27,7 @@ Every subsystem in RepoCortex must satisfy five non-negotiable invariants:
 1. **Two-Phase Atomic Publication**: Indexing operations populate staging runs (`index_runs.status = 'indexing'`). Query paths only read committed runs (`committed = 1`). A crash or cancellation mid-index leaves zero corrupt state. `CommitRun` publishes the new revision in a single SQLite transaction.
 2. **Explicit Evidence & Provenance**: There are no synthetic or unverified edges. Every relationship points to an `evidence_file`, `evidence_line`, and an immutable confidence tier (`exact`, `high`, `medium`, `low`).
 3. **Bounded Resident Memory**: Peak memory consumption must remain bounded regardless of codebase scale. Monolithic whole-repo data structures are strictly prohibited in the hot path. All passes must operate on bounded pages, streaming cursors, or compact indices (CSR).
-4. **Safe Mutation Protocol**: Any command that mutates user source code (such as `cortex rename`) must follow a strict transactional protocol: dry-run analysis $\to$ filesystem containment verification $\to$ exact AST identifier splicing $\to$ atomic cross-file commit $\to$ post-apply verification scan $\to$ automatic rollback on any failure.
+4. **Safe Mutation Protocol**: Any command that mutates user source code (such as `repocortex rename`) must follow a strict transactional protocol: dry-run analysis $\to$ filesystem containment verification $\to$ exact AST identifier splicing $\to$ atomic cross-file commit $\to$ post-apply verification scan $\to$ automatic rollback on any failure.
 5. **Honest Incompleteness**: RepoCortex never papers over gaps. An empty query result distinguishes between "we proved this has zero callers" and "this code has unresolvable dynamic references." Blind spots and omitted edges are surfaced transparently to agents and users.
 
 ---
@@ -38,7 +38,7 @@ RepoCortex follows a strict unidirectional dependency hierarchy adhering to **Cl
 
 ```mermaid
 graph TD
-    CLI["cmd/cortex (CLI Entrypoint)"] --> Cap["internal/capability (Domain Features)"]
+    CLI["cmd/repocortex (CLI Entrypoint)"] --> Cap["internal/capability (Domain Features)"]
     MCP["internal/mcp (Agent Protocol)"] --> Cap
     Web["internal/web (Interactive UI)"] --> Cap
     
@@ -78,6 +78,8 @@ graph TD
 | `internal/edit` | Surgical source code splicing, exact identifier boundary matching, hash validation, and multi-file rollback transactions. | `pkg/model`, `internal/security` | Must not import graph traversal or MCP servers. |
 | `internal/mcp` | Model Context Protocol server exposing JSON-RPC tools and prompts to autonomous coding agents. | `internal/capability`, `internal/graph`, `internal/registry`, `pkg/model` | Must not expose internal database drivers directly over the wire. |
 | `internal/web` | Local interactive web portal, SVG visualizers, tree views, code views, and Server-Sent Events (SSE). | `internal/capability`, `internal/graph`, `internal/registry`, `pkg/model` | Must be entirely self-contained with embedded HTML/JS/CSS assets. |
+| `internal/restapi` | The agent tools as plain HTTP and JSON, and the OpenAPI document generated from them. | `internal/mcp` | Must contain **no** tool handlers; every call is forwarded through `mcp.Invoker`. |
+| `internal/portal` | The redesigned portal's embedded assets and its loopback, same-origin and CSP guard. | None (standard library only). | Must not read the index; the page gets every figure from the tool endpoint. |
 | `internal/cli` | Cobra command definitions, flag parsing, human terminal formatting, and structured JSON output. | All `internal/...` packages. | Should contain **zero** business logic; strictly delegates to `internal/capability` or `internal/pipeline`. |
 
 ---
@@ -107,6 +109,57 @@ graph TD
   }
   ```
 - Concrete structs (like `*registry.Registry`) implement the interface implicitly without needing a compile-time dependency from `registry` to `rename`.
+
+### 3.4. Names
+
+Tools, commands, flags and routes follow [naming conventions](reference/naming-conventions.md),
+and tests enforce the parts a machine can check. In short: a tool is
+`<verb>_<noun>` with a verb from a closed list; a command is lower case with
+hyphens and never noun-verb; a renamed tool or command keeps its old name
+working, permanently.
+
+### 3.5. One Tool Surface
+
+A capability is implemented once, in `internal/capability`, and reaches every
+front end through the MCP tool that wraps it.
+
+- **Do not write a second handler.** The REST endpoint (`internal/restapi`), the
+  shell front end (`repocortex tool`) and the new portal (`internal/portal`) call
+  tools through `mcp.Invoker`. A handler written beside them would bound,
+  validate or caveat its answer differently within a release.
+- **A new tool needs five things**, and a test fails for each one missing: a
+  name that passes `ValidToolName`; a description of at least 120 characters
+  that says when to use it and what an empty result means; a place in a profile
+  list; a row in the tool-to-command table (`TestEveryAgentToolHasACommand`); and
+  a call in `TestEveryToolAnswerStaysBoundedAtScale`.
+- **New tools go on the `full` profile** unless there is a measured reason to
+  spend every `standard` user's context on them.
+
+### 3.6. Queries At Scale
+
+Three rules, each learned from a defect that passed every unit test:
+
+1. **Name the index when a plan matters.** SQLite without statistics preferred
+   the edges table's UNIQUE autoindex and read every edge in the run once per
+   row. A query whose cost depends on its plan uses `INDEXED BY` and, where join
+   order matters, `CROSS JOIN`, and is pinned by an `EXPLAIN QUERY PLAN` test in
+   the package that owns it.
+2. **Never one query per row of an unbounded set.** Aggregate in SQL, or page.
+   `list_blindspots` ran a count per exported function until the scale suite
+   measured it.
+3. **A scan keeps the best N, not everything it read.** Memory follows the size
+   of the answer. The scale suite compares live heap before and after.
+
+A change to a query, a traversal or a tool's output is run through
+`go test ./tests/scale/ -v` before review. See [scale testing](operations/scale-testing.md).
+
+### 3.7. Claims About Absence
+
+A result that says something is NOT there (no callers, unused, untested) is
+graded and explained, never asserted. The pattern, from `internal/capability/deadcode`:
+check every ordinary explanation for the absence, name the ones that could not
+be ruled out, default to showing only the rows where all were, and treat
+"could not look" as "unknown" rather than as "not found".
 
 ---
 
@@ -170,3 +223,6 @@ Every pull request and commit must pass automated verification:
 2. **Equivalence & Determinism Gates**: `resolve_equivalence_test.go` asserts that streaming candidate-capped resolution produces byte-for-byte identical output to a full in-memory baseline.
 3. **Race Detection**: `go test -race ./...` on core concurrency paths.
 4. **Zero-Warning Static Analysis**: `golangci-lint` enforces strict style, complexity, and deadcode rules.
+5. **Protocol Parity**: `TestRESTAndMCPReturnTheSameAnswer` asserts that the REST endpoint and an MCP client receive the same text for the same call.
+6. **Scale**: `go test ./tests/scale/` asserts bounded answers, bounded memory and linear time at 5,000 symbols on every push, and at 250,000 nightly.
+7. **Contrast**: `TestThemesMeetContrast` holds both portal themes to WCAG AA.

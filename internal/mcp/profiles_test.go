@@ -66,7 +66,7 @@ func TestEveryRegisteredToolIsReachableFromSomeProfile(t *testing.T) {
 //
 // It must be a FULLY WIRED server. A tool is registered only when both its
 // profile allows it and its dependencies are present, so a server built without
-// a Graph reports `get_task_context`, `impact_analysis` and `find_tests` as
+// a Graph reports `get_task_context`, `analyze_impact` and `find_tests` as
 // absent — and this test would then "discover" that three real tools do not
 // exist. The first version of it did exactly that.
 func registeredToolNames(t *testing.T) map[string]bool {

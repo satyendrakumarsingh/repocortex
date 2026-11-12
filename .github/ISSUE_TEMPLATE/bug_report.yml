@@ -10,8 +10,8 @@ body:
     id: version
     attributes:
       label: RepoCortex Version
-      description: Run `cortex version` and paste the output.
-      placeholder: cortex v0.1.0 (darwin/arm64)
+      description: Run `repocortex version` and paste the output.
+      placeholder: repocortex v0.1.0 (darwin/arm64)
     validations:
       required: true
   - type: dropdown
@@ -42,8 +42,8 @@ body:
       label: Steps to Reproduce
       description: Steps or commands to reproduce the issue.
       placeholder: |
-        1. Run `cortex init`
-        2. Run `cortex index`
+        1. Run `repocortex init`
+        2. Run `repocortex index`
         3. ...
     validations:
       required: true

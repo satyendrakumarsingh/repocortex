@@ -10,7 +10,7 @@ import "strings"
 // The SQL recogniser answers "which code writes `transactions`" only for code
 // that writes the word SELECT. Most application code does not: it calls
 // `repo.save(t)`, `db.Model(&Transaction{}).Updates(...)`, or
-// `session.query(Transaction)`. On a repository built on an ORM, `cortex db`
+// `session.query(Transaction)`. On a repository built on an ORM, `repocortex db`
 // reported almost nothing, and the silence was indistinguishable from a service
 // that touches no data at all. That is the failure mode this package's own doc
 // comment calls the worst one — a table that appears in no query looks exactly
@@ -21,7 +21,7 @@ import "strings"
 // An ORM operation produces a Statement, not a new type. It carries the same
 // five access modes, the same lowercased unqualified table names, and the same
 // Certain flag, so the caller stages it through exactly the path raw SQL
-// already uses and nothing downstream — resolver, registry, `cortex db`,
+// already uses and nothing downstream — resolver, registry, `repocortex db`,
 // impact — learns that ORMs exist.
 //
 // # Three ecosystems, chosen
@@ -70,7 +70,7 @@ type ORMStatement struct {
 	Statement
 	Line int
 	// Framework is the ecosystem that was recognised: "gorm", "jpa" or
-	// "sqlalchemy". Diagnostic only — it answers "why does cortex think this
+	// "sqlalchemy". Diagnostic only — it answers "why does repocortex think this
 	// line writes `orders`" without re-reading the file.
 	Framework string
 }

@@ -5,10 +5,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
-export const BINARY = path.join(REPO_ROOT, 'internal/web/e2e/.bin/cortex-e2e');
+export const BINARY = path.join(REPO_ROOT, 'internal/web/e2e/.bin/repocortex-e2e');
 
 export function buildBinary() {
-  execFileSync('go', ['build', '-o', BINARY, './cmd/cortex'], { cwd: REPO_ROOT, stdio: 'inherit' });
+  execFileSync('go', ['build', '-o', BINARY, './cmd/repocortex'], { cwd: REPO_ROOT, stdio: 'inherit' });
   return BINARY;
 }
 

@@ -170,7 +170,7 @@ type Thresholds struct {
 	// and line we already gave it.
 	//
 	// 0.06 was chosen by measurement, and against the first instinct. The
-	// allocator was first shipped at 0.10, which took `cortex bench
+	// allocator was first shipped at 0.10, which took `repocortex bench
 	// fixtures/bench/payment.yml` from 1,640 / 1,246 / 988 tokens to
 	// 2,200 / 1,607 / 1,427 — about 34% more — while recall stayed at 100% on
 	// all three cases, exactly as it had been before. The extra characters

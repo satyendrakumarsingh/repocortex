@@ -16,7 +16,7 @@ import (
 )
 
 // TextSearcher finds the indexed files whose text mentions a term — the
-// index's full-text search, the one `cortex search` uses — and lists the
+// index's full-text search, the one `repocortex search` uses — and lists the
 // files that search cannot see because the index holds no text for them.
 type TextSearcher interface {
 	SearchFiles(ctx context.Context, query string, limit int) ([]registry.FileMatch, error)

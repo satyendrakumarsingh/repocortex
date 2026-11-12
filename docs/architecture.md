@@ -8,7 +8,7 @@ the only thing standing between a heuristic guess and a claim presented as fact.
 ## The layers
 
 ```
-                         .cortex.yml        ~/.config/cortex/config.yml
+                         .repocortex.yml        ~/.config/repocortex/config.yml
                         (UNTRUSTED, repo)         (TRUSTED, user)
                                |                        |
                                +-----------+------------+
@@ -70,7 +70,7 @@ the only thing standing between a heuristic guess and a claim presented as fact.
   |  capability         internal/capability  (impact, tests, architecture,      |
   |                     runtime). Query layers over the graph. None parse.     |
   |                              |                                             |
-  |  mcp / cli          internal/mcp (`cortex serve`)   internal/cli          |
+  |  mcp / cli          internal/mcp (`repocortex serve`)   internal/cli          |
   |                     bounded, framed responses over stdio; 24 CLI commands  |
   |                              |                                             |
   +------------------------------v---------------------------------------------+
@@ -289,14 +289,14 @@ to turn a guess into a claim.
 
 `internal/resolve/infer` never emits `ConfidenceExact` at all. That level is
 reserved for compiler-backed SCIP data, which reaches the graph through
-`cortex scip import` and through `cortex indexers install`. Edges at `exact`
+`repocortex scip import` and through `repocortex indexers install`. Edges at `exact`
 are now ordinary rather than hypothetical: importing a `scip-go` index of
-RepoCortex's own source wrote 14,532 of them, and `cortex doctor --verify-index`
+RepoCortex's own source wrote 14,532 of them, and `repocortex doctor --verify-index`
 still reported `unproven exact edges  none`.
 
 ### 3. Repository config cannot cause execution
 
-`.cortex.yml` is attacker-controlled the moment you clone an untrusted
+`.repocortex.yml` is attacker-controlled the moment you clone an untrusted
 repository. It may describe *what to index*. It may never influence *what to
 run*. See "The trust-domain split" below for the mechanism.
 
@@ -334,7 +334,7 @@ outside the transaction.
 The property this buys: a crash at any instant either loses the new run
 completely or publishes it completely. There is no observable intermediate state.
 Rows from a run killed mid-index survive on disk but are unreachable;
-`registry.ReclaimAbandoned` deletes them at the start of the next `cortex
+`registry.ReclaimAbandoned` deletes them at the start of the next `repocortex
 index`, which is why a long-lived index does not accumulate one carcass per
 crash.
 
@@ -349,14 +349,14 @@ that identify them still exist. Orphaned FTS rows would otherwise pollute every
 future search with hits on deleted files, and later abort indexing outright with
 a UNIQUE violation once FTS5 recycles a rowid.
 
-That cascade is not free, and its price is visible: a `cortex index --full`
+That cascade is not free, and its price is visible: a `repocortex index --full`
 that has to retire a previous run costs several times a first index into an empty
 database. See
 [performance.md](performance.md#a-full-re-index-is-not-priced-like-a-first-index).
 
 ### Incremental indexing makes a different trade
 
-`cortex index` without `--full` updates the committed run **in place**. Each
+`repocortex index` without `--full` updates the committed run **in place**. Each
 file is replaced in its own transaction, so the index stays continuously
 queryable and the cost scales with the number of changed files rather than
 repository size.
@@ -389,7 +389,7 @@ work:
 
 Fields are hashed length-prefixed rather than joined with a separator, so a doc
 comment containing the separator cannot be crafted to collide with a different
-row. The digest string is prefixed with `cortex/registry-digest/v1`, which is
+row. The digest string is prefixed with `repocortex/registry-digest/v1`, which is
 itself hashed, so an old digest can never silently compare equal under a new
 scheme.
 
@@ -397,15 +397,15 @@ scheme.
 
 Configuration lives in two files, and the division is not organisational.
 
-`.cortex.yml` — in the repository, committed, therefore **attacker-supplied**
+`.repocortex.yml` — in the repository, committed, therefore **attacker-supplied**
 when you clone someone else's code. It controls what gets indexed.
 
-`~/.config/cortex/config.yml` — writable only by the machine's owner,
+`~/.config/repocortex/config.yml` — writable only by the machine's owner,
 therefore **trusted**. It controls what gets executed.
 
 The reason: compiler-backed indexing runs build systems, and Maven and Gradle
 plugins execute arbitrary code by design. If a repository could name the indexer
-to run or the URL to fetch it from, `git clone && cortex index` on a hostile
+to run or the URL to fetch it from, `git clone && repocortex index` on a hostile
 repository would be remote code execution.
 
 The mechanism is structural rather than validating. `config.RepoConfig` has no
@@ -421,8 +421,8 @@ that tries to set an execution field does not merely fail to apply it; the user
 finds out:
 
 ```
-$ cortex status
-error: repo config: parse .cortex.yml: yaml: unmarshal errors:
+$ repocortex status
+error: repo config: parse .repocortex.yml: yaml: unmarshal errors:
   line 3: field accuracy not found in type config.RepoConfig
 ```
 
@@ -485,22 +485,22 @@ the command named in it against a copy of this repository.
 | Layer | State |
 |---|---|
 | `acquire`, `parse`, `analyze`, `pipeline`, `registry`, `store` | shipped |
-| `resolve/infer` — heuristic reference resolution | shipped (`cortex resolve`) |
-| `resolve/scip`, `resolve/scipimport` — compiler-backed resolution | shipped (`cortex scip import`) |
-| `indexer` — detecting, provisioning and running external SCIP indexers | shipped (`cortex indexers list`, `cortex indexers install`) |
+| `resolve/infer` — heuristic reference resolution | shipped (`repocortex resolve`) |
+| `resolve/scip`, `resolve/scipimport` — compiler-backed resolution | shipped (`repocortex scip import`) |
+| `indexer` — detecting, provisioning and running external SCIP indexers | shipped (`repocortex indexers list`, `repocortex indexers install`) |
 | `graph` — traversal, neighbours, paths | shipped; consumed by `mcp`, `context` and `capability` |
-| `search` — identifier tokenisation over FTS5 | shipped (`cortex search`, and the `search_code` MCP tool) |
-| `context` — the context engine | shipped (`cortex context`, and `get_task_context` over MCP) |
+| `search` — identifier tokenisation over FTS5 | shipped (`repocortex search`, and the `search_code` MCP tool) |
+| `context` — the context engine | shipped (`repocortex context`, and `get_task_context` over MCP) |
 | `capability/impact`, `capability/tests` | shipped; exposed as MCP tools |
-| `capability/architecture` — governance against declared components | shipped (`cortex arch`) |
-| `capability/runtime` — trace correlation | shipped (`cortex trace`) |
-| `analyze/api`, `analyze/db` | shipped (`cortex api`, `cortex db`) |
-| `analyze/config`, `analyze/deps` | shipped (`cortex config`, `cortex deps`) |
-| `compile` — task contracts | shipped (`cortex compile`) |
-| `bench` — retrieval-quality measurement | shipped (`cortex bench`) |
+| `capability/architecture` — governance against declared components | shipped (`repocortex arch`) |
+| `capability/runtime` — trace correlation | shipped (`repocortex trace`) |
+| `analyze/api`, `analyze/db` | shipped (`repocortex api`, `repocortex db`) |
+| `analyze/config`, `analyze/deps` | shipped (`repocortex config`, `repocortex deps`) |
+| `compile` — task contracts | shipped (`repocortex compile`) |
+| `bench` — retrieval-quality measurement | shipped (`repocortex bench`) |
 | `security` — secret redaction and path containment | shipped; applied during indexing |
-| `watch` — incremental indexing on filesystem events | shipped (`cortex watch`) |
-| `mcp` — the MCP server | shipped (`cortex serve`) |
+| `watch` — incremental indexing on filesystem events | shipped (`repocortex watch`) |
+| `mcp` — the MCP server | shipped (`repocortex serve`) |
 
 None of the packages this table names is a placeholder. An earlier revision of
 this document listed `indexer`, `context`, `capability` and `security` as empty
@@ -510,7 +510,7 @@ statements were false by the time anyone read them, which is the specific way a
 
 ### The limits that remain
 
-**`accuracy.mode` selects indexers, but only under `cortex indexers`.** This
+**`accuracy.mode` selects indexers, but only under `repocortex indexers`.** This
 entry used to say the mode selected nothing; `internal/indexer` has since made it
 a decision, and the honest statement of what remains is narrower. `indexer.NewPlan`
 and `indexer.Execute` branch on it in three places: `fast` returns before
@@ -522,17 +522,17 @@ Pinned by `TestAccuracyModeSelectsWhatRuns` and
 `TestExactModeFailsRatherThanDegrading` in `internal/config`, alongside
 `internal/indexer`'s own tests.
 
-What is still true is that **`cortex index` does not consult the mode**. It
+What is still true is that **`repocortex index` does not consult the mode**. It
 reads `cfg.Accuracy`, records the string on the run via `reg.BeginRun`, and never
-calls the orchestrator; the `.scip` files `cortex indexers install` produces
-are printed for you to feed to `cortex scip import` yourself. So `accuracy.mode
-= exact` does not make `cortex index` fail on a repository it cannot prove — it
-only makes `cortex indexers install` fail. Closing that means `internal/cli`'s
+calls the orchestrator; the `.scip` files `repocortex indexers install` produces
+are printed for you to feed to `repocortex scip import` yourself. So `accuracy.mode
+= exact` does not make `repocortex index` fail on a repository it cannot prove — it
+only makes `repocortex indexers install` fail. Closing that means `internal/cli`'s
 index path calling `indexer.NewPlan`/`Execute` and importing the results before
 the run commits.
 
 **The `minimal` MCP profile exposes 7 tools, which is not the whole capability
-set.** `cortex serve --list-tools` is the authority on which. Every exposed
+set.** `repocortex serve --list-tools` is the authority on which. Every exposed
 tool's schema enters the agent's context on every request, so the default is
 small deliberately — with the consequence that several shipped capabilities are
 reachable from the CLI while an agent on the default profile cannot see them.
@@ -542,18 +542,18 @@ configurable.** Redaction is applied unconditionally in `pipeline.RegistrySink`:
 `security.RedactFile` classifies by path first, so an entire `.env` or private
 key is suppressed wholesale rather than pattern-matched line by line. Verified by
 indexing a repository containing an AWS-shaped key in a `.go` file and a `.env`
-holding credentials — neither value is findable through `cortex search`, with
+holding credentials — neither value is findable through `repocortex search`, with
 no configuration set (`tests/integration/secret_leak_test.go`). The config key
 was read by nothing and could only ever mean "on", so it has been removed from
-`RepoConfig` and from the resolved `Config`; `security:` in `.cortex.yml` is
+`RepoConfig` and from the resolved `Config`; `security:` in `.repocortex.yml` is
 now a parse error. This is a breaking change for any repository that set it, and
 that is the point: the previous behaviour was to accept the key and ignore it.
 
 **The `context.*` limits are consulted on the CLI path and ignored on the MCP
 path.** This entry, too, used to say they were consulted nowhere.
 `context.BudgetFrom` is the consumer — all four of `max_files`, `max_symbols`,
-`max_lines` and `max_graph_depth` become a `context.Budget`, and `cortex
-query`, `cortex compile` and `cortex bench` derive theirs through it
+`max_lines` and `max_graph_depth` become a `context.Budget`, and `repocortex
+query`, `repocortex compile` and `repocortex bench` derive theirs through it
 (`TestContextLimitsReachTheAssemblerBudget`). What does not is `internal/mcp`:
 `getTaskContext` builds a bare `devctx.Request`, so `Budget.withDefaults` fills
 it from `config.Defaults()` and a repository's configured limits do not reach an

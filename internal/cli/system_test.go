@@ -17,7 +17,7 @@ import (
 	"github.com/satyendrakumarsingh/repocortex/internal/store"
 )
 
-// runSystemCLI executes `cortex system` in-process.
+// runSystemCLI executes `repocortex system` in-process.
 //
 // The command is assembled here rather than fetched out of NewRoot so the test
 // exercises newSystemCmd itself and does not depend on where in the root tree
@@ -27,7 +27,7 @@ func runSystemCLI(t *testing.T, projectRoot string, args ...string) (string, err
 
 	g := &Global{}
 	root := &cobra.Command{
-		Use:           "cortex",
+		Use:           "repocortex",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
@@ -347,7 +347,7 @@ func TestSystemAbsentMemberIsReportedAndChangesTheExitCode(t *testing.T) {
 	for _, want := range []string{
 		"BILLING IS MISSING FROM THIS GRAPH",
 		"no index at",
-		"cortex index",
+		"repocortex index",
 		"floor",
 		"INCOMPLETE",
 	} {
@@ -431,7 +431,7 @@ func TestSystemEstateFileIsEquivalentToFlags(t *testing.T) {
 	web, api := webIndex(t), apiIndex(t)
 	here := isolate(t)
 
-	estate := filepath.Join(t.TempDir(), "cortex.system.yml")
+	estate := filepath.Join(t.TempDir(), "repocortex.system.yml")
 	body := fmt.Sprintf("members:\n  - name: web\n    index: %s\n  - name: api\n    index: %s\n", web, api)
 	if err := os.WriteFile(estate, []byte(body), 0o600); err != nil {
 		t.Fatal(err)

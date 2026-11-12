@@ -38,7 +38,7 @@ var knownEcosystems = map[Ecosystem]bool{
 // must be something a person could look up.
 func FuzzParse(f *testing.F) {
 	for _, s := range []string{
-		"module cortex\n\ngo 1.25\n\nrequire (\n\tgithub.com/spf13/cobra v1.10.2\n\tgolang.org/x/sys v0.47.0 // indirect\n)\n",
+		"module repocortex\n\ngo 1.25\n\nrequire (\n\tgithub.com/spf13/cobra v1.10.2\n\tgolang.org/x/sys v0.47.0 // indirect\n)\n",
 		"require github.com/x/y v1.2.3\n",
 		`{"name":"app","dependencies":{"react":"^18.0.0"},"devDependencies":{"jest":"29"},"peerDependencies":{"vue":"3"}}`,
 		// The degenerate manifests: a declaration whose name is absent or blank.

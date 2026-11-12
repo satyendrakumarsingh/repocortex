@@ -9,7 +9,7 @@ set -euo pipefail
 
 # This script's entire purpose is to be runnable by a developer BEFORE
 # tagging, from wherever their shell happens to be sitting - so it must not
-# depend on cwd. `go build ./cmd/cortex` only resolves relative to the
+# depend on cwd. `go build ./cmd/repocortex` only resolves relative to the
 # module root; run this from any other directory and it fails with "go.mod
 # file not found in current directory or any parent directory". Resolve the
 # repo root first and cd into it. Fall back to the script's own location if
@@ -20,11 +20,11 @@ want="${1:?usage: verify-stamp.sh <version>}"
 pkg="github.com/satyendrakumarsingh/repocortex/internal/cli"
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
-out="$tmpdir/cortex"
+out="$tmpdir/repocortex"
 
 go build -trimpath \
   -ldflags "-X ${pkg}.Version=${want} -X ${pkg}.Commit=test -X ${pkg}.BuildTime=test" \
-  -o "$out" ./cmd/cortex
+  -o "$out" ./cmd/repocortex
 
 got="$("$out" version)"
 echo "$got"

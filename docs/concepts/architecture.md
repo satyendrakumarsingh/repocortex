@@ -27,7 +27,7 @@ Every subsystem in RepoCortex must satisfy five non-negotiable invariants:
 1. **Two-Phase Atomic Publication**: Indexing operations populate staging runs (`index_runs.status = 'indexing'`). Query paths only read committed runs (`committed = 1`). A crash or cancellation mid-index leaves zero corrupt state. `CommitRun` publishes the new revision in a single SQLite transaction.
 2. **Explicit Evidence & Provenance**: There are no synthetic or unverified edges. Every relationship points to an `evidence_file`, `evidence_line`, and an immutable confidence tier (`exact`, `high`, `medium`, `low`).
 3. **Bounded Resident Memory**: Peak memory consumption must remain bounded regardless of codebase scale. Monolithic whole-repo data structures are strictly prohibited in the hot path. All passes must operate on bounded pages, streaming cursors, or compact indices (CSR).
-4. **Safe Mutation Protocol**: Any command that mutates user source code (such as `cortex rename`) must follow a strict transactional protocol: dry-run analysis $\to$ filesystem containment verification $\to$ exact AST identifier splicing $\to$ atomic cross-file commit $\to$ post-apply verification scan $\to$ automatic rollback on any failure.
+4. **Safe Mutation Protocol**: Any command that mutates user source code (such as `repocortex rename`) must follow a strict transactional protocol: dry-run analysis $\to$ filesystem containment verification $\to$ exact AST identifier splicing $\to$ atomic cross-file commit $\to$ post-apply verification scan $\to$ automatic rollback on any failure.
 5. **Honest Incompleteness**: RepoCortex never papers over gaps. An empty query result distinguishes between "we proved this has zero callers" and "this code has unresolvable dynamic references." Blind spots and omitted edges are surfaced transparently to agents and users.
 
 ---
@@ -38,7 +38,7 @@ RepoCortex follows a strict unidirectional dependency hierarchy adhering to **Cl
 
 ```mermaid
 graph TD
-    CLI["cmd/cortex (CLI Entrypoint)"] --> Cap["internal/capability (Domain Features)"]
+    CLI["cmd/repocortex (CLI Entrypoint)"] --> Cap["internal/capability (Domain Features)"]
     MCP["internal/mcp (Agent Protocol)"] --> Cap
     Web["internal/web (Interactive UI)"] --> Cap
     

@@ -290,7 +290,7 @@ var noOpPhrases = []string{"Nothing to do", "Nothing coarser", "None —"}
 // offScreenPhrases are the actions outside this screen a remedy may name. Each
 // is a real thing a reader can do and none of them is checkable from here,
 // which is why the list is short and declared rather than pattern-matched.
-var offScreenPhrases = []string{"cortex export", "Read the symbol directly"}
+var offScreenPhrases = []string{"repocortex export", "Read the symbol directly"}
 
 // completionPhrases are the ways a remedy can promise that taking it finishes
 // the operation the omission cut short. A promise is checkable and is checked:

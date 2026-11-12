@@ -7,8 +7,8 @@ package mcp
 // exactly the cost this project exists to remove.
 //
 // Each handler is a thin query over the same Registry report the matching CLI
-// command reads — EndpointReport for `cortex api`, TableUsageReport for
-// `cortex db`, ConfigReport for `cortex config` — plus an optional
+// command reads — EndpointReport for `repocortex api`, TableUsageReport for
+// `repocortex db`, ConfigReport for `repocortex config` — plus an optional
 // in-memory filter. No query logic is duplicated: the store call is the one
 // internal/cli/apidb.go and internal/cli/configdeps.go already make.
 //

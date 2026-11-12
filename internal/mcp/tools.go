@@ -23,7 +23,7 @@ import (
 //
 // A RELATIONSHIP ANSWER IS ONLY AS GOOD AS THE RESOLUTION BEHIND IT.
 //
-// find_callers, find_references, impact_analysis and find_tests all answer the
+// find_callers, find_references, analyze_impact and find_tests all answer the
 // same underlying question — what connects to this symbol — and all of them
 // read the same graph. When most of a repository's references were never bound
 // to a definition, that graph is a minority report, and three callers rendered
@@ -40,7 +40,7 @@ import (
 // being an answer.
 //
 // It is capability.CoverageFloor, not a number of its own. This gate used to
-// carry its own 0.5 against ResolutionStats.Rate while resolution_coverage
+// carry its own 0.5 against ResolutionStats.Rate while get_resolution_coverage
 // used 0.6 against BindingRate, so the two tools reported different coverage
 // for one index in one session — see capability.CoverageFloor for the whole
 // argument and for why BindingRate is the published rate.
@@ -77,7 +77,7 @@ type coverage struct {
 	// Known is false when the run holds no resolution outcomes to judge — no
 	// references at all, or none resolved yet. Distinct from a LOW rate: one
 	// says RepoCortex looked and found little, the other says it never looked,
-	// and only the second is fixed by running 'cortex resolve'.
+	// and only the second is fixed by running 'repocortex resolve'.
 	Known    bool
 	Reliable bool
 }
@@ -120,7 +120,7 @@ func (c coverage) caveat(subject string) []string {
 			"no reference resolution at all.", subject, c.scope())
 	case !c.Known:
 		head = fmt.Sprintf("COVERAGE UNKNOWN — %s for %s cannot be judged: all %d references are "+
-			"still pending, so the call graph has not been built. Run 'cortex resolve'.",
+			"still pending, so the call graph has not been built. Run 'repocortex resolve'.",
 			subject, c.scope(), c.Total)
 	default:
 		// The unresolved and ambiguous counts are printed BESIDE the rate,
@@ -130,7 +130,7 @@ func (c coverage) caveat(subject string) []string {
 		head = fmt.Sprintf("COVERAGE TOO LOW — %s for %s is unreliable here: %.0f%% of the %d "+
 			"references that name something this index defines are bound to a definition "+
 			"(%d ambiguous; a further %d matched no definition here at all, out of %d "+
-			"references in total). Run 'cortex resolve' to raise it.",
+			"references in total). Run 'repocortex resolve' to raise it.",
 			subject, c.scope(), 100*c.Rate, c.Bindable, c.Ambiguous, c.Unresolved, c.Total)
 	}
 	return []string{
@@ -270,7 +270,7 @@ func parseMinConfidence(raw string) (model.Confidence, error) {
 	return c, nil
 }
 
-// parseImpactFloor decodes the floor for impact_analysis alone.
+// parseImpactFloor decodes the floor for analyze_impact alone.
 //
 // Absent must stay the ZERO value here, not low. impact.AnalyzeWith applies
 // impact.DefaultMinConfidence (medium) to an unset floor, so mapping "no
@@ -459,7 +459,7 @@ func toolDescriptions() map[string]string {
 			"search_code and find_symbol when you are starting a change rather than looking up one " +
 			"known symbol.",
 
-		"impact_analysis": "Before changing a symbol, find out what depends on it. Separates DIRECT " +
+		"analyze_impact": "Before changing a symbol, find out what depends on it. Separates DIRECT " +
 			"callers (a proven call edge) from INDIRECT reach and from dispatch rows the runtime MAY " +
 			"execute but no call site proves, and names what it CANNOT see — dynamic dispatch, " +
 			"unresolved references, traversal limits. The risk score and its factors are only as good " +
@@ -473,7 +473,7 @@ func toolDescriptions() map[string]string {
 			"untested is a positive finding, not silence, but it is bounded by what the index could " +
 			"resolve: confirm with search_code before trusting it on a low-resolution repository.",
 
-		"find_api_endpoints": "List the HTTP endpoints this service exposes, with the handler that " +
+		"list_api_endpoints": "List the HTTP endpoints this service exposes, with the handler that " +
 			"serves each one and where it is declared. Routes are recognised from the framework's own " +
 			"syntax — a Spring annotation, a Go router registration, a FastAPI or Flask decorator, an " +
 			"Express member call — never from a string that merely looks like a path, which is what " +
@@ -483,7 +483,7 @@ func toolDescriptions() map[string]string {
 			"here, which is a coverage limit, not a finding about the code. Prefer this over grepping " +
 			"route decorators by hand.",
 
-		"find_db_access": "Report which code reads and which code writes each database table, with " +
+		"list_db_tables": "Report which code reads and which code writes each database table, with " +
 			"per-table read/write counts. Pass table to look up one table by name. READ and WRITE are " +
 			"counted separately: 'what touches this table' is a weaker question than 'what writes it', " +
 			"and the second is the one to check before changing a column. A table no migration here " +
@@ -494,7 +494,7 @@ func toolDescriptions() map[string]string {
 			"exactly the queries this scan may also miss, and this tool says so instead of reporting a " +
 			"false all-clear.",
 
-		"resolution_coverage": "Ask this when a find_callers, find_references or impact_analysis " +
+		"get_resolution_coverage": "Ask this when a find_callers, find_references or analyze_impact " +
 			"result came back shorter than you expected, BEFORE concluding anything from it. It " +
 			"reports how many of this index's references were actually bound to a definition, and " +
 			"names the two populations excluded from that rate: the ambiguous ones, where several " +
@@ -531,10 +531,70 @@ func toolDescriptions() map[string]string {
 			"produces an ordered execution sequence with pre/post-conditions. Use this before modifying " +
 			"or refactoring existing code to ensure regression-free changes.",
 
-		"detect_blindspots": "Audit the repository for code intelligence blindspots and hidden risks. " +
+		"list_blindspots": "Audit the repository for code intelligence blindspots and hidden risks. " +
 			"Detects unresolved external and internal calls, untested critical functions with high fan-in, " +
 			"unmapped HTTP endpoints, orphan database tables, missing config declarations, and unparsed files. " +
 			"Use this to audit codebase health and find coverage gaps.",
+
+		"analyze_change": "Find out what a range of commits puts at risk: the symbols the change touched, " +
+			"everything those can reach, and the tests among them. Use it to review a branch or a pull " +
+			"request before merging, or to check your own work before you push — pass the base branch " +
+			"and, optionally, the head. Changed symbols are listed first, then the tests that reach them " +
+			"(run those first), then the other code within reach, each with its confidence tier. It " +
+			"reads the index as built: if the index is older than the head of the range, symbols added " +
+			"since are missing and the response says so. To ask about ONE symbol, use analyze_impact. " +
+			"Needs a git repository.",
+
+		"find_owners": "Find who has recent context on the code a change would touch: the people who " +
+			"have lately changed the symbols a change to this one can reach, ranked by how much of " +
+			"that code they have worked on. Use it to suggest a reviewer for a pull request, or to " +
+			"find who to ask before changing unfamiliar code. It reports who CHANGED the code " +
+			"recently, read from git history, and not who owns it or must approve it: someone in " +
+			"CODEOWNERS may be absent. Names only; email addresses are never returned. Needs a git " +
+			"repository.",
+
+		"find_callees": "List what a symbol calls: the definitions inside this repository that its body " +
+			"invokes, each with the file and line of the call and how the binding was established " +
+			"(exact, high, medium or low). Use it to read a function's dependencies without opening " +
+			"the file, or to walk down from an entry point. It lists only calls the index could bind " +
+			"to a definition HERE: calls into libraries and the standard library never appear, so an " +
+			"empty or short result means 'nothing bound inside this repository', not 'calls nothing'. " +
+			"For the opposite direction use find_callers.",
+
+		"find_implementations": "List a type's hierarchy in both directions: what implements or extends " +
+			"it, and what it implements or extends itself. Use it before changing an interface, an " +
+			"abstract method or a base class, when the callers of the declaration are not the whole " +
+			"story because the work happens in the types built on it. Each row carries its confidence " +
+			"tier; exact means a compiler index proved the relationship. Only DECLARED relationships " +
+			"are visible from syntax, so a Go type that satisfies an interface without naming it is " +
+			"absent until a compiler index is imported — an empty result means none declared, not " +
+			"none exist.",
+
+		"trace_call_path": "Find how one symbol reaches another: the shortest chains of calls and " +
+			"references from 'from' to 'to', hop by hop, each hop with its file, line and confidence. " +
+			"Use it to answer 'how does this request end up writing that table', to confirm a suspected " +
+			"dependency before a refactor, or to explain a blast radius entry you did not expect. Only " +
+			"the SHORTEST routes are returned, at most three. No route found is not proof of " +
+			"independence: one unresolved call or interface dispatch along the way breaks the chain, " +
+			"and the response says so.",
+
+		"list_dead_code": "List definitions that nothing in the index calls or references, graded by " +
+			"how far that can be trusted. 'likely' means the definition is unexported, its file parsed " +
+			"cleanly, no unbound reference anywhere is spelled like it and its name appears nowhere " +
+			"else in the source text; 'possible' means one of those could not be ruled out, and the " +
+			"row says which. Only 'likely' is returned unless you ask. Use it to find cleanup candidates " +
+			"or to check whether code you are about to maintain is reachable at all. NEVER delete on " +
+			"this evidence alone: reflection, dependency injection, framework registration and other " +
+			"repositories all reach code without a reference this index can bind, so search for the " +
+			"name first. Tests, entry points and, by default, exported definitions are left out.",
+
+		"list_hotspots": "Rank files by how often they change against how much code they hold, from " +
+			"recent git history, and list for each the files that are usually committed with it. Use " +
+			"it to decide where a refactor pays back, to see where review attention should go, and — " +
+			"through 'changes with' — to find files coupled to the one you are editing even though no " +
+			"call or import connects them, which is a dependency analyze_impact cannot see. The score " +
+			"is relative to this repository and this commit window; it orders the list and is not a " +
+			"quality measurement. Needs a git repository.",
 	}
 }
 
@@ -582,13 +642,13 @@ func (s *Server) registerTools() error {
 	// registerCapabilities — an index whose references were never resolved
 	// should still answer these, exactly as search_code and find_symbol do.
 	addTool(s, allowed, &sdk.Tool{
-		Name:        "find_api_endpoints",
-		Description: descs["find_api_endpoints"],
+		Name:        "list_api_endpoints",
+		Description: descs["list_api_endpoints"],
 	}, s.findAPIEndpoints)
 
 	addTool(s, allowed, &sdk.Tool{
-		Name:        "find_db_access",
-		Description: descs["find_db_access"],
+		Name:        "list_db_tables",
+		Description: descs["list_db_tables"],
 	}, s.findDBAccess)
 
 	addTool(s, allowed, &sdk.Tool{
@@ -600,8 +660,8 @@ func (s *Server) registerTools() error {
 	// no graph, and the index whose references were never resolved is exactly
 	// the index it exists to describe. See resolutionCoverage.
 	addTool(s, allowed, &sdk.Tool{
-		Name:        "resolution_coverage",
-		Description: descs["resolution_coverage"],
+		Name:        "get_resolution_coverage",
+		Description: descs["get_resolution_coverage"],
 	}, s.resolutionCoverage)
 
 	addTool(s, allowed, &sdk.Tool{
@@ -653,7 +713,7 @@ func (s *Server) getProjectOverview(ctx context.Context, req *sdk.CallToolReques
 			}
 		}
 		if liveCount > 0 {
-			resp.Notes = append(resp.Notes, fmt.Sprintf("Exposed HTTP APIs: %d live endpoints (e.g. %s). Call 'find_api_endpoints' for full catalog.", liveCount, strings.Join(samples, ", ")))
+			resp.Notes = append(resp.Notes, fmt.Sprintf("Exposed HTTP APIs: %d live endpoints (e.g. %s). Call 'list_api_endpoints' for full catalog.", liveCount, strings.Join(samples, ", ")))
 		}
 	}
 
@@ -664,10 +724,10 @@ func (s *Server) getProjectOverview(ctx context.Context, req *sdk.CallToolReques
 				samples = append(samples, t.Table)
 			}
 		}
-		resp.Notes = append(resp.Notes, fmt.Sprintf("Database Footprint: %d tables referenced (e.g. %s). Call 'find_db_access' for the access graph.", len(tbls), strings.Join(samples, ", ")))
+		resp.Notes = append(resp.Notes, fmt.Sprintf("Database Footprint: %d tables referenced (e.g. %s). Call 'list_db_tables' for the access graph.", len(tbls), strings.Join(samples, ", ")))
 	}
 
-	resp.Notes = append(resp.Notes, "Agent Guidance: Use 'impact_analysis' to evaluate refactoring impact; use 'find_symbol' to resolve declarations; use 'find_callers' to trace upstream callers.")
+	resp.Notes = append(resp.Notes, "Agent Guidance: Use 'analyze_impact' to evaluate refactoring impact; use 'find_symbol' to resolve declarations; use 'find_callers' to trace upstream callers.")
 
 	// State the resolution rate plainly. An agent that believes the call graph
 	// is complete will trust an empty find_callers result as proof that nothing
@@ -687,13 +747,13 @@ func (s *Server) getProjectOverview(ctx context.Context, req *sdk.CallToolReques
 		resp.Notes = append(resp.Notes,
 			"No reference data is recorded for this index, so the completeness of the call "+
 				"graph is unknown — an empty find_callers result must NOT be read as proof "+
-				"that nothing uses a symbol. Run 'cortex index' followed by "+
-				"'cortex resolve' to build it.")
+				"that nothing uses a symbol. Run 'repocortex index' followed by "+
+				"'repocortex resolve' to build it.")
 	case rs.Pending == rs.Total:
 		resp.Notes = append(resp.Notes, fmt.Sprintf(
 			"%d reference(s) were extracted but none have been resolved — the call graph has "+
 				"not been built. find_callers and find_references will return nothing until "+
-				"'cortex resolve' runs.", rs.Total))
+				"'repocortex resolve' runs.", rs.Total))
 	default:
 		// Same correction as cli.bindingCaveat, and it matters more here: an
 		// agent acts on this number. The denominator is the references that
@@ -724,7 +784,7 @@ func (s *Server) getProjectOverview(ctx context.Context, req *sdk.CallToolReques
 	if counts.Symbols == 0 {
 		resp.Notes = append(resp.Notes,
 			"This index is committed but EMPTY — no symbols were recorded. Every query will "+
-				"return nothing until it is rebuilt: run 'cortex index' and check that the "+
+				"return nothing until it is rebuilt: run 'repocortex index' and check that the "+
 				"project's languages are supported and its files are not all excluded.")
 	}
 	if counts.Edges == 0 {

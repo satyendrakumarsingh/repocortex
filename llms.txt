@@ -1,38 +1,47 @@
 # RepoCortex
 
-> RepoCortex is an open-source MCP server and CLI (`cortex`, alias `repocortex`) that indexes a code repository into a graph of symbols, call edges, HTTP routes, SQL tables, configuration keys and tests, and serves it to AI coding agents over the Model Context Protocol. It runs locally from one static Go binary and stores the graph in SQLite at `.cortex/index.db`. Apache-2.0.
+> RepoCortex is an open-source MCP server and CLI (`repocortex`) that indexes a code repository into a graph of symbols, call edges, HTTP routes, SQL tables, configuration keys and tests, and serves it to AI coding agents over the Model Context Protocol. It runs locally from one static Go binary and stores the graph in SQLite at `.repocortex/index.db`. Apache-2.0.
 
 An AI agent asks RepoCortex a question instead of searching: what a task touches, who calls a function, what a change can break (blast radius) or which tests reach it. Every edge in an answer is marked with how it was found, and every answer states what the index could not see.
 
 ## Facts
-- Command: `cortex`; alias `repocortex`. Requires Go 1.26+ to build from source; no CGO.
-- Protocol: MCP over stdio, or Streamable HTTP with `cortex serve --http 127.0.0.1:7788` (bearer token required, loopback by default) for ChatGPT, Android Studio and other remote-only clients. `cortex install --rules` configures 30 agents, including Claude Code, Codex CLI, Copilot CLI, Gemini CLI, Cursor, VS Code, Visual Studio, Windsurf, Devin Desktop, Antigravity, Claude Desktop, Zed, Goose, Kiro, Junie, Amp, Qwen Code, Continue and Warp, and writes AGENTS.md guidance. Any stdio MCP client works; Aider uses the CLI through CONVENTIONS.md. Full list: docs/guides/coding-agents.md.
+- Command: `repocortex`. Requires Go 1.26+ to build from source; no CGO.
+- Protocol: MCP over stdio, or Streamable HTTP with `repocortex serve --http 127.0.0.1:7788` (bearer token required, loopback by default) for ChatGPT, Android Studio and other remote-only clients. `repocortex install --rules` configures 30 agents, including Claude Code, Codex CLI, Copilot CLI, Gemini CLI, Cursor, VS Code, Visual Studio, Windsurf, Devin Desktop, Antigravity, Claude Desktop, Zed, Goose, Kiro, Junie, Amp, Qwen Code, Continue and Warp, and writes AGENTS.md guidance. Any stdio MCP client works; Aider uses the CLI through CONVENTIONS.md. Full list: docs/guides/coding-agents.md.
 - Confidence tiers: `exact` (proven by a compiler index, SCIP), `high` (syntax tree with imports; 94.2–100% precise per language in measurements), `medium` (inferred; under 50%), `low` (loose name match; hidden by default). Details: docs/accuracy.md.
 - Languages: 206 tree-sitter grammars. Typed (3): Go, Java, TypeScript. Resolved (11): C, C#, C++, JavaScript, Kotlin, PHP, Python, Ruby, Rust, Scala, TSX. Parsed (192): definitions and search only.
-- Privacy: no network requests while indexing or serving, no telemetry. The opt-in `cortex indexers install` is the only command that downloads anything.
-- MCP profiles: `minimal` (default) exposes 7 tools; `standard` and `full` expose all 18.
+- Privacy: no network requests while indexing or serving, no telemetry. The opt-in `repocortex indexers install` is the only command that downloads anything.
+- MCP profiles: `minimal` (default) exposes 7 tools (about 1,700 tokens of schema per request), `standard` 18 (about 4,400), `full` 25 (about 6,400).
+- Surfaces: the same tools over MCP (stdio or Streamable HTTP), a REST API at `/api/v1/tools/{name}` with an OpenAPI 3.1 document at `/api/v1/openapi.json`, and the shell (`repocortex tool call <tool> key=value`).
+- Tool names are `<verb>_<noun>` with the verbs get, list, find, search, trace, analyze, plan, minimize. One name per tool; no aliases.
+- Licence: Apache-2.0. No paid tier, no account, no hosted service.
 
-## MCP tools (18)
+## MCP tools (25)
 - minimal (default): get_task_context, get_project_overview, search_code, find_symbol, get_symbol, find_references, find_callers
-- standard / full add: find_tests, impact_analysis, resolution_coverage, plan_rename, find_api_endpoints, find_db_access, get_config_key, get_file_outline, minimize_diff, plan_change, detect_blindspots
+- standard / full add: find_tests, analyze_impact, get_resolution_coverage, plan_rename, list_api_endpoints, list_db_tables, get_config_key, get_file_outline, minimize_diff, plan_change, list_blindspots
+- full adds: analyze_change, find_owners, find_callees, find_implementations, trace_call_path, list_dead_code, list_hotspots
 
 ## Quickstart
 ```
-go install github.com/satyendrakumarsingh/repocortex/cmd/cortex@latest
+go install github.com/satyendrakumarsingh/repocortex/cmd/repocortex@latest
 cd your-project
-cortex init && cortex index && cortex resolve
-cortex install --rules
+repocortex init && repocortex index && repocortex resolve
+repocortex install --rules
 ```
 
 ## Key CLI commands
-- `cortex context "<task>"`: the files, symbols, callers and tests a task needs
-- `cortex callers <symbol>` / `cortex callees <symbol>`: call edges with confidence
-- `cortex impact --base <rev> --head <rev>`: blast radius of a commit range
-- `cortex rename <old> <new>`: rename that edits only sites it can defend
-- `cortex api` / `cortex db` / `cortex config` / `cortex events`: routes, tables, settings, queues
-- `cortex arch --fail-on high` / `cortex missed --fail-on high`: CI gates
-- `cortex compile "<task>"` then `cortex verify --contract <file>`: check an agent's change against its task
-- `cortex ui`: read-only local portal at http://localhost:7777
+- `repocortex context "<task>"`: the files, symbols, callers and tests a task needs
+- `repocortex callers <symbol>` / `repocortex callees <symbol>`: call edges with confidence
+- `repocortex impact --base <rev> --head <rev>`: blast radius of a commit range (tool: analyze_change)
+- `repocortex dead-code`: definitions nothing calls, graded likely or possible, checked against the source text
+- `repocortex hotspots`: files ranked by change frequency times size, with the files that change together
+- `repocortex path <from> <to>`: the shortest routes between two symbols, hop by hop
+- `repocortex tool list|describe|call`: every agent tool from the shell
+- `repocortex ui --next`: the redesigned portal, one page per symbol
+- `repocortex rename <old> <new>`: rename that edits only sites it can defend
+- `repocortex api` / `repocortex db` / `repocortex config` / `repocortex events`: routes, tables, settings, queues
+- `repocortex arch --fail-on high` / `repocortex blindspots --fail-on high`: CI gates
+- `repocortex compile "<task>"` then `repocortex verify --contract <file>`: check an agent's change against its task
+- `repocortex ui`: read-only local portal at http://localhost:7777
 
 ## Docs
 - [README](README.md)

@@ -1,6 +1,6 @@
 package cli
 
-// The coding agents `cortex install` can register RepoCortex with.
+// The coding agents `repocortex install` can register RepoCortex with.
 //
 // Each client stores its MCP servers in its own file and shape, so a client is
 // described by where its user-level config lives and which writer understands
@@ -177,7 +177,7 @@ func mcpClients(home, root string) []mcpClient {
 			DetectDirs: []string{filepath.Join(home, ".cline")}, DetectBins: []string{"cline"}, Docs: "https://docs.cline.bot/mcp/configuring-mcp-servers"},
 		{Name: "Codex CLI", Path: filepath.Join(codexHome(home), "config.toml"), Format: fmtCodexTOML,
 			DetectDirs: []string{codexHome(home)}, DetectBins: []string{"codex"}, Docs: "https://learn.chatgpt.com/docs/extend/mcp?surface=cli"},
-		{Name: "Continue (this project)", Path: filepath.Join(root, ".continue", "mcpServers", "cortex.yaml"), Format: fmtContinueYAML,
+		{Name: "Continue (this project)", Path: filepath.Join(root, ".continue", "mcpServers", "repocortex.yaml"), Format: fmtContinueYAML,
 			DetectDirs: []string{filepath.Join(root, ".continue"), filepath.Join(home, ".continue")}, Docs: "https://docs.continue.dev/customize/deep-dives/mcp"},
 		{Name: "Codebuff", Path: filepath.Join(home, ".agents", "mcp.json"), Format: fmtJSONMap, Key: "mcpServers", Entry: stdioEntry,
 			DetectBins: []string{"codebuff"}, Docs: "https://www.codebuff.com/docs/tips/mcp-servers"},
@@ -236,7 +236,7 @@ func mcpClients(home, root string) []mcpClient {
 }
 
 // manualClients are configured through their own CLI or UI. Their steps are
-// printed by `cortex agent` and `cortex install --list`.
+// printed by `repocortex agent` and `repocortex install --list`.
 func manualClients() []manualClient {
 	args := func(s agentServerSpec) string { return shellJoin(append([]string{s.Command}, s.Args...)) }
 	return []manualClient{

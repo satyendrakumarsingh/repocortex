@@ -59,7 +59,7 @@ func (r *Registry) FileSymbols(ctx context.Context, fileID int64) ([]EnclosingSy
 // resolver improves, must be safe.
 // Returns the number of edges that were actually INSERTED. That is not
 // len(edges): the statement is INSERT OR IGNORE, so an edge already present is
-// silently skipped, and reporting the input length made `cortex resolve`
+// silently skipped, and reporting the input length made `repocortex resolve`
 // claim 7,233 edges on a repository whose graph held 7,076 — the difference
 // being duplicates the caller had no way to know about.
 func (r *Registry) AddResolvedEdges(ctx context.Context, runID int64, edges []model.Edge) (int, error) {

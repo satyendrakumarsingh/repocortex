@@ -14,7 +14,7 @@ import (
 	"github.com/satyendrakumarsingh/repocortex/internal/store"
 )
 
-// runAccuracyCmd executes `cortex accuracy` against an isolated project root.
+// runAccuracyCmd executes `repocortex accuracy` against an isolated project root.
 //
 // It builds its own root rather than using NewRoot's, because the command tree
 // is assembled elsewhere and a test that waits for registration is a test that
@@ -24,7 +24,7 @@ func runAccuracyCmd(t *testing.T, projectRoot string, args ...string) (string, e
 	t.Helper()
 	g := &Global{}
 	root := &cobra.Command{
-		Use:               "cortex",
+		Use:               "repocortex",
 		SilenceUsage:      true,
 		SilenceErrors:     true,
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error { return g.setup(cmd) },
@@ -379,7 +379,7 @@ func TestAccuracyWithoutCompilerFactsMeasuresNothing(t *testing.T) {
 	if strings.Contains(out, "0.0%") {
 		t.Errorf("report prints a rate with no compiler facts behind it:\n%s", out)
 	}
-	if !strings.Contains(out, "cortex scip import") {
+	if !strings.Contains(out, "repocortex scip import") {
 		t.Errorf("report does not name the fix:\n%s", out)
 	}
 	// The languages table still renders: which languages exist and that NONE of
@@ -424,7 +424,7 @@ func TestAccuracyWithoutIndexNamesTheFix(t *testing.T) {
 	if err == nil {
 		t.Fatal("accuracy without an index should fail")
 	}
-	if !strings.Contains(err.Error(), "cortex init") {
+	if !strings.Contains(err.Error(), "repocortex init") {
 		t.Errorf("error %q does not name the fix", err)
 	}
 }

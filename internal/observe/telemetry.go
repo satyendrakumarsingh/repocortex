@@ -53,7 +53,7 @@ import (
 // ServiceName is the only identity RepoCortex reports. It is a constant, not the
 // binary name or the repository name, so that two different users' traces are
 // indistinguishable at the resource level.
-const ServiceName = "cortex"
+const ServiceName = "repocortex"
 
 // instrumentationScope names this package as the origin of spans and metrics.
 const instrumentationScope = "github.com/satyendrakumarsingh/repocortex/internal/observe"
@@ -187,7 +187,7 @@ var (
 
 // Enabled reports whether telemetry is currently active. Call sites should not
 // need this: StartSpan and the metric recorders are already free when off.
-// It exists for `cortex doctor` to report configuration back to the user.
+// It exists for `repocortex doctor` to report configuration back to the user.
 func Enabled() bool { return active.Load() != nil }
 
 // noopShutdown is returned when there is nothing to tear down.
@@ -209,7 +209,7 @@ var ErrShutdownTimeout = fmt.Errorf("telemetry shutdown exceeded its timeout: %w
 // nothing, allocates nothing meaningful and returns a shutdown that does
 // nothing. That is the default path, and it must stay cheap.
 //
-// The returned shutdown is idempotent and bounded. Spec §60: `cortex` exiting
+// The returned shutdown is idempotent and bounded. Spec §60: `repocortex` exiting
 // must not wait on a collector. See shutdownFunc.
 //
 // Call it once, during startup. A second Init replaces the installed providers

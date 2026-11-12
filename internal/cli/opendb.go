@@ -2,6 +2,7 @@ package cli
 
 import (
 	stdctx "context"
+	"database/sql"
 	"time"
 
 	"github.com/satyendrakumarsingh/repocortex/internal/store"
@@ -10,7 +11,7 @@ import (
 // openWritable opens the index for a command that may modify it, bringing the
 // schema up to date first.
 //
-// Migrations used to run only in `cortex init`. Every other command opened
+// Migrations used to run only in `repocortex init`. Every other command opened
 // the database and used it as-is, so upgrading the binary left existing users
 // on their old schema forever: new tables were missing and new indexes were
 // never created. The failure surfaced far from its cause — a raw
@@ -51,3 +52,8 @@ func openReadOnly(ctx stdctx.Context, path string) (*store.DB, error) {
 	}
 	return db, nil
 }
+
+// stdSQLNamed is sql.Named, kept here so query commands bind a named
+// parameter without importing database/sql themselves: this file is the one
+// door to the store in this package.
+func stdSQLNamed(name string, value any) any { return sql.Named(name, value) }

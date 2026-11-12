@@ -30,7 +30,7 @@ RepoCortex categorizes all graph relationships into four immutable tiers:
 
 To inspect your repository's measured precision and recall against your local toolchains:
 ```bash
-cortex accuracy
+repocortex accuracy
 ```
 
 ---
@@ -41,38 +41,38 @@ cortex accuracy
 
 **macOS / Linux:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/satyendrakumarsingh/cortex/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/satyendrakumarsingh/repocortex/main/install.sh | sh
 ```
 
 **Windows (PowerShell):**
 ```powershell
-Invoke-WebRequest -Uri https://raw.githubusercontent.com/satyendrakumarsingh/cortex/main/install.ps1 -OutFile install.ps1
+Invoke-WebRequest -Uri https://raw.githubusercontent.com/satyendrakumarsingh/repocortex/main/install.ps1 -OutFile install.ps1
 .\install.ps1
 ```
 
 ### Building From Source (Go 1.26+)
 ```bash
-git clone https://github.com/satyendrakumarsingh/cortex.git
-cd cortex
-go build -trimpath -ldflags="-s -w" -o cortex ./cmd/cortex
-sudo mv cortex /usr/local/bin/
+git clone https://github.com/satyendrakumarsingh/repocortex.git
+cd repocortex
+go build -trimpath -ldflags="-s -w" -o repocortex ./cmd/repocortex
+sudo mv repocortex /usr/local/bin/
 ```
 
 ### Initializing a Project
 
 From the root of your git repository:
 ```bash
-# 1. Initialize local configuration (.cortex.yml)
-cortex init
+# 1. Initialize local configuration (.repocortex.yml)
+repocortex init
 
 # 2. Build the structural index (scans source files and extracts definitions)
-cortex index
+repocortex index
 
 # 3. Resolve cross-file references and build the call graph
-cortex resolve
+repocortex resolve
 
 # 4. Verify graph integrity
-cortex doctor
+repocortex doctor
 ```
 
 Subsequent indexing runs are incremental: RepoCortex stores SHA-256 content hashes of files and re-indexes only files modified since the last run.
@@ -81,20 +81,20 @@ Subsequent indexing runs are incremental: RepoCortex stores SHA-256 content hash
 
 ## 4. CLI Reference & Key Capabilities
 
-### 4.1. Distributed Event Topology (`cortex events`)
+### 4.1. Distributed Event Topology (`repocortex events`)
 
 RepoCortex statically tracks asynchronous event producers and consumers across distributed message brokers:
 - **Supported Brokers**: Apache Kafka (Sarama, kafka-go, Spring Kafka, KafkaJS, kafka-python), RabbitMQ / AMQP, AWS SQS / SNS, and Google Cloud Pub/Sub.
 
 ```bash
 # List all discovered topics/queues across the repository
-cortex events
+repocortex events
 
 # Inspect producers and consumers for a specific topic
-cortex events topic payment.settled
+repocortex events topic payment.settled
 
 # Output machine-readable JSON
-cortex events --json
+repocortex events --json
 ```
 
 Example human output:
@@ -109,16 +109,16 @@ Topic: payment.settled [kafka]
     - NotificationHandler.HandleEvent (handlers/notify.ts:45) [high]
 ```
 
-### 4.2. Code Blindspots & Missed References (`cortex missed`)
+### 4.2. Code Blindspots & Missed References (`repocortex blindspots`)
 
-Static analysis frequently encounters dynamic dispatch, unmapped HTTP routes, orphan database tables, or critical paths lacking tests. `cortex missed` surfaces these blindspots before they cause production defects.
+Static analysis frequently encounters dynamic dispatch, unmapped HTTP routes, orphan database tables, or critical paths lacking tests. `repocortex blindspots` surfaces these blindspots before they cause production defects.
 
 ```bash
 # Run a blindspot audit across the repository
-cortex missed
+repocortex blindspots
 
 # Output formatted JSON for custom CI/CD parsing
-cortex missed --json
+repocortex blindspots --json
 ```
 
 Discovered categories:
@@ -127,16 +127,16 @@ Discovered categories:
 - `unmapped_endpoint`: Route handlers defined in code without client callers or framework contracts.
 - `orphan_table`: Database tables defined in schemas or migrations with zero code readers or writers.
 
-### 4.3. Deterministic Refactoring Plans (`cortex plan-change`)
+### 4.3. Deterministic Refactoring Plans (`repocortex plan-change`)
 
-Before refactoring a symbol or renaming a core function, `cortex plan-change` constructs an ordered, multi-step execution plan containing direct callers, affected tests, preconditions, and postconditions.
+Before refactoring a symbol or renaming a core function, `repocortex plan-change` constructs an ordered, multi-step execution plan containing direct callers, affected tests, preconditions, and postconditions.
 
 ```bash
 # Generate refactoring execution plan for a symbol
-cortex plan-change --symbol ProcessRefund
+repocortex plan-change --symbol ProcessRefund
 
 # Output JSON plan for automated agent execution
-cortex plan-change --symbol ProcessRefund --json
+repocortex plan-change --symbol ProcessRefund --json
 ```
 
 Example output:
@@ -155,35 +155,35 @@ Step 3 [update_def]: Refactor signature in services/billing.go:112
 Step 4 [verify_test]: Run covering test TestProcessRefundSuccess (services/billing_test.go:40)
 
 Postconditions:
-  - Run cortex doctor to ensure zero dangling reference edges
+  - Run repocortex doctor to ensure zero dangling reference edges
   - Run affected test suite
 ```
 
-### 4.4. AST Interface Pruning (`cortex prune`)
+### 4.4. AST Interface Pruning (`repocortex outline`)
 
-When AI agents read source files, up to 90% of tokens are consumed by implementation logic inside method bodies. `cortex prune` parses Go, Python, and TypeScript/JavaScript files and strips all function bodies, replacing them with concise stubs while preserving all type signatures, struct fields, interfaces, and docstrings.
+When AI agents read source files, up to 90% of tokens are consumed by implementation logic inside method bodies. `repocortex outline` parses Go, Python, and TypeScript/JavaScript files and strips all function bodies, replacing them with concise stubs while preserving all type signatures, struct fields, interfaces, and docstrings.
 
 ```bash
 # Print pruned AST interface to stdout
-cortex prune internal/store/sqlite.go
+repocortex outline internal/store/sqlite.go
 
 # Reduces a 1,200-line file (~12,000 tokens) to a 90-line interface (~900 tokens)
 ```
 
-### 4.5. Token-Efficient Diff Minimization (`cortex diff-minimize`)
+### 4.5. Token-Efficient Diff Minimization (`repocortex minimize-diff`)
 
-Standard git diffs contain excess context lines, whitespace noise, and redundant index headers. `cortex diff-minimize` parses patch streams into structured, token-efficient representations highlighting exact additions, removals, and symbol contexts.
+Standard git diffs contain excess context lines, whitespace noise, and redundant index headers. `repocortex minimize-diff` parses patch streams into structured, token-efficient representations highlighting exact additions, removals, and symbol contexts.
 
 ```bash
-git diff HEAD~1 | cortex diff-minimize
+git diff HEAD~1 | repocortex minimize-diff
 ```
 
-### 4.6. Task Context & Relevance Ranking (`cortex context`)
+### 4.6. Task Context & Relevance Ranking (`repocortex context`)
 
 Given a natural language task description, RepoCortex uses BM25 full-text scoring combined with AST dependency graph traversal to locate the exact transitive file set required for the task.
 
 ```bash
-cortex context "Add idempotency key validation to payment callback handler"
+repocortex context "Add idempotency key validation to payment callback handler"
 ```
 
 The context engine bridges domain concepts deterministically (e.g. mapping "credential leakage" to `redact.go` and `credentials_test.go`) without hallucination.
@@ -194,12 +194,12 @@ RepoCortex enforces architecture rules and prevents regressions through a two-ph
 
 1. **Compile**: Convert an engineering intent into a strict JSON contract:
    ```bash
-   cortex compile "Refactor auth middleware to use JWT tokens" --json > task-contract.json
+   repocortex compile "Refactor auth middleware to use JWT tokens" --json > task-contract.json
    ```
 2. **Work**: Engineer or AI agent makes changes.
 3. **Verify**: Evaluate git changes against the contract:
    ```bash
-   cortex verify --contract task-contract.json --changed "$(git diff --name-only | paste -sd, -)"
+   repocortex verify --contract task-contract.json --changed "$(git diff --name-only | paste -sd, -)"
    ```
 
 Exit Codes:
@@ -208,7 +208,7 @@ Exit Codes:
 - `1` (`fail`): At least one compiler-proven fact violation detected (e.g., breaking an architecture boundary or modifying an excluded file).
 - `2` (`unverified`): No index or contract data available to verify.
 
-### 4.8. Applying a Rename (`cortex rename`)
+### 4.8. Applying a Rename (`repocortex rename`)
 
 `plan-change` tells you what a rename touches; `rename` makes the edit, but only
 where it can prove every site.
@@ -216,30 +216,30 @@ where it can prove every site.
 1. **Dry run first** (the default). It lists every site with its confidence and
    every site that would block an apply:
    ```bash
-   cortex rename updateStatus applyStatus
+   repocortex rename updateStatus applyStatus
    ```
 2. **What blocks `--apply`.** It writes nothing, lists every failing site and
    exits `2` unless every site is `exact` (compiler-proven), unchanged since
    indexing, unambiguous on its line, inside the project root and writable, and
    the new name is not already defined in an edited file. On a project with no
    compiler index, every site is `high` and the rename is refused. Run
-   `cortex indexers install --yes` and `cortex scip import` to upgrade them
+   `repocortex indexers install --yes` and `repocortex scip import` to upgrade them
    to `exact`.
 3. **Opting into `high`.** `--floor high` also accepts an explicit import plus an
    unambiguous receiver type. That tier is measured 86.8-96.1% precise, so the
    command prints a warning first: at 90%, a rename touching thirty sites gets
    three wrong. Read every listed site.
    ```bash
-   cortex rename updateStatus applyStatus --floor high --apply
+   repocortex rename updateStatus applyStatus --floor high --apply
    ```
 4. **What `--apply` does.** Files are written atomically and restored if a later
-   write fails. A lock file, `.cortex-edit.lock`, exists at the project root
+   write fails. A lock file, `.repocortex-edit.lock`, exists at the project root
    only while the edit runs; if a crashed run left it behind, RepoCortex never
-   deletes it for you, and the error tells you to remove it once no cortex
+   deletes it for you, and the error tells you to remove it once no repocortex
    process is running. Then the task contract lands in
-   `.cortex/rename-contract.json` and `verify` runs automatically on the
+   `.repocortex/rename-contract.json` and `verify` runs automatically on the
    changed files. `verify` reads the **pre-rename index**, so run
-   `cortex index` afterwards.
+   `repocortex index` afterwards.
 5. **Exit codes.** `0` applied and verified; `1` error or verify failure; `2`
    refused, nothing written; `3` applied, but not verified complete: either
    `verify` was unverified, or the old name still appears in indexed files, which
@@ -262,8 +262,8 @@ Add RepoCortex to `~/Library/Application Support/Claude/claude_desktop_config.js
 ```json
 {
   "mcpServers": {
-    "cortex": {
-      "command": "cortex",
+    "repocortex": {
+      "command": "repocortex",
       "args": ["serve", "--project", "/path/to/your/repository"]
     }
   }
@@ -272,9 +272,9 @@ Add RepoCortex to `~/Library/Application Support/Claude/claude_desktop_config.js
 
 ### Cursor & Windsurf Configuration
 In Cursor or Windsurf MCP Settings:
-- **Name**: `cortex`
+- **Name**: `repocortex`
 - **Type**: `command`
-- **Command**: `cortex serve --project /path/to/your/repository`
+- **Command**: `repocortex serve --project /path/to/your/repository`
 
 ### Available MCP Tools
 
@@ -283,28 +283,28 @@ AI agents connected to RepoCortex gain access to:
 - `search_code` / `find_symbol` / `get_symbol`: Locate declarations with exact file, line, and kind.
 - `find_callers` / `find_references`: Retrieve incoming call edges and usage sites with confidence grades.
 - `get_task_context`: Obtain ranked file summaries and symbol graphs for a prompt.
-- `impact_analysis`: Calculate transitive impact (blast radius) and risk for a change.
+- `analyze_impact`: Calculate transitive impact (blast radius) and risk for a change.
 - `find_tests`: Find the tests that cover a symbol or file.
 - `plan_change`: Generate a step-by-step refactoring plan with preconditions and post-checks.
 - `plan_rename`: Enumerate every site a rename must touch.
-- `detect_blindspots`: Audit unresolved calls, unmapped endpoints, orphan tables and missing config.
+- `list_blindspots`: Audit unresolved calls, unmapped endpoints, orphan tables and missing config.
 - `get_file_outline`: Obtain a token-optimized outline (signatures, types, docs; bodies pruned) of a file.
 - `minimize_diff`: Compress unified git diffs into structured, token-efficient patch contexts.
-- `find_api_endpoints` / `find_db_access` / `get_config_key`: Query HTTP endpoints, database access and configuration keys.
-- `resolution_coverage`: Report how much of the call graph is resolved, so an empty result is not over-trusted.
+- `list_api_endpoints` / `list_db_tables` / `get_config_key`: Query HTTP endpoints, database access and configuration keys.
+- `get_resolution_coverage`: Report how much of the call graph is resolved, so an empty result is not over-trusted.
 
 Some tools need the `standard` profile; see [agent-integration.md](agent-integration.md).
-Event topology (`cortex events`) is available from the CLI and the portal, not as an MCP tool.
+Event topology (`repocortex events`) is available from the CLI and the portal, not as an MCP tool.
 
 ---
 
-## 6. Enterprise Interactive Dashboard (`cortex ui`)
+## 6. Enterprise Interactive Dashboard (`repocortex ui`)
 
 RepoCortex includes an embedded, high-performance web dashboard providing complete $N$-level visibility into your codebase architecture.
 
 To launch the portal:
 ```bash
-cortex ui
+repocortex ui
 ```
 By default, the server listens on loopback (`127.0.0.1`) on an ephemeral port and prints the access URL.
 
@@ -338,7 +338,7 @@ Clicking any symbol name anywhere in the application (in tables, graph nodes, ca
 
 RepoCortex can be integrated directly into your GitHub Actions workflow to fail pull requests that introduce architecture violations or high-severity blindspots (`--fail-on`, default `high`), and to publish what it found: a sticky pull-request comment, code-scanning alerts (SARIF) and the job summary. Reports are published before the gate runs, so a failing build still leaves the reviewer a comment and alerts that explain why.
 
-Create `.github/workflows/cortex-gate.yml` (the repository ships this exact file):
+Create `.github/workflows/repocortex-gate.yml` (the repository ships this exact file):
 ```yaml
 name: RepoCortex Change-Safety Gate
 
@@ -353,11 +353,11 @@ permissions:
 
 env:
   # Lowest blindspot / architecture severity that fails the build: high|medium|low.
-  CORTEX_FAIL_ON: high
+  REPOCORTEX_FAIL_ON: high
   # auto: install the pinned compiler-backed indexers this repository needs and
   # import their facts as `exact` before impact runs. fast: skip that stage; the
   # report stays heuristic and says so.
-  CORTEX_ACCURACY: auto
+  REPOCORTEX_ACCURACY: auto
 
 jobs:
   gate:
@@ -381,50 +381,50 @@ jobs:
           cache: true
 
       - name: Build RepoCortex
-        run: go build -trimpath -ldflags="-s -w" -o ./bin/cortex ./cmd/cortex
+        run: go build -trimpath -ldflags="-s -w" -o ./bin/repocortex ./cmd/repocortex
 
       # resolve is not optional: without it the index holds definitions but no
       # call graph, and every impact and blindspot result below would be empty
       # for the wrong reason.
       - name: Index and Resolve
         run: |
-          ./bin/cortex init
-          ./bin/cortex index
-          ./bin/cortex resolve
+          ./bin/repocortex init
+          ./bin/repocortex index
+          ./bin/repocortex resolve
 
       # The cache key is the pin table itself, so it changes exactly when a
       # pinned version or digest does.
       - name: Pin Compiler Indexers
-        if: env.CORTEX_ACCURACY == 'auto'
+        if: env.REPOCORTEX_ACCURACY == 'auto'
         run: |
-          mkdir -p cortex-out
-          ./bin/cortex indexers pins > cortex-out/indexer-pins.txt
+          mkdir -p repocortex-out
+          ./bin/repocortex indexers pins > repocortex-out/indexer-pins.txt
 
       # Only scip-go is cached: it is built by `go install` into GOPATH/bin,
       # which setup-go puts on PATH. npm and container indexers are fetched and
       # digest-verified on every run.
       - name: Cache Compiler Indexers
-        if: env.CORTEX_ACCURACY == 'auto'
+        if: env.REPOCORTEX_ACCURACY == 'auto'
         uses: actions/cache@v4
         with:
           path: ~/go/bin/scip-go
-          key: cortex-indexers-${{ runner.os }}-go${{ steps.setup-go.outputs.go-version }}-${{ hashFiles('cortex-out/indexer-pins.txt') }}
+          key: repocortex-indexers-${{ runner.os }}-go${{ steps.setup-go.outputs.go-version }}-${{ hashFiles('repocortex-out/indexer-pins.txt') }}
 
       # An accuracy upgrade, never a requirement: if an indexer is missing, blocked
       # or produces an index that will not import, the edges stay heuristic and the
       # report says so.
       - name: Import Compiler Facts
-        if: env.CORTEX_ACCURACY == 'auto'
+        if: env.REPOCORTEX_ACCURACY == 'auto'
         run: |
-          mkdir -p cortex-out
-          { ./bin/cortex indexers install --yes --out-dir cortex-out/scip 2>&1 \
+          mkdir -p repocortex-out
+          { ./bin/repocortex indexers install --yes --out-dir repocortex-out/scip 2>&1 \
               || echo "::warning::compiler indexers unavailable; the report uses heuristic edges"; } \
-            | tee cortex-out/indexers.txt
+            | tee repocortex-out/indexers.txt
           imported=0
           failed=0
-          for f in cortex-out/scip/*.scip; do
+          for f in repocortex-out/scip/*.scip; do
             [ -f "$f" ] || continue
-            if ./bin/cortex scip import "$f"; then
+            if ./bin/repocortex scip import "$f"; then
               imported=$((imported + 1))
             else
               echo "::warning::scip import of $(basename "$f") failed; its edges stay heuristic"
@@ -435,35 +435,35 @@ jobs:
             echo "### Compiler-backed precision"
             echo "imported: $imported, failed: $failed"
             echo '```'
-            cat cortex-out/indexers.txt
+            cat repocortex-out/indexers.txt
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Verify Index Integrity
-        run: ./bin/cortex doctor --verify-index
+        run: ./bin/repocortex doctor --verify-index
 
       # Reports are collected and published BEFORE the gate runs, so a failing
       # gate still leaves the reviewer a comment and code-scanning alerts that
       # say why.
       - name: Collect Findings
         run: |
-          mkdir -p cortex-out
-          ./bin/cortex --json arch > cortex-out/arch.json
-          ./bin/cortex --json missed > cortex-out/missed.json
+          mkdir -p repocortex-out
+          ./bin/repocortex --json arch > repocortex-out/arch.json
+          ./bin/repocortex --json blindspots > repocortex-out/missed.json
 
       - name: Impact Analysis of the Pull Request
         if: github.event_name == 'pull_request'
-        run: ./bin/cortex --json impact --base "origin/${{ github.base_ref }}" --head HEAD > cortex-out/impact.json
+        run: ./bin/repocortex --json impact --base "origin/${{ github.base_ref }}" --head HEAD > repocortex-out/impact.json
 
       - name: Render Reports
         run: |
-          ./bin/cortex report sarif --arch cortex-out/arch.json --missed cortex-out/missed.json --out cortex-out/cortex.sarif
-          if [ -f cortex-out/impact.json ]; then
-            ./bin/cortex report pr --impact cortex-out/impact.json --arch cortex-out/arch.json --missed cortex-out/missed.json --out cortex-out/pr-report.md
+          ./bin/repocortex report sarif --arch repocortex-out/arch.json --blindspots repocortex-out/missed.json --out repocortex-out/repocortex.sarif
+          if [ -f repocortex-out/impact.json ]; then
+            ./bin/repocortex report pr --impact repocortex-out/impact.json --arch repocortex-out/arch.json --blindspots repocortex-out/missed.json --out repocortex-out/pr-report.md
           else
-            ./bin/cortex report pr --arch cortex-out/arch.json --missed cortex-out/missed.json --out cortex-out/pr-report.md
+            ./bin/repocortex report pr --arch repocortex-out/arch.json --blindspots repocortex-out/missed.json --out repocortex-out/pr-report.md
           fi
-          cat cortex-out/pr-report.md >> "$GITHUB_STEP_SUMMARY"
+          cat repocortex-out/pr-report.md >> "$GITHUB_STEP_SUMMARY"
 
       # A fork pull request's token is read-only and cannot write security
       # events; the PR comment and step summary still carry the findings.
@@ -471,8 +471,8 @@ jobs:
         if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: cortex-out/cortex.sarif
-          category: cortex
+          sarif_file: repocortex-out/repocortex.sarif
+          category: repocortex
 
       # Same-repository pull requests only: a fork's token cannot write
       # comments, and this job never runs fork code with write permissions.
@@ -484,33 +484,33 @@ jobs:
           PR: ${{ github.event.pull_request.number }}
         run: |
           id=$(gh api "repos/$REPO/issues/$PR/comments" --paginate \
-            --jq '.[] | select(.body | contains("<!-- cortex:pr-report -->")) | .id' | head -n 1)
+            --jq '.[] | select(.body | contains("<!-- repocortex:pr-report -->")) | .id' | head -n 1)
           if [ -n "$id" ]; then
-            gh api -X PATCH "repos/$REPO/issues/comments/$id" -F body=@cortex-out/pr-report.md
+            gh api -X PATCH "repos/$REPO/issues/comments/$id" -F body=@repocortex-out/pr-report.md
           else
-            gh api -X POST "repos/$REPO/issues/$PR/comments" -F body=@cortex-out/pr-report.md
+            gh api -X POST "repos/$REPO/issues/$PR/comments" -F body=@repocortex-out/pr-report.md
           fi
 
       - name: Report Event Topology
-        run: ./bin/cortex events
+        run: ./bin/repocortex events
 
       - name: Enforce Architecture Rules
-        run: ./bin/cortex arch --fail-on "$CORTEX_FAIL_ON"
+        run: ./bin/repocortex arch --fail-on "$REPOCORTEX_FAIL_ON"
 
       - name: Audit Code Blindspots
-        run: ./bin/cortex missed --fail-on "$CORTEX_FAIL_ON"
+        run: ./bin/repocortex blindspots --fail-on "$REPOCORTEX_FAIL_ON"
 ```
 
-The `Collect Findings` step saves `cortex --json arch|missed|impact` output; `cortex report sarif` turns it into a SARIF 2.1.0 file uploaded to code scanning under the category `cortex`, and `cortex report pr` renders one bounded Markdown comment that starts with `<!-- cortex:pr-report -->`. That marker is how the workflow finds and edits its own comment on later pushes instead of adding a new one. The job needs `pull-requests: write` (the comment) and `security-events: write` (the SARIF upload); the workflow sets both on the job only. Pull requests from forks get neither the comment nor the code-scanning upload, because a fork's token is read-only; they still get the job summary and the gate. The blast-radius analysis runs only on pull requests, and none of the reporting steps fail the build -- the `Enforce` steps at the end do.
+The `Collect Findings` step saves `repocortex --json arch|missed|impact` output; `repocortex report sarif` turns it into a SARIF 2.1.0 file uploaded to code scanning under the category `repocortex`, and `repocortex report pr` renders one bounded Markdown comment that starts with `<!-- repocortex:pr-report -->`. That marker is how the workflow finds and edits its own comment on later pushes instead of adding a new one. The job needs `pull-requests: write` (the comment) and `security-events: write` (the SARIF upload); the workflow sets both on the job only. Pull requests from forks get neither the comment nor the code-scanning upload, because a fork's token is read-only; they still get the job summary and the gate. The blast-radius analysis runs only on pull requests, and none of the reporting steps fail the build -- the `Enforce` steps at the end do.
 
-**Compiler-backed precision.** With `CORTEX_ACCURACY: auto` (the default) the gate runs `cortex indexers install --yes --out-dir cortex-out/scip` after `resolve`, then `cortex scip import` on every index it produced, so `impact` walks compiler-proven `exact` edges wherever a compiler exists. `--yes` is the CI operator's consent to install the pinned indexers listed by `cortex indexers pins`; nothing else is installed, and every download is pinned and verified (by digest, or by the Go checksum database for scip-go). The runner needs the language's own toolchain — Go for scip-go (setup-go provides it), Node for scip-typescript and scip-python; a project whose toolchain is missing is skipped with its reason. Java is never built by this workflow. The stage is an accuracy upgrade, never a requirement, and it never fails the job: if an indexer is missing, blocked, or produces an index that will not import, the gate emits a `::warning::`, the edges stay heuristic, and the job summary gains a "Compiler-backed precision" section listing the imported and failed counts and each skipped language with its reason. scip-go is cached under a key derived from the pin table. Set `CORTEX_ACCURACY: fast` to skip the stage; the PR report then shows, in a "How much of the blast radius is proven" table, what share of the blast radius is `exact`, `high` and `medium` (interface-dispatch-only symbols are not counted). The step never passes `--allow-repo-build`, so fork pull requests, which run with a read-only token, execute only pinned, digest-verified indexers and never the repository's own build.
+**Compiler-backed precision.** With `REPOCORTEX_ACCURACY: auto` (the default) the gate runs `repocortex indexers install --yes --out-dir repocortex-out/scip` after `resolve`, then `repocortex scip import` on every index it produced, so `impact` walks compiler-proven `exact` edges wherever a compiler exists. `--yes` is the CI operator's consent to install the pinned indexers listed by `repocortex indexers pins`; nothing else is installed, and every download is pinned and verified (by digest, or by the Go checksum database for scip-go). The runner needs the language's own toolchain — Go for scip-go (setup-go provides it), Node for scip-typescript and scip-python; a project whose toolchain is missing is skipped with its reason. Java is never built by this workflow. The stage is an accuracy upgrade, never a requirement, and it never fails the job: if an indexer is missing, blocked, or produces an index that will not import, the gate emits a `::warning::`, the edges stay heuristic, and the job summary gains a "Compiler-backed precision" section listing the imported and failed counts and each skipped language with its reason. scip-go is cached under a key derived from the pin table. Set `REPOCORTEX_ACCURACY: fast` to skip the stage; the PR report then shows, in a "How much of the blast radius is proven" table, what share of the blast radius is `exact`, `high` and `medium` (interface-dispatch-only symbols are not counted). The step never passes `--allow-repo-build`, so fork pull requests, which run with a read-only token, execute only pinned, digest-verified indexers and never the repository's own build.
 
 ---
 
 ## 8. Summary & Best Practices
 
-1. **Keep the Index Fresh**: Add `cortex hooks install` to your development environment to automatically refresh the index on every git commit in 20 milliseconds without running background daemons.
-2. **Import Compiler Data in CI**: Place the compiler's `index.scip` in the project root (or `.cortex/`) before `cortex resolve`, which imports it automatically (`--no-scip` opts out), or run `cortex scip import` yourself, to upgrade heuristic edges to compiler-backed `exact` confidence.
+1. **Keep the Index Fresh**: Add `repocortex hooks install` to your development environment to automatically refresh the index on every git commit in 20 milliseconds without running background daemons.
+2. **Import Compiler Data in CI**: Place the compiler's `index.scip` in the project root (or `.repocortex/`) before `repocortex resolve`, which imports it automatically (`--no-scip` opts out), or run `repocortex scip import` yourself, to upgrade heuristic edges to compiler-backed `exact` confidence.
 3. **Trust `exact` and `high`, Verify `medium`**: Never allow AI coding agents or automated scripts to execute destructive refactoring operations on `medium` or `low` confidence edges without explicit human review.
 
 ---
@@ -524,26 +524,26 @@ RepoCortex delivers an end-to-end change-safety and code intelligence architectu
 - **Arity & Overload Resolution**: Parameter count queries (`paramCountQueries`) and call argument queries (`argCountQueries`) distinguish methods overloaded by parameter count in Java, C#, and TypeScript.
 - **Dynamic Arena Memory Management**: Automatically triggers parser pool memory draining upon encountering large generated files (>256 KiB), eliminating multi-gigabyte heap spikes during repository batch scans.
 
-### 9.2. Change Safety & Blast Radius Analytics (`cortex impact`, `cortex plan-change`)
+### 9.2. Change Safety & Blast Radius Analytics (`repocortex impact`, `repocortex plan-change`)
 - **Upstream & Downstream Traversal**: Answers both *"what does this function call?"* (downstream dependencies) and *"what in the entire enterprise depends on this function?"* (upstream blast radius).
 - **Hub Pruning**: Automatically prunes traversals across high-degree utility nodes (such as loggers, string formatters, and base object classes) to avoid exponential combinatorial explosions while explicitly reporting the cutoff boundary.
-- **Test Gap Detection (`cortex missed`)**: Proves whether modified code paths have verified test coverage or whether execution branches are blind to the testing suite.
+- **Test Gap Detection (`repocortex blindspots`)**: Proves whether modified code paths have verified test coverage or whether execution branches are blind to the testing suite.
 
-### 9.3. Safe Automated Refactoring (`cortex rename`)
+### 9.3. Safe Automated Refactoring (`repocortex rename`)
 - **Exact AST Identifier Splicing**: Matches identifiers strictly on AST node boundaries. Never confuses a symbol name with a comment, string literal, or substring token.
 - **Reversible Multi-File Rollback**: Takes an in-memory snapshot before modifying source code. If any file write fails or post-apply verification detects an orphaned call site, RepoCortex rolls back all files across the repository to their original state in reverse order.
 - **Leftover Occurrence Scanning**: Audits all files (including unindexed or binary files) post-rename to ensure no stale references to the old symbol persist.
 
-### 9.4. Architecture Governance & CI/CD Gates (`cortex arch`)
+### 9.4. Architecture Governance & CI/CD Gates (`repocortex arch`)
 - **Structural Boundary Enforcement**: Declaratively defines allowed import and call relationships between architectural layers (e.g. `domain` must never import `infrastructure` or `controller`).
 - **PR Gating & SARIF 2.1.0**: Generates standard SARIF code-scanning artifacts and sticky GitHub PR comments showing exact change risk and architectural compliance scores.
 
-### 9.5. Cross-Stack Distributed Topology (`cortex api`, `cortex db`, `cortex events`)
+### 9.5. Cross-Stack Distributed Topology (`repocortex api`, `repocortex db`, `repocortex events`)
 - **HTTP / REST Endpoints**: Statically discovers route handlers across Express, Spring Boot, Gin, FastAPI, NestJS, and ASP.NET.
 - **Database Access Maps**: Maps database tables, ORM models (Prisma, GORM, Hibernate, SQLAlchemy), and raw SQL queries to identifying calling methods.
 - **Distributed Event Topologies**: Extracts producer and consumer queues across Apache Kafka, RabbitMQ, AWS SQS/SNS, and Google Cloud Pub/Sub.
 
-### 9.6. AI Coding Agent MCP Server (`cortex serve`, `cortex install`)
+### 9.6. AI Coding Agent MCP Server (`repocortex serve`, `repocortex install`)
 - **Compact Subgraph Extraction**: Delivers targeted subgraphs and pruned signatures instead of raw file dumps, saving up to 85% of LLM token windows.
 - **Confidence Advisory Notices**: Automatically attaches warning notes when query results contain heuristic (`medium` or `low`) edges, preventing autonomous agents from acting on hallucinatory call chains.
 
@@ -597,7 +597,7 @@ Rather than evaluating specific vendor brands, the following analysis benchmarks
 * **Limitations Compared to RepoCortex**:
   - **Brittle Setup Requirements**: Require every compiler, SDK, private registry credential, and native dependency to be fully configured on the host. If a build fails, zero index is produced.
   - **Static / Non-Queryable**: Output static dump files that cannot be dynamically traversed, queried for blast radius, or updated incrementally on file save.
-* **Where RepoCortex Excels**: RepoCortex provides zero-setup Tree-Sitter heuristic indexing out of the box, with optional seamless SCIP compiler enrichment (`cortex scip import`). If a compiler is missing, RepoCortex still delivers an 87%+ accurate graph.
+* **Where RepoCortex Excels**: RepoCortex provides zero-setup Tree-Sitter heuristic indexing out of the box, with optional seamless SCIP compiler enrichment (`repocortex scip import`). If a compiler is missing, RepoCortex still delivers an 87%+ accurate graph.
 
 #### Category 5: Fast Regex / Text Greppers (ripgrep, ag, ctags)
 * **How They Work**: Execute optimized parallel string and regular expression searches across file trees.

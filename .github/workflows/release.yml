@@ -82,41 +82,41 @@ jobs:
 
           echo "==> Building darwin/amd64"
           mkdir -p dist/darwin_amd64
-          CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags "$ldflags" -o dist/darwin_amd64/cortex ./cmd/cortex
+          CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags "$ldflags" -o dist/darwin_amd64/repocortex ./cmd/repocortex
           cp LICENSE NOTICE README.md dist/darwin_amd64/
-          tar -czf "dist/cortex_${VERSION}_darwin_amd64.tar.gz" -C dist/darwin_amd64 cortex LICENSE NOTICE README.md
+          tar -czf "dist/repocortex_${VERSION}_darwin_amd64.tar.gz" -C dist/darwin_amd64 repocortex LICENSE NOTICE README.md
 
           echo "==> Building darwin/arm64"
           mkdir -p dist/darwin_arm64
-          CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags "$ldflags" -o dist/darwin_arm64/cortex ./cmd/cortex
+          CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags "$ldflags" -o dist/darwin_arm64/repocortex ./cmd/repocortex
           cp LICENSE NOTICE README.md dist/darwin_arm64/
-          tar -czf "dist/cortex_${VERSION}_darwin_arm64.tar.gz" -C dist/darwin_arm64 cortex LICENSE NOTICE README.md
+          tar -czf "dist/repocortex_${VERSION}_darwin_arm64.tar.gz" -C dist/darwin_arm64 repocortex LICENSE NOTICE README.md
 
-          echo "==> Creating universal macOS binary (cortex-mac.zip)"
+          echo "==> Creating universal macOS binary (repocortex-mac.zip)"
           sudo apt-get update && sudo apt-get install -y llvm zip
           mkdir -p dist/universal_mac
-          llvm-lipo -create -output dist/universal_mac/cortex dist/darwin_amd64/cortex dist/darwin_arm64/cortex
+          llvm-lipo -create -output dist/universal_mac/repocortex dist/darwin_amd64/repocortex dist/darwin_arm64/repocortex
           cp LICENSE NOTICE README.md dist/universal_mac/
-          (cd dist/universal_mac && zip -qr "../cortex-mac.zip" cortex LICENSE NOTICE README.md)
+          (cd dist/universal_mac && zip -qr "../repocortex-mac.zip" repocortex LICENSE NOTICE README.md)
 
           echo "==> Building linux/amd64"
           mkdir -p dist/linux_amd64
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "$ldflags" -o dist/linux_amd64/cortex ./cmd/cortex
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "$ldflags" -o dist/linux_amd64/repocortex ./cmd/repocortex
           cp LICENSE NOTICE README.md dist/linux_amd64/
-          tar -czf "dist/cortex_${VERSION}_linux_amd64.tar.gz" -C dist/linux_amd64 cortex LICENSE NOTICE README.md
+          tar -czf "dist/repocortex_${VERSION}_linux_amd64.tar.gz" -C dist/linux_amd64 repocortex LICENSE NOTICE README.md
 
           echo "==> Building linux/arm64"
           mkdir -p dist/linux_arm64
-          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags "$ldflags" -o dist/linux_arm64/cortex ./cmd/cortex
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags "$ldflags" -o dist/linux_arm64/repocortex ./cmd/repocortex
           cp LICENSE NOTICE README.md dist/linux_arm64/
-          tar -czf "dist/cortex_${VERSION}_linux_arm64.tar.gz" -C dist/linux_arm64 cortex LICENSE NOTICE README.md
+          tar -czf "dist/repocortex_${VERSION}_linux_arm64.tar.gz" -C dist/linux_arm64 repocortex LICENSE NOTICE README.md
 
           echo "==> Building windows/amd64"
           mkdir -p dist/windows_amd64
-          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "$ldflags" -o dist/windows_amd64/cortex.exe ./cmd/cortex
+          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "$ldflags" -o dist/windows_amd64/repocortex.exe ./cmd/repocortex
           cp LICENSE NOTICE README.md dist/windows_amd64/
-          (cd dist/windows_amd64 && zip -qr "../cortex_${VERSION}_windows_amd64.zip" cortex.exe LICENSE NOTICE README.md)
-          cp dist/windows_amd64/cortex.exe dist/cortex.exe
+          (cd dist/windows_amd64 && zip -qr "../repocortex_${VERSION}_windows_amd64.zip" repocortex.exe LICENSE NOTICE README.md)
+          cp dist/windows_amd64/repocortex.exe dist/repocortex.exe
 
           rm -rf dist/darwin_amd64 dist/darwin_arm64 dist/universal_mac dist/linux_amd64 dist/linux_arm64 dist/windows_amd64
 
@@ -131,11 +131,11 @@ jobs:
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: cortex-release-${{ steps.vars.outputs.version }}
+          name: repocortex-release-${{ steps.vars.outputs.version }}
           path: |
             dist/*.tar.gz
             dist/*.zip
-            dist/cortex.exe
+            dist/repocortex.exe
             dist/SHA256SUMS
           if-no-files-found: error
 
@@ -150,7 +150,7 @@ jobs:
           files: |
             dist/*.tar.gz
             dist/*.zip
-            dist/cortex.exe
+            dist/repocortex.exe
             dist/SHA256SUMS
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

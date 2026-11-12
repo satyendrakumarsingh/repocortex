@@ -40,7 +40,7 @@ import (
 // # Read-only, and no git
 //
 // The change set arrives in the query string. This package shells out to
-// nothing and runs no `git diff`, exactly as `cortex verify` refuses to:
+// nothing and runs no `git diff`, exactly as `repocortex verify` refuses to:
 // a verifier that discovered its own change set would silently disagree with
 // the caller about staged, unstaged and untracked files.
 
@@ -240,7 +240,7 @@ func (s *Server) handleVerify(w http.ResponseWriter, r *http.Request) {
 			Steps: []string{
 				"Enter the same task text you compiled the contract from.",
 				"Paste the changed paths: git diff --name-only",
-				"cortex verify --contract contract.json --changed $(git diff --name-only | paste -sd, -)",
+				"repocortex verify --contract contract.json --changed $(git diff --name-only | paste -sd, -)",
 			},
 		}
 		s.writeJSON(w, http.StatusOK, resp)
@@ -263,8 +263,8 @@ func (s *Server) handleVerify(w http.ResponseWriter, r *http.Request) {
 		resp.Status = VerifyUnavailable
 		resp.Help = &Guidance{
 			Title:  "This build cannot compile the contract to verify against",
-			Detail: "The context-pack port is not wired in this server. `cortex verify` on the command line has the same sources.",
-			Steps:  []string{"cortex verify --contract contract.json --changed <paths>"},
+			Detail: "The context-pack port is not wired in this server. `repocortex verify` on the command line has the same sources.",
+			Steps:  []string{"repocortex verify --contract contract.json --changed <paths>"},
 		}
 		s.writeJSON(w, http.StatusOK, resp)
 		return
@@ -351,7 +351,7 @@ func (s *Server) handleVerify(w http.ResponseWriter, r *http.Request) {
 		om.Note(ReasonOutsideDeclaredComponents,
 			"No architecture rule was evaluated for this change. That is NOT 'no rule was broken' — it is "+
 				"'no rule was checked', and the two must not render alike.",
-			"declare components in .cortex.yml")
+			"declare components in .repocortex.yml")
 	}
 	for _, q := range rep.Questions {
 		if q.Asked && !q.Answered {
@@ -372,7 +372,7 @@ func (s *Server) handleVerify(w http.ResponseWriter, r *http.Request) {
 		resp.Next = NextAction{
 			Label:  fmt.Sprintf("%d fact(s) block this change", rep.Facts()),
 			Detail: "Every fact rests on a compiler-proven relationship or on something directly observed. Fix them, then re-run.",
-			Command: "cortex verify --contract contract.json --changed " +
+			Command: "repocortex verify --contract contract.json --changed " +
 				truncateIntent(strings.Join(changed, ",")),
 		}
 	case verify.DispositionAdvisory:
@@ -380,7 +380,7 @@ func (s *Server) handleVerify(w http.ResponseWriter, r *http.Request) {
 			Label: fmt.Sprintf("%d lead(s) to read, none blocking", rep.Leads()),
 			Detail: "A lead rests on a relationship inferred from names, measured below 37.5% precision. Worth a look; not worth " +
 				"failing a build on, which is why this exits 0.",
-			Command: "cortex verify --fail-on-leads --contract contract.json --changed <paths>",
+			Command: "repocortex verify --fail-on-leads --contract contract.json --changed <paths>",
 		}
 	case verify.DispositionUnverified:
 		detail := "The contract declared no scope, no exclusions, no blast radius and no tests. " +
@@ -395,13 +395,13 @@ func (s *Server) handleVerify(w http.ResponseWriter, r *http.Request) {
 			Label:   "Nothing about this change was checked — this is not a pass",
 			Detail:  detail,
 			Screen:  "contract",
-			Command: "cortex compile \"" + truncateIntent(intent) + "\"",
+			Command: "repocortex compile \"" + truncateIntent(intent) + "\"",
 		}
 	default:
 		resp.Next = NextAction{
 			Label:   "Wire this into CI",
 			Detail:  fmt.Sprintf("Every question was asked over %d changed file(s) and none produced a finding.", len(changed)),
-			Command: "cortex verify --contract contract.json --changed $(git diff --name-only | paste -sd, -)",
+			Command: "repocortex verify --contract contract.json --changed $(git diff --name-only | paste -sd, -)",
 		}
 	}
 

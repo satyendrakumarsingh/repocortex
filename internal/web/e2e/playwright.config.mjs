@@ -3,7 +3,7 @@ import { defineConfig } from '@playwright/test';
 /*
   One command runs everything:   npm --prefix internal/web/e2e test
 
-  globalSetup builds cmd/cortex and starts one portal per fixture repository;
+  globalSetup builds cmd/repocortex and starts one portal per fixture repository;
   globalTeardown stops only the processes it started. Nothing here touches a
   port the developer already has open.
 */

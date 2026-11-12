@@ -252,7 +252,7 @@ func TestAccuracyWithoutACompilerIndexGuidesRatherThanBlanks(t *testing.T) {
 	if !strings.Contains(got.Help.Title, "No compiler index") {
 		t.Errorf("guidance title = %q, want it to name the missing compiler index", got.Help.Title)
 	}
-	if len(got.Help.Steps) == 0 || !strings.Contains(strings.Join(got.Help.Steps, "\n"), "cortex scip import") {
+	if len(got.Help.Steps) == 0 || !strings.Contains(strings.Join(got.Help.Steps, "\n"), "repocortex scip import") {
 		t.Errorf("guidance does not name the command that populates the screen: %+v", got.Help.Steps)
 	}
 
@@ -343,7 +343,7 @@ func TestAccuracyOnAnUnindexedStoreAnswersWithGuidance(t *testing.T) {
 // captest cannot build one: its symbol_references carry no start_line, so no
 // parsed call site can ever coincide with a compiler-resolved line and the
 // recall denominator is empty by construction. The rows are therefore seeded
-// directly, in the shape `cortex accuracy`'s own fixture uses — which is what
+// directly, in the shape `repocortex accuracy`'s own fixture uses — which is what
 // makes the numbers below comparable to the ones the terminal prints.
 //
 //	101-105  high   → right
@@ -610,7 +610,7 @@ func TestAccuracyFallsBackToPrecisionForARegistryThatCannotAdjudicate(t *testing
 	if got.Help == nil || !strings.Contains(got.Help.Detail, "RECALL") {
 		t.Fatalf("guidance does not name the withheld half: %+v", got.Help)
 	}
-	if !strings.Contains(strings.Join(got.Help.Steps, "\n"), "cortex accuracy") {
+	if !strings.Contains(strings.Join(got.Help.Steps, "\n"), "repocortex accuracy") {
 		t.Errorf("guidance does not name the command that produces recall: %+v", got.Help.Steps)
 	}
 

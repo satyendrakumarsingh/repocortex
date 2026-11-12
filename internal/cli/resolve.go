@@ -41,7 +41,7 @@ SCIP indexes.`,
 
 			dbPath := g.DBPath()
 			if _, err := os.Stat(dbPath); errors.Is(err, os.ErrNotExist) {
-				return fmt.Errorf("no index at %s — run 'cortex init' first", dbPath)
+				return fmt.Errorf("no index at %s — run 'repocortex init' first", dbPath)
 			}
 			db, err := openWritable(ctx, g, dbPath)
 			if err != nil {
@@ -57,7 +57,7 @@ SCIP indexes.`,
 				// users to re-run indexing when the real problem was a held
 				// lock, which indexing would also hit.
 				if errors.Is(err, registry.ErrNoCommittedRun) {
-					return fmt.Errorf("no committed index — run 'cortex index' first")
+					return fmt.Errorf("no committed index — run 'repocortex index' first")
 				}
 				return fmt.Errorf("read current index revision: %w", err)
 			}
@@ -99,7 +99,7 @@ SCIP indexes.`,
 				return err
 			}
 
-			// SCIP auto-discovery: an index.scip in the project root or .cortex/
+			// SCIP auto-discovery: an index.scip in the project root or .repocortex/
 			// upgrades heuristic edges to 'exact'. The outcome is always reported,
 			// including failure, because a skipped upgrade is otherwise
 			// indistinguishable from "no SCIP index was present".
@@ -194,7 +194,7 @@ SCIP indexes.`,
 					// The finding that catches a deployment failing at start-up:
 					// code reads a setting no committed file provides.
 					fmt.Fprintf(out, "    %d read(s) name keys no configuration file here declares "+
-						"— see 'cortex config'\n", cfgUse.Unbound)
+						"— see 'repocortex config'\n", cfgUse.Unbound)
 				}
 			}
 			if infra.Units > 0 {
@@ -211,7 +211,7 @@ SCIP indexes.`,
 				}
 				if infra.Ambiguous > 0 {
 					fmt.Fprintf(out, "    %d endpoint(s) matched more than one unit and were left unbound "+
-						"— see 'cortex infra'\n", infra.Ambiguous)
+						"— see 'repocortex infra'\n", infra.Ambiguous)
 				}
 			}
 			scipOut.render(out)
@@ -220,7 +220,7 @@ SCIP indexes.`,
 		},
 	}
 	cmd.Flags().StringVar(&minConfidence, "min-confidence", "", "drop bindings weaker than: high|medium|low")
-	cmd.Flags().BoolVar(&noSCIP, "no-scip", false, "do not import an index.scip found in the project root or .cortex/")
+	cmd.Flags().BoolVar(&noSCIP, "no-scip", false, "do not import an index.scip found in the project root or .repocortex/")
 	return cmd
 }
 
@@ -255,7 +255,7 @@ func (o scipAutoOutcome) render(out io.Writer) {
 		return
 	case o.Err != nil:
 		fmt.Fprintf(out, "  SCIP:        %s found but NOT imported: %v\n", o.Path, o.Err)
-		fmt.Fprintf(out, "    edges were not upgraded to exact; fix the index or run 'cortex scip import %s'\n", o.Path)
+		fmt.Fprintf(out, "    edges were not upgraded to exact; fix the index or run 'repocortex scip import %s'\n", o.Path)
 	default:
 		fmt.Fprintf(out, "  SCIP:        imported %s (%s): %d edge(s) upgraded to exact, %d call(s) promoted\n",
 			o.Path, o.Tool, o.Upgraded, o.Promoted)
@@ -268,7 +268,7 @@ func (o scipAutoOutcome) render(out io.Writer) {
 func autoImportSCIP(ctx context.Context, g *Global, reg *registry.Registry, runID int64, repoRoot string) scipAutoOutcome {
 	for _, candidate := range []string{
 		filepath.Join(repoRoot, "index.scip"),
-		filepath.Join(repoRoot, ".cortex", "index.scip"),
+		filepath.Join(repoRoot, ".repocortex", "index.scip"),
 	} {
 		fi, err := os.Stat(candidate)
 		if err != nil || fi.IsDir() || fi.Size() == 0 {

@@ -15,7 +15,7 @@
 # the task and is genuinely irrelevant to it. Those are the entries that fail
 # when ranking regresses.
 #
-# Run with:  cortex index && cortex resolve && cortex bench fixtures/bench/self.yml
+# Run with:  repocortex index && repocortex resolve && repocortex bench fixtures/bench/self.yml
 #
 # NOTE: run this against an index of THIS repository. Running it against another
 # project's index reports failures that are only a missing corpus — the stale

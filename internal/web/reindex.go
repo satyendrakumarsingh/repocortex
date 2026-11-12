@@ -117,7 +117,7 @@ func (f ReindexFunc) Reindex(ctx context.Context) (ReindexResult, error) { retur
 //
 // Off by default, and deliberately so: it is the only route that writes, and a
 // portal that can rebuild an index is a portal a hostile page would like to
-// reach. `cortex ui --allow-refresh` is the operator saying yes.
+// reach. `repocortex ui --allow-refresh` is the operator saying yes.
 func WithReindexer(r Reindexer) Option {
 	return func(s *Server) { s.reindexer = r }
 }
@@ -270,7 +270,7 @@ func (s *Server) reindexState() RefreshState {
 			Enabled: false,
 			Detail: "This portal cannot rebuild the index. It is read-only by default; " +
 				"start it with --allow-refresh to enable this, or run the command yourself.",
-			Command: "cortex index && cortex resolve",
+			Command: "repocortex index && repocortex resolve",
 		}
 	}
 	running, last := s.reindexes.snapshot()
@@ -352,7 +352,7 @@ func (s *Server) commitHookState() CommitHookState {
 		st.Detail = "A post-commit hook rebuilds this index after every commit on this machine."
 	} else {
 		st.Detail = "No commit hook is installed, so this index is only as current as the last time it was built."
-		st.Command = "cortex hooks install"
+		st.Command = "repocortex hooks install"
 	}
 	return st
 }

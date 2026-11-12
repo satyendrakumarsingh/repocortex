@@ -10,7 +10,7 @@ import (
 
 func callsEdges(t *testing.T, root string) int {
 	t.Helper()
-	db, err := sql.Open("sqlite", filepath.Join(root, ".cortex", "index.db")+"?_pragma=busy_timeout(5000)")
+	db, err := sql.Open("sqlite", filepath.Join(root, ".repocortex", "index.db")+"?_pragma=busy_timeout(5000)")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +60,7 @@ func writeCallerCallee(t *testing.T, root string) (callee string) {
 // missing until a full re-index.
 //
 // Editing a definition therefore deleted its callers' edges, permanently and
-// without a symptom. `cortex callers` returned nothing, and `cortex arch`
+// without a symptom. `repocortex callers` returned nothing, and `repocortex arch`
 // reported "No violations" on a repo whose forbidden dependency was still
 // there — a false clean bill of health, which is the one governance failure
 // nobody investigates.
@@ -132,7 +132,7 @@ func TestResolveRepairsOrphanedReferences(t *testing.T) {
 		t.Fatal("setup failed — no CALLS edge to lose")
 	}
 
-	dbPath := filepath.Join(root, ".cortex", "index.db")
+	dbPath := filepath.Join(root, ".repocortex", "index.db")
 	db, err := sql.Open("sqlite", dbPath+"?_pragma=busy_timeout(5000)")
 	if err != nil {
 		t.Fatal(err)

@@ -204,7 +204,7 @@ func checkEnvKey(t *testing.T, k EnvKey, lines int, src, path string) {
 // The KEY is fuzzed and the VALUE is a fixed sentinel, planted on the right of
 // the delimiter in each format. Whatever the fuzzer does to the key, the
 // sentinel must never appear in the serialised result — which is the exact
-// claim `cortex infra` makes to its users, tested rather than asserted.
+// claim `repocortex infra` makes to its users, tested rather than asserted.
 //
 // The key is filtered to characters that cannot restructure the document, so
 // the fuzzer explores name handling without being able to move the sentinel to

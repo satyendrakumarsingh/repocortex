@@ -26,13 +26,13 @@
 // (currently four). Set `-timeout` accordingly — Go's default 10m test timeout
 // will kill anything longer.
 //
-// Flags, each with a `CORTEX_SOAK_*` environment variable equivalent so CI
+// Flags, each with a `REPOCORTEX_SOAK_*` environment variable equivalent so CI
 // can configure a run without rewriting the command line:
 //
-//	-soak.duration   per-test budget                (CORTEX_SOAK_DURATION, default 30s)
-//	-soak.files      synthetic repository size      (CORTEX_SOAK_FILES,    default 200)
-//	-soak.interval   pause between mutations        (CORTEX_SOAK_INTERVAL, default 3ms)
-//	-soak.seed       mutation stream seed           (CORTEX_SOAK_SEED,     default 1)
+//	-soak.duration   per-test budget                (REPOCORTEX_SOAK_DURATION, default 30s)
+//	-soak.files      synthetic repository size      (REPOCORTEX_SOAK_FILES,    default 200)
+//	-soak.interval   pause between mutations        (REPOCORTEX_SOAK_INTERVAL, default 3ms)
+//	-soak.seed       mutation stream seed           (REPOCORTEX_SOAK_SEED,     default 1)
 //
 // Run with `-v`. Every test logs a resource report — sampled goroutine counts,
 // heap trend, iterations, events — because a soak test whose only output is

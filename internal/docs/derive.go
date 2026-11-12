@@ -39,7 +39,7 @@ func WithLimits(l Limits) Option {
 //
 // It exists so the component section can cite something. A component's evidence
 // is not a file in the repository — it is the line somebody wrote in
-// .cortex.yml — and a component node with no citation would be the one node in
+// .repocortex.yml — and a component node with no citation would be the one node in
 // the document a reader could not check.
 func WithConfigPath(path string) Option {
 	return func(g *Generator) error {
@@ -52,7 +52,7 @@ func WithConfigPath(path string) Option {
 }
 
 // DefaultConfigPath is where RepoCortex reads a repository's declarations from.
-const DefaultConfigPath = ".cortex.yml"
+const DefaultConfigPath = ".repocortex.yml"
 
 // New returns a Generator reading through reg.
 func New(reg Registry, opts ...Option) (*Generator, error) {

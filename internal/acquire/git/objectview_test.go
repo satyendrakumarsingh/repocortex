@@ -157,7 +157,7 @@ func TestPooledWalkIsRepeatable(t *testing.T) {
 // count-objects -v` reports `packs: 0` — and everything below then skips. A
 // fresh clone is packed, so CI exercises these; a long-lived development
 // checkout may not, and this is how its owner points the tests at one that is.
-const packedRepoEnv = "CORTEX_TEST_PACKED_REPO"
+const packedRepoEnv = "REPOCORTEX_TEST_PACKED_REPO"
 
 // packedRepo opens the git worktree this test binary is running inside (or the
 // one packedRepoEnv names), and skips unless its objects are actually PACKED.

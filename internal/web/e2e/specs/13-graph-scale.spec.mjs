@@ -37,7 +37,7 @@ import { startPortal, stopPid } from '../support/servers.mjs';
 */
 
 // The scale fixture is whichever one carries a scale budget. Under
-// CORTEX_E2E_TIER=ci none does, and every test here is skipped by that
+// REPOCORTEX_E2E_TIER=ci none does, and every test here is skipped by that
 // absence rather than by the fixture's name.
 const repo = Object.values(REPOS).find((r) => r.coldGraphBudgetMs !== undefined);
 const GRAPH = '?s=graph';

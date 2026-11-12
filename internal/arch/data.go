@@ -44,7 +44,7 @@ const (
 )
 
 // Bounds on the data model, for the same reason as the component bounds: this
-// arrives in the repository's own .cortex.yml and is untrusted.
+// arrives in the repository's own .repocortex.yml and is untrusted.
 //
 // maxTableNameBytes is far above any real identifier — Postgres truncates at 63
 // bytes, Oracle at 128 — and exists so a hostile symbol name cannot make glob

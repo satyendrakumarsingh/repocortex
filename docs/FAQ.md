@@ -75,7 +75,7 @@ So every relationship query that finds nothing reports the index's measured
 resolution coverage instead of a bare empty list:
 
 ```
-$ cortex callees profileTools
+$ repocortex callees profileTools
 profileTools (function) at internal/mcp/server.go:129
 
 No callees found.
@@ -126,9 +126,9 @@ confidence system exists to prevent. Compiler output is the only input RepoCorte
 accepts as proof, and `internal/resolve/scip` is the only package permitted to
 produce `exact` edges.
 
-The determinism is load-bearing elsewhere too: `cortex diff` is only meaningful
+The determinism is load-bearing elsewhere too: `repocortex diff` is only meaningful
 because two index runs over the same tree are byte-identical, and
-`cortex docs --check` can only gate CI because the generated documents are
+`repocortex docs --check` can only gate CI because the generated documents are
 reproducible. Neither works on top of a non-deterministic pass.
 
 See [NON-GOALS.md](NON-GOALS.md#it-does-not-use-a-model-as-a-resolver).
@@ -221,7 +221,7 @@ way out. The error modes there are treated as asymmetric on purpose: a false
 positive costs a line of context, a false negative ships a live credential to a
 provider's logs and no release fixes that.
 
-`cortex config` is the sharpest expression of the same rule. It reports which
+`repocortex config` is the sharpest expression of the same rule. It reports which
 configuration keys exist and who reads them, and **never reads a value at all** —
 not masked, not truncated. A data structure with nowhere to put a value cannot
 leak one, which is a stronger guarantee than a redaction list that can be wrong
@@ -232,14 +232,14 @@ about a key nobody anticipated.
 No, and this is enforced structurally rather than by convention.
 
 RepoCortex reads two config files with deliberately different trust levels.
-`.cortex.yml` lives in the repository, is therefore untrusted, and controls
-*what gets indexed*. `~/.config/cortex/config.yml` is yours alone and controls
+`.repocortex.yml` lives in the repository, is therefore untrusted, and controls
+*what gets indexed*. `~/.config/repocortex/config.yml` is yours alone and controls
 *what gets executed* — accuracy mode, whether indexers may be provisioned, and
 whether they run natively or in Docker.
 
 The split exists because compiler-backed indexing runs build systems, and
 Maven/Gradle plugins execute arbitrary code by design. If a repository could
-name the indexer to run, `git clone && cortex index` on a hostile repo would
+name the indexer to run, `git clone && repocortex index` on a hostile repo would
 be remote code execution. So repository config **structurally cannot express**
 execution settings: the fields do not exist on the type, and unknown keys are a
 parse error rather than a silently ignored setting. `TestRepoCannotSetExecutionSettings`
@@ -284,7 +284,7 @@ Every run records the build that wrote it. Query with a different build and you
 get, on stderr, before the answer:
 
 ```
-level=WARN msg="This index was written by cortex dev and you are running
+level=WARN msg="This index was written by repocortex dev and you are running
 9.9.9-test. Resolution rules change between builds, so these results may come
 from different rules than this binary would produce. Re-index to refresh."
 ```
@@ -305,7 +305,7 @@ A **schema** mismatch is a different matter and does fail, because the reader
 cannot safely interpret the rows:
 
 ```
-error: index schema is v7 but this build of cortex expects v8 — run 'cortex index' to upgrade it
+error: index schema is v7 but this build of repocortex expects v8 — run 'repocortex index' to upgrade it
 ```
 
 ## What is the difference between `search`, `symbol`, `references` and `callers`?
@@ -342,27 +342,27 @@ Indexing extracts references but cannot bind them: binding needs the complete
 symbol table, which does not exist until every file has been parsed. A file
 parsed first cannot resolve a call to a symbol defined in a file parsed last.
 
-Two practical consequences. `cortex index --full` **discards resolved edges** —
+Two practical consequences. `repocortex index --full` **discards resolved edges** —
 the flag's own help says so — and you must re-run `resolve` after it; a plain
-incremental `cortex index` does not. And until you have run `resolve` once,
+incremental `repocortex index` does not. And until you have run `resolve` once,
 relationship queries have nothing to search, and will tell you exactly that
 rather than returning a misleading empty result:
 
 ```
-$ cortex callers Redact
+$ repocortex callers Redact
 Redact (function) at internal/security/redact.go:67
 
 No callers found.
 
 29506 reference(s) were extracted but none have been resolved yet — run
-'cortex resolve' to build the call graph. Until then this query has nothing
+'repocortex resolve' to build the call graph. Until then this query has nothing
 to search.
 ```
 
 ## Is it deterministic? How would I know?
 
 Yes, and the way you know is that the project publishes a digest and gates on
-it. `cortex index --full --digest` prints a sha256 over the run's content.
+it. `repocortex index --full --digest` prints a sha256 over the run's content.
 Indexing the same tree twice must produce the same digest, and the gate is
 verified **both ways** — stable across 1/2/4/8/16 workers, and *sensitive* to a
 single added symbol. A digest that never changed would pass the stability half
@@ -374,7 +374,7 @@ Reproduced here, two full indexes of the same clone:
 Digest:        1aa2f3d184544656a21062b12c8dc49f05231ca865198d63941f44b291288f12
 ```
 
-This is not decorative. It is what makes `cortex diff` sound: a graph delta
+This is not decorative. It is what makes `repocortex diff` sound: a graph delta
 between two runs only means "the code changed" if the two runs are themselves
 reproducible, and otherwise "this edge disappeared" might mean a worker pool
 interleaved differently. It also caught a real defect that no unit test could —
@@ -393,7 +393,7 @@ it.
 On this repository's own working tree:
 
 ```
-$ cortex status
+$ repocortex status
 Index:           DEGRADED
 Files:           476
 Symbols:         6726
@@ -410,7 +410,7 @@ The index records the disposition of every file, per path, so a gap is visible
 rather than looking like the file never existed:
 
 ```
-$ sqlite3 .cortex/index.db "select parse_status, count(*) from files group by parse_status;"
+$ sqlite3 .repocortex/index.db "select parse_status, count(*) from files group by parse_status;"
 ok|409
 partial|13
 skipped|54

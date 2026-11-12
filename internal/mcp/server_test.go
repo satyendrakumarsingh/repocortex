@@ -264,7 +264,7 @@ func TestEmptyArgumentsRejected(t *testing.T) {
 }
 
 // TestNoIndexIsGuidanceNotAFailure: a missing index is information the agent
-// can act on ("tell the user to run cortex index"), so it must arrive as a
+// can act on ("tell the user to run repocortex index"), so it must arrive as a
 // result, not as a transport failure that leaves the model nothing.
 //
 // THE isError ASSERTION IN THIS TEST WAS DELIBERATELY INVERTED. It previously
@@ -304,7 +304,7 @@ func TestNoIndexIsGuidanceNotAFailure(t *testing.T) {
 		t.Errorf("a missing index was flagged isError; an agent that sees a tool fail stops "+
 			"calling it for the rest of the session:\n%s", resultText(res))
 	}
-	if !strings.Contains(resultText(res), "cortex index") {
+	if !strings.Contains(resultText(res), "repocortex index") {
 		t.Errorf("the response does not tell the agent how to fix it:\n%s", resultText(res))
 	}
 	// Success-SHAPED, not merely success-flagged: the agent must get the normal
@@ -352,7 +352,7 @@ func TestFindCallersNoIndexIsGuidanceNotAFailure(t *testing.T) {
 		t.Errorf("a missing index was flagged isError; an agent that sees a tool fail stops "+
 			"calling it for the rest of the session:\n%s", resultText(res))
 	}
-	if !strings.Contains(resultText(res), "cortex index") {
+	if !strings.Contains(resultText(res), "repocortex index") {
 		t.Errorf("the response does not tell the agent how to fix it:\n%s", resultText(res))
 	}
 	if !strings.Contains(resultText(res), "SYSTEM METADATA") {
@@ -415,7 +415,7 @@ func TestEmptyIndexIsGuidanceNotFailure(t *testing.T) {
 		t.Errorf("an empty index was reported as a tool failure:\n%s", resultText(res))
 	}
 	text := resultText(res)
-	if !strings.Contains(text, "EMPTY") || !strings.Contains(text, "cortex index") {
+	if !strings.Contains(text, "EMPTY") || !strings.Contains(text, "repocortex index") {
 		t.Errorf("an empty index was not explained, or the fix was not named:\n%s", text)
 	}
 }
@@ -468,7 +468,7 @@ func TestGenuineMalfunctionStillSetsIsError(t *testing.T) {
 			t.Errorf("%s reported a broken store as a successful empty answer; an agent would "+
 				"conclude the symbol has no callers:\n%s", tool, resultText(res))
 		}
-		if strings.Contains(resultText(res), "cortex index") {
+		if strings.Contains(resultText(res), "repocortex index") {
 			t.Errorf("%s told the user to re-index over a broken store, which will not fix it:\n%s",
 				tool, resultText(res))
 		}
@@ -610,7 +610,7 @@ func TestUnresolvedIndexSaysCoverageIsUnknown(t *testing.T) {
 	if !strings.Contains(text, "COVERAGE UNKNOWN") {
 		t.Errorf("an unresolved index reported a coverage verdict it had not measured:\n%s", text)
 	}
-	if !strings.Contains(text, "cortex resolve") {
+	if !strings.Contains(text, "repocortex resolve") {
 		t.Errorf("the response does not name the command that fixes it:\n%s", text)
 	}
 }
@@ -857,8 +857,8 @@ func TestFilteredNonCallCountNamesItsFloor(t *testing.T) {
 // TestCoverageVerdictsAgreeAcrossTools is I6: two tools in one session gave
 // contradictory verdicts about the same index.
 //
-// impact_analysis and find_tests judged coverage with ResolutionStats.Rate
-// against 0.5; resolution_coverage judged it with BindingRate against 0.6. On
+// analyze_impact and find_tests judged coverage with ResolutionStats.Rate
+// against 0.5; get_resolution_coverage judged it with BindingRate against 0.6. On
 // a real index that is 37% and "COVERAGE TOO LOW" from one tool against 79%
 // and silence from the other, in the same session, about the same number. An
 // agent cannot act on both.
@@ -880,13 +880,13 @@ func TestCoverageVerdictsAgreeAcrossTools(t *testing.T) {
 	for _, rs := range cases {
 		c := coverageOf(rs, "a/B.go")
 		if c.Rate != rs.BindingRate() {
-			t.Errorf("stats %+v: the relationship tools publish %.4f but resolution_coverage publishes %.4f",
+			t.Errorf("stats %+v: the relationship tools publish %.4f but get_resolution_coverage publishes %.4f",
 				rs, c.Rate, rs.BindingRate())
 		}
 		lowThere := rs.Total > 0 && rs.Pending < rs.Total && rs.BindingRate() < capability.CoverageFloor
 		lowHere := c.Known && !c.Reliable
 		if lowHere != lowThere {
-			t.Errorf("stats %+v: relationship tools say low=%v, resolution_coverage says low=%v",
+			t.Errorf("stats %+v: relationship tools say low=%v, get_resolution_coverage says low=%v",
 				rs, lowHere, lowThere)
 		}
 	}

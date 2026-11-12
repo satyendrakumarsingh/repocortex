@@ -46,7 +46,7 @@ func (f *fakeIndex) IncomingEdgeCount(_ context.Context, _ int64, id int64, _ re
 
 func (f *fakeIndex) Files(context.Context, int64) ([]model.File, error) { return f.files, nil }
 
-// baseIndex mirrors what `cortex index && cortex resolve` records for
+// baseIndex mirrors what `repocortex index && repocortex resolve` records for
 // seedVerifyRepo (internal/cli/verify_test.go), measured: one CALLS edge, high,
 // evidence column 55 — the start of `s.repo.CreateOrder(id)`.
 func baseIndex() *fakeIndex {

@@ -158,7 +158,7 @@ func (s *Server) getTaskContext(ctx stdctx.Context, call *sdk.CallToolRequest, a
 	if len(pack.Items) == 0 {
 		resp.Notes = append(resp.Notes,
 			"Nothing matched. Either the task names code that is not in this repository, "+
-				"or references have not been resolved yet — run 'cortex resolve'.")
+				"or references have not been resolved yet — run 'repocortex resolve'.")
 	}
 	return s.reply(ctx, call, resp)
 }

@@ -43,7 +43,7 @@ func writeRepoConfig(t *testing.T, repo, body string) {
 // replaced by a compiled-in default is the same lie as one that is ignored.
 func TestContextLimitsReachTheAssemblerBudget(t *testing.T) {
 	repo := t.TempDir()
-	t.Setenv("CORTEX_CONFIG_HOME", t.TempDir())
+	t.Setenv("REPOCORTEX_CONFIG_HOME", t.TempDir())
 	writeRepoConfig(t, repo, `
 context:
   max_files: 7

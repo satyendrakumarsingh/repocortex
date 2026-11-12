@@ -1,5 +1,5 @@
 # Binaries and build artifacts
-/cortex
+/repocortex
 /dist/
 /bin/
 *.exe
@@ -10,7 +10,7 @@
 *.dll
 
 # Index artifacts — never commit a registry or local graph databases
-.cortex/
+.repocortex/
 *.scip
 *.db
 *.db-wal
@@ -48,7 +48,7 @@ Thumbs.db
 .copilot/
 scratch/
 tmp/
-cortex-out/
+repocortex-out/
 *.log
 
 # Sensitive environment and key files

@@ -40,7 +40,7 @@ func TestCatalogueCacheInvalidatesOnIncrementalUpdate(t *testing.T) {
 		t.Error("no cache hit recorded for an unchanged run")
 	}
 
-	// Now mutate the COMMITTED run in place, exactly as `cortex watch` does.
+	// Now mutate the COMMITTED run in place, exactly as `repocortex watch` does.
 	newFile := model.File{Path: "svc/added.go", Language: "go", ContentHash: "hnew", ParseStatus: "ok"}
 	syms := []model.Symbol{{
 		ID: -1, Kind: model.KindFunction, Name: "BrandNewSymbol",

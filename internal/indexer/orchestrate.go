@@ -40,7 +40,7 @@ type Options struct {
 	// AssumeYes is the explicit non-interactive opt-in (the CLI's --yes). It
 	// only has effect under ProvisionPrompt, and it exists so that "install
 	// third-party binaries without asking" is always something a human typed.
-	// A TTY check must never be used in its place: `cortex index` in CI has
+	// A TTY check must never be used in its place: `repocortex index` in CI has
 	// no TTY and that is exactly the case that must not auto-install.
 	AssumeYes bool
 
@@ -140,7 +140,7 @@ type Plan struct {
 	// cache. Off by default.
 	MountLocalArtifacts bool
 
-	// Note explains a plan with no steps, so that `cortex indexers list` on a
+	// Note explains a plan with no steps, so that `repocortex indexers list` on a
 	// fast-mode configuration says why rather than printing nothing.
 	Note string
 }
@@ -262,11 +262,11 @@ func (s Skip) String() string { return s.Project.String() + ": " + s.Reason }
 // It is pure inspection: it stats marker files, probes tool versions, and asks
 // whether each indexer is already present. It creates no directories, installs
 // nothing, prompts nobody and runs no build. That is what makes it safe to call
-// from `cortex indexers list` and from `cortex doctor`.
+// from `repocortex indexers list` and from `repocortex doctor`.
 //
 // The only inputs are repoRoot and cfg. cfg's execution fields — accuracy mode,
 // provisioning policy, runner, language filter, timeout — can only have come
-// from ~/.config/cortex/config.yml, because internal/config's repo-side struct
+// from ~/.config/repocortex/config.yml, because internal/config's repo-side struct
 // has no fields that could set them. Nothing is read out of the repository here
 // beyond the names of marker files.
 //
@@ -653,7 +653,7 @@ func CleanupOutput(dir string) {
 // OutputDir — and returns the path to act on if so.
 //
 // The name prefix alone was the whole check once, and a name is not ownership:
-// a repository can contain a directory called cortex-scip-anything, and a
+// a repository can contain a directory called repocortex-scip-anything, and a
 // symlink under the temp root can carry the prefix while pointing at a home
 // directory. Both would have been removed. So the path is resolved through
 // every symlink first, and it counts as ours only if what it resolves to
@@ -661,7 +661,7 @@ func CleanupOutput(dir string) {
 // facts OutputDir establishes and nothing else can fake. The resolved path is
 // what gets acted on, so a link is never followed into somewhere else.
 func ownedOutputDir(dir string) (string, bool) {
-	if dir == "" || !strings.HasPrefix(filepath.Base(dir), "cortex-scip-") {
+	if dir == "" || !strings.HasPrefix(filepath.Base(dir), "repocortex-scip-") {
 		return "", false
 	}
 	resolved, err := filepath.EvalSymlinks(dir)
@@ -672,7 +672,7 @@ func ownedOutputDir(dir string) (string, bool) {
 	if err != nil {
 		return "", false
 	}
-	if !strings.HasPrefix(filepath.Base(resolved), "cortex-scip-") || filepath.Dir(resolved) != tmp {
+	if !strings.HasPrefix(filepath.Base(resolved), "repocortex-scip-") || filepath.Dir(resolved) != tmp {
 		return "", false
 	}
 	return resolved, true

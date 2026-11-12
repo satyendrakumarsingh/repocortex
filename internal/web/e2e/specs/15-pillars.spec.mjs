@@ -160,7 +160,7 @@ for (const key of Object.keys(REPOS)) {
         expect(body, `${screen} says why it is empty for this index`).toContain('Why this screen is empty for this index');
         expect(await host.locator('code').count(), `${screen} names a real command`).toBeGreaterThan(0);
         const command = (await host.locator('.held code').first().innerText()).trim();
-        expect(command, `${screen}'s command is a cortex subcommand`).toMatch(/^cortex /);
+        expect(command, `${screen}'s command is a repocortex subcommand`).toMatch(/^repocortex /);
 
         // What THIS index holds towards the pillar, as real counts.
         expect(await host.locator('.kpi').count(), `${screen} states what the index holds`).toBeGreaterThan(0);

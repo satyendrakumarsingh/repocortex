@@ -40,7 +40,7 @@ type Project struct {
 	Dir string
 
 	// Markers are the base names that identified the project, sorted. They are
-	// evidence for `cortex indexers list` — "why did you decide this is a
+	// evidence for `repocortex indexers list` — "why did you decide this is a
 	// Gradle project" has to have an answer.
 	Markers []string
 }
@@ -92,7 +92,7 @@ var skipDirs = map[string]bool{
 	".git": true, "node_modules": true, "vendor": true,
 	"target": true, "build": true, "dist": true, "out": true,
 	".gradle": true, ".mvn": true, ".venv": true, "venv": true,
-	"__pycache__": true, ".tox": true, ".cortex": true,
+	"__pycache__": true, ".tox": true, ".repocortex": true,
 	".idea": true, ".vscode": true, "testdata": true,
 }
 
@@ -107,7 +107,7 @@ const maxDetectDepth = 8
 // A monorepo yields several Projects, one per (directory, language) pair — a
 // directory holding both package.json and pyproject.toml is genuinely two
 // projects and gets two indexers. The result is sorted by directory then
-// language so that a plan is deterministic; `cortex indexers list` printing a
+// language so that a plan is deterministic; `repocortex indexers list` printing a
 // different order on each run would be a bug report waiting to happen.
 //
 // Symbolic links are not followed. fs.WalkDir does not follow them, and that is
@@ -129,7 +129,7 @@ func Detect(ctx context.Context, repoRoot string) ([]Project, error) {
 
 	walkErr := filepath.WalkDir(repoRoot, func(p string, d fs.DirEntry, err error) error {
 		// Checked first, and on every entry. This walks a whole repository, so
-		// without it a Ctrl-C during `cortex indexers list` on a large tree
+		// without it a Ctrl-C during `repocortex indexers list` on a large tree
 		// is simply ignored until the walk finishes. internal/acquire/fs does
 		// the same thing in its own walker; this one had been missed.
 		if cerr := ctx.Err(); cerr != nil {

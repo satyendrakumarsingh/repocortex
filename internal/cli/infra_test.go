@@ -27,7 +27,7 @@ func runInfra(t *testing.T, projectRoot string, args ...string) (string, error) 
 
 	g := &Global{}
 	root := &cobra.Command{
-		Use: "cortex", SilenceUsage: true, SilenceErrors: true,
+		Use: "repocortex", SilenceUsage: true, SilenceErrors: true,
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error { return g.setup(cmd) },
 	}
 	pf := root.PersistentFlags()

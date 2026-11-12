@@ -4,9 +4,9 @@ RepoCortex enforces architectural boundaries, blindspot detection, and refactori
 
 ---
 
-## 1. GitHub Actions Workflow (`cortex-gate.yml`)
+## 1. GitHub Actions Workflow (`repocortex-gate.yml`)
 
-Add `.github/workflows/cortex-gate.yml` to your repository:
+Add `.github/workflows/repocortex-gate.yml` to your repository:
 
 ```yaml
 name: RepoCortex Change-Safety Gate
@@ -21,8 +21,8 @@ permissions:
   contents: read
 
 env:
-  CORTEX_FAIL_ON: high
-  CORTEX_ACCURACY: auto
+  REPOCORTEX_FAIL_ON: high
+  REPOCORTEX_ACCURACY: auto
 
 jobs:
   gate:
@@ -45,45 +45,45 @@ jobs:
           cache: true
 
       - name: Build RepoCortex
-        run: go build -trimpath -ldflags="-s -w" -o ./bin/cortex ./cmd/cortex
+        run: go build -trimpath -ldflags="-s -w" -o ./bin/repocortex ./cmd/repocortex
 
       - name: Index and Resolve
         run: |
-          ./bin/cortex init
-          ./bin/cortex index
-          ./bin/cortex resolve
+          ./bin/repocortex init
+          ./bin/repocortex index
+          ./bin/repocortex resolve
 
       - name: Evaluate Blast Radius & Risk
         id: impact
         run: |
-          mkdir -p cortex-out
+          mkdir -p repocortex-out
           BASE_REF="${{ github.base_ref }}"
           if [ -n "$BASE_REF" ]; then
             BASE="origin/$BASE_REF"
           else
             BASE="HEAD~1"
           fi
-          ./bin/cortex impact --base "$BASE" --head HEAD --json > cortex-out/impact.json || true
-          ./bin/cortex missed --fail-on "$CORTEX_FAIL_ON" --json > cortex-out/missed.json || true
+          ./bin/repocortex impact --base "$BASE" --head HEAD --json > repocortex-out/impact.json || true
+          ./bin/repocortex blindspots --fail-on "$REPOCORTEX_FAIL_ON" --json > repocortex-out/missed.json || true
 
       - name: Generate PR Summary Report
         if: always()
         run: |
-          if [ -f cortex-out/impact.json ]; then
-            ./bin/cortex report pr --impact cortex-out/impact.json \
-              --missed cortex-out/missed.json --out cortex-out/pr-report.md
-            cat cortex-out/pr-report.md >> "$GITHUB_STEP_SUMMARY"
+          if [ -f repocortex-out/impact.json ]; then
+            ./bin/repocortex report pr --impact repocortex-out/impact.json \
+              --blindspots repocortex-out/missed.json --out repocortex-out/pr-report.md
+            cat repocortex-out/pr-report.md >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Upload SARIF to GitHub Code Scanning
         if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: cortex-out/cortex.sarif
-          category: cortex
+          sarif_file: repocortex-out/repocortex.sarif
+          category: repocortex
 
       - name: Enforce Architecture Invariants
-        run: ./bin/cortex arch --fail-on "$CORTEX_FAIL_ON"
+        run: ./bin/repocortex arch --fail-on "$REPOCORTEX_FAIL_ON"
 ```
 
 ---
@@ -92,7 +92,7 @@ jobs:
 
 RepoCortex outputs standard SARIF 2.1.0 via:
 ```bash
-cortex report sarif --out cortex.sarif
+repocortex report sarif --out repocortex.sarif
 ```
 This renders line-level annotations in GitHub Pull Request "Files Changed" tabs for:
 - Dead code / uncalled public symbols

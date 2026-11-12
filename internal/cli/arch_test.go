@@ -61,7 +61,7 @@ We will use PostgreSQL.
 `,
 	}
 	if withRules {
-		files[".cortex.yml"] = `project:
+		files[".repocortex.yml"] = `project:
   name: layered
 architecture:
   components:
@@ -223,7 +223,7 @@ architecture:
       forbidden: [does-not-exist]
       severity: high
 `
-	if err := os.WriteFile(filepath.Join(root, ".cortex.yml"), []byte(bad), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(root, ".repocortex.yml"), []byte(bad), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	_, err := run(t, root, "arch")

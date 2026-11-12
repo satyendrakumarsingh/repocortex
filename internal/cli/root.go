@@ -34,7 +34,7 @@ type Global struct {
 }
 
 // IndexDir is where RepoCortex stores its registry inside a project.
-const IndexDir = ".cortex"
+const IndexDir = ".repocortex"
 
 // IndexFile is the SQLite registry filename.
 const IndexFile = "index.db"
@@ -55,8 +55,7 @@ func NewRoot() *cobra.Command {
 	g := &Global{}
 
 	root := &cobra.Command{
-		Use:     "cortex",
-		Aliases: []string{"repocortex"},
+		Use:     "repocortex",
 		Version: Version,
 		Short:   "Deterministic code intelligence & change safety for AI coding agents",
 		Long: `RepoCortex builds a queryable knowledge graph of a software system —
@@ -126,7 +125,15 @@ a heuristic guess.`,
 		newPlanChangeCmd(g),
 		newEventsCmd(g),
 		newReportCmd(),
+		newToolCmd(g),
+		newDeadCodeCmd(g),
+		newHotspotsCmd(g),
+		newPathCmd(g),
+		newImplementationsCmd(g),
+		newTestsCmd(g),
+		newQueryCmd(g),
 	)
+	applyCommandGroups(root)
 	return root
 }
 
@@ -228,7 +235,7 @@ func newVersionCmd(g *Global) *cobra.Command {
 					"go_arch":    archName(),
 				})
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "cortex %s (commit %s, built %s, %s/%s)\n",
+			fmt.Fprintf(cmd.OutOrStdout(), "repocortex %s (commit %s, built %s, %s/%s)\n",
 				Version, Commit, BuildTime, osName(), archName())
 			return nil
 		},

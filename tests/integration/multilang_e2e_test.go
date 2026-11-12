@@ -452,7 +452,7 @@ echo "Building polyglot project..."
 			Config: config.Config{
 				ProjectName: "test-polyglot",
 			},
-			IndexPath: filepath.Join(dir, ".cortex", "index.db"),
+			IndexPath: filepath.Join(dir, ".repocortex", "index.db"),
 		})
 		if err != nil {
 			t.Fatal(err)

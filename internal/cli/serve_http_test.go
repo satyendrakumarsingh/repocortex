@@ -175,7 +175,7 @@ func TestHTTPRejectsMissingOrWrongTokens(t *testing.T) {
 }
 
 func TestHTTPChecksHostAndOrigin(t *testing.T) {
-	ts, _ := httpTestServer(t, "cortex.example.dev")
+	ts, _ := httpTestServer(t, "repocortex.example.dev")
 	auth := "Bearer " + testToken
 	cases := []struct {
 		name    string
@@ -183,10 +183,10 @@ func TestHTTPChecksHostAndOrigin(t *testing.T) {
 		want    int
 	}{
 		{"rebinding host", map[string]string{"Authorization": auth, "Host": "evil.example.com"}, http.StatusForbidden},
-		{"allowed tunnel host", map[string]string{"Authorization": auth, "Host": "cortex.example.dev"}, http.StatusOK},
+		{"allowed tunnel host", map[string]string{"Authorization": auth, "Host": "repocortex.example.dev"}, http.StatusOK},
 		{"browser page origin", map[string]string{"Authorization": auth, "Origin": "https://evil.example.com"}, http.StatusForbidden},
 		{"localhost origin", map[string]string{"Authorization": auth, "Origin": "http://localhost:3000"}, http.StatusOK},
-		{"allowed origin", map[string]string{"Authorization": auth, "Origin": "https://cortex.example.dev"}, http.StatusOK},
+		{"allowed origin", map[string]string{"Authorization": auth, "Origin": "https://repocortex.example.dev"}, http.StatusOK},
 	}
 	for _, c := range cases {
 		got := post(t, ts.URL+mcpPath, c.headers)
@@ -247,7 +247,7 @@ func TestServeHTTPStopsWithItsContext(t *testing.T) {
 	var out strings.Builder
 	done := make(chan error, 1)
 	go func() {
-		done <- serveHTTP(ctx, sdk.NewServer(&sdk.Implementation{Name: "t", Version: "1"}, nil),
+		done <- serveHTTP(ctx, sdk.NewServer(&sdk.Implementation{Name: "t", Version: "1"}, nil), nil,
 			httpServeOptions{Addr: "127.0.0.1:0", Token: testToken}, slog.New(slog.NewTextHandler(io.Discard, nil)), &out, "from "+mcpTokenEnv)
 	}()
 	time.Sleep(200 * time.Millisecond)
@@ -269,7 +269,7 @@ func TestServeHTTPStopsWithItsContext(t *testing.T) {
 }
 
 func TestServeHTTPRefusesARemoteAddressWithoutTheFlag(t *testing.T) {
-	err := serveHTTP(context.Background(), sdk.NewServer(&sdk.Implementation{Name: "t", Version: "1"}, nil),
+	err := serveHTTP(context.Background(), sdk.NewServer(&sdk.Implementation{Name: "t", Version: "1"}, nil), nil,
 		httpServeOptions{Addr: "0.0.0.0:0", Token: testToken}, slog.New(slog.NewTextHandler(io.Discard, nil)), io.Discard, "")
 	if err == nil || !strings.Contains(err.Error(), "--allow-remote") {
 		t.Fatalf("err = %v, want a refusal naming --allow-remote", err)

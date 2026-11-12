@@ -13,9 +13,9 @@ import (
 )
 
 func TestMergeMCPConfigAddsServerToEmptyFile(t *testing.T) {
-	spec := agentServerSpec{Name: "cortex", Command: "cortex", Args: []string{"serve", "--project", "/repo"}}
+	spec := agentServerSpec{Name: "repocortex", Command: "repocortex", Args: []string{"serve", "--project", "/repo"}}
 
-	out, err := mergeMCPConfig(nil, "cortex", spec)
+	out, err := mergeMCPConfig(nil, "repocortex", spec)
 	if err != nil {
 		t.Fatalf("mergeMCPConfig: %v", err)
 	}
@@ -28,16 +28,16 @@ func TestMergeMCPConfigAddsServerToEmptyFile(t *testing.T) {
 	if !ok {
 		t.Fatalf("mcpServers missing from %s", out)
 	}
-	if _, ok := servers["cortex"]; !ok {
-		t.Fatalf("cortex entry missing from %s", out)
+	if _, ok := servers["repocortex"]; !ok {
+		t.Fatalf("repocortex entry missing from %s", out)
 	}
 }
 
 func TestMergeMCPConfigPreservesUnrelatedServers(t *testing.T) {
 	existing := []byte(`{"mcpServers":{"other":{"command":"other-server"}},"theme":"dark"}`)
-	spec := agentServerSpec{Name: "cortex", Command: "cortex", Args: []string{"serve"}}
+	spec := agentServerSpec{Name: "repocortex", Command: "repocortex", Args: []string{"serve"}}
 
-	out, err := mergeMCPConfig(existing, "cortex", spec)
+	out, err := mergeMCPConfig(existing, "repocortex", spec)
 	if err != nil {
 		t.Fatalf("mergeMCPConfig: %v", err)
 	}
@@ -53,15 +53,15 @@ func TestMergeMCPConfigPreservesUnrelatedServers(t *testing.T) {
 	if _, ok := servers["other"]; !ok {
 		t.Errorf("unrelated server was dropped: %s", out)
 	}
-	if _, ok := servers["cortex"]; !ok {
-		t.Errorf("cortex was not added: %s", out)
+	if _, ok := servers["repocortex"]; !ok {
+		t.Errorf("repocortex was not added: %s", out)
 	}
 }
 
 func TestMergeMCPConfigRejectsMalformedJSON(t *testing.T) {
-	spec := agentServerSpec{Name: "cortex", Command: "cortex"}
+	spec := agentServerSpec{Name: "repocortex", Command: "repocortex"}
 
-	if _, err := mergeMCPConfig([]byte("{not json"), "cortex", spec); err == nil {
+	if _, err := mergeMCPConfig([]byte("{not json"), "repocortex", spec); err == nil {
 		t.Fatal("expected an error on malformed existing config, got nil")
 	}
 }

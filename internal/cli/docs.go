@@ -29,7 +29,7 @@ Mermaid diagrams for component dependencies, endpoint-to-table flows and
 inheritance.
 
 Every claim cites the file and line it came from. Nothing here is inferred
-prose: a component appears because .cortex.yml declares it, an edge appears
+prose: a component appears because .repocortex.yml declares it, an edge appears
 because an indexer recorded it, and where the graph is silent the document says
 so instead of guessing. A repository that declares no components is told that,
 rather than being handed a component model invented from its directory names.
@@ -37,8 +37,8 @@ rather than being handed a component model invented from its directory names.
 Output is deterministic. The same index regenerates byte-identical files, so
 these can be committed and reviewed like any other artifact:
 
-  cortex docs --out docs/generated
-  cortex docs --check          # non-zero if the committed copies have drifted
+  repocortex docs --out docs/generated
+  repocortex docs --check          # non-zero if the committed copies have drifted
 
 --check is the useful one in CI. It regenerates in memory and compares, so a
 change that alters the architecture without updating its documentation fails the
@@ -144,7 +144,7 @@ func checkDocsDrift(cmd *cobra.Command, dir string, files map[string]string) err
 	for _, name := range drifted {
 		fmt.Fprintf(cmd.ErrOrStderr(), "drifted: %s\n", name)
 	}
-	return fmt.Errorf("%d generated document(s) differ from the index; run 'cortex docs --out %s'",
+	return fmt.Errorf("%d generated document(s) differ from the index; run 'repocortex docs --out %s'",
 		len(drifted), dir)
 }
 

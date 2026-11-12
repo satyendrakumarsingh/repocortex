@@ -30,7 +30,7 @@ import (
 // target is a method, so this must be a call" — remains forbidden, because that
 // IS an inference, and it is the thing kinds.go warns about.
 //
-// THE JOIN IS THE SAME ONE `cortex accuracy` ALREADY TREATS AS GROUND TRUTH.
+// THE JOIN IS THE SAME ONE `repocortex accuracy` ALREADY TREATS AS GROUND TRUTH.
 // internal/cli/accuracy.go adjudicates the heuristic resolver's precision and
 // recall against exactly this intersection: lines the parser recorded a call
 // on, where the compiler resolved that line to EXACTLY ONE target. We already

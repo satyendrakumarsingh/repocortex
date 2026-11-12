@@ -77,7 +77,7 @@ func TestResolutionCoverageStatesTheRateAndWhatItExcluded(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			sess := newGraphTestServer(t, seedOutcomes(tc.resolved, tc.ambiguous, tc.unresolved))
-			res := callTool(t, sess, "resolution_coverage", map[string]any{})
+			res := callTool(t, sess, "get_resolution_coverage", map[string]any{})
 
 			sc, ok := res.StructuredContent.(map[string]any)
 			if !ok {
@@ -103,7 +103,7 @@ func TestResolutionCoverageStatesTheRateAndWhatItExcluded(t *testing.T) {
 
 // An index whose references were extracted but never resolved must not report
 // 0%: "we looked and found little" and "we never looked" are different facts,
-// and only the second is fixed by running 'cortex resolve'.
+// and only the second is fixed by running 'repocortex resolve'.
 func TestResolutionCoverageDistinguishesUnresolvedFromNeverResolved(t *testing.T) {
 	sess := newGraphTestServer(t, func(ctx context.Context, reg *registry.Registry, runID int64) {
 		w, _ := reg.NewWriter(ctx, runID)
@@ -116,9 +116,9 @@ func TestResolutionCoverageDistinguishesUnresolvedFromNeverResolved(t *testing.T
 		_ = w.Close()
 	})
 
-	text := resultText(callTool(t, sess, "resolution_coverage", map[string]any{}))
+	text := resultText(callTool(t, sess, "get_resolution_coverage", map[string]any{}))
 	lower := strings.ToLower(text)
-	if !strings.Contains(lower, "cortex resolve") {
+	if !strings.Contains(lower, "repocortex resolve") {
 		t.Errorf("an unresolved index must name the command that fixes it:\n%s", text)
 	}
 	if !strings.Contains(lower, "call graph has not been built") {
@@ -136,7 +136,7 @@ func TestResolutionCoverageDistinguishesUnresolvedFromNeverResolved(t *testing.T
 // comparing against coverageFloor, this test fails.
 func TestResolutionCoverageUsesItsOwnFloorNotCoverageFloor(t *testing.T) {
 	sess := newGraphTestServer(t, seedOutcomes(55, 45, 1000))
-	text := resultText(callTool(t, sess, "resolution_coverage", map[string]any{}))
+	text := resultText(callTool(t, sess, "get_resolution_coverage", map[string]any{}))
 	if !strings.Contains(text, "COVERAGE TOO LOW") {
 		t.Errorf("BindingRate 55%% is below bindingFloor (60%%) and must trip the low-coverage "+
 			"note even though it is at/above coverageFloor (50%%); got:\n%s", text)
@@ -146,9 +146,9 @@ func TestResolutionCoverageUsesItsOwnFloorNotCoverageFloor(t *testing.T) {
 // The tool must be registered under a description, like every other one: a tool
 // with no entry in toolDescriptions ships with an empty prompt.
 func TestResolutionCoverageIsDescribed(t *testing.T) {
-	desc := toolDescriptions()["resolution_coverage"]
+	desc := toolDescriptions()["get_resolution_coverage"]
 	if desc == "" {
-		t.Fatal("resolution_coverage has no description")
+		t.Fatal("get_resolution_coverage has no description")
 	}
 	if !strings.Contains(strings.ToLower(desc), "lower bound") &&
 		!strings.Contains(strings.ToLower(desc), "empty") {

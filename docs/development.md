@@ -5,7 +5,7 @@
 **Go 1.26+. Nothing else.** No C compiler, no CGO, no system SQLite.
 
 ```bash
-git clone https://github.com/satyendrakumarsingh/repocortex.git && cd cortex
+git clone https://github.com/satyendrakumarsingh/repocortex.git && cd repocortex
 go build ./... && go test -race ./...
 ```
 
@@ -22,7 +22,7 @@ Go. It shapes the dependency list:
 | `github.com/go-git/go-git/v5` | History | In-process git; RepoCortex never shells out to a `git` binary |
 | `github.com/scip-code/scip/bindings/go/scip` | Compiler-backed resolution | SCIP index ingestion |
 | `google.golang.org/protobuf` | SCIP wire format | SCIP indexes are protobuf; pulled in by the above |
-| `github.com/modelcontextprotocol/go-sdk` | MCP | The protocol `cortex serve` speaks |
+| `github.com/modelcontextprotocol/go-sdk` | MCP | The protocol `repocortex serve` speaks |
 | `github.com/fsnotify/fsnotify` | Watching | |
 | `github.com/spf13/cobra` | CLI | |
 | `gopkg.in/yaml.v3` | Config | Needed for `dec.KnownFields(true)`, which is what makes an unknown key in repo config a parse error |
@@ -113,7 +113,7 @@ Windows users to discover a broken search layer themselves.
 
 ```bash
 CGO_ENABLED=0 go test ./...
-CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o /dev/null ./cmd/cortex
+CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o /dev/null ./cmd/repocortex
 ```
 
 Breaking this breaks `go install` for everyone without a C toolchain, and breaks
@@ -143,15 +143,15 @@ go test -tags soak -timeout 2h ./tests/soak/... -soak.duration=1h
 roughly the duration times the number of tests (currently four). Set `-timeout`
 accordingly — Go's default 10-minute test timeout will kill anything longer.
 
-Flags, each with a `CORTEX_SOAK_*` environment equivalent so CI can configure a
+Flags, each with a `REPOCORTEX_SOAK_*` environment equivalent so CI can configure a
 run without rewriting the command line:
 
 | Flag | Environment variable | Default |
 |---|---|---|
-| `-soak.duration` | `CORTEX_SOAK_DURATION` | 30s |
-| `-soak.files` | `CORTEX_SOAK_FILES` | 200 |
-| `-soak.interval` | `CORTEX_SOAK_INTERVAL` | 3ms |
-| `-soak.seed` | `CORTEX_SOAK_SEED` | 1 |
+| `-soak.duration` | `REPOCORTEX_SOAK_DURATION` | 30s |
+| `-soak.files` | `REPOCORTEX_SOAK_FILES` | 200 |
+| `-soak.interval` | `REPOCORTEX_SOAK_INTERVAL` | 3ms |
+| `-soak.seed` | `REPOCORTEX_SOAK_SEED` | 1 |
 
 Run with `-v`. Every test logs a resource report — sampled goroutine counts, heap
 trend, iterations, events — because **a soak test whose only output is PASS
@@ -246,7 +246,7 @@ it is patched enough to run.
 
 ### Tagged code rots silently
 
-`soak`, `perf`, `cgo_parser` and `cortex_nootlp` each hide code from every
+`soak`, `perf`, `cgo_parser` and `repocortex_nootlp` each hide code from every
 default `go build` and `go test`. That is what makes the tiers work, and it is
 also how a tagged file stops compiling for weeks without anyone noticing — the
 first symptom is a nightly job failing at 3am, days after the commit that broke
@@ -287,10 +287,10 @@ go test ./tests/architecture/
 | Gate | Catches | How to run |
 |---|---|---|
 | Race detector on every test | Concurrency bugs in the worker pool and the walker | `go test -race ./...` |
-| **Determinism** — index twice, compare digest | Map-iteration order, races, ordering bugs anywhere in the pipeline | `cortex index --full --digest` twice |
+| **Determinism** — index twice, compare digest | Map-iteration order, races, ordering bugs anywhere in the pipeline | `repocortex index --full --digest` twice |
 | **Incremental == full re-index** | Incremental updates drifting from ground truth | `TestIncrementalMatchesFullReindex` |
 | FTS5 dependency guarantee | `modernc.org/sqlite` silently dropping an undocumented feature | `go test -run TestFTS5 ./tests/integration/...` |
-| Graph invariants | Dangling edges, orphans, cross-run edges, unproven `exact` claims | `cortex doctor --verify-index` |
+| Graph invariants | Dangling edges, orphans, cross-run edges, unproven `exact` claims | `repocortex doctor --verify-index` |
 | Migration tests | Fresh / upgrade / interrupted / edited-migration | `go test ./internal/store/...` |
 | Config security tests | Repo-supplied config gaining execution | `go test -run TestRepoCannot ./internal/config/... ./internal/indexer/...` |
 | Layering | `CLAUDE.md` §1 and §4.2 drifting from the code | `go test ./tests/architecture/` |
@@ -349,7 +349,7 @@ Applied to the smaller cases:
 - **Any bug fix** — add a test that fails before your change. If you cannot make
   it fail, you have not found the bug.
 - **Parsers and anything reading untrusted input** — add a fuzz target.
-- **Anything touching the graph** — `cortex doctor --verify-index` must still
+- **Anything touching the graph** — `repocortex doctor --verify-index` must still
   pass.
 - **Anything security-relevant** — write the test that proves the attack
   *fails*, not just that the happy path works.
@@ -454,8 +454,8 @@ language's inferred query actually captures is usually the first useful hour.
 
 For Tier 2, implement resolution and **report measured precision against a SCIP
 index for the same fixture**. That is now a cheap thing to do rather than an
-aspiration: `cortex indexers list` tells you whether an indexer for your
-language is on `PATH`, and `cortex scip import` gives you compiler-proven edges
+aspiration: `repocortex indexers list` tells you whether an indexer for your
+language is on `PATH`, and `repocortex scip import` gives you compiler-proven edges
 to compare against. Do not claim accuracy you have not measured — a published
 number that turns out to be optimistic costs more trust than a modest one that
 holds.
@@ -476,14 +476,14 @@ elsewhere in these docs:
 
 ```bash
 # Build a binary to test against
-CGO_ENABLED=0 go build -o /tmp/cortex ./cmd/cortex
+CGO_ENABLED=0 go build -o /tmp/repocortex ./cmd/repocortex
 
 # Index a fixture end to end
-cd fixtures/payment-platform && /tmp/cortex init && /tmp/cortex index --digest
+cd fixtures/payment-platform && /tmp/repocortex init && /tmp/repocortex index --digest
 
 # Determinism by hand: these two digests must match
-/tmp/cortex index --full --digest
-/tmp/cortex index --full --digest
+/tmp/repocortex index --full --digest
+/tmp/repocortex index --full --digest
 
 # Vet what the default build cannot see
 go vet -tags soak ./tests/soak/...
@@ -500,9 +500,9 @@ go test -run '^$' -bench . -benchmem ./internal/resolve/infer/
 go test -run '^$' -bench . -benchtime 1x ./internal/acquire/git/
 ```
 
-**Work against a copy, not the repository.** Indexing writes `.cortex/` into
+**Work against a copy, not the repository.** Indexing writes `.repocortex/` into
 whatever directory you point at, and the soak suite's first house rule exists for
 the same reason. Copying the tree to a temp directory first also means
-`cortex index --full` runs against a fresh database, which matters more than it
+`repocortex index --full` runs against a fresh database, which matters more than it
 sounds — see
 [performance.md](performance.md#a-full-re-index-is-not-priced-like-a-first-index).

@@ -16,7 +16,7 @@ import (
 	"github.com/satyendrakumarsingh/repocortex/pkg/model"
 )
 
-// `cortex export`: the index, in somebody else's format.
+// `repocortex export`: the index, in somebody else's format.
 //
 // Everything else RepoCortex prints is an ANSWER — a blast radius, a caller list,
 // a review routing. This command prints the GRAPH, and it does so because the
@@ -31,7 +31,7 @@ import (
 // internal/export. internal/export never learns that SQLite exists, which is
 // what keeps it testable against a graph literal.
 
-// exportOptions is one `cortex export` invocation.
+// exportOptions is one `repocortex export` invocation.
 //
 // The cobra command and the global config are carried as fields rather than as
 // parameters so the flag-shaped inputs above stay separable from the plumbing
@@ -54,11 +54,11 @@ func newExportCmd(g *Global) *cobra.Command {
 		Short: "Write the code graph in an interchange format",
 		Long: `Writes the committed index's symbol graph in a format other tools read.
 
-  cortex export --format dot | dot -Tsvg -o graph.svg
-  cortex export --format graphml --out graph.graphml     # Gephi, yEd, Cytoscape
-  cortex export --format json --out graph.json           # notebooks, jq, diffing
-  cortex export --format csv --out edges.csv             # spreadsheets, pandas
-  cortex export --format svg --out graph.svg             # no graphviz required
+  repocortex export --format dot | dot -Tsvg -o graph.svg
+  repocortex export --format graphml --out graph.graphml     # Gephi, yEd, Cytoscape
+  repocortex export --format json --out graph.json           # notebooks, jq, diffing
+  repocortex export --format csv --out edges.csv             # spreadsheets, pandas
+  repocortex export --format svg --out graph.svg             # no graphviz required
 
 Every format carries edge DIRECTION from the edge itself, and every format that
 can hold a confidence level does. A format that cannot hold something says so
@@ -127,7 +127,7 @@ func runExport(opts exportOptions) error {
 	// ContainedPath and ValidatePath refuse absolute paths and confine writes
 	// to the repository root, which is the right rule for a path an AGENT
 	// supplied. Here the path was typed by the operator into their own shell,
-	// where `cortex export --out /tmp/graph.dot` is the ordinary case and
+	// where `repocortex export --out /tmp/graph.dot` is the ordinary case and
 	// `> /tmp/graph.dot` would have worked anyway: containment would block a
 	// legitimate use and protect nobody. RE-APPLY security.ValidatePath (or
 	// ContainedPath, preferred in new code) the moment this reaches MCP, a
@@ -438,10 +438,10 @@ func uniqueKey(taken map[string]bool, want string) string {
 // This is the rule internal/cli/query.go states in its header and
 // internal/mcp/capabilities.go repeats: an empty relationship result means
 // either "nothing is there" or "RepoCortex could not see it", and those have
-// opposite consequences. A bare `digraph cortex {}` with exit 0 lets the
+// opposite consequences. A bare `digraph repocortex {}` with exit 0 lets the
 // reader pick the wrong one.
 //
-// errOut, never stdout: `cortex export --format json > graph.json` is the
+// errOut, never stdout: `repocortex export --format json > graph.json` is the
 // ordinary invocation and a caveat written there is a parse error, not a caveat.
 func reportExportDeltas(errOut io.Writer, st exportStats, floor model.Confidence) {
 	if lost := st.symbolsRead - st.nodesKept; lost > 0 {
@@ -501,7 +501,7 @@ func reportExportDeltas(errOut io.Writer, st exportStats, floor model.Confidence
 func emptyExportReason(st exportStats, floor model.Confidence) string {
 	switch {
 	case st.symbolsRead == 0:
-		return "the committed index holds no symbols at all; run 'cortex index' first"
+		return "the committed index holds no symbols at all; run 'repocortex index' first"
 	case floor == model.ConfidenceExact:
 		return fmt.Sprintf(
 			"all %d symbol(s) were dropped by --min-confidence exact. 'exact' means a compiler "+
@@ -524,7 +524,7 @@ func emptyExportReason(st exportStats, floor model.Confidence) string {
 // 9059 nodes" three lines below a note saying nodes with no edges are omitted
 // — two claims about one file, on one stream, one of them false.
 //
-// The lossy note goes to errOut, never to out. `cortex export --format csv >
+// The lossy note goes to errOut, never to out. `repocortex export --format csv >
 // edges.csv` is the ordinary invocation, and a caveat written into that stream
 // is not a caveat — it is a corrupt header row that the reader will discover
 // as a parse error a week later.
@@ -635,11 +635,11 @@ func exportProvenanceOf(ctx stdctx.Context, s *session) exportProvenance {
 // reportExportProvenance states what the artifact describes, on stderr.
 //
 // stderr, not stdout, for the reason emitExport gives about the lossy note:
-// `cortex export --format csv > edges.csv` is the ordinary invocation and a
+// `repocortex export --format csv > edges.csv` is the ordinary invocation and a
 // provenance header written into that stream is a corrupt first row.
 //
 // This was the only new surface with no provenance at all. Every MCP response
-// carries index_revision and a Provenance caveat; `cortex impact` refuses to
+// carries index_revision and a Provenance caveat; `repocortex impact` refuses to
 // answer quietly when the index was built outside the range it was asked
 // about. An export outlives its session — it gets committed, attached to a
 // ticket, joined against something in a notebook — so it is the artifact that

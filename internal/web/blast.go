@@ -286,7 +286,7 @@ func (s *Server) handleBlast(w http.ResponseWriter, r *http.Request) {
 	resp.Direct = capped(rep.Direct, maxRows, &om, ReasonRowBudget,
 		fmt.Sprintf("Direct callers beyond the first %d (ordered by depth then symbol id) are not listed. "+
 			"The COUNT above is the full figure — only the rows are shortened.", maxRows),
-		"narrow the query, or read the full report with `cortex context`")
+		"narrow the query, or read the full report with `repocortex context`")
 	resp.Indirect = capped(rep.Indirect, maxRows, &om, ReasonRowBudget,
 		fmt.Sprintf("Indirectly impacted symbols beyond the first %d are not listed.", maxRows),
 		"lower --depth to see a tighter set")
@@ -309,7 +309,7 @@ func (s *Server) handleBlast(w http.ResponseWriter, r *http.Request) {
 	}
 	if rep.DirectEvidenceOmitted {
 		om.Note(ReasonEvidenceBudget, rep.DirectEvidenceReason,
-			"query the symbol directly with `cortex callers`")
+			"query the symbol directly with `repocortex callers`")
 	}
 
 	// ---- covering tests, from capability/tests
@@ -322,7 +322,7 @@ func (s *Server) handleBlast(w http.ResponseWriter, r *http.Request) {
 		s.log.Warn("web: covering tests", "target", target.FQN, "error", err)
 		om.Note(ReasonRowBudget,
 			"Covering tests could not be computed for this target: "+err.Error(),
-			"cortex doctor")
+			"repocortex doctor")
 		resp.Tests = TestSection{Tests: []tests.TestHit{}, SignalCounts: map[string]int{}}
 	} else {
 		signals := make(map[string]int, len(testRep.SignalCounts))

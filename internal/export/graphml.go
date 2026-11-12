@@ -58,7 +58,7 @@ func (graphMLExporter) Write(ctx context.Context, w io.Writer, g metrics.Graph) 
 	bw.printf(`  <key id="ekind" for="edge" attr.name="kind" attr.type="string"/>` + "\n")
 	bw.printf(`  <key id="conf" for="edge" attr.name="confidence" attr.type="string"/>` + "\n")
 	bw.printf(`  <key id="weight" for="edge" attr.name="weight" attr.type="int"/>` + "\n")
-	bw.printf(`  <graph id="cortex" edgedefault="directed">` + "\n")
+	bw.printf(`  <graph id="repocortex" edgedefault="directed">` + "\n")
 
 	for _, k := range g.Keys() {
 		if err := ctx.Err(); err != nil {

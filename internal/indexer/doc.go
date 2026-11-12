@@ -9,7 +9,7 @@
 //
 // # Why this package is dangerous, stated plainly
 //
-// `cortex index` is expected to be run immediately after `git clone` on code
+// `repocortex index` is expected to be run immediately after `git clone` on code
 // nobody has read yet. Everything in the working tree is therefore attacker-
 // controlled. Two of the four indexers here execute the repository's own build
 // system: scip-java runs Maven or Gradle, and a Maven plugin or a Gradle build
@@ -22,9 +22,9 @@
 //  1. NOTHING is read from the repository except the NAMES of marker files.
 //     Detection stats pom.xml, go.mod, package.json and friends; it never opens
 //     them. A `scripts` entry in package.json, a Makefile target, a
-//     .cortex.yml key — none of them reach this package, because the only
+//     .repocortex.yml key — none of them reach this package, because the only
 //     configuration input is config.Config, whose execution fields can only
-//     come from ~/.config/cortex/config.yml. See the package comment in
+//     come from ~/.config/repocortex/config.yml. See the package comment in
 //     internal/config: that trust split is the security model, and this package
 //     is its main consumer. TestRepoCannotInfluenceThePlan proves it by making
 //     every marker file unreadable and checking that planning is unaffected.
@@ -56,7 +56,7 @@
 //     sub-project directory, and it crosses as Command.Dir, not as an argument.
 //     Where the docker runner has no choice but to put it in an argv (-w), it
 //     goes through sanitizeRel first. Values that look tempting to forward —
-//     project.name from .cortex.yml is the obvious one — are replaced by
+//     project.name from .repocortex.yml is the obvious one — are replaced by
 //     fixed literals; see scip-python's --project-name.
 //
 // # Why this is what makes `exact` real
@@ -74,7 +74,7 @@
 //
 // # Shape of the API
 //
-// Plan is pure inspection and backs `cortex indexers list`: it detects
+// Plan is pure inspection and backs `repocortex indexers list`: it detects
 // projects, probes the toolchain, and reports what would run, what is missing
 // and what would have to be installed. It creates no files and installs
 // nothing. Execute takes a Plan and carries it out.

@@ -34,10 +34,10 @@ All four paths start the same way, because everything RepoCortex answers is
 answered from an index.
 
 ```bash
-go build -o cortex ./cmd/cortex   # or: go install github.com/satyendrakumarsingh/repocortex/cmd/cortex@latest
-cortex init                          # creates .cortex/, applies the schema
-cortex index                         # walks and parses; incremental after the first run
-cortex resolve                       # binds references into a call graph
+go build -o repocortex ./cmd/repocortex   # or: go install github.com/satyendrakumarsingh/repocortex/cmd/repocortex@latest
+repocortex init                          # creates .repocortex/, applies the schema
+repocortex index                         # walks and parses; incremental after the first run
+repocortex resolve                       # binds references into a call graph
 ```
 
 `resolve` is a separate step and not an oversight. Indexing extracts references
@@ -49,14 +49,14 @@ answer.
 Real output, on a copy of this repository's own working tree:
 
 ```
-$ cortex index
+$ repocortex index
   Files:         422 indexed, 54 skipped (476 discovered)
   Symbols:       6259
   References:    29506 (unresolved until M2)
   Imports:       2063
   Duration:      10026ms
 
-$ cortex resolve
+$ repocortex resolve
   References:  29506
   Resolved:    12062 (40.9%)
   Ambiguous:   2063
@@ -87,7 +87,7 @@ dozen exploratory greps. This is the shortest route to that.
 **2. See what the agent will be given.**
 
 ```
-$ cortex serve --list-tools
+$ repocortex serve --list-tools
 MCP profile "minimal" exposes 7 tool(s):
   get_project_overview
   search_code
@@ -102,12 +102,12 @@ Seven, not forty. Every exposed tool's schema is injected into the agent's
 context on **every** request, so a large tool surface spends the very context
 this tool exists to save. That is a product decision, argued in
 `internal/mcp/server.go`; see [NON-GOALS.md](NON-GOALS.md#it-does-not-widen-its-mcp-tool-surface).
-`mcp.profile` in `.cortex.yml` takes `minimal` (default), `standard` or `full`.
+`mcp.profile` in `.repocortex.yml` takes `minimal` (default), `standard` or `full`.
 
 **3. Register the server.**
 
 ```bash
-claude mcp add cortex -- cortex --project /path/to/repo serve
+claude mcp add repocortex -- repocortex --project /path/to/repo serve
 ```
 
 The index is opened read-only for serving: an agent session must not be able to
@@ -117,7 +117,7 @@ mutate the index it is querying.
 loop.** This is the fastest way to find out why an agent got a wrong answer.
 
 ```bash
-cortex context "Add secret redaction to MCP responses"
+repocortex context "Add secret redaction to MCP responses"
 ```
 
 Every item carries the reason it earned its tokens — `named by the task`,
@@ -129,11 +129,11 @@ An engine that cannot tell you what it left out is one you cannot debug.
 **5. Keep it current while you work.**
 
 ```bash
-cortex watch          # debounced, coalesced; the index stays queryable throughout
+repocortex watch          # debounced, coalesced; the index stays queryable throughout
 ```
 
 **You are done when** the agent answers a question about your repository without
-reading files. If it does not, `cortex context "<the same task>"` shows you
+reading files. If it does not, `repocortex context "<the same task>"` shows you
 exactly what it was handed.
 
 Depth: [user-manual.md → Serving the index to an agent](user-manual.md#serving-the-index-to-an-agent),
@@ -149,14 +149,14 @@ Depth: [user-manual.md → Serving the index to an agent](user-manual.md#serving
 definition, not the forty symbols whose names contain it.
 
 ```
-$ cortex symbol Assembler
+$ repocortex symbol Assembler
 KIND   NAME       LOCATION                         CONFIDENCE
 class  Assembler  internal/context/assemble.go:47  high (source_code)
 
 1 definition(s) named "Assembler".
 ```
 
-If you do not know the name, `cortex search callback` is the full-text route;
+If you do not know the name, `repocortex search callback` is the full-text route;
 identifiers are indexed by their parts, so `callback` matches
 `handlePaymentCallback`.
 
@@ -164,7 +164,7 @@ identifiers are indexed by their parts, so `callback` matches
 broader — imports, implementations, extensions and plain references too.
 
 ```
-$ cortex callers Redact
+$ repocortex callers Redact
 Redact (function) at internal/security/redact.go:67
 
 KIND   SYMBOL                        EVIDENCE                              CONFIDENCE
@@ -184,7 +184,7 @@ edge costs more than a missing one.
 Note what happens when there is nothing to report:
 
 ```
-$ cortex callees profileTools
+$ repocortex callees profileTools
 profileTools (function) at internal/mcp/server.go:129
 
 No callees found.
@@ -199,7 +199,7 @@ column, the question is not "does anything use this table" but "what writes it,
 and where":
 
 ```
-$ cortex db table transactions
+$ repocortex db table transactions
 transactions (declared in this repository)
 
 WRITTEN BY (1)
@@ -209,16 +209,16 @@ READ BY (1)
   findById (…/TransactionRepository.java)  …TransactionRepository.java:14  high (SELECT (literal SQL))
 ```
 
-`cortex api` does the same for the HTTP surface, and `cortex config` for
+`repocortex api` does the same for the HTTP surface, and `repocortex config` for
 settings read by code that nothing declares.
 
 **5. Turn the ask into a contract, then check the change against it.** This is
 the half no other tool in this category has.
 
 ```bash
-cortex compile "Add idempotency to payment callbacks" --json > contract.json
+repocortex compile "Add idempotency to payment callbacks" --json > contract.json
 # ... the change gets written ...
-cortex verify --contract contract.json --changed "$(git diff --name-only | paste -sd, -)"
+repocortex verify --contract contract.json --changed "$(git diff --name-only | paste -sd, -)"
 ```
 
 `verify` answers four questions — did the change stay in scope, break a declared
@@ -232,8 +232,8 @@ possible at all — without compiler evidence the same finding is reported as a
 LEAD, and the disposition drops from `fail` to `advisory`.
 
 ```
-$ cortex compile "open the index database from the CLI" --json > contract.json
-$ cortex verify --contract contract.json --changed internal/cli/opendb.go
+$ repocortex compile "open the index database from the CLI" --json > contract.json
+$ repocortex verify --contract contract.json --changed internal/cli/opendb.go
 VERIFY: FAIL
 
 [FACT] internal/cli/opendb.go violates architecture rule cli-goes-through-the-registry:
@@ -267,7 +267,7 @@ happens through a repository class reporting is entitled to call.
 **2. Declare the components.** They are declared, never inferred — a component
 model RepoCortex guessed would be a description of the code's current shape, and
 checking code against a description of itself finds nothing by construction. In
-`.cortex.yml`:
+`.repocortex.yml`:
 
 ```yaml
 architecture:
@@ -289,7 +289,7 @@ architecture:
 **3. Look at the boundary crossings before you gate on them.**
 
 ```
-$ cortex arch --crossings
+$ repocortex arch --crossings
 ...
 COMPONENT DEPENDENCIES (4)
   cli -> store       113 edge(s)  weakest low  ← violates a rule
@@ -320,7 +320,7 @@ proved — on the run above it cuts 113 violations to 42.
 failure:
 
 ```
-$ cortex arch --fail-on high
+$ repocortex arch --fail-on high
 VIOLATIONS (113)
   SEVERITY  RULE                           CROSSING                                CONFIDENCE
   high      cli-goes-through-the-registry  cli -> store (symbolName -> symbols)    high
@@ -333,8 +333,8 @@ $ echo $?
 **5. Add the other two gates that pay for themselves.**
 
 ```bash
-cortex docs --check --out docs/generated   # exit 1 if the committed architecture docs drifted
-cortex bench cases.yml --fail-on-regression # exit 1 if retrieval quality regressed
+repocortex docs --check --out docs/generated   # exit 1 if the committed architecture docs drifted
+repocortex bench cases.yml --fail-on-regression # exit 1 if retrieval quality regressed
 ```
 
 `docs --check` regenerates `ARCHITECTURE.md` and `CAPABILITIES.md` in memory and
@@ -343,7 +343,7 @@ files — so a change that alters the architecture without updating its
 documentation fails the build:
 
 ```
-$ cortex docs --check --out docs/generated
+$ repocortex docs --check --out docs/generated
 documentation is current (2 file(s) checked).
 $ echo $?
 0
@@ -352,8 +352,8 @@ $ echo $?
 **6. Gate the change itself, not only the tree.** In a PR check:
 
 ```bash
-cortex compile "$PR_TITLE" --json > contract.json
-cortex verify --contract contract.json --changed-from changed.txt
+repocortex compile "$PR_TITLE" --json > contract.json
+repocortex verify --contract contract.json --changed-from changed.txt
 ```
 
 `verify` exits 0 on `pass` **and** on `advisory`, 1 on `fail`, and 2 on
@@ -382,8 +382,8 @@ not on ours**.
 **2. Get compiler ground truth.** Either let RepoCortex provision the indexer —
 
 ```bash
-cortex indexers list          # what applies here, and what is missing
-cortex indexers install --yes # pinned versions, verified digests, refuses on mismatch
+repocortex indexers list          # what applies here, and what is missing
+repocortex indexers install --yes # pinned versions, verified digests, refuses on mismatch
 ```
 
 — or run one you already have:
@@ -400,7 +400,7 @@ Visiting Project Files [80/80]
 **3. Land it in the graph.**
 
 ```
-$ cortex scip import index.scip
+$ repocortex scip import index.scip
 scip-go 0.2.7: 313 document(s), 276 matched
 symbols: 4376 matched, 14810 with no counterpart in the index
 edges:   15885 new, 0 upgraded from heuristic, 1026 already known
@@ -418,7 +418,7 @@ variables and generated declarations a tags-based extractor never emits.
 **4. Adjudicate the heuristics against the compiler.**
 
 ```
-$ cortex doctor --resolution-precision
+$ repocortex doctor --resolution-precision
 RESOLUTION PRECISION
   ! java, typescript carries heuristic edges that no compiler index in this
     run could judge. Those edges are UNMEASURED here, which is not the same as
@@ -446,13 +446,13 @@ rather than leaving them out.
 **5. Check the graph's own invariants, and the retrieval quality.**
 
 ```
-$ cortex doctor --verify-index
+$ repocortex doctor --verify-index
 [ok  ]  dangling edges            none
 [ok  ]  orphaned symbols          none
 [ok  ]  unproven exact edges      none
 ...
 
-$ cortex bench fixtures/bench/payment.yml
+$ repocortex bench fixtures/bench/payment.yml
 CASE                              RESULT  RECALL  TOKENS  MISSING
 change-transaction-status-column  pass    100%    1567    —
 idempotent-callback               pass    100%    1368    —
@@ -477,5 +477,5 @@ method and the one language still unmeasured.
 ## If something goes wrong
 
 [troubleshooting.md](troubleshooting.md) is keyed on the literal error messages.
-`cortex doctor` is the first thing to run; it checks the runtime prerequisites
+`repocortex doctor` is the first thing to run; it checks the runtime prerequisites
 and, with `--verify-index`, the graph itself.

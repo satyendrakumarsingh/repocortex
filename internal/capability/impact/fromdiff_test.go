@@ -1130,7 +1130,7 @@ func TestAnalyzeDiffReportsAnIndexRootItCannotApply(t *testing.T) {
 // TestAnalyzeDiffRanksTheSameWayAnalyzeDoes pins the two surfaces to one
 // ranking rule.
 //
-// `cortex impact --base/--head` and the impact_analysis tool answer the same
+// `repocortex impact --base/--head` and the analyze_impact tool answer the same
 // question over the same index. If they order the blast radius by different
 // keys, they disagree about which symbols are riskiest, and whichever one
 // truncates first drops a different tail. analyzeTarget ranks by the

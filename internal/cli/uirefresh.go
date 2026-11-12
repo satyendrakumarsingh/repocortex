@@ -23,9 +23,9 @@ import (
 // make "the portal is read-only" a claim nobody could check by reading imports.
 //
 // It rebuilds by RUNNING THE COMMANDS rather than by re-implementing them.
-// `cortex index` already chooses between an incremental pass and a full
+// `repocortex index` already chooses between an incremental pass and a full
 // rebuild, reclaims runs a crash abandoned, stamps the producer version and
-// refuses to publish a run the user interrupted; `cortex resolve` already
+// refuses to publish a run the user interrupted; `repocortex resolve` already
 // binds references, table accesses, configuration reads and deployment units in
 // one pass. A second copy of that sequence living inside the portal would be a
 // copy that drifts, and the first symptom would be a refresh that quietly
@@ -48,7 +48,7 @@ type runReader interface {
 	Counts(ctx context.Context, runID int64) (registry.Counts, error)
 }
 
-// uiReindexer implements web.Reindexer for `cortex ui --allow-refresh`.
+// uiReindexer implements web.Reindexer for `repocortex ui --allow-refresh`.
 type uiReindexer struct {
 	runs    runReader
 	index   refreshStep
@@ -118,7 +118,7 @@ func (u *uiReindexer) Reindex(ctx context.Context) (web.ReindexResult, error) {
 		return web.ReindexResult{}, fmt.Errorf("refresh not started: %w", err)
 	}
 	if err := u.index(ctx); err != nil {
-		return web.ReindexResult{}, fmt.Errorf("refresh: 'cortex index' failed and the previous revision was left in place: %w", err)
+		return web.ReindexResult{}, fmt.Errorf("refresh: 'repocortex index' failed and the previous revision was left in place: %w", err)
 	}
 	// Between the stages as well as before them. Indexing publishes atomically,
 	// so a cancellation caught here leaves a complete index with stale edges
@@ -128,7 +128,7 @@ func (u *uiReindexer) Reindex(ctx context.Context) (web.ReindexResult, error) {
 		return web.ReindexResult{}, fmt.Errorf("refresh cancelled after indexing, before resolution: %w", err)
 	}
 	if err := u.resolve(ctx); err != nil {
-		return web.ReindexResult{}, fmt.Errorf("refresh: 'cortex resolve' failed; the index is current but its edges are not: %w", err)
+		return web.ReindexResult{}, fmt.Errorf("refresh: 'repocortex resolve' failed; the index is current but its edges are not: %w", err)
 	}
 
 	run, err := u.runs.CurrentRun(ctx)
@@ -153,7 +153,7 @@ func (u *uiReindexer) Reindex(ctx context.Context) (web.ReindexResult, error) {
 //
 // Two things here are not cosmetic. SetArgs with an empty (but non-nil) slice
 // is required: cobra falls back to os.Args when a command has none set, and
-// os.Args in this process belongs to `cortex ui` — an unguarded refresh would
+// os.Args in this process belongs to `repocortex ui` — an unguarded refresh would
 // hand `--port` and `--allow-refresh` to `index` and fail on an unknown flag.
 // Discarding the writers keeps the command's human report off the terminal of
 // an operator who asked for a portal, not for an index summary; the logger is

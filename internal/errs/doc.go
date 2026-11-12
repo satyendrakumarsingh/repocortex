@@ -55,7 +55,7 @@
 // Never put in Fields: file contents or any excerpt of them, config VALUES
 // (a rejected value may be a token or an internal hostname — record the
 // config KEY instead), environment variables, absolute paths outside the
-// repo, credentials, or anything from .cortex.yml verbatim. Repository
+// repo, credentials, or anything from .repocortex.yml verbatim. Repository
 // config is attacker-controlled; see internal/config.
 //
 // This is enforced structurally as far as it can be: Error.Error never

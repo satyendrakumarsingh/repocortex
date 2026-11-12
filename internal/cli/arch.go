@@ -27,7 +27,7 @@ func newArchCmd(g *Global) *cobra.Command {
 		Use:   "arch",
 		Short: "Check the code against the declared architecture",
 		Long: `Compares the dependency graph against the components and rules declared
-in .cortex.yml, and reports boundary crossings and violations.
+in .repocortex.yml, and reports boundary crossings and violations.
 
 This checks the GRAPH, not imports. That is the point: "the reporting module
 must not write the payments table" is an architectural rule no import-based
@@ -38,7 +38,7 @@ Components are DECLARED, never inferred. A component model RepoCortex guessed
 would be a description of the code's current shape, and checking code against a
 description of itself finds nothing by construction.
 
-Declare them in .cortex.yml:
+Declare them in .repocortex.yml:
 
   architecture:
     components:
@@ -100,7 +100,7 @@ func runArch(cmd *cobra.Command, g *Global) error {
 	if errors.Is(err, architecture.ErrNoModel) {
 		out := cmd.OutOrStdout()
 		// --json must stay machine-readable on EVERY path. Emitting prose here
-		// broke `cortex arch --json | jq` for the most common case — a
+		// broke `repocortex arch --json | jq` for the most common case — a
 		// repository that has not declared an architecture yet — which is
 		// exactly when a script is most likely to be probing for one.
 		if g.JSON {
@@ -110,14 +110,14 @@ func runArch(cmd *cobra.Command, g *Global) error {
 				"crossings":             []architecture.Crossing{},
 				"components":            []architecture.ComponentSummary{},
 				"note": "No architecture declared. Add an `architecture:` block to " +
-					".cortex.yml. Components are declared rather than inferred: a model " +
+					".repocortex.yml. Components are declared rather than inferred: a model " +
 					"RepoCortex guessed would describe the code as it is, and checking code " +
 					"against a description of itself finds nothing.",
 			})
 		}
 		fmt.Fprintln(out, "No architecture declared.")
-		fmt.Fprintln(out, "\nAdd an `architecture:` block to .cortex.yml with the components "+
-			"of your system and the rules between them. See 'cortex arch --help'.")
+		fmt.Fprintln(out, "\nAdd an `architecture:` block to .repocortex.yml with the components "+
+			"of your system and the rules between them. See 'repocortex arch --help'.")
 		fmt.Fprintln(out, "\nComponents are declared rather than inferred on purpose: a model "+
 			"RepoCortex guessed would describe the code as it is, and checking code against a "+
 			"description of itself finds nothing.")
@@ -298,7 +298,7 @@ where you check the current state.`,
 				}
 				// Containment is checked, not assumed. Joining RepoRoot to a
 				// stored path and calling os.ReadFile made
-				// `cortex arch adr --json` print the contents of any file the
+				// `repocortex arch adr --json` print the contents of any file the
 				// process could read: a repository containing
 				// docs/adr/0001-x.md -> /etc/hosts had it emitted as an ADR
 				// summary. security.ValidatePath resolves symlinks and rejects

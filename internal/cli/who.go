@@ -2,12 +2,15 @@ package cli
 
 import (
 	stdctx "context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"text/tabwriter"
 	"time"
 
@@ -24,16 +27,16 @@ import (
 // newWhoCmd routes a review by REACHABILITY rather than by directory.
 //
 // The name is short and it is a question, which is the register the other query
-// commands use — `cortex callers`, `cortex references`, `cortex context`.
+// commands use — `repocortex callers`, `repocortex references`, `repocortex context`.
 // It also invites exactly one misreading, "who owns this", and that misreading
 // is answered in the first line of the command's own output rather than in a
 // document nobody opens: the heading says CONTEXT, every row says "has touched",
 // and the closing section states what git history can and cannot support. A
-// name that dodged the question ('cortex reviewers') would have been quieter
+// name that dodged the question ('repocortex reviewers') would have been quieter
 // and would have made the same claim less visibly.
 func newWhoCmd(g *Global) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "who <symbol>",
+		Use:   "owners <symbol>",
 		Short: "Who has context on the code a change to this symbol reaches",
 		Long: `Computes the blast radius of a change to a symbol, then asks git history who
 has touched the files that radius lands in — ranked by how much of the radius
@@ -45,8 +48,8 @@ has seen the code this change can break": a two-line edit to a shared decoder
 reaches thirty call sites in six packages, and the person listed for the
 decoder's directory may never have touched any of them.
 
-  cortex who PaymentService.capture
-  cortex who pkg.Decode --depth 2 --commits 500
+  repocortex owners PaymentService.capture
+  repocortex owners pkg.Decode --depth 2 --commits 500
 
 What this reports is CONTEXT, not ownership. Git records that somebody changed a
 file — not that they understand it, own it, still work here, or introduced a
@@ -101,7 +104,7 @@ func runWho(cmd *cobra.Command, g *Global, target string) error {
 		}
 		if errors.Is(err, capability.ErrTargetNotFound) {
 			return fmt.Errorf("no symbol named %q in the index; names must match exactly — "+
-				"use 'cortex search' for partial matches", target)
+				"use 'repocortex search' for partial matches", target)
 		}
 		return fmt.Errorf("who: blast radius of %q: %w", target, err)
 	}
@@ -292,6 +295,26 @@ type gitHistory struct {
 	repo   *acquiregit.Repo
 	prefix string // project root relative to the worktree root, "" when equal
 	note   string // why history is unavailable or partial, "" when it is not
+
+	// cachePath is where the last walk is kept between processes, "" to keep
+	// it in memory only. See cachedCommits.
+	cachePath string
+	mu        sync.Mutex
+	memo      *historyCache
+}
+
+// historyCache is one history walk, valid for exactly one HEAD.
+//
+// Reading the paths a commit touched costs a tree diff, measured at about
+// 95 ms a commit through go-git on this repository: four seconds for 45
+// commits, on every `repocortex hotspots` and `repocortex owners` and on every
+// list_hotspots call. A commit never changes, so the walk is the same until
+// HEAD moves, and HEAD is one ref read. The cache is keyed on HEAD and the
+// requested limit and replaced, never merged, when either differs.
+type historyCache struct {
+	Head    string             `json:"head"`
+	Limit   int                `json:"limit"`
+	Commits []ownership.Commit `json:"commits"`
 }
 
 func openHistory(g *Global) *gitHistory {
@@ -311,6 +334,12 @@ func openHistory(g *Global) *gitHistory {
 	}
 
 	h := &gitHistory{repo: repo}
+	// Kept beside the index, which is git-ignored and already holds a map of
+	// the same repository. Only when that directory exists: a query command
+	// must not create it.
+	if dir := filepath.Join(root, IndexDir); dirExists(dir) {
+		h.cachePath = filepath.Join(dir, "history-cache.json")
+	}
 	prefix, err := pathPrefix(repo.Root(), root)
 	if err != nil {
 		h.repo = nil
@@ -330,6 +359,11 @@ func (h *gitHistory) Commits(ctx stdctx.Context, limit int) ([]ownership.Commit,
 	if h.repo == nil {
 		return nil, nil
 	}
+	head, _ := h.repo.HeadSHA(ctx)
+	if cached := h.cachedCommits(head, limit); cached != nil {
+		return cached, nil
+	}
+
 	cs, err := h.repo.RecentCommits(ctx, limit)
 	if err != nil {
 		if errors.Is(err, acquiregit.ErrNotRepository) {
@@ -350,7 +384,57 @@ func (h *gitHistory) Commits(ctx stdctx.Context, limit int) ([]ownership.Commit,
 			Paths:       paths,
 		})
 	}
+	h.storeCommits(head, limit, out)
 	return out, nil
+}
+
+// cachedCommits returns the remembered walk for head and limit, or nil.
+//
+// A walk made with a LARGER limit answers a smaller one by truncation, since
+// commits come newest first. An unknown head (not a repository, a detached
+// state go-git cannot read) never matches, so nothing stale is served.
+func (h *gitHistory) cachedCommits(head string, limit int) []ownership.Commit {
+	if head == "" {
+		return nil
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.memo == nil && h.cachePath != "" {
+		if data, err := os.ReadFile(h.cachePath); err == nil { //nolint:gosec // G304: a fixed name inside the project's own .repocortex directory
+			var c historyCache
+			if json.Unmarshal(data, &c) == nil {
+				h.memo = &c
+			}
+		}
+	}
+	c := h.memo
+	if c == nil || c.Head != head || c.Limit < limit {
+		return nil
+	}
+	// The walk returned fewer commits than its limit only when the whole
+	// history is shorter, so it also answers any larger request up to that
+	// limit; a request beyond it was rejected above.
+	if len(c.Commits) > limit {
+		return append([]ownership.Commit(nil), c.Commits[:limit]...)
+	}
+	return append([]ownership.Commit(nil), c.Commits...)
+}
+
+// storeCommits remembers a walk. A failure to write the file is ignored: the
+// cache is an optimisation, and the answer has already been computed.
+func (h *gitHistory) storeCommits(head string, limit int, commits []ownership.Commit) {
+	if head == "" {
+		return
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.memo = &historyCache{Head: head, Limit: limit, Commits: commits}
+	if h.cachePath == "" {
+		return
+	}
+	if data, err := json.Marshal(h.memo); err == nil {
+		_ = os.WriteFile(h.cachePath, data, 0o600)
+	}
 }
 
 // pathPrefix is the project root expressed relative to the worktree root.
@@ -407,4 +491,9 @@ func rebasePaths(paths []string, prefix string) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+func dirExists(p string) bool {
+	info, err := os.Stat(p)
+	return err == nil && info.IsDir()
 }

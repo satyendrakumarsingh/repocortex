@@ -5,8 +5,8 @@
 # makes the score mean anything — recall alone is trivially gamed by returning
 # the whole repository.
 #
-# Run with:  cortex bench fixtures/bench/payment.yml
-# In CI:     cortex bench fixtures/bench/payment.yml --fail-on-regression
+# Run with:  repocortex bench fixtures/bench/payment.yml
+# In CI:     repocortex bench fixtures/bench/payment.yml --fail-on-regression
 
 - id: idempotent-callback
   task: Add idempotency to payment callback processing

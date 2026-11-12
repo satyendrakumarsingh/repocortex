@@ -53,6 +53,9 @@ type Options struct {
 }
 
 // DefaultOptions returns standard change planning options.
+// maxCallerProbes is how many direct callers are probed for covering tests.
+const maxCallerProbes = 24
+
 func DefaultOptions() Options {
 	return Options{
 		MinConfidence: model.ConfidenceMedium,
@@ -98,9 +101,16 @@ func (p *Planner) Plan(ctx context.Context, runID int64, targetSymbol string, op
 		}
 	}
 
-	// Also check direct callers for covering tests
-	for _, caller := range imp.Direct {
-		cTestHit, err := tests.FindTestsWith(ctx, p.deps, runID, caller.FQN, tests.Options{})
+	// Also check direct callers for covering tests. Each is a bounded probe
+	// and only the first maxCallerProbes callers are asked: a hub has a
+	// thousand direct callers, and a full discovery from each made this plan
+	// take 4.4 seconds on a 250,000-symbol index for tests the target's own
+	// discovery above had mostly already found.
+	for i, caller := range imp.Direct {
+		if i >= maxCallerProbes {
+			break
+		}
+		cTestHit, err := tests.FindTestsWith(ctx, p.deps, runID, caller.FQN, tests.ProbeOptions())
 		if err == nil {
 			for _, th := range cTestHit.Tests {
 				if !testNames[th.FilePath] {

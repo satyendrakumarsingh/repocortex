@@ -30,7 +30,7 @@ const bindingFloor = capability.CoverageFloor
 //
 // The overview says it ONCE, as one line among file and symbol counts, and an
 // agent reaches it at the start of a session. The question this tool answers is
-// asked at a different moment and for a different reason: an impact_analysis or
+// asked at a different moment and for a different reason: an analyze_impact or
 // find_callers result has come back short, and the agent has to decide whether
 // that is a fact about the repository or a fact about the index. Making it ask
 // for the whole overview again to find out is how an agent stops asking.
@@ -125,15 +125,15 @@ func resolutionNotes(rs registry.ResolutionStats) []string {
 	switch {
 	case rs.Total == 0:
 		return []string{
-			"Nothing has been resolved because nothing was extracted. Run 'cortex index' " +
-				"followed by 'cortex resolve'. Until then an empty find_callers or " +
-				"impact_analysis result says nothing about the code.",
+			"Nothing has been resolved because nothing was extracted. Run 'repocortex index' " +
+				"followed by 'repocortex resolve'. Until then an empty find_callers or " +
+				"analyze_impact result says nothing about the code.",
 		}
 	case rs.Pending == rs.Total:
 		return []string{
 			"The references exist but none has been bound to a definition, so find_callers, " +
-				"find_references and impact_analysis will return nothing regardless of the code. " +
-				"Run 'cortex resolve'.",
+				"find_references and analyze_impact will return nothing regardless of the code. " +
+				"Run 'repocortex resolve'.",
 		}
 	}
 
@@ -145,14 +145,14 @@ func resolutionNotes(rs registry.ResolutionStats) []string {
 	}
 	if rs.Pending > 0 {
 		notes = append(notes, fmt.Sprintf(
-			"%d reference(s) have not been resolved since the last index — run 'cortex resolve' "+
+			"%d reference(s) have not been resolved since the last index — run 'repocortex resolve' "+
 				"so this figure describes the whole index.", rs.Pending))
 	}
 	if rs.BindingRate() < bindingFloor {
 		notes = append(notes, fmt.Sprintf(
 			"COVERAGE TOO LOW — fewer than %.0f%% of bindable references are bound (%.0f%%). "+
 				"Relationship answers from this index are a minority report: treat find_callers, "+
-				"find_references and impact_analysis results as leads to confirm with search_code, "+
+				"find_references and analyze_impact results as leads to confirm with search_code, "+
 				"not as answers.", 100*bindingFloor, 100*rs.BindingRate()))
 	}
 	return notes

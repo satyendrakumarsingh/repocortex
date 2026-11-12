@@ -1,4 +1,4 @@
-//go:build !cortex_nootlp
+//go:build !repocortex_nootlp
 
 package observe
 
@@ -12,8 +12,8 @@ package observe
 //
 // 13.4 MB for a feature that is off by default is worth an escape hatch, so
 // this file and its stub in exporter_otlp_disabled.go are guarded by the
-// `cortex_nootlp` build tag. Default builds keep full functionality;
-// `go build -tags cortex_nootlp` gets the small binary and a clear error if
+// `repocortex_nootlp` build tag. Default builds keep full functionality;
+// `go build -tags repocortex_nootlp` gets the small binary and a clear error if
 // someone asks for OTLP anyway.
 //
 // HTTP rather than gRPC is chosen for the wire protocol regardless: every OTLP

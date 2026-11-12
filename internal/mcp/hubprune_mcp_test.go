@@ -22,7 +22,7 @@ import (
 // blast radius was bounded when nothing was bounded at all.
 var hubPruneSurface = map[string]bool{
 	// Traversal-backed: each of these reaches graph.Traverse.
-	"impact_analysis":  true, // impact.analyzeTarget + expandDispatch
+	"analyze_impact":   true, // impact.analyzeTarget + expandDispatch
 	"find_tests":       true, // tests.FindTestsWith graph signal
 	"get_task_context": true, // internal/context.expand
 	"plan_change":      true, // planchange.Planner.Plan -> impact.AnalyzeWith
@@ -31,29 +31,29 @@ var hubPruneSurface = map[string]bool{
 	//   find_callers / find_references / plan_rename — one registry query for
 	//     the target's own edges. There is no second hop, so nothing to prune.
 	//   find_symbol / get_symbol / search_code — name and full-text lookups.
-	//   get_project_overview / resolution_coverage — counts about the index.
-	//   find_api_endpoints / find_db_access / get_config_key — registry reads.
-	"find_callers":         false,
-	"find_references":      false,
-	"plan_rename":          false,
-	"find_symbol":          false,
-	"get_symbol":           false,
-	"search_code":          false,
-	"get_project_overview": false,
-	"resolution_coverage":  false,
-	"find_api_endpoints":   false,
-	"find_db_access":       false,
-	"get_config_key":       false,
-	"get_file_outline":     false,
-	"minimize_diff":        false,
-	"detect_blindspots":    false,
+	//   get_project_overview / get_resolution_coverage — counts about the index.
+	//   list_api_endpoints / list_db_tables / get_config_key — registry reads.
+	"find_callers":            false,
+	"find_references":         false,
+	"plan_rename":             false,
+	"find_symbol":             false,
+	"get_symbol":              false,
+	"search_code":             false,
+	"get_project_overview":    false,
+	"get_resolution_coverage": false,
+	"list_api_endpoints":      false,
+	"list_db_tables":          false,
+	"get_config_key":          false,
+	"get_file_outline":        false,
+	"minimize_diff":           false,
+	"list_blindspots":         false,
 }
 
 // seedHubGraph builds the smallest graph in which hub pruning changes an
 // answer: a target with one caller, and that caller with a fan-in far wider
 // than any limit a test would set.
 //
-// Every edge is `high`, comfortably above impact_analysis's own medium floor,
+// Every edge is `high`, comfortably above analyze_impact's own medium floor,
 // so the floor cannot be confused for the hub cut — the only reason a node can
 // be missing here is the degree limit.
 func seedHubGraph(ctx context.Context, reg *registry.Registry, runID int64) {
@@ -223,7 +223,7 @@ func TestHubDegreeLimitIsAdvertisedExactlyWhereItCanAct(t *testing.T) {
 // out.
 func TestPruningIsReportedInTheResponse(t *testing.T) {
 	sess := newGraphTestServer(t, seedHubGraph)
-	text := resultText(callTool(t, sess, "impact_analysis", map[string]any{
+	text := resultText(callTool(t, sess, "analyze_impact", map[string]any{
 		"symbol": "Target", "hub_degree_limit": 3,
 	}))
 
@@ -252,7 +252,7 @@ func TestOmittingHubDegreeLimitChangesNothing(t *testing.T) {
 		tool string
 		args map[string]any
 	}{
-		{"impact_analysis", map[string]any{"symbol": "Target"}},
+		{"analyze_impact", map[string]any{"symbol": "Target"}},
 		{"find_tests", map[string]any{"symbol": "Target"}},
 		{"get_task_context", map[string]any{"task": "change the hub target function"}},
 	} {
@@ -274,10 +274,10 @@ func TestOmittingHubDegreeLimitChangesNothing(t *testing.T) {
 	}
 
 	// Not vacuous: the same fixture under a limit returns something different.
-	pruned := resultText(callTool(t, sess, "impact_analysis", map[string]any{
+	pruned := resultText(callTool(t, sess, "analyze_impact", map[string]any{
 		"symbol": "Target", "hub_degree_limit": 3,
 	}))
-	unpruned := resultText(callTool(t, sess, "impact_analysis", map[string]any{"symbol": "Target"}))
+	unpruned := resultText(callTool(t, sess, "analyze_impact", map[string]any{"symbol": "Target"}))
 	if pruned == unpruned {
 		t.Fatal("the fixture does not prune at all, so the comparison above proves nothing")
 	}
@@ -290,7 +290,7 @@ func TestOmittingHubDegreeLimitChangesNothing(t *testing.T) {
 // internal/graph establishes survives the journey into Response.Items.
 func TestItemsFollowTraversalCostOrder(t *testing.T) {
 	sess := newGraphTestServer(t, seedCostOrderGraph)
-	text := resultText(callTool(t, sess, "impact_analysis", map[string]any{"symbol": "Subject"}))
+	text := resultText(callTool(t, sess, "analyze_impact", map[string]any{"symbol": "Subject"}))
 
 	strong := strings.Index(text, "StrongCaller")
 	weak := strings.Index(text, "WeakCaller")
@@ -308,7 +308,7 @@ func TestItemsFollowTraversalCostOrder(t *testing.T) {
 // answer than it asked for.
 func TestNegativeHubDegreeLimitIsRejected(t *testing.T) {
 	sess := newGraphTestServer(t, seedHubGraph)
-	for _, tool := range []string{"impact_analysis", "find_tests", "get_task_context"} {
+	for _, tool := range []string{"analyze_impact", "find_tests", "get_task_context"} {
 		t.Run(tool, func(t *testing.T) {
 			args := map[string]any{"hub_degree_limit": -1}
 			if tool == "get_task_context" {

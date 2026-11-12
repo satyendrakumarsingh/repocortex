@@ -28,7 +28,7 @@
 //
 // # Components are DECLARED, never inferred
 //
-// Where .cortex.yml declares a component model, that model is used. Where it
+// Where .repocortex.yml declares a component model, that model is used. Where it
 // does not, this package SAYS SO and stops, rather than clustering packages and
 // presenting the result as the architecture. The argument is already made in
 // internal/capability/architecture's package doc and it applies with more force

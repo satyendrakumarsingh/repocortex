@@ -18,7 +18,7 @@ import (
 // fakeBin is where pretend executables live. It is under os.TempDir so that it
 // is absolute on every platform, which Command.validate insists on.
 func fakeBin(name string) string {
-	return filepath.Join(os.TempDir(), "cortex-fake-bin", name)
+	return filepath.Join(os.TempDir(), "repocortex-fake-bin", name)
 }
 
 type fakeRunner struct {

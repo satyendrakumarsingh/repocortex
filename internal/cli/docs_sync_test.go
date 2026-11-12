@@ -11,7 +11,7 @@ import (
 // the repository ships. The two had already diverged once, so the guide's YAML
 // block must contain the shipped file verbatim.
 func TestGateWorkflowMatchesUserGuide(t *testing.T) {
-	wf, err := os.ReadFile(filepath.Join("..", "..", ".github", "workflows", "cortex-gate.yml"))
+	wf, err := os.ReadFile(filepath.Join("..", "..", ".github", "workflows", "repocortex-gate.yml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -20,14 +20,14 @@ func TestGateWorkflowMatchesUserGuide(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(guide), string(wf)) {
-		t.Error("docs/USER_GUIDE.md does not contain .github/workflows/cortex-gate.yml verbatim; update the guide's YAML block")
+		t.Error("docs/USER_GUIDE.md does not contain .github/workflows/repocortex-gate.yml verbatim; update the guide's YAML block")
 	}
 }
 
 // TestGateWorkflowCanFail: a gate whose steps end in `|| true` cannot fail,
 // and `impact` takes --base/--head rather than a file argument.
 func TestGateWorkflowCanFail(t *testing.T) {
-	wf, err := os.ReadFile(filepath.Join("..", "..", ".github", "workflows", "cortex-gate.yml"))
+	wf, err := os.ReadFile(filepath.Join("..", "..", ".github", "workflows", "repocortex-gate.yml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,8 +36,8 @@ func TestGateWorkflowCanFail(t *testing.T) {
 		t.Error("gate workflow swallows failures with '|| true'")
 	}
 	for _, want := range []string{
-		"cortex resolve", "--fail-on", "impact --base",
-		"report sarif", "report pr", "upload-sarif", "cortex:pr-report",
+		"repocortex resolve", "--fail-on", "impact --base",
+		"report sarif", "report pr", "upload-sarif", "repocortex:pr-report",
 		"indexers pins", "indexers install --yes --out-dir", "scip import", "actions/cache@v4",
 	} {
 		if !strings.Contains(text, want) {
@@ -79,14 +79,14 @@ func stepBody(t *testing.T, text, name string) string {
 // steps, and the gate must never build the repository (that is what
 // --allow-repo-build authorises for Java).
 func TestGateWorkflowImportsCompilerFactsBeforeImpact(t *testing.T) {
-	wf, err := os.ReadFile(filepath.Join("..", "..", ".github", "workflows", "cortex-gate.yml"))
+	wf, err := os.ReadFile(filepath.Join("..", "..", ".github", "workflows", "repocortex-gate.yml"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	text := string(wf)
 
-	resolve := strings.Index(text, "./bin/cortex resolve")
-	imported := strings.Index(text, "./bin/cortex scip import")
+	resolve := strings.Index(text, "./bin/repocortex resolve")
+	imported := strings.Index(text, "./bin/repocortex scip import")
 	impactAt := strings.Index(text, "impact --base")
 	if resolve < 0 || imported < 0 || impactAt < 0 {
 		t.Fatalf("missing a step: resolve=%d scip import=%d impact=%d", resolve, imported, impactAt)
@@ -95,15 +95,15 @@ func TestGateWorkflowImportsCompilerFactsBeforeImpact(t *testing.T) {
 		t.Errorf("scip import must run after resolve and before impact (resolve=%d import=%d impact=%d)",
 			resolve, imported, impactAt)
 	}
-	if !strings.Contains(text, "CORTEX_ACCURACY: auto") {
-		t.Error("CORTEX_ACCURACY must default to auto at the workflow level")
+	if !strings.Contains(text, "REPOCORTEX_ACCURACY: auto") {
+		t.Error("REPOCORTEX_ACCURACY must default to auto at the workflow level")
 	}
 	for _, name := range []string{"Pin Compiler Indexers", "Cache Compiler Indexers", "Import Compiler Facts"} {
-		if !strings.Contains(stepBody(t, text, name), "if: env.CORTEX_ACCURACY == 'auto'") {
-			t.Errorf("step %q is not guarded by CORTEX_ACCURACY", name)
+		if !strings.Contains(stepBody(t, text, name), "if: env.REPOCORTEX_ACCURACY == 'auto'") {
+			t.Errorf("step %q is not guarded by REPOCORTEX_ACCURACY", name)
 		}
 	}
-	if !strings.Contains(stepBody(t, text, "Cache Compiler Indexers"), "hashFiles('cortex-out/indexer-pins.txt')") {
+	if !strings.Contains(stepBody(t, text, "Cache Compiler Indexers"), "hashFiles('repocortex-out/indexer-pins.txt')") {
 		t.Error("the indexer cache must be keyed on the pinned versions and digests")
 	}
 	imp := stepBody(t, text, "Import Compiler Facts")

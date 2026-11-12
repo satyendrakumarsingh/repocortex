@@ -184,7 +184,7 @@ func TestPromoteCallsJoinsParserAndCompiler(t *testing.T) {
 // A type annotation and an import are compiler-proven references at positions
 // the parser recorded no call at. If either turned into a CALLS edge, the
 // exact stamp would be carrying an inference — the precise failure kinds.go
-// refuses — and `cortex impact` would report a change reaching code that
+// refuses — and `repocortex impact` would report a change reaching code that
 // never calls it.
 func TestPromoteCallsLeavesNonCallReferencesAlone(t *testing.T) {
 	edges := callFixtureEdges(t)

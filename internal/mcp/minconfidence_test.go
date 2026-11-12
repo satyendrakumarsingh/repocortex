@@ -31,54 +31,54 @@ var minConfidenceSurface = map[string]bool{
 	"plan_rename":      true,
 	"get_task_context": true,
 	"find_tests":       true,
-	"impact_analysis":  true,
+	"analyze_impact":   true,
 	"plan_change":      true,
 
 	// Not confidence-bearing:
-	//   get_project_overview / resolution_coverage — counts and rates about
+	//   get_project_overview / get_resolution_coverage — counts and rates about
 	//     the index itself, not facts about code that could be graded.
 	//   search_code — full-text matches. A hit is textual and exact by
 	//     construction; there is no inferred binding to grade.
-	//   find_api_endpoints — routes read from a framework's own syntax; the
+	//   list_api_endpoints — routes read from a framework's own syntax; the
 	//     tool reports them or does not.
-	//   find_db_access — per-table read/write counts. Its uncertainty is
+	//   list_db_tables — per-table read/write counts. Its uncertainty is
 	//     already reported as the run-time-assembled statement count, which is
 	//     a different axis from binding confidence.
 	//   get_config_key — a declaration site and a reader count; no tier.
-	"get_project_overview": false,
-	"resolution_coverage":  false,
-	"search_code":          false,
-	"find_api_endpoints":   false,
-	"find_db_access":       false,
-	"get_config_key":       false,
-	"get_file_outline":     false,
-	"minimize_diff":        false,
-	"detect_blindspots":    false,
+	"get_project_overview":    false,
+	"get_resolution_coverage": false,
+	"search_code":             false,
+	"list_api_endpoints":      false,
+	"list_db_tables":          false,
+	"get_config_key":          false,
+	"get_file_outline":        false,
+	"minimize_diff":           false,
+	"list_blindspots":         false,
 }
 
 // minimalArgsFor is the smallest valid argument set for each tool, so a call
 // exercises the parameter rather than the empty-argument guard.
 var minimalArgsFor = map[string]map[string]any{
-	"get_project_overview": {},
-	"search_code":          {"query": "Login"},
-	"find_symbol":          {"name": "Login"},
-	"get_symbol":           {"name": "Login"},
-	"find_references":      {"name": "Login"},
-	"find_callers":         {"name": "Login"},
-	"plan_rename":          {"name": "Login", "new_name": "SignIn"},
-	"find_api_endpoints":   {},
-	"find_db_access":       {},
-	"get_config_key":       {"key": "DATABASE_URL"},
-	"resolution_coverage":  {},
-	"get_file_outline":     {"path": "pkg/model/symbol.go"},
-	"minimize_diff":        {"diff": "--- a/foo.go\n+++ b/foo.go\n@@ -1,3 +1,3 @@\n-old\n+new\n"},
-	"get_task_context":     {"task": "change the login flow"},
+	"get_project_overview":    {},
+	"search_code":             {"query": "Login"},
+	"find_symbol":             {"name": "Login"},
+	"get_symbol":              {"name": "Login"},
+	"find_references":         {"name": "Login"},
+	"find_callers":            {"name": "Login"},
+	"plan_rename":             {"name": "Login", "new_name": "SignIn"},
+	"list_api_endpoints":      {},
+	"list_db_tables":          {},
+	"get_config_key":          {"key": "DATABASE_URL"},
+	"get_resolution_coverage": {},
+	"get_file_outline":        {"path": "pkg/model/symbol.go"},
+	"minimize_diff":           {"diff": "--- a/foo.go\n+++ b/foo.go\n@@ -1,3 +1,3 @@\n-old\n+new\n"},
+	"get_task_context":        {"task": "change the login flow"},
 	// Fully qualified: two definitions share the bare name in this
 	// fixture, and the capability tools refuse to guess between them.
-	"impact_analysis":   {"symbol": "auth.Login"},
-	"find_tests":        {"symbol": "auth.Login"},
-	"plan_change":       {"symbol": "auth.Login"},
-	"detect_blindspots": {},
+	"analyze_impact":  {"symbol": "auth.Login"},
+	"find_tests":      {"symbol": "auth.Login"},
+	"plan_change":     {"symbol": "auth.Login"},
+	"list_blindspots": {},
 }
 
 func argsFor(t *testing.T, name string, extra map[string]any) map[string]any {
@@ -247,7 +247,7 @@ func TestInvalidMinConfidenceIsRejectedNamingTheTiers(t *testing.T) {
 // TestOmittingMinConfidenceChangesNothing is the compatibility guard.
 //
 // Adding a parameter must not move any existing caller's results. For most
-// tools "no floor" means low, which admits everything. impact_analysis is the
+// tools "no floor" means low, which admits everything. analyze_impact is the
 // exception and it is stated here rather than hidden: its traversal has always
 // defaulted to impact.DefaultMinConfidence (medium), and quietly lowering that
 // would widen every blast radius and weaken the risk score built on it.
@@ -260,7 +260,7 @@ func TestOmittingMinConfidenceChangesNothing(t *testing.T) {
 		"plan_rename":      "low",
 		"get_task_context": "low",
 		"find_tests":       "low",
-		"impact_analysis":  "medium",
+		"analyze_impact":   "medium",
 	}
 	sess := newGraphTestServer(t, seedMixedConfidence)
 	for name, floor := range equivalent {

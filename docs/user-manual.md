@@ -42,21 +42,21 @@ Per-command flags are in [CLI.md](CLI.md); task-shaped walkthroughs are in
 Go 1.26+. Nothing else — no C compiler, no CGO.
 
 ```bash
-go install github.com/satyendrakumarsingh/repocortex/cmd/cortex@latest
+go install github.com/satyendrakumarsingh/repocortex/cmd/repocortex@latest
 ```
 
 Or from source:
 
 ```bash
-git clone https://github.com/satyendrakumarsingh/repocortex.git && cd cortex
-go build -o cortex ./cmd/cortex
+git clone https://github.com/satyendrakumarsingh/repocortex.git && cd repocortex
+go build -o repocortex ./cmd/repocortex
 ```
 
 Verify it:
 
 ```
-$ cortex version
-cortex dev (commit none, built unknown, darwin/amd64)
+$ repocortex version
+repocortex dev (commit none, built unknown, darwin/amd64)
 ```
 
 `version`, `commit` and `build_time` are injected with `-ldflags` at release
@@ -68,16 +68,16 @@ broken.
 ## Initialising a project
 
 ```
-$ cortex init
+$ repocortex init
 Initialized RepoCortex for "payment-platform"
-  Index:          /path/to/repo/.cortex/index.db
+  Index:          /path/to/repo/.repocortex/index.db
   Schema version: 4 (4 migration(s) applied)
   Accuracy mode:  auto
 
-Next: cortex index
+Next: repocortex index
 ```
 
-This creates `.cortex/`, writes a `.gitignore` containing `*` inside it, and
+This creates `.repocortex/`, writes a `.gitignore` containing `*` inside it, and
 applies the schema. It does **not** index anything.
 
 The `.gitignore` is not a nicety. The registry contains a structural map of the
@@ -90,8 +90,8 @@ broken build is reported here rather than as mangled search results later.
 Re-running `init` on an existing index refuses:
 
 ```
-$ cortex init
-error: index already exists at /path/to/repo/.cortex/index.db (use --force to recreate)
+$ repocortex init
+error: index already exists at /path/to/repo/.repocortex/index.db (use --force to recreate)
 ```
 
 `--force` deletes the database and recreates it. Everything indexed is lost.
@@ -110,7 +110,7 @@ error: project root "/nope" is not a directory
 ## Indexing
 
 ```
-$ cortex index
+$ repocortex index
 time=... level=INFO msg=indexing progress=10% files=1/10
 ...
 Indexed payment-platform
@@ -122,7 +122,7 @@ Indexed payment-platform
   Duration:      270ms
 ```
 
-`cortex index` is **incremental by default**. It compares the working tree
+`repocortex index` is **incremental by default**. It compares the working tree
 against the committed revision by content hash and reparses only what changed. On
 a fresh index there is nothing to compare against, so it falls through to a full
 build automatically — which is why the first run above produced a full index
@@ -131,14 +131,14 @@ without `--full`.
 A subsequent run with no changes:
 
 ```
-$ cortex index
+$ repocortex index
 payment-platform is up to date (10 files, revision 1, 26ms)
 ```
 
 And with one file edited:
 
 ```
-$ cortex index
+$ repocortex index
 Updated payment-platform (revision 1)
   Added:     0
   Modified:  1
@@ -157,7 +157,7 @@ updated.
 ### Rebuilding from scratch
 
 ```bash
-cortex index --full
+repocortex index --full
 ```
 
 A full rebuild allocates a new revision, builds it invisibly, and swaps it in one
@@ -172,7 +172,7 @@ Use `--full` when you have changed exclude patterns, upgraded RepoCortex, or wan
 to reclaim space from a long-lived incrementally-updated index.
 
 **A full rebuild discards resolved edges.** The new revision starts with
-references extracted but unbound, so re-run `cortex resolve` afterwards.
+references extracted but unbound, so re-run `repocortex resolve` afterwards.
 
 ### Flags
 
@@ -187,7 +187,7 @@ The two "full path only" flags are worth knowing about, because nothing warns
 you:
 
 ```
-$ cortex index --accuracy nonsense
+$ repocortex index --accuracy nonsense
 error: --accuracy "nonsense": want fast, auto or exact      # exit 1, either path
 ```
 
@@ -226,7 +226,7 @@ Additionally, a file whose language has no tags query is recorded as skipped wit
 ## Watching
 
 ```
-$ cortex watch
+$ repocortex watch
 Watching payment-platform (revision 1). Press Ctrl-C to stop.
 ```
 
@@ -251,9 +251,9 @@ and formatters run on every save. A touched-but-identical file costs a hash, not
 a reparse, and is logged at debug rather than info.
 
 Directories are never watched if they are ignored, and `.git`, `node_modules` and
-`.cortex` are refused **unconditionally**, regardless of configuration. `.git`
+`.repocortex` are refused **unconditionally**, regardless of configuration. `.git`
 alone would burn scarce OS watch descriptors to deliver thousands of events
-nobody wants, and watching `.cortex` would feed RepoCortex's own writes back to
+nobody wants, and watching `.repocortex` would feed RepoCortex's own writes back to
 itself.
 
 The watcher caps itself at 8192 watched directories — chosen to be hit *before*
@@ -278,9 +278,9 @@ reported as warnings.
 `watch` follows edits; a hook follows commits, and needs nothing running.
 
 ```bash
-cortex hooks install
-cortex hooks status
-cortex hooks uninstall
+repocortex hooks install
+repocortex hooks status
+repocortex hooks uninstall
 ```
 
 `install` writes a Git `post-commit` hook that re-indexes after each commit, so
@@ -291,10 +291,10 @@ removes exactly the marked block. The hook runs detached and swallows every
 failure, because a hook that can fail a commit is a hook people delete.
 
 ```
-$ cortex hooks status
+$ repocortex hooks status
 post-commit: not installed
-The index is only as current as the last 'cortex index'.
-Install it with: cortex hooks install
+The index is only as current as the last 'repocortex index'.
+Install it with: repocortex hooks install
 ```
 
 A stale index is worse than no index, because it looks current. Pick one of the
@@ -307,7 +307,7 @@ symbol table, which does not exist until every file is parsed. Resolution is
 therefore a second pass, and you run it explicitly.
 
 ```
-$ cortex resolve
+$ repocortex resolve
 Resolved payment-platform (revision 1)
   References:  55
   Resolved:    16 (29.1%)
@@ -354,7 +354,7 @@ at commit time.
 instead of recording them. An invalid value is rejected:
 
 ```
-$ cortex resolve --min-confidence bogus
+$ repocortex resolve --min-confidence bogus
 error: --min-confidence "bogus": want exact, high, medium or low
 ```
 
@@ -365,9 +365,9 @@ after a successful `resolve`. It no longer reproduces — `status` counts the
 `edges` table and agrees with what `resolve` reported:
 
 ```
-$ cortex resolve
+$ repocortex resolve
   Edges:       1
-$ cortex status
+$ repocortex status
 Relationships:  1
 ```
 
@@ -387,7 +387,7 @@ before concluding that a documented gap is still real.
 ## Importing a compiler-backed index
 
 ```bash
-cortex scip import build/index.scip
+repocortex scip import build/index.scip
 ```
 
 `resolve` builds a call graph by inference and tops out at `high` confidence,
@@ -396,16 +396,16 @@ which needs the build graph. A SCIP index is what a compiler concluded, and it
 is the only input RepoCortex accepts as proof.
 
 Use this when the index already exists. CI usually has the toolchain and the
-build cache that a developer's machine may not; `cortex indexers install`
+build cache that a developer's machine may not; `repocortex indexers install`
 provisions and runs those tools locally, and this is the path for an index you
 already have.
 
 Order matters — index, resolve, then import:
 
 ```bash
-cortex index
-cortex resolve
-cortex scip import index.scip
+repocortex index
+repocortex resolve
+repocortex scip import index.scip
 ```
 
 ### What it does to the graph
@@ -459,7 +459,7 @@ and reports how many documents matched; if that fraction is low it prints
 examples. When they share a leading directory the repository does not have:
 
 ```bash
-cortex scip import index.scip --path-prefix src
+repocortex scip import index.scip --path-prefix src
 ```
 
 An index that matches *nothing* is a hard error rather than an empty result,
@@ -469,8 +469,8 @@ relationships.
 ### Verifying the result
 
 ```bash
-cortex references updateStatus --min-confidence exact
-cortex doctor --verify-index
+repocortex references updateStatus --min-confidence exact
+repocortex doctor --verify-index
 ```
 
 The first shows only compiler-proven facts. The second re-checks that every
@@ -482,8 +482,8 @@ path exists to uphold, enforced in Go, in a SQL `CHECK`, and again here.
 ### `accuracy` — precision, recall and F1 on your repository
 
 ```bash
-cortex accuracy
-cortex accuracy --json
+repocortex accuracy
+repocortex accuracy --json
 ```
 
 Once a compiler-backed index is imported, this adjudicates every heuristic
@@ -503,7 +503,7 @@ survive. The numbers this project publishes, and how they were produced, are in
 ### `languages` — which languages resolve, and how far
 
 ```
-$ cortex languages
+$ repocortex languages
 TIER      COUNT  WHAT YOU GET
 typed     1      definitions, imports, receiver and arity discrimination — references can reach 'high'
 resolved  11     definitions and imports — references bind across files
@@ -523,14 +523,14 @@ index, without an agent or a server in the loop. Use them when you want to know
 what an agent was told, when you are scripting a CI check or a git hook, or when
 you simply want to look something up.
 
-All of them require a committed index — run `cortex index`, then
-`cortex resolve` for anything relationship-shaped. All of them take `--json`.
+All of them require a committed index — run `repocortex index`, then
+`repocortex resolve` for anything relationship-shaped. All of them take `--json`.
 
 ### `search` — full-text across indexed files
 
 ```bash
-cortex search "callback"
-cortex search "idempotency" -n 50
+repocortex search "callback"
+repocortex search "idempotency" -n 50
 ```
 
 Identifiers are indexed by their parts, so `callback` matches
@@ -544,8 +544,8 @@ here. An empty result says so rather than implying the term is absent.
 ### `symbol` — definitions by exact name
 
 ```bash
-cortex symbol TransactionService
-cortex symbol handle --kind method
+repocortex symbol TransactionService
+repocortex symbol handle --kind method
 ```
 
 Exact, not fuzzy. Asking for `TransactionService` returns that type, not the
@@ -559,11 +559,11 @@ compiler-proven definition is distinguishable from a parsed one.
 ### `references`, `callers`, `callees` — relationships
 
 ```bash
-cortex references updateStatus          # everything pointing at it
-cortex callers updateStatus             # narrower: call edges only
-cortex callees updateStatus             # what it depends on
-cortex callers Save --path svc/repo.go  # disambiguate
-cortex callers Save --min-confidence high
+repocortex references updateStatus          # everything pointing at it
+repocortex callers updateStatus             # narrower: call edges only
+repocortex callees updateStatus             # what it depends on
+repocortex callers Save --path svc/repo.go  # disambiguate
+repocortex callers Save --min-confidence high
 ```
 
 `references` is the broadest: calls, imports, implementations, extensions and
@@ -623,8 +623,8 @@ lists the others so you can re-run with `--path`. It never picks one silently.
 ### `context` — the pack an agent would receive
 
 ```bash
-cortex context "Add idempotency to payment callback processing"
-cortex context "fix the debounce timer" --show-excluded
+repocortex context "Add idempotency to payment callback processing"
+repocortex context "fix the debounce timer" --show-excluded
 ```
 
 Assembles a bounded, ranked context pack — the same thing `get_task_context`
@@ -653,9 +653,9 @@ counted, and an empty result is "nothing found", never "nothing breaks".
 ### `impact` — the blast radius of a git range
 
 ```bash
-cortex impact --base HEAD~1 --head HEAD
-cortex impact --base main --head my-branch --depth 3
-cortex impact --base origin/main --json           # the form a CI gate consumes
+repocortex impact --base HEAD~1 --head HEAD
+repocortex impact --base main --head my-branch --depth 3
+repocortex impact --base origin/main --json           # the form a CI gate consumes
 ```
 
 Reads the files the range changed, finds the symbols defined in them, and walks
@@ -671,13 +671,13 @@ of the range. That case is reported as **STALE INDEX** at the top rather than
 answered quietly, because every symbol in a stale report is about other code:
 
 ```
-$ cortex impact --base HEAD~6 --head HEAD
+$ repocortex impact --base HEAD~6 --head HEAD
 Blast radius of HEAD~6..HEAD
 
 UNVERIFIED PROVENANCE
 
   STALE INDEX: this index was built at commit c91cf807, which is neither end of the
-  analysed range HEAD~6..HEAD. … Re-run `cortex index` at one end of the range and ask again.
+  analysed range HEAD~6..HEAD. … Re-run `repocortex index` at one end of the range and ask again.
 
 13 files changed; 192 changed symbols found in the index, 192 analysed.
 144 symbols at risk through recorded references, plus 0 reachable only through dispatch.
@@ -688,8 +688,8 @@ Riskiest change: internal/resolve/infer/language.go:For — risk moderate (score
 ### `who` — who has context on the code a change can reach
 
 ```bash
-cortex who PaymentService.capture
-cortex who pkg.Decode --depth 2 --commits 500
+repocortex owners PaymentService.capture
+repocortex owners pkg.Decode --depth 2 --commits 500
 ```
 
 Computes the blast radius of a change to a symbol, then asks git history who
@@ -707,7 +707,7 @@ bounded; an identity is an address. A name matching more than one definition is
 refused rather than guessed:
 
 ```
-$ cortex who Execute
+$ repocortex owners Execute
 "Execute" matches 2 definitions. Re-ask with a fully-qualified name:
 
   internal/cli/root.go:Execute             internal/cli/root.go:192
@@ -717,7 +717,7 @@ $ cortex who Execute
 ### `compile` — the brief an agent should have been given
 
 ```bash
-cortex compile "Add idempotency to payment callback processing"
+repocortex compile "Add idempotency to payment callback processing"
 ```
 
 Turns a one-line request plus the assembled context into an explicit task
@@ -743,14 +743,14 @@ A contract is compiled **with** the architecture rules in force and the blast
 radius of the symbols it scopes, not from the context pack alone — a brief that
 cannot say which rule the change must respect, or what the change would reach, is
 a scope statement rather than a contract. Those two sections are also what
-`cortex verify` later checks the finished change against.
+`repocortex verify` later checks the finished change against.
 
 ### `verify` — did the change honour the contract?
 
 ```bash
-cortex compile "Add idempotency to payment callbacks" --json > contract.json
+repocortex compile "Add idempotency to payment callbacks" --json > contract.json
 # ... the change gets written ...
-cortex verify --contract contract.json --changed "$(git diff --name-only | paste -sd, -)"
+repocortex verify --contract contract.json --changed "$(git diff --name-only | paste -sd, -)"
 ```
 
 The second half of the loop, and the half nothing else in this category has.
@@ -809,9 +809,9 @@ about reachability, never as a proven call.
 ### `diff` — what changed about the code's facts
 
 ```bash
-cortex diff --from 41 --to 42
-cortex diff 8f3c1ab..a19d7e0
-cortex diff --from-index ../release-1.4/.cortex/index.db --from 8f3c1ab
+repocortex diff --from 41 --to 42
+repocortex diff 8f3c1ab..a19d7e0
+repocortex diff --from-index ../release-1.4/.repocortex/index.db --from 8f3c1ab
 ```
 
 Not changed lines — changed **facts**: symbols added, removed, moved or orphaned;
@@ -847,8 +847,8 @@ service exposes, and what its data access actually is. Both read the same graph
 ### `api` — the HTTP surface
 
 ```bash
-cortex api
-cortex api --json
+repocortex api
+repocortex api --json
 ```
 
 ```
@@ -880,8 +880,8 @@ your code.
 ### `db` — tables, reads and writes
 
 ```bash
-cortex db
-cortex db table transactions
+repocortex db
+repocortex db table transactions
 ```
 
 ```
@@ -931,7 +931,7 @@ nobody uses.
   not something a static read can establish, so the edge is weakened rather than
   dropped.
 - **Not seen:** queries built by an ORM's fluent API, stored procedures,
-  triggers and views. `cortex db` says so when it finds nothing.
+  triggers and views. `repocortex db` says so when it finds nothing.
 
 Bound parameters (`?`, `$1`, `:id`) are **not** treated as signs of dynamic
 assembly — they are how a safe query is written, and flagging them would
@@ -949,8 +949,8 @@ a deployment about to fail at start-up.
 ### `config` — settings, and what reads them
 
 ```bash
-cortex config          # the mismatches
-cortex config --all    # the full inventory
+repocortex config          # the mismatches
+repocortex config --all    # the full inventory
 ```
 
 ```
@@ -986,8 +986,8 @@ produces keys like `spec.template.spec.containers` that no code ever looks up.
 ### `deps` — what is declared, and what is imported
 
 ```bash
-cortex deps            # the unimported ones
-cortex deps --all      # the full list
+repocortex deps            # the unimported ones
+repocortex deps --all      # the full list
 ```
 
 ```
@@ -1029,11 +1029,11 @@ lives in a compose file's build context or a Deployment's image, and nowhere
 else.
 
 ```bash
-cortex infra                     # every deployment unit the index holds
-cortex infra --for src/api.go    # which unit does this file run in
-cortex infra --key DB_URL        # what does changing this key name restart
-cortex infra --keys              # every key name each unit sets
-cortex infra --disk              # scan the tree instead of the index
+repocortex infra                     # every deployment unit the index holds
+repocortex infra --for src/api.go    # which unit does this file run in
+repocortex infra --key DB_URL        # what does changing this key name restart
+repocortex infra --keys              # every key name each unit sets
+repocortex infra --disk              # scan the tree instead of the index
 ```
 
 Read: Dockerfiles, Compose files, Kubernetes manifests, Helm charts and
@@ -1042,7 +1042,7 @@ than a filter: the extractor has no field a value fits in, and a Kubernetes
 `Secret` is read as the key names it declares. What you get is "`DB_PASSWORD`,
 from Secret `db-creds`", which is the half you can act on.
 
-These facts are stored by `cortex index`, so a service is a node in the same
+These facts are stored by `repocortex index`, so a service is a node in the same
 graph as the code and a key name binds to the code that reads it. `--disk`
 reads the working tree directly instead, which is right on a repository you
 have just cloned and not indexed; the output says which of the two it is
@@ -1054,18 +1054,18 @@ guessed at. Terraform is read as block headers only, never attribute values.
 **Not read:** CloudFormation, systemd units, CI definitions.
 
 ```
-$ cortex infra
-The index holds no deployment manifests. If you expected some, re-run 'cortex index';
-to check the working tree directly, run 'cortex infra --disk'.
+$ repocortex infra
+The index holds no deployment manifests. If you expected some, re-run 'repocortex index';
+to check the working tree directly, run 'repocortex infra --disk'.
 ```
 
 ## Architecture governance
 
 ```bash
-cortex arch                      # violations
-cortex arch --crossings          # every component-to-component dependency
-cortex arch --fail-on high       # non-zero exit for CI
-cortex arch adr                  # architecture decision records
+repocortex arch                      # violations
+repocortex arch --crossings          # every component-to-component dependency
+repocortex arch --fail-on high       # non-zero exit for CI
+repocortex arch adr                  # architecture decision records
 ```
 
 ### Why this is not a dependency linter
@@ -1082,7 +1082,7 @@ because M7 put the table in the graph.
 ### Components are declared, never inferred
 
 ```yaml
-# .cortex.yml
+# .repocortex.yml
 architecture:
   components:
     - name: controller
@@ -1163,13 +1163,13 @@ repository.
 ## Serving the index to an agent
 
 ```bash
-cortex serve
+repocortex serve
 ```
 
 Runs an MCP server on stdio. Register it with Claude Code:
 
 ```bash
-claude mcp add cortex -- cortex --project /path/to/repo serve
+claude mcp add repocortex -- repocortex --project /path/to/repo serve
 ```
 
 The database is opened **read-only**: an agent session must never be able to
@@ -1178,7 +1178,7 @@ mutate the index it is querying.
 To see what is exposed without starting a server:
 
 ```
-$ cortex serve --list-tools
+$ repocortex serve --list-tools
 MCP profile "minimal" exposes 7 tool(s):
   get_project_overview
   search_code
@@ -1190,10 +1190,10 @@ MCP profile "minimal" exposes 7 tool(s):
 ```
 
 `get_task_context` is the one to reach for first — it answers in a single call
-what the other six answer in a dozen. `standard` adds `impact_analysis` and
+what the other six answer in a dozen. `standard` adds `analyze_impact` and
 `find_tests`; `full` is currently the same set as `standard`.
 
-The tool set is governed by `mcp.profile` in `.cortex.yml` — `minimal`
+The tool set is governed by `mcp.profile` in `.repocortex.yml` — `minimal`
 (default), `standard` or `full`. The default is small on purpose: every exposed
 tool's schema enters the agent's context on **every** request, and a long tool
 list measurably degrades tool selection. A server that quietly reached forty
@@ -1217,14 +1217,14 @@ response says so rather than pretending to be complete.
 `serve` requires a committed index:
 
 ```
-error: no index at /path/.cortex/index.db — run 'cortex init' and 'cortex index' first
+error: no index at /path/.repocortex/index.db — run 'repocortex init' and 'repocortex index' first
 ```
 
 ### `install` — register with every detected client
 
 ```bash
-cortex install --dry-run
-cortex install
+repocortex install --dry-run
+repocortex install
 ```
 
 Writes the MCP registration into the config file of every detected client,
@@ -1235,7 +1235,7 @@ client may not accept. For Zed, which uses a different config key, use `agent`
 and place the output yourself.
 
 ```
-$ cortex install --dry-run
+$ repocortex install --dry-run
 would write Claude Code      ~/.claude.json
 would write Claude Desktop   ~/Library/Application Support/Claude/claude_desktop_config.json
 skip  Cursor           (no config at ~/.cursor/mcp.json)
@@ -1247,9 +1247,9 @@ Restart your agent, then ask it to use RepoCortex.
 ### `agent` — the registration, and the guidance that makes it used
 
 ```bash
-cortex agent                     # the registration and the guidance
-cortex agent --guidance >> CLAUDE.md
-cortex agent --check             # what is and is not wired up
+repocortex agent                     # the registration and the guidance
+repocortex agent --guidance >> CLAUDE.md
+repocortex agent --check             # what is and is not wired up
 ```
 
 The guidance is the part that is usually missing. An agent with the tools wired
@@ -1261,12 +1261,12 @@ piece as a failure, since an un-integrated project is the normal starting
 state:
 
 ```
-$ cortex agent --check
+$ repocortex agent --check
 [ok  ]  index             revision 1 — 690 files, 9059 symbols, 16495 relationships
 [ok  ]  resolution        79% of the 20656 references that name something this index defines are bound
 [ok  ]  mcp tools         profile "minimal" exposes 7: get_project_overview, search_code, …
 [warn]  mcp registration  not in this repository's .mcp.json
-                            do:    cortex agent, and run the 'claude mcp add' line it prints
+                            do:    repocortex agent, and run the 'claude mcp add' line it prints
 [warn]  guidance          not found in CLAUDE.md or AGENTS.md
                             means: the agent has the tools but no rule telling it when to use them
 ```
@@ -1274,9 +1274,9 @@ $ cortex agent --check
 ## The portal
 
 ```bash
-cortex ui                        # http://127.0.0.1:7777/
-cortex ui --port 0               # pick a free port
-cortex ui --allow-refresh        # let the page rebuild the index (opt-in)
+repocortex ui                        # http://127.0.0.1:7777/
+repocortex ui --port 0               # pick a free port
+repocortex ui --allow-refresh        # let the page rebuild the index (opt-in)
 ```
 
 A local web portal over the index, with twenty screens grouped by what you
@@ -1331,9 +1331,9 @@ it could not see.
 ## Across repositories
 
 ```bash
-cortex system --member web=../web/.cortex/index.db \
-                --member orders=../orders/.cortex/index.db
-cortex system --members ./cortex.system.yml
+repocortex system --member web=../web/.repocortex/index.db \
+                --member orders=../orders/.repocortex/index.db
+repocortex system --members ./repocortex.system.yml
 ```
 
 Joins several repositories' indexes into one read-only view and reports the
@@ -1344,14 +1344,14 @@ index, runs and digest.
 
 Past two repositories, keep the list in a file. The estate is a property of the
 team, not of an invocation, and retyping eight flags is how a member silently
-goes missing. It is deliberately not `.cortex.yml`, which is per-repository:
+goes missing. It is deliberately not `.repocortex.yml`, which is per-repository:
 
 ```yaml
 members:
   - name: web
-    index: ../web/.cortex/index.db
+    index: ../web/.repocortex/index.db
   - name: orders
-    index: ../orders/.cortex/index.db
+    index: ../orders/.repocortex/index.db
 ```
 
 Confidence is weaker here than anywhere else in the tool, and the output says
@@ -1370,7 +1370,7 @@ What actually ran, correlated against what could.
 ### `trace` — what actually ran
 
 ```bash
-cortex trace otel-export.json
+repocortex trace otel-export.json
 ```
 
 Reads an exported OpenTelemetry or Jaeger trace and reports which indexed code it
@@ -1408,8 +1408,8 @@ Three ways to get the graph out, and one way to hold the context engine to a num
 ### `docs` — architecture documentation derived from the graph
 
 ```bash
-cortex docs --out docs/generated
-cortex docs --check --out docs/generated   # non-zero if the committed copies drifted
+repocortex docs --out docs/generated
+repocortex docs --check --out docs/generated   # non-zero if the committed copies drifted
 ```
 
 Writes `ARCHITECTURE.md` and `CAPABILITIES.md` with Mermaid diagrams for
@@ -1431,10 +1431,10 @@ the build rather than being noticed months later.
 ### `export` — the graph in a format other tools read
 
 ```bash
-cortex export --format dot | dot -Tsvg -o graph.svg
-cortex export --format graphml --out graph.graphml     # Gephi, yEd, Cytoscape
-cortex export --format json --out graph.json           # notebooks, jq, diffing
-cortex export --format csv --out edges.csv             # spreadsheets, pandas
+repocortex export --format dot | dot -Tsvg -o graph.svg
+repocortex export --format graphml --out graph.graphml     # Gephi, yEd, Cytoscape
+repocortex export --format json --out graph.json           # notebooks, jq, diffing
+repocortex export --format csv --out edges.csv             # spreadsheets, pandas
 ```
 
 Every format carries edge direction, and every format that can hold a
@@ -1444,15 +1444,15 @@ floor; the default `low` keeps everything. With `--out`, the file is written
 beside its destination and renamed into place, so an interrupted export never
 replaces a good artifact with a truncated one.
 
-`cortex licenses --check` is the one remaining command, and it is for
+`repocortex licenses --check` is the one remaining command, and it is for
 maintainers: it verifies `THIRD_PARTY.md` against the module graph, which CI
 gates.
 
 ### `bench` — measured retrieval quality
 
 ```bash
-cortex bench fixtures/bench/payment.yml
-cortex bench fixtures/bench/payment.yml --fail-on-regression   # for CI
+repocortex bench fixtures/bench/payment.yml
+repocortex bench fixtures/bench/payment.yml --fail-on-regression   # for CI
 ```
 
 Runs hand-written cases through the context engine and scores what comes back.
@@ -1482,7 +1482,7 @@ most flattering possible mistake.
 ## Checking status
 
 ```
-$ cortex status
+$ repocortex status
 Project:        payment-platform
 Index:          READY
 Schema:         v2
@@ -1500,8 +1500,8 @@ Capabilities:   code
 
 | State | Meaning |
 |---|---|
-| `ABSENT` | No `.cortex/index.db`. Run `cortex init` |
-| `EMPTY` | Schema applied, nothing indexed. Run `cortex index` |
+| `ABSENT` | No `.repocortex/index.db`. Run `repocortex init` |
+| `EMPTY` | Schema applied, nothing indexed. Run `repocortex index` |
 | `READY` | A committed revision with no parse failures |
 | `DEGRADED` | A committed revision where some files failed or partially parsed |
 | `INDEXING` | Should not persist; a run is in flight or crashed mid-index |
@@ -1516,21 +1516,21 @@ leaks partial numbers into status. Nothing is estimated.
 ## Diagnosing with `doctor`
 
 ```
-$ cortex doctor
+$ repocortex doctor
 [ok  ]  go runtime    go1.25.0 darwin/amd64
 [ok  ]  sqlite        3.53.3
 [ok  ]  fts5          ENABLE_FTS5 present
 [ok  ]  user config   using defaults (no user config)
 [ok  ]  repo config   none
-[ok  ]  index         /path/to/repo/.cortex/index.db
+[ok  ]  index         /path/to/repo/.repocortex/index.db
 ```
 
 The `repo config` line is worth reading when you are working in an unfamiliar
-repository — it tells you a `.cortex.yml` is in play and reminds you of its
+repository — it tells you a `.repocortex.yml` is in play and reminds you of its
 limits:
 
 ```
-[ok  ]  repo config   /path/to/repo/.cortex.yml (indexing settings only; cannot grant execution)
+[ok  ]  repo config   /path/to/repo/.repocortex.yml (indexing settings only; cannot grant execution)
 ```
 
 ### `--verify-index`
@@ -1538,7 +1538,7 @@ limits:
 Adds the graph invariant gate:
 
 ```
-$ cortex doctor --verify-index
+$ repocortex doctor --verify-index
 ...
 [ok  ]  dangling edges            none
 [ok  ]  orphaned symbols          none
@@ -1558,13 +1558,13 @@ $ cortex doctor --verify-index
 A failure renders as `[FAIL]  dangling edges  12 found — edges pointing at
 symbols that do not exist`, and `doctor` exits 1 with `error: N check(s) failed`.
 
-Any failure here means the index is structurally corrupt. `cortex index --full`
+Any failure here means the index is structurally corrupt. `repocortex index --full`
 rebuilds it; if the failure recurs on a fresh index, it is a bug worth reporting
 with the repository that triggers it.
 
 `doctor` also opens an in-memory SQLite database to test the driver, so it works
 even when there is no index — in which case it reports `[warn] index absent — run
-'cortex init'`.
+'repocortex init'`.
 
 ---
 
@@ -1577,7 +1577,7 @@ a setting lives in is a security decision, not an organisational one — see
 
 ### The short version
 
-| | `.cortex.yml` | `~/.config/cortex/config.yml` |
+| | `.repocortex.yml` | `~/.config/repocortex/config.yml` |
 |---|---|---|
 | Location | Repository root, committed | User's config dir, never in a repo |
 | Trust | **Untrusted** — attacker-supplied when you clone | **Trusted** — only the machine owner writes it |
@@ -1589,12 +1589,12 @@ The repository file structurally cannot express execution settings: the fields d
 not exist on `config.RepoConfig`. Attempting one is loud, not silent:
 
 ```
-$ cortex status
-error: repo config: parse .cortex.yml: yaml: unmarshal errors:
+$ repocortex status
+error: repo config: parse .repocortex.yml: yaml: unmarshal errors:
   line 3: field accuracy not found in type config.RepoConfig
 ```
 
-### `.cortex.yml` — every key that exists
+### `.repocortex.yml` — every key that exists
 
 ```yaml
 project:
@@ -1629,7 +1629,7 @@ Defaults, from `config.Defaults()`:
 | Key | Default |
 |---|---|
 | `index.include` | `["**"]` |
-| `index.exclude` | `.git/**`, `node_modules/**`, `vendor/**`, `target/**`, `build/**`, `dist/**`, `coverage/**`, `.cortex/**`, `**/*.min.js`, `**/*.lock`, `**/testdata/**` |
+| `index.exclude` | `.git/**`, `node_modules/**`, `vendor/**`, `target/**`, `build/**`, `dist/**`, `coverage/**`, `.repocortex/**`, `**/*.min.js`, `**/*.lock`, `**/testdata/**` |
 | `capabilities` | `["code"]` |
 | `context.max_files` | 20 |
 | `context.max_symbols` | 100 |
@@ -1657,21 +1657,21 @@ someone wrote this paragraph.
 **Consulted:**
 
 - `project.name`, `index.include`, `index.exclude` — drive discovery.
-- `mcp.profile` — selects the tool set `cortex serve` exposes.
-- `capabilities` — validated and displayed by `cortex status`.
+- `mcp.profile` — selects the tool set `repocortex serve` exposes.
+- `capabilities` — validated and displayed by `repocortex status`.
 - `context.max_files`, `max_symbols`, `max_lines`, `max_graph_depth` — become the
-  budget for every pack `cortex query`, `cortex compile` and `cortex bench`
+  budget for every pack `repocortex query`, `repocortex compile` and `repocortex bench`
   assemble. This entry previously said they were consumed by nothing; that stopped
   being true when the context engine shipped, and it is now pinned by a test
   (`TestContextLimitsReachTheAssemblerBudget`).
-- `architecture` — components and rules, checked by `cortex arch check`.
+- `architecture` — components and rules, checked by `repocortex arch check`.
 
 **Not consulted:**
 
 - `languages` is parsed, validated and stored, and no shipped code path reads it.
   Language selection today follows from what the parsers recognise in the files
   discovery finds, not from this list.
-- The `context.*` limits do **not** reach the MCP server. `cortex serve` builds
+- The `context.*` limits do **not** reach the MCP server. `repocortex serve` builds
   its packs from the compiled-in defaults, so an agent gets `max_files: 20`
   whatever the repository configured. Use the CLI if the limits matter to you.
 
@@ -1680,10 +1680,10 @@ that quietly does nothing. Redaction of secrets is unconditional — every file'
 text passes through `security.RedactFile` before a search row is written — and it
 was never switchable: the old field honoured only `true`, which was already the
 behaviour, and ignored `false` so that a cloned repository could not disable
-redaction of its own secrets. If your `.cortex.yml` sets it, delete the two
+redaction of its own secrets. If your `.repocortex.yml` sets it, delete the two
 lines; nothing about your index changes.
 
-### `~/.config/cortex/config.yml` — every key that exists
+### `~/.config/repocortex/config.yml` — every key that exists
 
 ```yaml
 accuracy:
@@ -1708,35 +1708,35 @@ accuracy:
 The defaults are deliberately conservative: heuristics rather than executing
 builds, prompting rather than downloading.
 
-**Honest note on `accuracy.mode`.** The mode is a real decision under `cortex
+**Honest note on `accuracy.mode`.** The mode is a real decision under `repocortex
 indexers`: `fast` plans and runs nothing, `auto` runs the indexers whose
 toolchain is present and skips the rest, and `exact` refuses to start when a
 detected language cannot be compiler-indexed, naming the language and the missing
-tool. It is **not** consulted by `cortex index`, which records the mode on the
+tool. It is **not** consulted by `repocortex index`, which records the mode on the
 run for provenance and never calls the orchestrator. So `exact` does not make an
-ordinary index fail; it makes `cortex indexers install` fail. Compiler-proven
-edges enter the graph through `cortex scip import`, which you run on the
-`.scip` files `cortex indexers install` produces.
+ordinary index fail; it makes `repocortex indexers install` fail. Compiler-proven
+edges enter the graph through `repocortex scip import`, which you run on the
+`.scip` files `repocortex indexers install` produces.
 
 ### Where the user config lives
 
-`os.UserConfigDir()` + `cortex/config.yml`:
+`os.UserConfigDir()` + `repocortex/config.yml`:
 
 | OS | Path |
 |---|---|
-| Linux | `~/.config/cortex/config.yml` |
-| macOS | `~/Library/Application Support/cortex/config.yml` |
-| Windows | `%AppData%\cortex\config.yml` |
+| Linux | `~/.config/repocortex/config.yml` |
+| macOS | `~/Library/Application Support/repocortex/config.yml` |
+| Windows | `%AppData%\repocortex\config.yml` |
 
-`CORTEX_CONFIG_HOME` overrides the directory:
-`$CORTEX_CONFIG_HOME/config.yml`. This is the only environment variable
+`REPOCORTEX_CONFIG_HOME` overrides the directory:
+`$REPOCORTEX_CONFIG_HOME/config.yml`. This is the only environment variable
 RepoCortex reads outside the soak test suite.
 
-`cortex doctor` reports which one was found:
+`repocortex doctor` reports which one was found:
 
 ```
 [ok  ]  user config   using defaults (no user config)
-[ok  ]  user config   /Users/you/Library/Application Support/cortex/config.yml
+[ok  ]  user config   /Users/you/Library/Application Support/repocortex/config.yml
 ```
 
 ### Precedence
@@ -1753,33 +1753,33 @@ Symptom-first entries with the real messages are in
 [troubleshooting.md](troubleshooting.md). The failure modes worth knowing before
 you hit them:
 
-### `no index at ... — run 'cortex init' first`
+### `no index at ... — run 'repocortex init' first`
 
-`index`, `resolve` and `watch` all require `.cortex/index.db` to exist. `init`
+`index`, `resolve` and `watch` all require `.repocortex/index.db` to exist. `init`
 creates it. Check you are in the right directory, or pass `--project`.
 
-### `no committed index — run 'cortex index' first`
+### `no committed index — run 'repocortex index' first`
 
 The database exists and is migrated, but nothing has ever been committed. `status`
-shows `Index: EMPTY`. Run `cortex index`.
+shows `Index: EMPTY`. Run `repocortex index`.
 
 Caveat: `resolve` and `watch` discard the underlying error at this point, so a
 genuine database failure (locked, corrupt) is reported with this same message.
-If `cortex index` also fails, read *its* error — it does not swallow the cause.
+If `repocortex index` also fails, read *its* error — it does not swallow the cause.
 
 ### `SQLite build lacks FTS5 (ENABLE_FTS5 absent)`
 
 `modernc.org/sqlite` enables FTS5 through a codegen flag it does not document, so
 RepoCortex checks rather than assumes. Seeing this means you have an unexpected
 build of that dependency — a replace directive, a vendored fork, or a platform
-the codegen has not covered. `cortex doctor` reports it as `[FAIL] fts5`, and
+the codegen has not covered. `repocortex doctor` reports it as `[FAIL] fts5`, and
 `init` refuses to proceed.
 
 ### `watch: watched directory limit exceeded`
 
 The repository has more than 8192 directories RepoCortex would need to watch. First
 check that large trees are actually excluded — `.git`, `node_modules` and
-`.cortex` are refused unconditionally, but a monorepo's build outputs are not.
+`.repocortex` are refused unconditionally, but a monorepo's build outputs are not.
 Adding them to `index.exclude` removes them from the walk *and* from the
 watcher's predicate.
 
@@ -1805,11 +1805,11 @@ of raising it.
 ### The index looks stale after a branch switch
 
 It should not — diffing is by content hash, not mtime, precisely because `git
-checkout` rewrites timestamps wholesale. If you are running `cortex watch`,
+checkout` rewrites timestamps wholesale. If you are running `repocortex watch`,
 the startup reconcile catches changes made while it was stopped. If you are not,
-run `cortex index`.
+run `repocortex index`.
 
-### `This index was written by cortex X and you are running Y`
+### `This index was written by repocortex X and you are running Y`
 
 Not an error, and the query still answers. An index is data **plus the resolution
 rules that produced it**, and those rules change between builds — resolver
@@ -1819,7 +1819,7 @@ for identical source, and nothing about querying it looks wrong: it succeeds, an
 its results carry the same confidence tiers a current index would.
 
 So each run records the build that wrote it, and a read against an index from a
-different build says so on stderr. Run `cortex index && cortex resolve` to
+different build says so on stderr. Run `repocortex index && repocortex resolve` to
 refresh. The warning never appears on stdout, so it cannot contaminate `--json`
 output a script is parsing.
 
@@ -1832,7 +1832,7 @@ differently for that reason. Re-indexing resolves both.
 
 The run still succeeds. A single unparseable file must not cost the entire index,
 so the file is recorded with `parse_status = 'failed'` and its error text, the
-run is published as `degraded` rather than `ready`, and `cortex status` reports
+run is published as `degraded` rather than `ready`, and `repocortex status` reports
 the failure count. Query the `files` table for the reason per path.
 
 ---

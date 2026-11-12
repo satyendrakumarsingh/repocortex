@@ -402,7 +402,7 @@ func TestTheSimplestRealQueryIsNotMistakenForProse(t *testing.T) {
 }
 
 // TestLooksLikeSQLNeverPanicsOnShortStatements is a regression test for a crash
-// I shipped into `cortex index`.
+// I shipped into `repocortex index`.
 //
 // selectsFromATable sliced up[len("SELECT "):i] on the assumption that the first
 // " FROM " came after the verb. "WITH a FROM b" and "SELECT FROM t" both put it

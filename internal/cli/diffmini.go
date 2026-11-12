@@ -12,15 +12,15 @@ import (
 
 func newDiffMinimizeCmd(g *Global) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "diff-minimize [patch-file]",
+		Use:   "minimize-diff [patch-file]",
 		Short: "Compress a unified diff into a token-efficient representation for AI agents",
 		Long: `Diff Minimizer compresses unified diffs (from git diff or pull requests) into
 structured, token-efficient formats. It strips redundant headers, extracts enclosing
 symbol scopes, and compresses large unchanged context runs.
 
 Reads from a specified patch file or directly from stdin:
-  git diff | cortex diff-minimize
-  cortex diff-minimize patch.diff --json`,
+  git diff | repocortex minimize-diff
+  repocortex minimize-diff patch.diff --json`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var diffBytes []byte

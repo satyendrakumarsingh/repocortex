@@ -15,7 +15,7 @@ import (
 	"github.com/satyendrakumarsingh/repocortex/internal/store"
 )
 
-// runDiffCLI executes `cortex diff` in-process against an isolated project.
+// runDiffCLI executes `repocortex diff` in-process against an isolated project.
 //
 // The command is assembled here rather than fetched out of NewRoot so the test
 // exercises newDiffCmd itself and does not depend on where in the root tree the
@@ -27,7 +27,7 @@ func runDiffCLI(t *testing.T, projectRoot string, args ...string) (string, error
 
 	g := &Global{}
 	root := &cobra.Command{
-		Use:           "cortex",
+		Use:           "repocortex",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
@@ -247,7 +247,7 @@ func TestDiffUnknownRefFails(t *testing.T) {
 
 			for _, want := range []string{
 				"no indexed run matches",
-				"cortex index",
+				"repocortex index",
 				"runs recorded in",
 				"run 1",
 			} {

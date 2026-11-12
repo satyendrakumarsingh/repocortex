@@ -4,7 +4,7 @@
 // Two properties govern the design.
 //
 //  1. THE REPOSITORY IS UNTRUSTED. Everything this package reads — directory
-//     entries, symlink targets, .gitignore rules, .cortex.yml globs — is
+//     entries, symlink targets, .gitignore rules, .repocortex.yml globs — is
 //     attacker-controlled the moment someone clones a hostile repo. So symlinks
 //     are never followed out of the root, config Exclude patterns cannot be
 //     negated away, and ignore-file parsing is fuzzed. Spec §33.
@@ -52,7 +52,7 @@ const DefaultMaxFileSize int64 = 2 << 20 // 2 MiB
 const binarySniffLen = 8000
 
 // Skip reasons. These are stable identifiers, not prose: they end up in the
-// index and in `cortex doctor` output, so changing one is a schema change.
+// index and in `repocortex doctor` output, so changing one is a schema change.
 const (
 	SkipTooLarge      = "too_large"
 	SkipBinary        = "binary"
@@ -177,7 +177,7 @@ func NewWalker(root string, cfg config.Config, opts ...Option) (*Walker, error) 
 			continue
 		}
 		// SECURITY: exclusions are additive defaults that a repository must
-		// never be able to remove. .cortex.yml is attacker-controlled and its
+		// never be able to remove. .repocortex.yml is attacker-controlled and its
 		// exclude list is appended to the defaults (see config.applyRepo), so a
 		// repo could otherwise smuggle in "!.git/**" and have RepoCortex index
 		// the object store. This is the enforcement point.

@@ -7,7 +7,7 @@ import (
 	"github.com/satyendrakumarsingh/repocortex/internal/capability/missed"
 )
 
-// FromBlindspots converts `cortex missed` results.
+// FromBlindspots converts `repocortex blindspots` results.
 func FromBlindspots(bs []missed.Blindspot) []Finding {
 	out := make([]Finding, 0, len(bs))
 	for _, b := range bs {
@@ -16,7 +16,7 @@ func FromBlindspots(bs []missed.Blindspot) []Finding {
 			msg += " Remediation: " + b.Remediation
 		}
 		out = append(out, Finding{
-			RuleID:          "cortex/blindspot/" + string(b.Kind),
+			RuleID:          "repocortex/blindspot/" + string(b.Kind),
 			RuleDescription: "Code-intelligence blindspot: " + string(b.Kind),
 			Severity:        b.Severity,
 			Message:         fmt.Sprintf("%s: %s", b.Target, msg),
@@ -27,14 +27,14 @@ func FromBlindspots(bs []missed.Blindspot) []Finding {
 	return out
 }
 
-// FromViolations converts `cortex arch` rule violations. The edge's
+// FromViolations converts `repocortex arch` rule violations. The edge's
 // confidence travels with the finding: a violation on a `medium` edge may not
 // exist at all, and a reviewer must be able to see that.
 func FromViolations(vs []architecture.Violation) []Finding {
 	out := make([]Finding, 0, len(vs))
 	for _, v := range vs {
 		out = append(out, Finding{
-			RuleID:          "cortex/arch/" + ruleOrUnnamed(v.RuleID),
+			RuleID:          "repocortex/arch/" + ruleOrUnnamed(v.RuleID),
 			RuleDescription: "Architecture rule " + ruleOrUnnamed(v.RuleID),
 			Severity:        v.Severity,
 			Message: fmt.Sprintf("%s → %s (%s): %s %s %s, %s confidence",
@@ -54,7 +54,7 @@ func FromDataViolations(vs []architecture.DataViolation) []Finding {
 	out := make([]Finding, 0, len(vs))
 	for _, v := range vs {
 		f := Finding{
-			RuleID:          "cortex/data/" + ruleOrUnnamed(v.RuleID),
+			RuleID:          "repocortex/data/" + ruleOrUnnamed(v.RuleID),
 			RuleDescription: "Sensitive-data rule " + ruleOrUnnamed(v.RuleID),
 			Severity:        v.Severity,
 			Message:         v.String(),

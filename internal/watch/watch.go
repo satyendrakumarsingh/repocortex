@@ -79,7 +79,7 @@ type Options struct {
 	// It is consulted before a directory is watched, never after, so an ignored
 	// subtree costs no watch descriptors at all.
 	//
-	// .git, node_modules and .cortex are always ignored regardless of what
+	// .git, node_modules and .repocortex are always ignored regardless of what
 	// this returns; see builtinIgnoredDirs.
 	Ignore func(relPath string, isDir bool) bool
 

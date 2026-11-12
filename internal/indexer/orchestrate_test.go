@@ -13,7 +13,7 @@ import (
 )
 
 // testConfig builds a resolved config the way config.Load would, without
-// touching the developer's real ~/.config/cortex/config.yml.
+// touching the developer's real ~/.config/repocortex/config.yml.
 func testConfig(root string, mode config.AccuracyMode) config.Config {
 	cfg := config.Defaults()
 	cfg.RepoRoot = root
@@ -209,7 +209,7 @@ func TestExactModeSucceedsWhenEverythingIsPresent(t *testing.T) {
 	}
 }
 
-// TestPlanHasNoSideEffects. Plan backs `cortex indexers list`, which a user
+// TestPlanHasNoSideEffects. Plan backs `repocortex indexers list`, which a user
 // runs to find out what WOULD happen. It must not install, prompt, index or
 // create anything.
 func TestPlanHasNoSideEffects(t *testing.T) {
@@ -591,7 +591,7 @@ func TestExecuteLeavesOnlyIndexesInTheOutputDirectory(t *testing.T) {
 
 // TestExecuteRemovesAnOutputDirectoryItCreatedAndDidNotUse: a run whose every
 // step was skipped after the directory was made must not leave an empty
-// cortex-scip-* behind, and must not advertise a directory that no longer
+// repocortex-scip-* behind, and must not advertise a directory that no longer
 // exists.
 func TestExecuteRemovesAnOutputDirectoryItCreatedAndDidNotUse(t *testing.T) {
 	t.Parallel()
@@ -625,7 +625,7 @@ func TestExecuteRemovesAnOutputDirectoryItCreatedAndDidNotUse(t *testing.T) {
 
 // TestOutputDirGuardRefusesWhatItDidNotCreate pins the guard both
 // CleanupOutput and pruneOutput rely on. The basename prefix alone is not
-// ownership: a repository can contain a directory called cortex-scip-x, and
+// ownership: a repository can contain a directory called repocortex-scip-x, and
 // a symlink under the temp root can carry the prefix while pointing anywhere.
 // Only a directory that really sits directly under os.TempDir() is ours.
 func TestOutputDirGuardRefusesWhatItDidNotCreate(t *testing.T) {
@@ -643,7 +643,7 @@ func TestOutputDirGuardRefusesWhatItDidNotCreate(t *testing.T) {
 
 	// A decoy with the right name in the wrong place: nested under a per-test
 	// directory, so not a direct child of the temp root.
-	decoy := mk(t, filepath.Join(t.TempDir(), "cortex-scip-decoy"))
+	decoy := mk(t, filepath.Join(t.TempDir(), "repocortex-scip-decoy"))
 	CleanupOutput(decoy)
 	if err := pruneOutput(decoy, nil); err != nil {
 		t.Errorf("pruneOutput on a decoy returned %v; it should refuse silently", err)
@@ -655,7 +655,7 @@ func TestOutputDirGuardRefusesWhatItDidNotCreate(t *testing.T) {
 	// A symlink directly under the temp root, correctly named, pointing at a
 	// directory somewhere else. The name is ours; the target is not.
 	victim := mk(t, filepath.Join(t.TempDir(), "victim"))
-	link := filepath.Join(os.TempDir(), "cortex-scip-link-"+filepath.Base(t.TempDir()))
+	link := filepath.Join(os.TempDir(), "repocortex-scip-link-"+filepath.Base(t.TempDir()))
 	if err := os.Symlink(victim, link); err != nil {
 		t.Skipf("cannot create a symlink here: %v", err)
 	}

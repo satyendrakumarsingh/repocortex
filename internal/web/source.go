@@ -166,7 +166,7 @@ func (s *Server) handleSource(w http.ResponseWriter, r *http.Request) {
 			Title: fmt.Sprintf("%s is not a file in this index", path),
 			Detail: "Only files the index recorded can be shown, and only as they were when it was built. " +
 				"The path may be spelled differently, ignored by the walker, or newer than the index.",
-			Steps: []string{"cortex index — if the file is newer than the index"},
+			Steps: []string{"repocortex index — if the file is newer than the index"},
 		}
 		s.writeJSON(w, http.StatusOK, resp)
 		return

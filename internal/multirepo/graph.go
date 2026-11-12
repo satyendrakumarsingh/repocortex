@@ -168,7 +168,7 @@ func (f *Federator) Build(ctx context.Context, members []Member) (*Report, error
 	if len(members) < 2 {
 		return nil, fmt.Errorf(
 			"multirepo: a system graph needs at least two members, got %d — "+
-				"with one repository, 'cortex api' and 'cortex db' already answer this",
+				"with one repository, 'repocortex api' and 'repocortex db' already answer this",
 			len(members))
 	}
 	seen := map[string]bool{}
@@ -794,7 +794,7 @@ func (f *Federator) joinTables(rep *Report, facts []*memberFacts) {
 	for name, members := range byTable {
 		if len(members) < 2 {
 			// One member naming a table is not a coupling. It is already
-			// answered by `cortex db` inside that repository.
+			// answered by `repocortex db` inside that repository.
 			continue
 		}
 		names = append(names, name)
@@ -933,7 +933,7 @@ func memberWarnings(run *model.IndexRun, st MemberStatus, running string, staleA
 			"resolution rules match the rest of the system is unknown")
 	case running != "" && run.ProducerVersion != running:
 		out = append(out, fmt.Sprintf(
-			"indexed by cortex %s while this report is produced by %s; resolution rules "+
+			"indexed by repocortex %s while this report is produced by %s; resolution rules "+
 				"change between builds", run.ProducerVersion, running))
 	}
 	if st.IndexedUnix > 0 && time.Duration(st.AgeHours*float64(time.Hour)) > staleAfter {

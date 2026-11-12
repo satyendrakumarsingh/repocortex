@@ -80,7 +80,7 @@
 //
 // registry.CommitRun publishes a run and DELETES the rows of the one it
 // replaces, so a single index database holds exactly one committed run. The two
-// sides of a real `cortex diff <ref>..<ref>` therefore normally live in two
+// sides of a real `repocortex diff <ref>..<ref>` therefore normally live in two
 // index files — the working index and a second index built at the other ref —
 // which is why Compare takes a Side (source + run id) per end rather than one
 // source and two ids. Two runs inside one store work equally well; nothing here

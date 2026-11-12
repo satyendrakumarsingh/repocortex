@@ -30,7 +30,7 @@ func (csvExporter) Format() Format { return FormatCSV }
 //     spreadsheet would otherwise interpret it as a formula. A key that
 //     legitimately starts with one of those bytes — an npm-scoped package
 //     path like "@babel/core/index.js:parse" is the realistic case, since
-//     cortex indexes third-party dependency trees — is therefore not
+//     repocortex indexes third-party dependency trees — is therefore not
 //     round-tripped byte-for-byte: a consumer reading the CSV back
 //     programmatically sees "'@babel/core/index.js:parse", not the raw key.
 func (csvExporter) Lossy() string {

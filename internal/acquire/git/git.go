@@ -198,7 +198,7 @@ func Open(path string) (*Repo, error) {
 		// go-git refuses repositories using extensions it does not implement.
 		// `extensions.worktreeConfig`, which git itself enables the first time
 		// you run `git worktree add`, is the common one, and it made
-		// `cortex index` record no revision at all on a repository whose
+		// `repocortex index` record no revision at all on a repository whose
 		// HEAD was perfectly readable — silently, because the caller treated
 		// any error as "not a repository".
 		//
@@ -264,7 +264,7 @@ func (r *Repo) Info(ctx context.Context) (Info, error) {
 
 	case errors.Is(err, plumbing.ErrReferenceNotFound):
 		// A repository with no commits. This is the normal state during
-		// `cortex init` on a freshly created project, so it must not be
+		// `repocortex init` on a freshly created project, so it must not be
 		// treated as breakage. HEAD is still a symbolic ref at this point, so
 		// the branch name is recoverable even though the hash is not.
 		if sym, serr := r.repo.Reference(plumbing.HEAD, false); serr == nil && sym.Target().IsBranch() {

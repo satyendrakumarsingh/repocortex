@@ -213,6 +213,28 @@ type Options struct {
 	SkipColocation bool
 }
 
+// ProbeOptions bounds a discovery run that only needs to know WHETHER tests
+// exist near a symbol, not to enumerate them: two hops, a few hundred nodes,
+// and no expansion through wide helpers.
+//
+// A whole-repository audit asks that question of dozens of symbols in one
+// call. With the default bounds each answer walks four hops and up to 5,000
+// nodes, which the scale suite measured at 5.5 seconds for list_blindspots
+// on a 250,000-symbol index. The probe finds any test that calls the symbol
+// or calls its caller, which is where almost every real test is.
+//
+// A probe that comes back empty AND truncated has not looked far enough to
+// say "untested". Callers must treat that as unknown; see Inconclusive.
+func ProbeOptions() Options {
+	return Options{MaxDepth: 2, MaxNodes: 400, HubDegreeLimit: 64}
+}
+
+// Inconclusive reports whether r found no tests but stopped at a bound, so
+// "no tests" is not something it can claim.
+func (r TestReport) Inconclusive() bool {
+	return len(r.Tests) == 0 && r.Truncated
+}
+
 func (o Options) withDefaults() Options {
 	if o.MaxDepth <= 0 {
 		o.MaxDepth = DefaultMaxDepth

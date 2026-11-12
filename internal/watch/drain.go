@@ -75,7 +75,7 @@ func drainBackend(src <-chan fsnotify.Event, dst chan<- fsnotify.Event, dropped 
 //
 // Deliberately an error rather than a log line: a consumer that receives it
 // knows its view is incomplete and can fall back to a full reconcile.
-// `cortex watch` re-diffs the tree on every batch, so a reported overflow
+// `repocortex watch` re-diffs the tree on every batch, so a reported overflow
 // costs one extra scan and loses nothing.
 func overflowError(n int64) error {
 	return fmt.Errorf("watch: %d filesystem event(s) dropped because the queue was full; "+

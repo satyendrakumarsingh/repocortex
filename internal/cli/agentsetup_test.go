@@ -30,7 +30,7 @@ func runAgent(t *testing.T, projectRoot string, args ...string) (string, error) 
 
 	g := &Global{}
 	root := &cobra.Command{
-		Use:               "cortex",
+		Use:               "repocortex",
 		SilenceUsage:      true,
 		SilenceErrors:     true,
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error { return g.setup(cmd) },
@@ -87,7 +87,7 @@ func TestAgentGuidanceNamesOnlyRealTools(t *testing.T) {
 	}
 
 	cited := []string{
-		"get_task_context", "impact_analysis", "find_callers",
+		"get_task_context", "analyze_impact", "find_callers",
 		"find_tests", "find_symbol", "search_code",
 	}
 	for _, name := range cited {
@@ -130,7 +130,7 @@ func TestAgentPrintsRegistrationAndGuidance(t *testing.T) {
 		t.Fatalf("agent: %v\n%s", err, out)
 	}
 	for _, want := range []string{
-		"claude mcp add cortex -- cortex --project " + root + " serve",
+		"claude mcp add repocortex -- repocortex --project " + root + " serve",
 		"claude --plugin-dir " + root,
 		"stdio",
 		agentGuidanceOpen,
@@ -167,7 +167,7 @@ func TestAgentJSONIsMachineReadable(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &got); err != nil {
 		t.Fatalf("not JSON: %v\n%s", err, out)
 	}
-	if got.Server.Command != "cortex" || len(got.Server.Args) == 0 {
+	if got.Server.Command != "repocortex" || len(got.Server.Args) == 0 {
 		t.Errorf("server spec is unusable: %+v", got.Server)
 	}
 	if got.Guidance != agentGuidance {
@@ -272,7 +272,7 @@ func TestAgentCheckOnBareProjectDoesNotFail(t *testing.T) {
 			t.Errorf("--check never mentions %q\n---\n%s", want, out)
 		}
 	}
-	if !strings.Contains(out, "cortex agent --guidance >> CLAUDE.md") {
+	if !strings.Contains(out, "repocortex agent --guidance >> CLAUDE.md") {
 		t.Errorf("--check must name the remedy for missing guidance\n---\n%s", out)
 	}
 }
@@ -287,7 +287,7 @@ func TestAgentCheckSeesWiring(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(root, ".mcp.json"),
-		[]byte(`{"mcpServers":{"cortex":{"command":"cortex","args":["serve"]}}}`), 0o600); err != nil {
+		[]byte(`{"mcpServers":{"repocortex":{"command":"repocortex","args":["serve"]}}}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -314,7 +314,7 @@ func TestAgentCheckSeesWiring(t *testing.T) {
 		t.Errorf("guidance in CLAUDE.md was not detected: %v", status)
 	}
 	if status["mcp registration"] != "ok" {
-		t.Errorf("cortex in .mcp.json was not detected: %v", status)
+		t.Errorf("repocortex in .mcp.json was not detected: %v", status)
 	}
 	// The index really is absent here, and saying otherwise would make the
 	// whole report worthless.
@@ -359,7 +359,7 @@ func TestAgentCheckSeesIndexAndTools(t *testing.T) {
 	if !strings.Contains(out, "never indexed") {
 		t.Errorf("--check should distinguish an empty index from a missing one\n---\n%s", out)
 	}
-	if !strings.Contains(out, "cortex index") {
+	if !strings.Contains(out, "repocortex index") {
 		t.Errorf("--check must name the command that fixes it\n---\n%s", out)
 	}
 }

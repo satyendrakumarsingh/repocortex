@@ -12,7 +12,7 @@ import (
 // go-git rejects a repository whose core.repositoryformatversion declares an
 // extension it does not implement. `extensions.worktreeConfig` is the common
 // one — git enables it the first time you run `git worktree add` — and on a
-// real repository that made `cortex index` record no revision at all, while
+// real repository that made `repocortex index` record no revision at all, while
 // `git rev-parse HEAD` answered instantly. The caller treated every Open error
 // as "not a repository", so the loss was invisible.
 //

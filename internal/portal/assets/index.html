@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>RepoCortex</title>
+<link rel="stylesheet" href="app.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect x='2' y='2' width='12' height='12' rx='2' fill='%230b7285'/></svg>">
+</head>
+<body>
+<a class="skip" href="#view">Skip to content</a>
+
+<header class="top">
+  <a class="brand" href="#/home" aria-label="RepoCortex home">
+    <span class="brand-mark" aria-hidden="true"></span>
+    <span class="brand-name" id="project">RepoCortex</span>
+  </a>
+  <form class="search" role="search" id="search">
+    <input id="q" type="search" autocomplete="off" spellcheck="false"
+           aria-label="Search for a function, type or method by name, or for text in the code"
+           placeholder="Search a function, type or method, or any text in the code">
+    <kbd aria-hidden="true">/</kbd>
+  </form>
+  <div class="top-right">
+    <a class="top-link" href="#/health" id="coverage-link">Index coverage</a>
+    <button class="quiet-btn" type="button" id="theme" aria-label="Switch colour theme">Theme</button>
+  </div>
+</header>
+
+<div class="shell">
+  <nav class="side" aria-label="Sections">
+    <a href="#/home" data-section="home"><span class="n">Home</span><span class="d">Ask a question</span></a>
+    <a href="#/explore" data-section="explore"><span class="n">Explore</span><span class="d">Routes, tables and layout</span></a>
+    <a href="#/change" data-section="change"><span class="n">Change</span><span class="d">Plan a change safely</span></a>
+    <a href="#/health" data-section="health"><span class="n">Health</span><span class="d">Hotspots, unused code, blind spots</span></a>
+    <a href="#/agents" data-section="agents"><span class="n">Agents</span><span class="d">Connect, and what each tool costs</span></a>
+    <p class="side-foot">Read-only. Served from this machine only.</p>
+  </nav>
+  <main id="view" tabindex="-1"></main>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<noscript><p class="noscript">This portal needs JavaScript. Everything it shows is also available from the command line: run <code>repocortex --help</code>.</p></noscript>
+<script type="module" src="app.js"></script>
+</body>
+</html>

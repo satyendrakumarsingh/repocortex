@@ -316,7 +316,7 @@ func (w *Writer) commitTx() error {
 // fileSavepoint names the savepoint guarding one file's rows. A constant is
 // enough: the pipeline funnels every write through one Writer, and savepoints
 // nest by name only when deliberately reused.
-const fileSavepoint = "cortex_file"
+const fileSavepoint = "repocortex_file"
 
 // BeginFile opens a savepoint around one file's rows.
 //

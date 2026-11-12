@@ -56,7 +56,7 @@ it was determined.
 `SourceCompiler`. Enforced in Go *and* in SQL, deliberately — a bug in one
 writer must not be able to turn a guess into a claim.
 
-**3. Repository config cannot cause execution.** `.cortex.yml` is
+**3. Repository config cannot cause execution.** `.repocortex.yml` is
 attacker-controlled the moment someone clones an untrusted repo. It may
 describe what to index; it may never influence what to run, what to download,
 or whether secrets are redacted. See the package comment in
@@ -71,7 +71,7 @@ Match the level of scrutiny to the risk:
   repositories are in the threat model. `FuzzSplitIdentifier` is the pattern to
   copy; it found a real Unicode bug within seconds of first running.
 - **Anything touching the graph** — the invariant gate must still pass:
-  `cortex doctor --verify-index`.
+  `repocortex doctor --verify-index`.
 - **Anything security-relevant** — write the test that proves the attack
   *fails*, not just that the happy path works.
 
@@ -108,3 +108,10 @@ one that holds.
 Explain *why* in the body, not just what. If you fixed a bug, say what the
 failure mode was — the next person to touch that code needs to know what it was
 protecting against.
+
+## Before you open a pull request
+
+- A new tool or command follows [naming conventions](../docs/reference/naming-conventions.md); tests enforce them.
+- A capability is implemented once and reaches MCP, REST and the shell through one tool. See "One Tool Surface" in [design and architecture](../docs/DESIGN_AND_ARCHITECTURE.md#35-one-tool-surface).
+- A change to a query, a traversal or a tool's output is run through the size suite: `go test ./tests/scale/ -v`. See [scale testing](../docs/operations/scale-testing.md).
+- A result that claims something is absent is graded and explained, never asserted.

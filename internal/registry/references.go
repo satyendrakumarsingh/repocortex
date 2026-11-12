@@ -166,7 +166,7 @@ func (r *Registry) EachFilePageWithRefs(ctx context.Context, runID int64, fn fun
 	// A reference marked resolved but pointing at nothing is a broken
 	// invariant, not a resolved reference. It is picked up here as well as
 	// 'pending' so that an index already carrying the damage repairs itself on
-	// the next `cortex resolve` instead of requiring a full re-index.
+	// the next `repocortex resolve` instead of requiring a full re-index.
 	//
 	// ReplaceFile now prevents the state arising (see deleteFileRows), but
 	// indexes written before that fix still contain it, and they are the ones
@@ -926,7 +926,7 @@ type CompilerResolutionStats struct {
 // ROWS THE RESOLVER ALREADY BOUND ARE NOT TOUCHED. They are already resolved,
 // so coverage does not move, and rewriting them would silently replace the
 // resolver's answers underneath the two reports that score them —
-// `cortex accuracy` and `doctor --resolution-precision`. Correcting a
+// `repocortex accuracy` and `doctor --resolution-precision`. Correcting a
 // resolver hit that the compiler disagrees with is a separate, larger claim and
 // belongs behind its own measurement, not inside an import.
 //

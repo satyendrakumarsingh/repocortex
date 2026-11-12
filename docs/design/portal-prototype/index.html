@@ -1,0 +1,613 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RepoCortex portal: design prototype</title>
+<style>
+/*
+  DESIGN PROTOTYPE for the next portal. Static: the figures are real ones read
+  from this repository's own index on 2026-11-12, embedded so the page needs no
+  server. Design rationale: docs/design/PORTAL_UX_PLAN.md.
+
+  Visual language, "Survey": a code map that looks like a map. Near-white
+  sheets and deep navy ink, one petrol-teal accent (a blue-black ground and a
+  bright cyan-teal in the dark theme), the DIN family (the lettering of technical
+  drawings) for headings and figures from the reader's own system, hairline
+  rules instead of shadows, and confidence drawn as four fills the way a map
+  prints its legend.
+*/
+:root {
+  --paper: #f4f6f9; --sheet: #ffffff; --well: #edf1f6;
+  --ink: #0e1b2c; --ink-2: #3d4d63; --ink-3: #5d6b80;
+  --line: #dfe5ed; --line-strong: #77859b;
+  --accent: #0b7285; --accent-hi: #095c6c; --accent-soft: #e0f3f7; --on-accent: #ffffff;
+  --warn: #9a5507; --warn-soft: #fdecd8; --ok: #0b7a43; --ok-soft: #dbf4e4; --bad: #b3353a;
+  --t-exact: #0e1b2c; --t-high: #3d4d63; --t-medium: #6b7a90; --t-low: #9aa7b8;
+  --display: "DIN Alternate", "Bahnschrift", "DIN 2014", "Barlow Semi Condensed", "Roboto Condensed", "Arial Narrow", system-ui, sans-serif;
+  --body: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0b1118; --sheet: #121a24; --well: #1a2431;
+    --ink: #e9eff7; --ink-2: #b6c2d2; --ink-3: #8f9db1;
+    --line: #223041; --line-strong: #5e6d82;
+    --accent: #4fc6d8; --accent-hi: #7fd9e7; --accent-soft: #10303a; --on-accent: #04222a;
+    --warn: #f0b566; --warn-soft: #33260f; --ok: #6fd39a; --ok-soft: #12301f; --bad: #ff8f8f;
+    --t-exact: #e9eff7; --t-high: #b6c2d2; --t-medium: #8493a8; --t-low: #5d6b80;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0b1118; --sheet: #121a24; --well: #1a2431;
+  --ink: #e9eff7; --ink-2: #b6c2d2; --ink-3: #8f9db1;
+  --line: #223041; --line-strong: #5e6d82;
+  --accent: #4fc6d8; --accent-hi: #7fd9e7; --accent-soft: #10303a; --on-accent: #04222a;
+  --warn: #f0b566; --warn-soft: #33260f; --ok: #6fd39a; --ok-soft: #12301f; --bad: #ff8f8f;
+  --t-exact: #e9eff7; --t-high: #b6c2d2; --t-medium: #8493a8; --t-low: #5d6b80;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 15px/1.55 var(--body); -webkit-font-smoothing: antialiased; }
+h1, h2, h3 { font-family: var(--display); font-weight: 700; margin: 0; line-height: 1.15; letter-spacing: 0; }
+p { margin: 0; }
+a { color: var(--accent); text-underline-offset: 3px; }
+code, .mono { font-family: var(--mono); font-size: .88em; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.skip { position: absolute; left: -999px; }
+.skip:focus { left: 12px; top: 12px; background: var(--sheet); padding: 8px 12px; z-index: 50; }
+
+/* ------------------------------------------------------------ top bar */
+.top {
+  position: sticky; top: 0; z-index: 20;
+  display: grid; grid-template-columns: 216px minmax(0, 1fr) auto; align-items: center; gap: 20px;
+  height: 60px; padding: 0 20px 0 0; background: var(--sheet); border-bottom: 1px solid var(--line);
+}
+.brand { display: flex; align-items: baseline; gap: 9px; padding-left: 20px; min-width: 0; }
+.brand-mark { color: var(--accent); font-size: 17px; }
+.brand-name { font: 700 19px var(--display); }
+.brand-rev { font: 12px var(--mono); color: var(--ink-3); white-space: nowrap; }
+.search { position: relative; max-width: 720px; }
+.search input {
+  width: 100%; font: inherit; font-size: 15px; color: var(--ink);
+  padding: 9px 78px 9px 14px; background: var(--paper);
+  border: 1.5px solid var(--line-strong); border-radius: 8px;
+}
+.search input::placeholder { color: var(--ink-3); }
+.search kbd { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font: 12px var(--mono); color: var(--ink-3); border: 1px solid var(--line-strong); border-radius: 4px; padding: 1px 6px; }
+.top-right { display: flex; align-items: center; gap: 10px; }
+.trust {
+  display: flex; align-items: center; gap: 9px; padding: 6px 12px; cursor: pointer;
+  background: none; border: 1px solid var(--line-strong); border-radius: 8px; font-size: 13.5px; white-space: nowrap;
+}
+.trust b { font-family: var(--display); font-size: 15px; }
+.trust:hover { border-color: var(--accent); }
+.icon-btn { background: none; border: 1px solid var(--line-strong); border-radius: 8px; padding: 6px 11px; cursor: pointer; font-size: 13.5px; }
+
+/* ------------------------------------------------------------ shell */
+.shell { display: grid; grid-template-columns: 216px minmax(0, 1fr); min-height: calc(100vh - 60px); }
+.side { border-right: 1px solid var(--line); background: var(--sheet); padding: 14px 10px; position: sticky; top: 60px; height: calc(100vh - 60px); overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+.side a {
+  display: block; padding: 9px 12px; border-radius: 6px; text-decoration: none;
+  color: var(--ink-2);
+}
+.side a .n { display: block; font: 700 16px var(--display); color: var(--ink); }
+.side a .d { display: block; font-size: 12.5px; color: var(--ink-3); line-height: 1.35; }
+.side a:hover { background: var(--well); }
+.side a[aria-current="page"] { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+.side a[aria-current="page"] .n { color: var(--accent); }
+.side-foot { margin-top: auto; padding: 12px; font-size: 12.5px; color: var(--ink-3); border-top: 1px solid var(--line); }
+main { padding: 34px 40px 80px; min-width: 0; max-width: 1240px; }
+
+/* ------------------------------------------------------------ type and blocks */
+.page-title { font-size: clamp(28px, 3.2vw, 42px); max-width: 24ch; text-wrap: balance; }
+.lede { margin-top: 10px; font-size: 17px; color: var(--ink-2); max-width: 68ch; }
+.section { margin-top: 38px; }
+.section > h2 { font-size: 21px; padding-bottom: 8px; border-bottom: 2px solid var(--ink); }
+.section > .sub { margin-top: 8px; color: var(--ink-2); max-width: 72ch; }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 6px 44px; }
+.cols-main { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 44px; align-items: start; }
+
+.rows { list-style: none; margin: 0; padding: 0; }
+.rows > li { border-bottom: 1px solid var(--line); }
+.row-link { display: block; width: 100%; text-align: left; padding: 11px 0; background: none; border: 0; cursor: pointer; text-decoration: none; color: inherit; }
+.row-link .t { display: block; font-weight: 650; color: var(--accent); }
+.row-link:hover .t { text-decoration: underline; text-underline-offset: 3px; }
+.row-link .s { display: block; font-size: 13.5px; color: var(--ink-2); }
+
+.btn { display: inline-block; padding: 9px 16px; border-radius: 6px; border: 1px solid var(--accent); background: var(--accent); color: var(--on-accent); font-weight: 650; cursor: pointer; text-decoration: none; }
+.btn:hover { background: var(--accent-hi); border-color: var(--accent-hi); }
+.btn.quiet { background: none; color: var(--accent); border-color: var(--line-strong); }
+.btn.quiet:hover { background: var(--accent-soft); border-color: var(--accent); }
+
+/* ------------------------------------------------------------ confidence: four fills */
+.fill-exact  { background: var(--t-exact); }
+.fill-high   { background: repeating-linear-gradient(135deg, var(--t-high) 0 5px, color-mix(in srgb, var(--t-high) 60%, var(--sheet)) 5px 7px); }
+.fill-medium { background: repeating-linear-gradient(135deg, var(--t-medium) 0 2px, var(--well) 2px 7px); }
+.fill-low    { background-color: var(--well); background-image: radial-gradient(var(--t-low) 1.3px, transparent 1.7px); background-size: 6px 6px; }
+.legend-bar { display: flex; gap: 2px; height: 34px; border-radius: 5px; overflow: hidden; margin-top: 16px; background: var(--well); }
+.legend-bar span { min-width: 5px; }
+.legend { list-style: none; margin: 12px 0 0; padding: 0; }
+.legend li { display: grid; grid-template-columns: 24px 8ch 17ch minmax(0, 1fr); column-gap: 14px; align-items: baseline; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.legend .sw, .tier .sw { width: 24px; height: 13px; border-radius: 2px; border: 1px solid var(--line-strong); align-self: center; display: inline-block; }
+.legend .num { font: 700 20px var(--display); text-align: right; font-variant-numeric: tabular-nums; }
+.legend .lab { font-weight: 650; }
+.legend .use { color: var(--ink-2); font-size: 13.5px; }
+.tier { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--ink-2); white-space: nowrap; }
+.tier .sw { width: 20px; height: 11px; }
+
+/* ------------------------------------------------------------ tables */
+.table-wrap { overflow-x: auto; margin-top: 14px; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th { text-align: left; font-size: 12.5px; font-weight: 650; color: var(--ink-2); padding: 8px 14px 8px 0; border-bottom: 1px solid var(--line-strong); white-space: nowrap; }
+td { padding: 10px 14px 10px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+td .where { font: 12.5px var(--mono); color: var(--ink-3); display: block; }
+td .name { font-family: var(--mono); font-size: 13.5px; }
+.bar { display: inline-block; height: 8px; border-radius: 2px; background: var(--accent); vertical-align: middle; margin-right: 8px; }
+
+/* ------------------------------------------------------------ entity header, tabs, aside */
+.crumb { font: 13px var(--mono); color: var(--ink-3); }
+.entity { margin-top: 6px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 16px; }
+.entity h1 { font-family: var(--mono); font-weight: 700; font-size: clamp(24px, 2.6vw, 34px); }
+.kind { font-size: 13px; color: var(--ink-2); border: 1px solid var(--line-strong); border-radius: 5px; padding: 1px 8px; }
+.verdict { margin-top: 16px; font: 700 22px/1.3 var(--display); max-width: 46ch; text-wrap: balance; }
+.verdict em { font-style: normal; color: var(--accent); }
+.tabs { display: flex; gap: 2px; margin-top: 26px; border-bottom: 1px solid var(--line-strong); overflow-x: auto; }
+.tabs button { background: none; border: 0; border-bottom: 3px solid transparent; padding: 9px 14px; cursor: pointer; font-weight: 600; color: var(--ink-2); white-space: nowrap; margin-bottom: -1px; }
+.tabs button .c { font-family: var(--display); font-weight: 700; margin-left: 5px; color: var(--ink-3); }
+.tabs button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+.note { border-left: 3px solid var(--line-strong); padding: 2px 0 2px 14px; font-size: 13.5px; color: var(--ink-2); }
+.note + .note { margin-top: 12px; }
+.note h3 { font-size: 15px; color: var(--ink); margin-bottom: 3px; }
+.note.caution { border-left-color: var(--warn); }
+.cmd { display: block; margin-top: 8px; padding: 9px 11px; background: var(--well); border-radius: 5px; font: 12.5px/1.45 var(--mono); overflow-x: auto; white-space: pre; }
+.facts { display: flex; flex-wrap: wrap; gap: 6px 30px; margin-top: 16px; }
+.fact b { display: block; font: 700 26px var(--display); font-variant-numeric: tabular-nums; }
+.fact span { font-size: 13px; color: var(--ink-2); }
+.pill { font-size: 12.5px; border-radius: 5px; padding: 1px 8px; white-space: nowrap; }
+.pill.ok { background: var(--ok-soft); color: var(--ok); } .pill.warn { background: var(--warn-soft); color: var(--warn); }
+.chip { display: inline-block; font: 12px var(--mono); padding: 1px 7px; margin: 2px 4px 2px 0; border: 1px solid var(--line-strong); border-radius: 4px; color: var(--ink-2); }
+.meter { height: 10px; border-radius: 3px; background: var(--well); overflow: hidden; display: flex; margin-top: 8px; }
+.meter i { display: block; height: 100%; }
+.proto { margin-top: 44px; padding-top: 12px; border-top: 1px dashed var(--line-strong); font-size: 12.5px; color: var(--ink-3); max-width: 80ch; }
+
+@media (max-width: 900px) {
+  .top { grid-template-columns: auto minmax(0, 1fr); height: auto; padding: 10px 14px; gap: 10px; }
+  .brand { padding-left: 0; } .brand-rev { display: none; }
+  .top-right { grid-column: 1 / -1; }
+  .shell { grid-template-columns: 1fr; }
+  .side { position: static; height: auto; flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--line); padding: 6px 10px; }
+  .side a { white-space: nowrap; } .side a .d, .side-foot { display: none; }
+  .side a[aria-current="page"] { box-shadow: inset 0 -3px 0 var(--accent); }
+  main { padding: 22px 16px 60px; }
+  .cols-main { grid-template-columns: 1fr; }
+  .legend li { grid-template-columns: 24px 7ch 1fr; } .legend .use { grid-column: 2 / -1; }
+}
+@media (prefers-reduced-motion: no-preference) { .row-link .t, .btn { transition: color .1s, background-color .1s; } }
+</style>
+</head>
+<body>
+<a class="skip" href="#view">Skip to content</a>
+
+<header class="top">
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true">◈</span>
+    <span class="brand-name">repocortex</span>
+    <span class="brand-rev" title="The commit this index was built from">1f68eb5</span>
+  </div>
+  <form class="search" role="search" id="search">
+    <input id="q" type="search" autocomplete="off" spellcheck="false"
+           aria-label="Search symbols, files, routes and tables"
+           placeholder="Search a symbol, file, route or table">
+    <kbd aria-hidden="true">/</kbd>
+  </form>
+  <div class="top-right">
+    <button class="trust" type="button" id="trust" title="How much of this index is bound, and how much is compiler-proven">
+      <span><b>82%</b> bound</span><span aria-hidden="true">|</span><span><b>0</b> proven</span>
+    </button>
+    <button class="icon-btn" type="button" id="theme">Dark</button>
+  </div>
+</header>
+
+<div class="shell">
+  <nav class="side" aria-label="Sections">
+    <a href="#/home"><span class="n">Home</span><span class="d">Ask a question</span></a>
+    <a href="#/explore"><span class="n">Explore</span><span class="d">Map, routes, tables, events</span></a>
+    <a href="#/change"><span class="n">Change</span><span class="d">What a change puts at risk</span></a>
+    <a href="#/health"><span class="n">Health</span><span class="d">Hotspots, unused code, blind spots</span></a>
+    <a href="#/agents"><span class="n">Agents</span><span class="d">Connect, and see what they asked</span></a>
+    <div class="side-foot">Read-only. Served from this machine. Indexed 2 hours ago.</div>
+  </nav>
+  <main id="view" tabindex="-1"></main>
+</div>
+
+<script>
+/* Real figures from this repository's index, read 2026-11-12. */
+const D = {
+  repo: 'repocortex', files: 687, symbols: 10108, edges: 19307,
+  tiers: [
+    { key: 'exact',  n: 0,     label: 'proven by a compiler', use: 'Safe to act on without checking.' },
+    { key: 'high',   n: 15513, label: 'very likely',          use: 'Bound from the syntax tree and imports. Act on it; it is rarely wrong.' },
+    { key: 'medium', n: 219,   label: 'uncertain',            use: 'One of several candidates. Check it before relying on it.' },
+    { key: 'low',    n: 3575,  label: 'a guess',              use: 'A name match only. Hidden unless you ask for it.' },
+  ],
+  symbol: {
+    name: 'openReadOnly', kind: 'function', path: 'internal/cli/opendb.go', line: 43,
+    direct: 11, indirect: 59, tests: 7, risk: 'moderate', score: 36,
+    callers: [
+      ['agentToolNames', 'internal/cli/agentsetup.go', 306], ['agentIndexChecks', 'internal/cli/agentsetup.go', 389],
+      ['collectPrecision', 'internal/cli/commands.go', 507], ['verifyGraph', 'internal/cli/commands.go', 948],
+      ['openForeignIndex', 'internal/cli/diff.go', 284], ['newMissedCmd', 'internal/cli/missed.go', 51],
+      ['newPlanChangeCmd', 'internal/cli/planchange.go', 38], ['openQuery', 'internal/cli/query.go', 73],
+    ],
+    callees: [['Open', 'internal/cli/opendb.go', 44], ['CheckVersion', 'internal/cli/opendb.go', 48], ['Close', 'internal/cli/opendb.go', 49]],
+    testList: [
+      ['TestAnEmptyResultStillReportsCoverage', 'internal/cli/absence_test.go', 'reached through a call'],
+      ['TestAnUnboundReferenceIsDiagnosedNotHidden', 'internal/cli/absence_test.go', 'reached through a call'],
+      ['TestABoundReferenceIsNotListedAsAProblem', 'internal/cli/absence_test.go', 'reached through a call'],
+      ['runAccuracyCmd', 'internal/cli/accuracy_test.go', 'reached through a call'],
+    ],
+    riskFactors: [
+      ['+25', '11 symbols call it directly'], ['+11', '59 more are reachable within three hops'],
+      ['+10', 'the walk stopped at a limit, so the counts are floors'], ['-10', '7 of the reached symbols are tests'],
+    ],
+  },
+  change: {
+    base: 'main', head: 'feat/http-transport',
+    symbols: [
+      { name: 'serveHTTP', path: 'internal/cli/serve_http.go', direct: 3, indirect: 5, risk: 'low' },
+      { name: 'newHTTPMCPHandler', path: 'internal/cli/serve_http.go', direct: 2, indirect: 8, risk: 'low' },
+      { name: 'resolveToken', path: 'internal/cli/serve_http.go', direct: 2, indirect: 5, risk: 'low' },
+    ],
+    tests: ['TestHTTPServesTheSameToolsAsStdio', 'TestHTTPAcceptsTheTokenAsAPathSegment', 'TestHTTPRejectsAMissingOrWrongToken', 'TestServeHTTPRefusesANonLoopbackAddress'],
+    coupled: [['internal/cli/serve.go', 'calls into the changed file'], ['docs/guides/coding-agents.md', 'committed with it, no code link']],
+  },
+  hotspots: [
+    ['internal/web/web.go', 100, 3, '33.6 KB', 69, 255, []],
+    ['internal/cli/install.go', 89, 7, '12.8 KB', 20, 13, ['.env.example']],
+    ['internal/cli/commands.go', 86, 2, '43.6 KB', 55, 77, []],
+    ['internal/analyze/api/routes.go', 79, 3, '26.7 KB', 58, 35, []],
+    ['internal/mcp/server.go', 79, 4, '20.0 KB', 25, 95, []],
+    ['internal/parse/generic.go', 71, 2, '35.7 KB', 52, 67, []],
+  ],
+  tools: [
+    ['get_task_context', 'minimal', 284], ['get_project_overview', 'minimal', 198], ['search_code', 'minimal', 215],
+    ['find_symbol', 'minimal', 230], ['get_symbol', 'minimal', 223], ['find_references', 'minimal', 236], ['find_callers', 'minimal', 241],
+    ['analyze_impact', 'standard', 263], ['find_tests', 'standard', 253], ['plan_rename', 'standard', 246],
+    ['list_dead_code', 'full', 253], ['list_hotspots', 'full', 234], ['trace_call_path', 'full', 248],
+  ],
+  profiles: [['minimal', 7, 1726], ['standard', 18, 4359], ['full', 23, 5815]],
+  calls: [
+    ['09:41:07', 'mcp', 'get_task_context', '{"task":"add a REST endpoint beside MCP"}', 91, '18.3 KB'],
+    ['09:41:12', 'mcp', 'find_callers', '{"name":"newHTTPMCPHandler"}', 6, '1.9 KB'],
+    ['09:41:15', 'mcp', 'analyze_impact', '{"symbol":"serveHTTP"}', 44, '4.1 KB'],
+    ['09:43:02', 'rest', 'find_tests', '{"symbol":"serveHTTP"}', 12, '2.5 KB'],
+    ['09:47:30', 'cli', 'list_dead_code', '{"path":"internal/cli/"}', 380, '0.9 KB'],
+  ],
+};
+
+const fmt = (n) => n.toLocaleString('en-US');
+const tier = (key, label) => `<span class="tier"><span class="sw fill-${key}" aria-hidden="true"></span>${label}</span>`;
+const sym = (name) => `<a class="name" href="#/symbol">${name}</a>`;
+
+function legendBlock() {
+  const total = D.edges;
+  return `
+    <div class="legend-bar" role="img" aria-label="${D.tiers.map((t) => fmt(t.n) + ' ' + t.label).join(', ')}">
+      ${D.tiers.filter((t) => t.n).map((t) => `<span class="fill-${t.key}" style="flex:${Math.max(t.n / total, .012)}"></span>`).join('')}
+    </div>
+    <ul class="legend">
+      ${D.tiers.map((t) => `<li><span class="sw fill-${t.key}" aria-hidden="true"></span><span class="num">${fmt(t.n)}</span><span class="lab">${t.label}</span><span class="use">${t.use}</span></li>`).join('')}
+    </ul>`;
+}
+
+const VIEWS = {
+  home: () => `
+    <h1 class="page-title">What do you want to know about ${D.repo}?</h1>
+    <p class="lede">Search for a function, type, file, route or table. Its page shows what calls it, what a change to it can reach, and which tests to run.</p>
+    <p style="margin-top:18px"><a class="btn" href="#/symbol">Try it with openReadOnly</a> <a class="btn quiet" href="#/change">Review a change</a></p>
+
+    <section class="section">
+      <h2>Needs your attention</h2>
+      <ul class="rows">
+        <li><a class="row-link" href="#/health"><span class="t">Nothing in this index is compiler-proven yet</span><span class="s">Import a compiler index for Go to turn most of 15,513 very likely relationships into proven ones. One command.</span></a></li>
+        <li><a class="row-link" href="#/health"><span class="t">2 widely used functions have no test the index can find</span><span class="s">Each has more than ten callers. Worth a look before the next refactor.</span></a></li>
+        <li><a class="row-link" href="#/health"><span class="t">internal/web/web.go is where change concentrates</span><span class="s">255 other places depend on it, and it is the largest file changed this month.</span></a></li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <h2>How far can you trust an answer here?</h2>
+      <p class="sub">Every relationship is marked with how it was established. Of ${fmt(D.edges)} in this index:</p>
+      ${legendBlock()}
+    </section>
+
+    <section class="section">
+      <h2>Start from a task</h2>
+      <div class="cols">
+        <ul class="rows">
+          <li><a class="row-link" href="#/symbol"><span class="t">See who calls something</span><span class="s">Every caller, with the line that proves it.</span></a></li>
+          <li><a class="row-link" href="#/change"><span class="t">Check what a change could break</span><span class="s">From a branch, a commit range or a pasted diff.</span></a></li>
+        </ul>
+        <ul class="rows">
+          <li><a class="row-link" href="#/explore"><span class="t">Find your way around</span><span class="s">30 routes, 38 tables and 68 packages, as a map.</span></a></li>
+          <li><a class="row-link" href="#/health"><span class="t">Find what to clean up</span><span class="s">Hotspots, unused code and what the index cannot see.</span></a></li>
+        </ul>
+        <ul class="rows">
+          <li><a class="row-link" href="#/agents"><span class="t">Connect your coding agent</span><span class="s">Claude Code, Cursor and 28 others, in one command.</span></a></li>
+          <li><a class="row-link" href="#/agents"><span class="t">See what your agent asked</span><span class="s">Every tool call it made, and what it was shown.</span></a></li>
+        </ul>
+      </div>
+    </section>`,
+
+  symbol: () => {
+    const s = D.symbol;
+    return `
+    <p class="crumb">${s.path}:${s.line}</p>
+    <div class="entity"><h1>${s.name}</h1><span class="kind">${s.kind}</span><span class="kind">unexported</span></div>
+    <p class="verdict">Called from <em>${s.direct} places</em>. A change can reach <em>${s.direct + s.indirect} symbols</em>, and <em>${s.tests} tests</em> reach it. Risk is ${s.risk}.</p>
+
+    <div class="tabs" role="tablist" aria-label="${s.name}">
+      <button role="tab" aria-selected="true" data-tab="callers">Callers<span class="c">${s.direct}</span></button>
+      <button role="tab" aria-selected="false" data-tab="calls">Calls<span class="c">${s.callees.length}</span></button>
+      <button role="tab" aria-selected="false" data-tab="reach">What could break<span class="c">${s.direct + s.indirect}</span></button>
+      <button role="tab" aria-selected="false" data-tab="tests">Tests<span class="c">${s.tests}</span></button>
+      <button role="tab" aria-selected="false" data-tab="people">People</button>
+    </div>
+
+    <div class="cols-main" style="margin-top:6px">
+      <div id="tabpanel" role="tabpanel"></div>
+      <aside aria-label="About this answer" style="margin-top:20px">
+        <div class="note caution">
+          <h3>What this list cannot see</h3>
+          30,469 references in this index were never bound to a definition. Most are calls into libraries. Any of them could be a call to ${s.name} that is not shown.
+        </div>
+        <div class="note">
+          <h3>Ask your agent the same thing</h3>
+          It gets this answer from one tool call.
+          <code class="cmd">find_callers  name=${s.name}</code>
+          <code class="cmd">repocortex tool call find_callers name=${s.name}</code>
+        </div>
+        <div class="note">
+          <h3>Before you change it</h3>
+          <a href="#/change">Plan the change</a>: the edits in order, with the tests that guard each.
+        </div>
+      </aside>
+    </div>`;
+  },
+
+  change: () => {
+    const c = D.change;
+    return `
+    <h1 class="page-title">What does this change put at risk?</h1>
+    <p class="lede">Comparing <code>${c.base}</code> with <code>${c.head}</code>. Pick another branch, a commit range, or paste a diff.</p>
+    <p class="verdict">It changes <em>3 functions in 1 file</em>. Those can reach <em>18 more symbols</em>. Risk is low: nothing outside the command-line package depends on them.</p>
+    <div class="facts">
+      <div class="fact"><b>3</b><span>functions changed</span></div>
+      <div class="fact"><b>18</b><span>symbols within reach</span></div>
+      <div class="fact"><b>4</b><span>tests to run first</span></div>
+      <div class="fact"><b>1</b><span>file changed alongside, with no code link</span></div>
+    </div>
+
+    <div class="cols-main">
+      <div>
+        <section class="section">
+          <h2>What changed, and what each can reach</h2>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Function</th><th class="num">Direct callers</th><th class="num">Further reach</th><th>Risk</th><th>How sure</th></tr></thead>
+            <tbody>${c.symbols.map((s) => `<tr><td>${sym(s.name)}<span class="where">${s.path}</span></td><td class="num">${s.direct}</td><td class="num">${s.indirect}</td><td><span class="pill ok">${s.risk}</span></td><td>${tier('high', 'very likely')}</td></tr>`).join('')}</tbody>
+          </table></div>
+        </section>
+        <section class="section">
+          <h2>Run these tests first</h2>
+          <p class="sub">Each reaches the changed code through a recorded call, so a failure here is about this change.</p>
+          <ul class="rows">${c.tests.map((t) => `<li class="row-link"><span class="name">${t}</span></li>`).join('')}</ul>
+          <code class="cmd">go test ./internal/cli/ -run 'TestHTTP|TestServeHTTP'</code>
+        </section>
+      </div>
+      <aside style="margin-top:38px" aria-label="Also check">
+        <div class="note caution">
+          <h3>Changes with it, no code link</h3>
+          <span class="mono">docs/guides/coding-agents.md</span> was committed together with this file in 4 of its 5 changes. No call or import connects them, so the blast radius cannot see it. Check whether it needs updating.
+        </div>
+        <div class="note">
+          <h3>Who to ask</h3>
+          The people who last worked on the code this reaches are listed from git history, on this machine only.
+        </div>
+        <div class="note">
+          <h3>Put this on the pull request</h3>
+          <code class="cmd">repocortex impact --base ${c.base} --head HEAD --json \\
+  | repocortex report pr</code>
+        </div>
+      </aside>
+    </div>`;
+  },
+
+  health: () => `
+    <h1 class="page-title">Where this codebase needs attention</h1>
+    <p class="lede">Three lists, most useful first: where change concentrates, what looks unused, and what the index could not see.</p>
+
+    <section class="section">
+      <h2>Hotspots</h2>
+      <p class="sub">Files that are both large and changed often, from the last 45 commits. The score orders this list; it is not a quality grade.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>File</th><th>Score</th><th class="num">Commits</th><th class="num">Size</th><th class="num">Depended on by</th><th>Changes with</th></tr></thead>
+        <tbody>${D.hotspots.map((h) => `<tr><td><span class="name">${h[0]}</span></td><td><span class="bar" style="width:${h[1] * .9}px"></span>${h[1]}</td><td class="num">${h[2]}</td><td class="num">${h[3]}</td><td class="num">${h[5]}</td><td>${h[6].length ? h[6].map((p) => `<span class="chip">${p}</span>`).join('') : '<span style="color:var(--ink-3)">nothing consistent</span>'}</td></tr>`).join('')}</tbody>
+      </table></div>
+    </section>
+
+    <section class="section">
+      <h2>Unused code</h2>
+      <p class="verdict" style="font-size:19px">Nothing is graded likely unused.</p>
+      <p class="sub">345 definitions have no caller in the index. All 293 that looked unused from the graph were checked against the source text, and every one is named somewhere outside its own definition: passed as a value, registered by name, or referenced from configuration. They are listed as possible, for searching through, and are not a list to delete from.</p>
+      <p style="margin-top:12px"><a class="btn quiet" href="#/health">Show the 345 possible</a></p>
+    </section>
+
+    <section class="section">
+      <h2>What the index could not see</h2>
+      <div class="cols">
+        <ul class="rows">
+          <li><a class="row-link" href="#/health"><span class="t">50 calls it could not bind</span><span class="s">Mostly into the standard library. A compiler index binds them.</span></a></li>
+          <li><a class="row-link" href="#/health"><span class="t">2 widely called functions with no test found</span><span class="s">A test that reaches them through an interface would not show.</span></a></li>
+        </ul>
+        <ul class="rows">
+          <li><a class="row-link" href="#/health"><span class="t">75 definitions in Bash and SQL were not judged</span><span class="s">Those languages are parsed without binding references.</span></a></li>
+          <li><a class="row-link" href="#/health"><span class="t">Every file parsed</span><span class="s">687 of 687. No file was skipped for a syntax error.</span></a></li>
+        </ul>
+      </div>
+      <div class="note" style="margin-top:18px">
+        <h3>Raise the proven share</h3>
+        A compiler index turns very likely into proven and binds most of what is unbound.
+        <code class="cmd">repocortex indexers install --yes --out-dir .repocortex/scip
+repocortex scip import .repocortex/scip/go.scip</code>
+      </div>
+    </section>`,
+
+  explore: () => `
+    <h1 class="page-title">How ${D.repo} is laid out</h1>
+    <p class="lede">${fmt(D.files)} files, ${fmt(D.symbols)} definitions and ${fmt(D.edges)} relationships between them.</p>
+    <div class="facts">
+      <div class="fact"><b>68</b><span>packages</span></div><div class="fact"><b>30</b><span>HTTP routes</span></div>
+      <div class="fact"><b>38</b><span>database tables</span></div><div class="fact"><b>3</b><span>languages bound across files</span></div>
+    </div>
+    <section class="section">
+      <h2>Ways in</h2>
+      <div class="cols">
+        <ul class="rows">
+          <li><a class="row-link" href="#/explore"><span class="t">Map of the code</span><span class="s">Packages as regions, calls as lines, drawn by how sure each is.</span></a></li>
+          <li><a class="row-link" href="#/explore"><span class="t">Routes and what they touch</span><span class="s">Each route traced through its handler to the tables it reads and writes.</span></a></li>
+        </ul>
+        <ul class="rows">
+          <li><a class="row-link" href="#/explore"><span class="t">Tables</span><span class="s">Which code reads each one, and which writes it.</span></a></li>
+          <li><a class="row-link" href="#/explore"><span class="t">Events and queues</span><span class="s">Producers and consumers, by topic.</span></a></li>
+        </ul>
+        <ul class="rows">
+          <li><a class="row-link" href="#/explore"><span class="t">Settings</span><span class="s">Keys the code reads, and whether each is declared.</span></a></li>
+          <li><a class="row-link" href="#/explore"><span class="t">Across repositories</span><span class="s">Calls from one indexed repository into another.</span></a></li>
+        </ul>
+      </div>
+    </section>
+    <section class="section">
+      <h2>Largest packages</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Package</th><th class="num">Files</th><th class="num">Definitions</th><th class="num">Depended on by</th></tr></thead>
+        <tbody>
+          <tr><td><span class="name">internal/cli</span></td><td class="num">86</td><td class="num">1,412</td><td class="num">2 packages</td></tr>
+          <tr><td><span class="name">internal/web</span></td><td class="num">52</td><td class="num">1,180</td><td class="num">1 package</td></tr>
+          <tr><td><span class="name">internal/registry</span></td><td class="num">43</td><td class="num">968</td><td class="num">19 packages</td></tr>
+          <tr><td><span class="name">internal/mcp</span></td><td class="num">37</td><td class="num">702</td><td class="num">3 packages</td></tr>
+        </tbody>
+      </table></div>
+      <p class="proto">Package figures on this screen are illustrative; every other number in the prototype is read from the index.</p>
+    </section>`,
+
+  agents: () => {
+    const max = D.profiles[2][2];
+    return `
+    <h1 class="page-title">Your coding agents and what they asked</h1>
+    <p class="lede">The same tools reach an agent over four surfaces. Connect one, choose how many tools it sees, and read back every call it made.</p>
+
+    <section class="section">
+      <h2>Connect</h2>
+      <div class="cols">
+        <div class="note"><h3>Agents on this machine</h3>Claude Code, Cursor, Codex and 27 others.<code class="cmd">repocortex install --rules</code></div>
+        <div class="note"><h3>Remote-only agents</h3>ChatGPT, Android Studio. MCP over HTTP.<code class="cmd">repocortex serve --http 127.0.0.1:7788</code></div>
+        <div class="note"><h3>HTTP function calling</h3>Plain JSON, with an OpenAPI document.<code class="cmd">POST /api/v1/tools/find_callers</code></div>
+        <div class="note"><h3>Shell only</h3>Aider, a CI step, a script.<code class="cmd">repocortex tool call find_callers name=…</code></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>How many tools your agent sees</h2>
+      <p class="sub">Every exposed tool costs context on every request. The smallest set that covers your work is the right one.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Profile</th><th class="num">Tools</th><th>Context cost per request</th><th>Adds</th></tr></thead>
+        <tbody>${D.profiles.map((p, i) => `<tr><td><b>${p[0]}</b>${i === 0 ? ' <span class="pill ok">in use</span>' : ''}</td><td class="num">${p[1]}</td><td><span class="bar" style="width:${Math.round(p[2] / max * 160)}px"></span>about ${fmt(p[2])} tokens</td><td>${['Lookup, search and task context', 'Blast radius, tests, rename and change plans', 'Unused code, hotspots, call paths, type hierarchy'][i]}</td></tr>`).join('')}</tbody>
+      </table></div>
+    </section>
+
+    <section class="section">
+      <h2>Recent calls</h2>
+      <p class="sub">From the audit log. It records the call and never the answer.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Time</th><th>Surface</th><th>Tool</th><th>Asked</th><th class="num">Took</th><th class="num">Answer</th></tr></thead>
+        <tbody>${D.calls.map((c) => `<tr><td class="mono">${c[0]}</td><td>${c[1]}</td><td><span class="name">${c[2]}</span></td><td class="mono" style="color:var(--ink-2)">${c[3]}</td><td class="num">${c[4]} ms</td><td class="num">${c[5]}</td></tr>`).join('')}</tbody>
+      </table></div>
+      <p class="proto">Call rows are sample data in the audit log's real format. Tool counts and token costs are measured.</p>
+    </section>`;
+  },
+};
+
+const PANELS = {
+  callers: () => { const s = D.symbol; return `
+    <div class="table-wrap"><table>
+      <thead><tr><th>Called from</th><th>How sure</th><th>Evidence</th></tr></thead>
+      <tbody>${s.callers.map((c) => `<tr><td>${sym(c[0])}</td><td>${tier('high', 'very likely')}</td><td><span class="where">${c[1]}:${c[2]}</span></td></tr>`).join('')}</tbody>
+    </table></div>
+    <p class="sub" style="margin-top:12px;color:var(--ink-2)">Showing 8 of ${s.direct}. <a href="#/symbol">Show all</a></p>`; },
+  calls: () => `
+    <div class="table-wrap"><table>
+      <thead><tr><th>Calls</th><th>How sure</th><th>Evidence</th></tr></thead>
+      <tbody>${D.symbol.callees.map((c) => `<tr><td>${sym(c[0])}</td><td>${tier('high', 'very likely')}</td><td><span class="where">${c[1]}:${c[2]}</span></td></tr>`).join('')}</tbody>
+    </table></div>
+    <p class="sub" style="margin-top:12px;color:var(--ink-2)">Only calls to code in this repository. Calls into libraries have no definition here to point at.</p>`,
+  reach: () => { const s = D.symbol; return `
+    <div class="facts"><div class="fact"><b>${s.direct}</b><span>call it directly</span></div><div class="fact"><b>${s.indirect}</b><span>reachable within three hops</span></div><div class="fact"><b>${s.score}</b><span>risk score, of 100</span></div></div>
+    <h3 style="margin-top:24px;font-size:17px">Why the risk is ${s.risk}</h3>
+    <ul class="rows">${s.riskFactors.map((f) => `<li class="row-link"><b style="font-family:var(--display);display:inline-block;width:4ch">${f[0]}</b> ${f[1]}</li>`).join('')}</ul>
+    <p class="sub" style="margin-top:12px;color:var(--ink-2)">The walk stopped at three hops with 22 symbols still unexplored, so both counts are floors.</p>`; },
+  tests: () => `
+    <div class="table-wrap"><table>
+      <thead><tr><th>Test</th><th>How it was found</th><th>File</th></tr></thead>
+      <tbody>${D.symbol.testList.map((t) => `<tr><td><span class="name">${t[0]}</span></td><td>${t[2]}</td><td><span class="where">${t[1]}</span></td></tr>`).join('')}</tbody>
+    </table></div>
+    <code class="cmd">go test ./internal/cli/ -run 'TestAnEmptyResult|TestAnUnboundReference|TestABoundReference'</code>`,
+  people: () => `<p class="sub" style="margin-top:18px;color:var(--ink-2);max-width:60ch">The people who last changed the code this function reaches, from this repository's git history. Names are read on this machine and never leave it.</p>
+    <p style="margin-top:12px"><a class="btn quiet" href="#/symbol">Read history for this function</a></p>`,
+};
+
+function showTab(name) {
+  document.querySelectorAll('.tabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === name)));
+  document.getElementById('tabpanel').innerHTML = PANELS[name]();
+}
+
+function route() {
+  const name = (location.hash.replace('#/', '') || 'home').split('?')[0];
+  const view = VIEWS[name] ? name : 'home';
+  const main = document.getElementById('view');
+  main.innerHTML = VIEWS[view]();
+  document.querySelectorAll('.side a').forEach((a) => {
+    const on = a.getAttribute('href') === '#/' + view; // a symbol page belongs to no section
+    if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+  });
+  if (view === 'symbol') {
+    showTab('callers');
+    main.querySelector('.tabs').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) showTab(b.dataset.tab); });
+  }
+  document.title = 'RepoCortex: ' + (view === 'symbol' ? D.symbol.name : view);
+  window.scrollTo(0, 0);
+}
+
+document.getElementById('search').addEventListener('submit', (e) => { e.preventDefault(); location.hash = '#/symbol'; });
+document.getElementById('trust').addEventListener('click', () => { location.hash = '#/health'; });
+document.getElementById('theme').addEventListener('click', (e) => {
+  const root = document.documentElement;
+  const dark = root.dataset.theme ? root.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+  root.dataset.theme = dark ? 'light' : 'dark';
+  e.target.textContent = dark ? 'Dark' : 'Light';
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === '/' && document.activeElement.tagName !== 'INPUT') { e.preventDefault(); document.getElementById('q').focus(); }
+});
+if (matchMedia('(prefers-color-scheme: dark)').matches) document.getElementById('theme').textContent = 'Light';
+addEventListener('hashchange', route);
+route();
+</script>
+</body>
+</html>

@@ -23,6 +23,7 @@ Quick onboarding paths to get RepoCortex running in your project and connected t
 | Guide | Description |
 |---|---|
 | [**Quickstart Guide**](getting-started/quickstart.md) | 60-second end-to-end guide: install, index, resolve, and verify |
+| [**Protocols**](guides/protocols.md) | Reach the same tools over MCP, plain HTTP with OpenAPI, or the shell; profiles and the audit log |
 | [**Agent Integration**](getting-started/agent-integration.md) | Wiring instructions for Cursor, Claude Code, Windsurf, Antigravity, Claude Desktop, and Zed |
 | [**Installation**](getting-started/installation.md) | Automated curl installer, Go install, and precompiled universal release binaries |
 
@@ -38,6 +39,9 @@ The engineering rationale and formal models behind deterministic code graphs.
 | [**Architecture & Invariants**](concepts/architecture.md) | Hexagonal pipeline, in-memory CSR graph, and zero-CGO design |
 | [**Accuracy & Provenance**](reference/accuracy-and-benchmarks.md) | Adjudication of 30,975 edges against compiler ground truth across 4 confidence tiers |
 | [**Non-Goals**](NON-GOALS.md) | Deliberate architectural refusals and scope boundaries |
+| [**Competitive Analysis**](COMPETITIVE_ANALYSIS.md) | 40 open-source and paid tools, and what each has that RepoCortex lacked |
+| [**Implementation Plan**](IMPLEMENTATION_PLAN.md) | What is shipped, planned and declined in answer to that analysis |
+| [**Portal UX Plan**](design/PORTAL_UX_PLAN.md) | The design of the next portal, its audit, and what is built |
 
 ---
 
@@ -48,8 +52,9 @@ Authoritative specifications for commands, tools, and options.
 | Reference | Description |
 |---|---|
 | [**CLI Reference**](reference/cli.md) | Complete manual of all 35+ CLI commands, flags, and outputs |
-| [**MCP Tools Reference**](reference/mcp-tools.md) | Parameters and profiles for all 18 Model Context Protocol tools |
-| [**Configuration**](user-manual.md#configuration) | Local `.cortex.yml` schema and global configuration options |
+| [**MCP Tools Reference**](reference/mcp-tools.md) | Parameters and profiles for the Model Context Protocol tools |
+| [**Naming Conventions**](reference/naming-conventions.md) | How tools, commands, flags and routes are named, and how a rename stays compatible |
+| [**Configuration**](user-manual.md#configuration) | Local `.repocortex.yml` schema and global configuration options |
 | [**FAQ**](FAQ.md) | Answers to common technical and architectural questions |
 
 ---
@@ -62,6 +67,7 @@ Running RepoCortex in production pipelines and automated environments.
 |---|---|
 | [**CI/CD Change-Safety Gates**](operations/ci-cd-gates.md) | GitHub Actions workflow, SARIF 2.1.0 reporting, and sticky PR comments |
 | [**Troubleshooting Catalogue**](operations/troubleshooting.md) | Comprehensive error catalog keyed to literal error strings with remedies |
+| [**Scale Testing**](operations/scale-testing.md) | The size suite, its budgets, and measurements at 250,000 symbols |
 | [**Performance & Tuning**](operations/performance.md) | Memory-mapped I/O, SQLite pragmas, CSR memory footprints, and worker scaling |
 | [**Security & Threat Model**](security.md) | Path containment, secret redaction, and local execution boundaries |
 

@@ -47,7 +47,7 @@ type FileRevision struct {
 //
 // limit must be positive; see ErrUnboundedWalk. A repository with no commits
 // returns an empty slice and a nil error, because that is the state
-// `cortex init` finds on a fresh project.
+// `repocortex init` finds on a fresh project.
 //
 // Filling Paths costs one tree diff per commit and still dominates this call,
 // but by a factor rather than by three orders of magnitude: on a 767-commit

@@ -166,7 +166,7 @@ type refLookup struct {
 // shortCircuit is the fully-formed result the caller should return
 // immediately, unchanged, as its own (result, response, error) — the crafted
 // result IS the answer, including for a missing index, where it carries the
-// "Run 'cortex index'" guidance rather than a bare protocol error. That is
+// "Run 'repocortex index'" guidance rather than a bare protocol error. That is
 // why referencesFor never returns an error itself: the go-sdk's
 // ToolHandlerFor wrapper discards a handler's result whenever the handler
 // also returns a non-nil error, substituting its own bare errRes.SetError(err)

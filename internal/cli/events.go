@@ -103,7 +103,7 @@ func newEventsTopicCmd(g *Global) *cobra.Command {
 			}
 
 			if target == nil {
-				return fmt.Errorf("no event topic %q found; run 'cortex events' to see discovered topics", query)
+				return fmt.Errorf("no event topic %q found; run 'repocortex events' to see discovered topics", query)
 			}
 
 			if g.JSON {

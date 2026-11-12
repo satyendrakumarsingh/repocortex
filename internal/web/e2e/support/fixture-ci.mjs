@@ -11,7 +11,7 @@ import { REPO_ROOT } from './servers.mjs';
   right for the shapes they exercise and useless for a CI runner. This one is
   fixtures/payment-platform — the corpus the retrieval benchmark and the
   golden context test already hold the product to — copied out of the tree so
-  it can carry its own .cortex/ and its own git history (one commit), then
+  it can carry its own .repocortex/ and its own git history (one commit), then
   indexed with the binary under test.
 
   It is small on purpose: 10 files, 54 symbols, 26 relationships, one Spring
@@ -27,16 +27,16 @@ export const CI_FIXTURE_SOURCE = path.join(REPO_ROOT, 'fixtures', 'payment-platf
   name in the rail and the footer. The temp directory is what teardown removes.
 */
 export function prepareCiFixture(binary) {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-e2e-payment-'));
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'repocortex-e2e-payment-'));
   const root = path.join(tmp, path.basename(CI_FIXTURE_SOURCE));
   fs.cpSync(CI_FIXTURE_SOURCE, root, {
     recursive: true,
-    filter: (src) => path.basename(src) !== '.cortex',
+    filter: (src) => path.basename(src) !== '.repocortex',
   });
   const run = (cmd, args) => execFileSync(cmd, args, { cwd: root, stdio: 'pipe' });
   run('git', ['init', '-q', '.']);
   run('git', ['add', '-A']);
-  run('git', ['-c', 'user.name=cortex-e2e', '-c', 'user.email=e2e@cortex.invalid', 'commit', '-q', '-m', 'fixture']);
+  run('git', ['-c', 'user.name=repocortex-e2e', '-c', 'user.email=e2e@repocortex.invalid', 'commit', '-q', '-m', 'fixture']);
   run(binary, ['init', '-q']);
   run(binary, ['index', '-q']);
   run(binary, ['resolve', '-q']);
@@ -46,5 +46,5 @@ export function prepareCiFixture(binary) {
 export function removeCiFixture(root) {
   if (!root) return;
   const tmp = path.dirname(root);
-  if (path.basename(tmp).startsWith('cortex-e2e-payment-')) fs.rmSync(tmp, { recursive: true, force: true });
+  if (path.basename(tmp).startsWith('repocortex-e2e-payment-')) fs.rmSync(tmp, { recursive: true, force: true });
 }

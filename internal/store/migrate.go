@@ -224,14 +224,14 @@ type ErrSchemaOutdated struct {
 
 func (e *ErrSchemaOutdated) Error() string {
 	return fmt.Sprintf(
-		"index schema is v%d but this build of cortex expects v%d — "+
-			"run 'cortex index' to upgrade it",
+		"index schema is v%d but this build of repocortex expects v%d — "+
+			"run 'repocortex index' to upgrade it",
 		e.Found, e.Wanted)
 }
 
 // CheckVersion verifies db is at the schema version this build expects.
 //
-// A database ahead of this build is also an error: an older cortex cannot
+// A database ahead of this build is also an error: an older repocortex cannot
 // know what a newer migration changed, and guessing risks silent corruption.
 func CheckVersion(ctx context.Context, db *sql.DB) error {
 	found, err := SchemaVersion(ctx, db)

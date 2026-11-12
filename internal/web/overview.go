@@ -212,9 +212,9 @@ func (s *Server) handleOverview(w http.ResponseWriter, r *http.Request) {
 		resp.Fingerprint.Next = NextAction{
 			Label: "Declare your components",
 			Detail: "Containers here are DIRECTORIES, not architecture. Declaring components in " +
-				".cortex.yml is what turns the explorer into a picture of the system you meant to " +
+				".repocortex.yml is what turns the explorer into a picture of the system you meant to " +
 				"build, and it is what makes the governance screen able to say anything at all.",
-			Command: "cortex arch --help",
+			Command: "repocortex arch --help",
 			Screen:  "governance",
 		}
 	}
@@ -246,12 +246,12 @@ func (s *Server) handleOverview(w http.ResponseWriter, r *http.Request) {
 		resp.Resolution.Next = NextAction{
 			Label:   "Resolve references",
 			Detail:  "Without resolved references there are no relationship edges, and every other screen is empty for that reason rather than because the repository has no relationships.",
-			Command: "cortex resolve",
+			Command: "repocortex resolve",
 		}
 	case stats.Pending == stats.Total:
 		resp.Resolution.Caveat = "Every reference in this run is still PENDING: they were extracted but never bound to a definition."
 		resp.Resolution.Next = NextAction{
-			Label: "Resolve references", Command: "cortex resolve",
+			Label: "Resolve references", Command: "repocortex resolve",
 			Detail: "The extraction half is done; the binding half has not run.",
 		}
 	default:
@@ -276,7 +276,7 @@ func (s *Server) handleOverview(w http.ResponseWriter, r *http.Request) {
 		resp.Resolution.Next = NextAction{
 			Label:   "Raise coverage with a compiler-backed index",
 			Detail:  "A SCIP index turns relationships inferred from names into proven ones — the only tier a compiler stands behind.",
-			Command: "cortex scip import <index.scip>",
+			Command: "repocortex scip import <index.scip>",
 		}
 	}
 	// The resolution gap is not a filter and not a bound, but it IS something
@@ -286,7 +286,7 @@ func (s *Server) handleOverview(w http.ResponseWriter, r *http.Request) {
 		om.Hide(ReasonUnresolvedReferences, int(unaccounted),
 			"References the index never bound to any definition. Each is a use of a name that could "+
 				"have been an edge in these views and is not.",
-			"cortex resolve, or import a compiler-backed SCIP index")
+			"repocortex resolve, or import a compiler-backed SCIP index")
 	}
 
 	// ---- confidence distribution
@@ -336,7 +336,7 @@ func (s *Server) handleOverview(w http.ResponseWriter, r *http.Request) {
 		Next: NextAction{
 			Label:   "Install a compiler-backed indexer for the blindest language",
 			Detail:  "A (language, kind) pair with zero edges is not a repository without those relationships; it is an index that cannot see them.",
-			Command: "cortex indexers status",
+			Command: "repocortex indexers status",
 		},
 	}
 
@@ -354,7 +354,7 @@ func (s *Server) handleOverview(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case !run.Complete():
 		resp.Freshness.Next = NextAction{
-			Label: "This index is PARTIAL", Command: "cortex index",
+			Label: "This index is PARTIAL", Command: "repocortex index",
 			Detail: fmt.Sprintf(
 				"%d discovered file(s) reached none of the three terminal outcomes. The run was published "+
 					"anyway — a partial index beats none — but it must not be read as a full picture.",
@@ -362,24 +362,24 @@ func (s *Server) handleOverview(w http.ResponseWriter, r *http.Request) {
 		}
 	case age > staleAfterSeconds:
 		resp.Freshness.Next = NextAction{
-			Label: "Reindex", Command: "cortex index",
+			Label: "Reindex", Command: "repocortex index",
 			Detail: fmt.Sprintf("This index is %s old. Everything in this portal describes the tree as it was then.", humanAge(age)),
 		}
 	default:
 		resp.Freshness.Next = NextAction{
-			Label: "Keep it current while you work", Command: "cortex watch",
+			Label: "Keep it current while you work", Command: "repocortex watch",
 			Detail: "Incremental reindexing on file change, so the portal keeps describing the tree in front of you.",
 		}
 	}
 	if run.FilesUnaccounted > 0 {
 		om.Hide(ReasonRowBudget, int(run.FilesUnaccounted),
 			"Discovered files that reached no terminal outcome in this run. Their symbols and edges are absent from every view here.",
-			"cortex index")
+			"repocortex index")
 	}
 	if run.ParseFailures > 0 {
 		om.Hide(ReasonRowBudget, int(run.ParseFailures),
 			"Files that failed or only partly parsed. Symbols they define are missing, so relationships through them are missing too.",
-			"cortex doctor")
+			"repocortex doctor")
 	}
 
 	resp.Omissions = om

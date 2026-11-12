@@ -996,7 +996,7 @@ func isExported(name string) bool {
 // Go's blank identifier is the case that shows up: `var _ = x`, `_, err := f()`
 // and `func (_ T) M()` are all definitions to a tags query, and a real service
 // contributed 46 symbols named `_` to its index. Nobody searches for `_`, no
-// reference can bind to it — the language guarantees that — and `cortex
+// reference can bind to it — the language guarantees that — and `repocortex
 // symbol _` answering with 46 results is noise in a table whose value is that
 // every row means something.
 //

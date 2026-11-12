@@ -401,7 +401,7 @@ func TestPrecisionWithoutCompilerFactsRefusesToScore(t *testing.T) {
 	for _, want := range []string{
 		"Not measured",
 		"no compiler facts",
-		"cortex scip import",
+		"repocortex scip import",
 		"NOT MEASURED — no SCIP index imported for it",
 		"go",
 		"typescript",

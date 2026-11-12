@@ -82,7 +82,7 @@ func ghostDoc() *scippb.Document {
 }
 
 func knownPaths() []string {
-	return []string{"internal/svc/service.go", "internal/api/handler.go", "cmd/cortex/main.go"}
+	return []string{"internal/svc/service.go", "internal/api/handler.go", "cmd/repocortex/main.go"}
 }
 
 func ingestFixture(t *testing.T, opts Options, docs ...*scippb.Document) ([]FileFacts, Stats) {
@@ -348,17 +348,17 @@ func TestDefinitionAndReferenceRoles(t *testing.T) {
 
 func TestLocalSymbolsAreQualifiedByDocument(t *testing.T) {
 	other := handlerDoc()
-	other.RelativePath = "cmd/cortex/main.go"
+	other.RelativePath = "cmd/repocortex/main.go"
 
 	facts, _ := ingestFixture(t,
 		Options{RepoRoot: "/build/repo", KnownPaths: knownPaths()},
 		handlerDoc(), other)
 
 	a := factsFor(t, facts, "internal/api/handler.go")
-	b := factsFor(t, facts, "cmd/cortex/main.go")
+	b := factsFor(t, facts, "cmd/repocortex/main.go")
 
 	wantA := "internal/api/handler.go#local 0"
-	wantB := "cmd/cortex/main.go#local 0"
+	wantB := "cmd/repocortex/main.go#local 0"
 	symbolByFQN(t, a, wantA)
 	symbolByFQN(t, b, wantB)
 

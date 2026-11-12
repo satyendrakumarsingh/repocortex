@@ -73,11 +73,11 @@ func TestDetectBlindspotsToolPositive(t *testing.T) {
 	ctx := context.Background()
 
 	res, err := sess.CallTool(ctx, &sdk.CallToolParams{
-		Name:      "detect_blindspots",
+		Name:      "list_blindspots",
 		Arguments: map[string]any{},
 	})
 	if err != nil {
-		t.Fatalf("call detect_blindspots: %v", err)
+		t.Fatalf("call list_blindspots: %v", err)
 	}
 
 	text := resultText(res)

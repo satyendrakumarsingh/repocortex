@@ -37,7 +37,7 @@ func (dotExporter) Counts(g metrics.Graph) (int, int) { return g.Order(), len(g.
 
 func (dotExporter) Write(ctx context.Context, w io.Writer, g metrics.Graph) error {
 	bw := &errWriter{w: w}
-	bw.printf("digraph cortex {\n")
+	bw.printf("digraph repocortex {\n")
 	bw.printf("  graph [rankdir=LR];\n")
 	bw.printf("  node [shape=box, fontname=\"Helvetica\"];\n")
 

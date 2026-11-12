@@ -123,7 +123,7 @@ func Legend() []Tier {
 // not chosen one.
 //
 // medium, matching impact.DefaultMinConfidence — the portal must not present a
-// wider blast radius than `cortex` itself would, or the two disagree about
+// wider blast radius than `repocortex` itself would, or the two disagree about
 // the same repository. `low` is one control away and its exclusion is always
 // counted.
 const DefaultFloor = model.ConfidenceMedium

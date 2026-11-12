@@ -18,7 +18,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// `cortex ui` is the one command whose defaults are a security decision, so
+// `repocortex ui` is the one command whose defaults are a security decision, so
 // most of what is worth testing here is about the bind address and about the
 // command actually serving what it claims to serve.
 
@@ -95,7 +95,7 @@ func TestUIWithoutAnIndexNamesTheFix(t *testing.T) {
 	// from the command. (Once a store exists, the portal itself answers an
 	// unindexed repository with guidance rather than an error — that case is
 	// covered in internal/web.)
-	if !strings.Contains(err.Error(), "cortex init") || !strings.Contains(err.Error(), "cortex index") {
+	if !strings.Contains(err.Error(), "repocortex init") || !strings.Contains(err.Error(), "repocortex index") {
 		t.Errorf("error does not name the fix: %v", err)
 	}
 }
@@ -181,7 +181,7 @@ func runUICommand(t *testing.T, project string, args ...string) (string, error) 
 // declared here because the real root declares it, and `ui` reads Global.JSON.
 func execUI(ctx stdctx.Context, project string, out io.Writer, args ...string) error {
 	g := &Global{Project: project}
-	root := &cobra.Command{Use: "cortex-test", SilenceUsage: true, SilenceErrors: true}
+	root := &cobra.Command{Use: "repocortex-test", SilenceUsage: true, SilenceErrors: true}
 	root.PersistentFlags().BoolVar(&g.JSON, "json", false, "emit machine-readable JSON on stdout")
 	cmd := newUICmd(g)
 	root.AddCommand(cmd)

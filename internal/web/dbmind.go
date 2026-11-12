@@ -15,9 +15,9 @@ import (
 // # Nothing here is a second analysis
 //
 // The table inventory is registry.TableUsageReport — the exact call behind
-// `cortex db`, including its Declared flag and its Uncertain count. The
+// `repocortex db`, including its Declared flag and its Uncertain count. The
 // accessors are the run's own READS and WRITES edges, which is what
-// `cortex db table` reads through graph.Neighbours(Incoming, READS|WRITES).
+// `repocortex db table` reads through graph.Neighbours(Incoming, READS|WRITES).
 // Both sources are already loaded: the report is one aggregate query, and the
 // edges are the cached structuralIndex the graph screens pay for once per run.
 // A SQL scan or a traversal here would be a second place for the two answers to
@@ -82,7 +82,7 @@ type TableRow struct {
 	DeclaredAt Evidence `json:"declared_at,omitempty"`
 
 	// The STATEMENT counts, from registry.TableUsageReport — the same figures
-	// `cortex db` prints. Whole-index, unaffected by the confidence floor,
+	// `repocortex db` prints. Whole-index, unaffected by the confidence floor,
 	// because a staged access exists whether or not it bound to a table node.
 	ReadStatements      int `json:"read_statements"`
 	WriteStatements     int `json:"write_statements"`
@@ -171,7 +171,7 @@ func (s *Server) handleDB(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		resp.Help = meta.Help
 		resp.Next = NextAction{
-			Label: "Index this repository", Command: "cortex index",
+			Label: "Index this repository", Command: "repocortex index",
 			Detail: "Table access is extracted during indexing; there is nothing committed to read.",
 		}
 		s.writeJSON(w, http.StatusOK, resp)
@@ -197,11 +197,11 @@ func (s *Server) handleDB(w http.ResponseWriter, r *http.Request) {
 		row.ReadBy = capped(row.ReadBy, maxAccessorsPerTable, &om, ReasonRowBudget,
 			fmt.Sprintf("%s: readers beyond the first %d (ordered by statements, then name) are not "+
 				"listed. symbols_reading is the full figure.", row.Table, maxAccessorsPerTable),
-			"cortex db table "+row.Table)
+			"repocortex db table "+row.Table)
 		row.WrittenBy = capped(row.WrittenBy, maxAccessorsPerTable, &om, ReasonRowBudget,
 			fmt.Sprintf("%s: writers beyond the first %d are not listed. symbols_writing is the "+
 				"full figure.", row.Table, maxAccessorsPerTable),
-			"cortex db table "+row.Table)
+			"repocortex db table "+row.Table)
 		if row.ReadBy == nil {
 			row.ReadBy = []TableAccessor{}
 		}
@@ -214,7 +214,7 @@ func (s *Server) handleDB(w http.ResponseWriter, r *http.Request) {
 	resp.Tables = capped(rows, maxRows, &om, ReasonRowBudget,
 		fmt.Sprintf("Tables beyond the first %d (ordered by total statements, then name) are not "+
 			"listed. counts.tables is the full figure.", maxRows),
-		"cortex db")
+		"repocortex db")
 	if resp.Tables == nil {
 		resp.Tables = []TableRow{}
 	}
@@ -231,15 +231,15 @@ func (s *Server) handleDB(w http.ResponseWriter, r *http.Request) {
 			Title:  "This index recorded no database access",
 			Detail: dbCoverageLimit + " An empty screen here means no SQL statement was recognised, not that this repository has no database.",
 			Steps: []string{
-				"cortex index — table access is extracted during indexing, so an index built before the SQL recogniser landed will show nothing",
-				"cortex db — the same report in the terminal, with the coverage note",
+				"repocortex index — table access is extracted during indexing, so an index built before the SQL recogniser landed will show nothing",
+				"repocortex db — the same report in the terminal, with the coverage note",
 				"Check the overview's blind spots: a language whose string literals were never parsed cannot yield a query",
 			},
 		}
 		resp.Next = NextAction{
 			Label:   "Confirm this is a repository with no SQL",
 			Detail:  "If it queries a database through an ORM's fluent API, this screen is silent by construction rather than by finding.",
-			Command: "cortex db",
+			Command: "repocortex db",
 			Screen:  "overview#blind-spots",
 		}
 	case resp.Counts.WithNoAccessor == resp.Counts.Tables:
@@ -247,7 +247,7 @@ func (s *Server) handleDB(w http.ResponseWriter, r *http.Request) {
 			Label: "Bind table accesses to their callers",
 			Detail: fmt.Sprintf("All %d table(s) are known by name and none has a recorded reader or writer, "+
 				"so this screen can say what exists but not who touches it.", resp.Counts.Tables),
-			Command: "cortex resolve",
+			Command: "repocortex resolve",
 		}
 	default:
 		resp.Next = NextAction{

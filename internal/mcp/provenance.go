@@ -55,7 +55,7 @@ func ProvenanceFor(builtAtSHA, headSHA string, ageSeconds int64) *Provenance {
 	case !matches:
 		caveat = fmt.Sprintf(
 			"The index was built from %s but HEAD is %s. Results may describe code that has changed; "+
-				"run `cortex index` to reindex. %s",
+				"run `repocortex index` to reindex. %s",
 			shortSHA(builtAtSHA), shortSHA(headSHA), uncommittedCaveat)
 	}
 

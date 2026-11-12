@@ -12,7 +12,7 @@ import (
 	"github.com/satyendrakumarsingh/repocortex/internal/store"
 )
 
-// TestFirstIndexInProgressIsNotAbsent: an agent told "no index, run cortex
+// TestFirstIndexInProgressIsNotAbsent: an agent told "no index, run repocortex
 // index" while one is running will start a second, competing indexer.
 func TestFirstIndexInProgressIsNotAbsent(t *testing.T) {
 	ctx := context.Background()

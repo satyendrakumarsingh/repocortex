@@ -51,7 +51,7 @@ import (
 const maxTraceExportBytes = 16 << 20
 
 // traceExportFile is the conventional name looked for when ?export= is absent.
-const traceExportFile = "cortex.trace.json"
+const traceExportFile = "repocortex.trace.json"
 
 // maxTraceRows bounds each listing on this screen.
 const maxTraceRows = 200
@@ -143,7 +143,7 @@ func (s *Server) handleTrace(w http.ResponseWriter, r *http.Request) {
 		resp.Next = NextAction{
 			Label:   "Index this repository first",
 			Detail:  "A trace is correlated AGAINST an index. Without one there is nothing to correlate to.",
-			Command: "cortex index",
+			Command: "repocortex index",
 		}
 		s.writeJSON(w, http.StatusOK, resp)
 		return
@@ -179,7 +179,7 @@ func (s *Server) handleTrace(w http.ResponseWriter, r *http.Request) {
 			Detail: err.Error() + " Two formats are understood: OpenTelemetry OTLP/JSON and Jaeger UI JSON.",
 			Steps: []string{
 				"Export from your collector as OTLP/JSON, or save a trace from the Jaeger UI.",
-				"cortex trace " + resp.Export.Path + " — the same correlation from the command line",
+				"repocortex trace " + resp.Export.Path + " — the same correlation from the command line",
 			},
 		}
 		resp.Next = traceNextAction(resp)
@@ -214,10 +214,10 @@ func (s *Server) handleTrace(w http.ResponseWriter, r *http.Request) {
 	}
 	resp.Exercised = capped(rep.Exercised, maxTraceRows, &om, ReasonRowBudget,
 		fmt.Sprintf("Exercised entities beyond the first %d are not listed. coverage.exercised_entities is the full figure.", maxTraceRows),
-		"cortex trace "+resp.Export.Path)
+		"repocortex trace "+resp.Export.Path)
 	resp.ColdEndpoints = capped(rep.ColdEndpoints, maxTraceRows, &om, ReasonRowBudget,
 		fmt.Sprintf("Cold endpoints beyond the first %d are not listed. coverage.cold_endpoints is the full figure.", maxTraceRows),
-		"cortex trace "+resp.Export.Path)
+		"repocortex trace "+resp.Export.Path)
 	if rep.Unmatched != nil {
 		resp.Unmatched = rep.Unmatched
 	}
@@ -309,7 +309,7 @@ func traceMissingGuidance(ref FileRef, cov TraceCoverage) *Guidance {
 		Steps: []string{
 			"Export a window from your collector as OTLP/JSON, or save a trace from the Jaeger UI.",
 			"Save it in the repository as " + traceExportFile + ", or pass ?export=<repo-relative path>",
-			"cortex trace <export.json> — the same correlation from the command line",
+			"repocortex trace <export.json> — the same correlation from the command line",
 		},
 	}
 }
@@ -342,7 +342,7 @@ func traceNextAction(resp TraceResponse) NextAction {
 		return NextAction{
 			Label:   "Export a trace window and drop it in the repository",
 			Detail:  fmt.Sprintf("%d endpoint(s) here are currently unobserved rather than cold.", resp.Coverage.IndexedEndpoints),
-			Command: "cortex trace " + traceExportFile,
+			Command: "repocortex trace " + traceExportFile,
 		}
 	case resp.Coverage.ColdEndpoints > 0:
 		return NextAction{

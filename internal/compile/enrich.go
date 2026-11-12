@@ -14,7 +14,7 @@ import (
 // The scope cap exists because an unbounded scope is not a scope; the same
 // argument applies twice over to a blast radius, which is drawn from a
 // traversal that can reach thousands of symbols. A brief listing 300 callers
-// has told the agent nothing it could not have got from `cortex impact`, and
+// has told the agent nothing it could not have got from `repocortex impact`, and
 // has buried the twelve entries that were the point.
 const (
 	// maxImpactTargets is how many scope symbols are analysed. The scope is

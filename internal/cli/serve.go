@@ -9,9 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/satyendrakumarsingh/repocortex/internal/graph"
 	devmcp "github.com/satyendrakumarsingh/repocortex/internal/mcp"
-	"github.com/satyendrakumarsingh/repocortex/internal/registry"
+	"github.com/satyendrakumarsingh/repocortex/internal/restapi"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/cobra"
@@ -23,6 +22,7 @@ func newServeCmd(g *Global) *cobra.Command {
 		httpAddr     string
 		allowRemote  bool
 		allowedHosts []string
+		auditLog     string
 	)
 
 	cmd := &cobra.Command{
@@ -32,20 +32,28 @@ func newServeCmd(g *Global) *cobra.Command {
 
 Register with Claude Code:
 
-    claude mcp add cortex -- cortex --project /path/to/repo serve
+    claude mcp add repocortex -- repocortex --project /path/to/repo serve
 
 With --http it serves MCP over Streamable HTTP instead, for clients that only
 accept a remote server (ChatGPT developer mode, Android Studio):
 
-    cortex serve --http 127.0.0.1:7788
+    repocortex serve --http 127.0.0.1:7788
 
-Every request needs the token from CORTEX_MCP_TOKEN, or the one generated for\nthe run and written to .cortex/mcp-token (readable only by you),
+The same listener serves the tools as plain HTTP and JSON at /api/v1, for
+callers with no MCP client, with an OpenAPI document at /api/v1/openapi.json:
+
+    curl -H "Authorization: Bearer $TOKEN" -d '{"name":"ParseConfig"}' \
+         http://127.0.0.1:7788/api/v1/tools/find_callers
+
+From a shell with no server at all, 'repocortex tool call' runs the same tools.
+
+Every request needs the token from REPOCORTEX_MCP_TOKEN, or the one generated for\nthe run and written to .repocortex/mcp-token (readable only by you),
 as 'Authorization: Bearer <token>' or as the last path segment, /mcp/<token>.
 The server listens on loopback only unless --allow-remote is given, and accepts
 Host and Origin values that name this machine or a host in --allowed-host, such
 as the hostname of a tunnel you run.
 
-The exposed tool set is governed by mcp.profile in .cortex.yml
+The exposed tool set is governed by mcp.profile in .repocortex.yml
 (minimal | standard | full). The default is deliberately small: every tool's
 schema is injected into the agent's context on every request, so a large tool
 surface spends the very context this tool exists to save.
@@ -60,27 +68,12 @@ someone other than you.`,
 				return errors.New("--allow-remote and --allowed-host apply only with --http")
 			}
 
+			srv, closeServer, err := openAgentServer(ctx, g, agentServerOptions{AuditPath: auditLog})
+			if err != nil {
+				return err
+			}
+			defer closeServer()
 			dbPath := g.DBPath()
-			if _, err := os.Stat(dbPath); errors.Is(err, os.ErrNotExist) {
-				return fmt.Errorf("no index at %s — run 'cortex init' and 'cortex index' first", dbPath)
-			}
-
-			// Read-only: an agent session must never be able to mutate the
-			// index it is querying.
-			db, err := openReadOnly(ctx, dbPath)
-			if err != nil {
-				return err
-			}
-			defer func() { _ = db.Close() }()
-
-			srv, err := devmcp.New(devmcp.Deps{
-				Registry: registry.New(db),
-				Graph:    graph.New(db, graph.WithCSR()),
-				Config:   cfg,
-			})
-			if err != nil {
-				return err
-			}
 
 			if listTools {
 				if g.JSON {
@@ -115,7 +108,20 @@ someone other than you.`,
 					"project", cfg.ProjectName,
 					"profile", string(cfg.MCPProfile),
 					"tools", len(srv.Tools()))
-				return serveHTTP(ctx, srv.SDK(), httpServeOptions{
+				// The REST API rides on the same listener. It calls the tools
+				// through an in-process client, so it is the MCP surface in a
+				// different envelope and not a second implementation.
+				inv, err := srv.NewInvoker(ctx, "rest")
+				if err != nil {
+					return err
+				}
+				defer func() { _ = inv.Close() }()
+				api := restapi.Handler(inv, restapi.Info{
+					Project: cfg.ProjectName,
+					Version: Version,
+					Profile: string(cfg.MCPProfile),
+				})
+				return serveHTTP(ctx, srv.SDK(), api, httpServeOptions{
 					Addr:         httpAddr,
 					AllowRemote:  allowRemote,
 					AllowedHosts: allowedHosts,
@@ -144,7 +150,7 @@ someone other than you.`,
 					return nil
 				}
 				// A client hanging up is how an MCP session ENDS, not how it
-				// fails. Reporting EOF as an error meant `cortex serve` exited
+				// fails. Reporting EOF as an error meant `repocortex serve` exited
 				// 1 on every normal disconnect, which turns a supervisor's
 				// restart-on-failure into a restart loop and makes a real
 				// failure indistinguishable from a client closing its pipe.
@@ -161,6 +167,7 @@ someone other than you.`,
 	cmd.Flags().StringVar(&httpAddr, "http", "", "serve MCP over Streamable HTTP on host:port instead of stdio (e.g. 127.0.0.1:7788)")
 	cmd.Flags().BoolVar(&allowRemote, "allow-remote", false, "with --http, allow listening on a non-loopback address")
 	cmd.Flags().StringSliceVar(&allowedHosts, "allowed-host", nil, "with --http, also accept this Host/Origin hostname (repeatable), e.g. a tunnel's hostname")
+	cmd.Flags().StringVar(&auditLog, "audit-log", "", "append one JSON line per tool call to this file (default: $"+auditLogEnv+"); records the call, never the answer")
 	return cmd
 }
 

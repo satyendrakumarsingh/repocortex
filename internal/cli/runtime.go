@@ -159,7 +159,7 @@ and this refuses to emit one.
 
 Example:
 
-  cortex compile "Add idempotency to payment callback processing"`,
+  repocortex compile "Add idempotency to payment callback processing"`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
@@ -187,7 +187,7 @@ Example:
 			// Compiled WITH the declared architecture and the blast radius, not
 			// from the context pack alone. A contract that cannot say which rule
 			// the change must respect, or what the change would reach, is a
-			// scope statement rather than a brief — and it is what `cortex
+			// scope statement rather than a brief — and it is what `repocortex
 			// verify` later checks the change against.
 			contract, err := compile.CompileWith(ctx, intent, pack,
 				compile.Options{MaxScope: maxScope}, compilePorts(s, g))

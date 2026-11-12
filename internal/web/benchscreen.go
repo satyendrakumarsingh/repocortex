@@ -25,7 +25,7 @@ import (
 // # Scored against the pack the engine actually produces
 //
 // The pack comes from internal/context through the server's own assembler — the
-// same one the contract and verify screens use, and the same one `cortex
+// same one the contract and verify screens use, and the same one `repocortex
 // bench` builds — so a change to ranking, budgeting or extraction shows up here
 // as a number rather than as a surprise in an agent session weeks later. The
 // scoring is bench.Score's, not this package's.
@@ -37,7 +37,7 @@ import (
 // be the most flattering possible mistake.
 
 // benchCasesFile is the conventional name looked for when ?cases= is absent.
-const benchCasesFile = "cortex.bench.yml"
+const benchCasesFile = "repocortex.bench.yml"
 
 // maxBenchCases bounds how many cases one request will run.
 //
@@ -154,7 +154,7 @@ func (s *Server) handleBench(w http.ResponseWriter, r *http.Request) {
 		resp.Next = NextAction{
 			Label:   "Index this repository first",
 			Detail:  "The benchmark scores the packs the context engine assembles from an index.",
-			Command: "cortex index",
+			Command: "repocortex index",
 		}
 		s.writeJSON(w, http.StatusOK, resp)
 		return
@@ -165,9 +165,9 @@ func (s *Server) handleBench(w http.ResponseWriter, r *http.Request) {
 		resp.Help = &Guidance{
 			Title:  "This portal cannot assemble a context pack",
 			Detail: errNoPackReader.Error() + " The benchmark scores packs, so without that port there is nothing to score.",
-			Steps:  []string{"cortex bench " + benchCasesFile},
+			Steps:  []string{"repocortex bench " + benchCasesFile},
 		}
-		resp.Next = NextAction{Label: "Run the benchmark from the command line", Command: "cortex bench " + benchCasesFile}
+		resp.Next = NextAction{Label: "Run the benchmark from the command line", Command: "repocortex bench " + benchCasesFile}
 		s.writeJSON(w, http.StatusOK, resp)
 		return
 	}
@@ -195,7 +195,7 @@ func (s *Server) handleBench(w http.ResponseWriter, r *http.Request) {
 			Detail: err.Error(),
 			Steps: []string{
 				"A case names an id, a task, an `expect` list and — the half that makes the score mean something — a `forbid` list.",
-				"cortex bench " + resp.CaseFile.Path + " — the same validation from the command line",
+				"repocortex bench " + resp.CaseFile.Path + " — the same validation from the command line",
 			},
 		}
 		resp.Next = benchNextAction(resp)
@@ -220,7 +220,7 @@ func (s *Server) handleBench(w http.ResponseWriter, r *http.Request) {
 		fmt.Sprintf("Cases beyond the first %d (file order) were not RUN. Each case costs a full "+
 			"context assembly, which is the most expensive thing this portal does, so the aggregate "+
 			"below is over the cases that ran and not over the file.", maxBenchCases),
-		"cortex bench "+resp.CaseFile.Path)
+		"repocortex bench "+resp.CaseFile.Path)
 
 	results := make([]bench.Result, 0, len(scored))
 	byID := make(map[string]bench.Case, len(scored))
@@ -355,7 +355,7 @@ func benchMissingGuidance(ref FileRef) *Guidance {
 		Steps: []string{
 			"Write cases in " + benchCasesFile + ", or pass ?cases=<repo-relative path>",
 			"  - id: idempotent-callback\n    task: Add idempotency to payment callback processing\n    expect: [CallbackController, TransactionService, transactions]\n    forbid: [MarketingReport]",
-			"cortex bench " + benchCasesFile + " — the same scoring from the command line",
+			"repocortex bench " + benchCasesFile + " — the same scoring from the command line",
 		},
 	}
 }
@@ -366,7 +366,7 @@ func benchNextAction(resp BenchResponse) NextAction {
 		return NextAction{
 			Label:   "Write the cases that define the measurement",
 			Detail:  "Without a forbid list there is no way to tell a good pack from a big one.",
-			Command: "cortex bench " + benchCasesFile,
+			Command: "repocortex bench " + benchCasesFile,
 		}
 	case resp.Scores.TotalViolations > 0:
 		return NextAction{
@@ -380,7 +380,7 @@ func benchNextAction(resp BenchResponse) NextAction {
 			Label: fmt.Sprintf("%d case(s) declare no forbid list", resp.Scores.CasesWithoutForbid),
 			Detail: "Those cases measure recall only, and recall alone is gamed by returning the " +
 				"whole repository. Their contribution to the mean is not a precision claim.",
-			Command: "cortex bench " + benchCasesFile,
+			Command: "repocortex bench " + benchCasesFile,
 		}
 	case resp.Scores.Failed > 0:
 		return NextAction{

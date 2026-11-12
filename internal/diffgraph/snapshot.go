@@ -57,7 +57,7 @@ func isReferencingEdge(k model.EdgeKind) bool {
 // loadSnapshot reads one run through the port and reduces it to facts.
 //
 // ctx is checked between stages as well as passed down: the reduction between
-// two I/O calls is O(symbols+edges) and a cancelled `cortex diff` should stop
+// two I/O calls is O(symbols+edges) and a cancelled `repocortex diff` should stop
 // there rather than at the next query.
 func loadSnapshot(ctx context.Context, src IndexSource, runID int64, maxSites, maxBadPaths int) (*snapshot, error) {
 	run, err := src.Run(ctx, runID)

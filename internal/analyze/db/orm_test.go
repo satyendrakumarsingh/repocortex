@@ -113,7 +113,7 @@ func TestGORMExtraction(t *testing.T) {
 		},
 		{
 			// A table this repository never declares. Recorded anyway: an
-			// access that names a table cortex does not own still states
+			// access that names a table repocortex does not own still states
 			// something true, and migration 0003 exists to hold it.
 			line: 55, verb: "gorm.Count", access: AccessRead,
 			tables: []string{"legacy_orders"}, certain: true, symbol: "CountLegacy",
@@ -214,7 +214,7 @@ func TestSQLAlchemyExtraction(t *testing.T) {
 //
 // Each fixture uses the vocabulary the extractors look for — save, find,
 // delete, query, add, Model, Table — with none of the framework. A single
-// reported access here would mean cortex had invented a table, which this
+// reported access here would mean repocortex had invented a table, which this
 // package's own doc comment calls the failure that costs the reader's trust in
 // every other row.
 func TestNonORMFilesYieldNothing(t *testing.T) {

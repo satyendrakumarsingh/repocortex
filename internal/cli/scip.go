@@ -46,7 +46,7 @@ func newSCIPImportCmd(g *Global) *cobra.Command {
 
 Use this when a compiler-backed index already exists — most often produced by
 CI, which has the toolchain and the build cache that a developer's machine may
-not. 'cortex indexers install' provisions and runs those tools locally; this
+not. 'repocortex indexers install' provisions and runs those tools locally; this
 is the path for an index you already have.
 
 WHAT IT DOES TO THE GRAPH. Relationships the compiler proved are written with
@@ -67,7 +67,7 @@ it. The import reports how many were declined on each ground.
 
 Where a compiler fact describes a relationship the resolver already found, at
 the same kind and line, the weaker edge is upgraded in place rather than
-duplicated. Run 'cortex resolve' before importing: the join needs the
+duplicated. Run 'repocortex resolve' before importing: the join needs the
 parser's references on disk, and without them nothing can be promoted.
 
 WHAT IT DOES NOT DO. It never adds symbols. Definitions the compiler found that
@@ -86,9 +86,9 @@ with the repo-relative directory the index's documents hang off.
 
 Index first, resolve second, import third:
 
-  cortex index
-  cortex resolve
-  cortex scip import build/index.scip`,
+  repocortex index
+  repocortex resolve
+  repocortex scip import build/index.scip`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
@@ -108,11 +108,11 @@ Index first, resolve second, import third:
 			cfg := g.Config()
 			dbPath := g.DBPath()
 			if _, err := os.Stat(dbPath); errors.Is(err, os.ErrNotExist) {
-				return fmt.Errorf("no index at %s — run 'cortex init' first", dbPath)
+				return fmt.Errorf("no index at %s — run 'repocortex init' first", dbPath)
 			}
 
 			// Read-write: this mutates the committed run in place, which is the
-			// same posture `cortex watch` takes for incremental updates.
+			// same posture `repocortex watch` takes for incremental updates.
 			db, err := openWritable(ctx, g, dbPath)
 			if err != nil {
 				return err
@@ -126,7 +126,7 @@ Index first, resolve second, import third:
 				// message describes the store's state accurately and tells the
 				// reader nothing about what to do next, which is the whole
 				// question when a command refuses to run.
-				return errors.New("no committed index — run 'cortex index' first, " +
+				return errors.New("no committed index — run 'repocortex index' first, " +
 					"then import")
 			}
 			if err != nil {
@@ -270,7 +270,7 @@ func renderImportGuidance(w io.Writer, res scipimport.ImportResult) {
 				matched*100)
 			sample("e.g.", res.UnmatchedSymbols)
 			fmt.Fprint(&b, "  That is low enough to suggest the index and the working tree are at "+
-				"different commits; re-run 'cortex index' and import again.\n")
+				"different commits; re-run 'repocortex index' and import again.\n")
 		}
 	}
 
@@ -295,7 +295,7 @@ func renderImportGuidance(w io.Writer, res scipimport.ImportResult) {
 		switch {
 		case res.ParsedCallSites == 0:
 			fmt.Fprint(&b, "\nNo CALLS edges were produced because this index has no parser "+
-				"call sites to join against. Run 'cortex index && cortex resolve' first: "+
+				"call sites to join against. Run 'repocortex index && repocortex resolve' first: "+
 				"the compiler supplies what a reference resolves to, the parser supplies "+
 				"whether it is a call, and neither half is usable alone.\n")
 		case res.Promote.CallLines > 0:

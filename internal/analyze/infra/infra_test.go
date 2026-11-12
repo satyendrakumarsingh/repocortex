@@ -665,7 +665,7 @@ func unitNames(f File) []string {
 //
 // The `Dockerfile.<variant>` convention is real, so classify matches the prefix
 // `dockerfile.` — and that matched this package's own `dockerfile.go`. Running
-// `cortex infra` on the RepoCortex repository reported that Go file as a
+// `repocortex infra` on the RepoCortex repository reported that Go file as a
 // container build with two stages, `stage1` and `stage2`, at lines 83 and 85.
 // All of it invented from Go source.
 //

@@ -52,7 +52,7 @@ linters:
       - path: _test\.go
         linters: [errcheck, gosec]
       # A Git hook MUST be 0755 — Git silently skips a hook it cannot execute,
-      # and a hook that silently never runs is the failure `cortex hooks`
+      # and a hook that silently never runs is the failure `repocortex hooks`
       # exists to avoid. The paths are derived from the root the user named
       # plus the repository's own local git config (core.hooksPath) and
       # gitdir pointer — untracked local state a clone does not ship — never

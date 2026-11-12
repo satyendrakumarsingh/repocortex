@@ -113,7 +113,7 @@ func TestRelativeImportOfAFileIsMatched(t *testing.T) {
 	// A6 closed the looseness this comment used to record as a known limit.
 	// Segment matching was a bag of words: any segment of the file's path equal
 	// to any segment of any import, so `internal/server/config.go` matched an
-	// import of `cortex/internal/config` on the shared `internal` segment.
+	// import of `repocortex/internal/config` on the shared `internal` segment.
 	// Matching is now anchored at the END of the path, which is what an import
 	// path asserts. See importSet.covers.
 	goSet := buildImportSet(NewSpecs().For("go"), []registry.Import{{Path: "github.com/satyendrakumarsingh/repocortex/internal/config"}})
@@ -177,7 +177,7 @@ func TestLongerImportSuffixWins(t *testing.T) {
 // The two failures Ambiguous conflates want different fixes. "Two candidates
 // and no evidence" is a disambiguation problem; "this name has 200 definitions"
 // was never weighable at all. A single number cannot tell a user which one
-// their repository has, and `cortex accuracy` now publishes a recall figure
+// their repository has, and `repocortex accuracy` now publishes a recall figure
 // that a cap drop is a named component of.
 func TestCapDropsAreCounted(t *testing.T) {
 	// One name, more definitions than any spec will weigh, and a Go receiver —

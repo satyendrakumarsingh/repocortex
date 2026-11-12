@@ -29,9 +29,9 @@ import (
 const maxIgnoreFileBytes = 1 << 20
 
 // ignoreFileNames are the per-directory rule files, in increasing precedence.
-// .cortexignore is read last so a repository can carve out RepoCortex-specific
+// .repocortexignore is read last so a repository can carve out RepoCortex-specific
 // exclusions without perturbing what git sees.
-var ignoreFileNames = []string{".gitignore", ".cortexignore"}
+var ignoreFileNames = []string{".gitignore", ".repocortexignore"}
 
 // seg is one '/'-delimited component of a compiled pattern.
 type seg struct {

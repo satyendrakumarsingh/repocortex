@@ -47,31 +47,31 @@ touches.
 
 Nothing is merged and nothing is migrated. Each member keeps its own index, its
 own runs and its own digest, and this opens them read-only and assembles a view
-— the same shape 'cortex diff --from-index' uses, and for the same reasons:
+— the same shape 'repocortex diff --from-index' uses, and for the same reasons:
 members are indexed at different commits on different schedules, one committed
 run per database is an invariant the index swap depends on, and a combined
 database would have to be rebuilt whenever any member changed.
 
 Name the members inline, or keep them in a file:
 
-  cortex system --member web=../web/.cortex/index.db \
-                  --member orders=../orders/.cortex/index.db
+  repocortex system --member web=../web/.repocortex/index.db \
+                  --member orders=../orders/.repocortex/index.db
 
-  cortex system --members ./cortex.system.yml
+  repocortex system --members ./repocortex.system.yml
 
 The file is the one to use past two repositories. The member list is a property
 of the ESTATE rather than of an invocation — it is the same for everyone on the
 team, it changes when a service is added, and it deserves review — and retyping
 eight flags is how a member silently goes missing, which is the precise failure
-this report exists to prevent. It is deliberately not .cortex.yml: that file
+this report exists to prevent. It is deliberately not .repocortex.yml: that file
 is per-repository indexing configuration, and the estate is not a property of
 any one of its members. The format is:
 
   members:
     - name: web
-      index: ../web/.cortex/index.db
+      index: ../web/.repocortex/index.db
     - name: orders
-      index: ../orders/.cortex/index.db
+      index: ../orders/.repocortex/index.db
 
 Paths in the file are resolved relative to the FILE, so the command means the
 same thing from every directory.
@@ -208,10 +208,10 @@ func systemMembers(cmd *cobra.Command) ([]multirepo.EstateMember, error) {
 	if len(out) < 2 {
 		return nil, errors.New(
 			"name at least two members: a system graph is the edges BETWEEN repositories, " +
-				"and one repository is already answered by 'cortex api' and 'cortex db'.\n" +
-				"  cortex system --member web=../web/.cortex/index.db \\\n" +
-				"                  --member orders=../orders/.cortex/index.db\n" +
-				"  cortex system --members ./cortex.system.yml")
+				"and one repository is already answered by 'repocortex api' and 'repocortex db'.\n" +
+				"  repocortex system --member web=../web/.repocortex/index.db \\\n" +
+				"                  --member orders=../orders/.repocortex/index.db\n" +
+				"  repocortex system --members ./repocortex.system.yml")
 	}
 
 	seen := map[string]string{}
@@ -286,12 +286,12 @@ func (c *memberCatalogue) closeAll() {
 // person who owns that repository.
 //
 // Read-only, like every query path: the other checkout's index may be held by a
-// `cortex watch` over there, and a federated read has no business writing to
+// `repocortex watch` over there, and a federated read has no business writing to
 // it.
 func openMemberIndex(ctx stdctx.Context, path string) *openIndex {
 	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
 		return &openIndex{failure: fmt.Sprintf(
-			"no index at %s. Build one in that checkout: 'cortex index --project <that checkout>'.",
+			"no index at %s. Build one in that checkout: 'repocortex index --project <that checkout>'.",
 			path)}
 	} else if err != nil {
 		return &openIndex{failure: fmt.Sprintf("cannot stat %s: %v", path, err)}
@@ -303,7 +303,7 @@ func openMemberIndex(ctx stdctx.Context, path string) *openIndex {
 		// member was indexed by a build whose schema this one does not read, and
 		// re-indexing it is the fix.
 		return &openIndex{failure: fmt.Sprintf(
-			"cannot read %s: %v. Re-index that checkout with this build of cortex.", path, err)}
+			"cannot read %s: %v. Re-index that checkout with this build of repocortex.", path, err)}
 	}
 
 	runs, err := listRuns(ctx, db)
@@ -325,7 +325,7 @@ func openMemberIndex(ctx stdctx.Context, path string) *openIndex {
 		// initialised and never populated.
 		return &openIndex{failure: fmt.Sprintf(
 			"%s holds %d run(s) but none is committed, so it exposes no facts. "+
-				"Run 'cortex index' in that checkout.", path, len(runs))}
+				"Run 'repocortex index' in that checkout.", path, len(runs))}
 	}
 
 	return &openIndex{

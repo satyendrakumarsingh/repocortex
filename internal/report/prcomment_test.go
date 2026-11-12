@@ -285,7 +285,7 @@ func TestRenderPRConfidenceBreakdown(t *testing.T) {
 				"0% exact, 33% high, 33% medium, 33% low",
 				"| low | 1 | 33% |",
 				"No part of this blast radius is compiler-proven",
-				"CORTEX_ACCURACY: auto",
+				"REPOCORTEX_ACCURACY: auto",
 			},
 		},
 		{

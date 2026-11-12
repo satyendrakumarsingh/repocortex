@@ -47,7 +47,7 @@ func runWatch(cmd *cobra.Command, g *Global, debounce time.Duration) error {
 
 	dbPath := g.DBPath()
 	if _, err := os.Stat(dbPath); errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("no index at %s — run 'cortex init' first", dbPath)
+		return fmt.Errorf("no index at %s — run 'repocortex init' first", dbPath)
 	}
 
 	db, err := openWritable(ctx, g, dbPath)
@@ -60,7 +60,7 @@ func runWatch(cmd *cobra.Command, g *Global, debounce time.Duration) error {
 	current, err := reg.CurrentRun(ctx)
 	if err != nil {
 		if errors.Is(err, registry.ErrNoCommittedRun) {
-			return fmt.Errorf("no committed index — run 'cortex index' first")
+			return fmt.Errorf("no committed index — run 'repocortex index' first")
 		}
 		return fmt.Errorf("read current index revision: %w", err)
 	}

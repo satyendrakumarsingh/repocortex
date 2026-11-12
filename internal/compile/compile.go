@@ -107,7 +107,7 @@ type Contract struct {
 	// what touching it reaches, and the difference is the whole reason both are
 	// printed. Each entry carries the confidence of the path that reached it,
 	// so a proven caller and an inferred one stay distinguishable, and the same
-	// list is what `cortex verify` later checks the change against.
+	// list is what `repocortex verify` later checks the change against.
 	BlastRadius []Reached `json:"blast_radius,omitempty"`
 
 	// Tests are the tests the analysis found covering the scope symbols, each
@@ -626,7 +626,7 @@ func unknownsFor(pack devctx.Pack, scope []ScopeItem, dropped int, ports Ports, 
 	// "No architecture constraints" means two entirely different things
 	// depending on this line, and a reader cannot tell which without it.
 	if ports.Architecture == nil {
-		out = append(out, "No declared architecture was consulted, so this contract states no component boundary the change must respect; if .cortex.yml declares one, compile with it rather than assuming the change is unconstrained.")
+		out = append(out, "No declared architecture was consulted, so this contract states no component boundary the change must respect; if .repocortex.yml declares one, compile with it rather than assuming the change is unconstrained.")
 	}
 	if !reach.consulted {
 		out = append(out, "No impact analysis was consulted, so this contract says nothing about what the change reaches beyond the files listed in Scope. An empty Blast radius here is an absence of analysis, not an absence of callers.")

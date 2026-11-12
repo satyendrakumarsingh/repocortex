@@ -225,7 +225,7 @@ func TestRenameApplyAtTheDefaultFloorWritesNothing(t *testing.T) {
 func TestRenameApplyRefusesWhileAnotherEditHoldsTheLock(t *testing.T) {
 	root := seedVerifyRepo(t)
 	before := snapshot(t, root, "store.go", "service.go")
-	if err := os.WriteFile(filepath.Join(root, ".cortex-edit.lock"), []byte("pid=1\n"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(root, ".repocortex-edit.lock"), []byte("pid=1\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -244,7 +244,7 @@ func TestRenameApplyRefusesWhileAnotherEditHoldsTheLock(t *testing.T) {
 // TestRenameCommitOutcome: every Commit failure that left the files as they
 // were is a refusal (2); only a rollback that could not restore is an error.
 func TestRenameCommitOutcome(t *testing.T) {
-	unlock := fmt.Errorf("%w .cortex-edit.lock (delete it by hand): permission denied", edit.ErrLockRelease)
+	unlock := fmt.Errorf("%w .repocortex-edit.lock (delete it by hand): permission denied", edit.ErrLockRelease)
 	for _, tc := range []struct {
 		name    string
 		err     error
@@ -327,7 +327,7 @@ func TestRenameApplyRewritesProvenSitesAndVerifies(t *testing.T) {
 		t.Errorf("verify disposition = %s, want pass or advisory; findings %+v unknowns %v",
 			d, rep.Verify.Findings, rep.Verify.Unknowns)
 	}
-	for _, pat := range []string{".cortex-edit-*", ".cortex-edit.lock"} {
+	for _, pat := range []string{".repocortex-edit-*", ".repocortex-edit.lock"} {
 		if matches, _ := filepath.Glob(filepath.Join(root, pat)); len(matches) > 0 {
 			t.Errorf("left behind: %v", matches)
 		}
@@ -354,7 +354,7 @@ func TestRenameApplyStatesTheHighFloorBeforeWriting(t *testing.T) {
 }
 
 // fixtureCopy copies fixtures/<name> into a fresh project root, leaving out
-// any .cortex/ a local run left there. Never the fixture in place: rename
+// any .repocortex/ a local run left there. Never the fixture in place: rename
 // writes source files.
 func fixtureCopy(t *testing.T, name string) string {
 	t.Helper()

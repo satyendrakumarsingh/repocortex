@@ -24,7 +24,7 @@ import "fmt"
 // Every discovered file must leave the pipeline through exactly one of three
 // terminal outcomes. Note that skipped and failed are ACCOUNTED FOR, not
 // shortfall: a file that is too large, has no grammar, or is malformed is a
-// known, recorded gap that `cortex status` already reports. Shortfall is the
+// known, recorded gap that `repocortex status` already reports. Shortfall is the
 // fourth category — a file that was discovered and then left the run through
 // none of the three doors.
 

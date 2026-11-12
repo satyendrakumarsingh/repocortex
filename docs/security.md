@@ -2,7 +2,7 @@
 
 RepoCortex runs against repositories it did not write. That single fact shapes
 every control below: a cloned repository is attacker-controlled input, and so are
-its `.gitignore` files, its `.cortex.yml`, its symlinks, its source text, its
+its `.gitignore` files, its `.repocortex.yml`, its symlinks, its source text, its
 doc comments, and any `.scip` index it ships.
 
 This document states what is protected, by what mechanism, and — in the last
@@ -25,12 +25,12 @@ This is the control the whole config package exists for.
 
 Compiler-backed indexing runs build systems. Maven and Gradle plugins execute
 arbitrary code by design. If a repository could name the indexer to run, or the
-URL to fetch it from, then `git clone && cortex index` on a hostile repository
+URL to fetch it from, then `git clone && repocortex index` on a hostile repository
 would be remote code execution.
 
 **The mechanism is structural, not a validation pass.** Execution settings —
 accuracy mode, provisioning policy, indexer runner — exist only on
-`config.UserConfig`, which is loaded from `~/.config/cortex/config.yml`. They
+`config.UserConfig`, which is loaded from `~/.config/repocortex/config.yml`. They
 do not exist as fields on `config.RepoConfig` at all. There is no code path that
 copies them from a repository, and `applyRepo` touches none of them. Adding such
 a field would reintroduce the vulnerability, which is why the package comment
@@ -48,8 +48,8 @@ So a hostile field does not merely fail to apply — it fails loudly, and the us
 finds out that the repository tried:
 
 ```
-$ cortex status
-error: repo config: parse .cortex.yml: yaml: unmarshal errors:
+$ repocortex status
+error: repo config: parse .repocortex.yml: yaml: unmarshal errors:
   line 3: field accuracy not found in type config.RepoConfig
 ```
 
@@ -64,7 +64,7 @@ security gate (`go test -race -v -run 'TestRepoCannot' ./internal/config/...`).
 
 **Excludes are additive.** `applyRepo` appends the repository's exclude patterns
 to the defaults rather than replacing them, so a repository cannot un-exclude
-`.git`, `node_modules`, `vendor` or `.cortex`.
+`.git`, `node_modules`, `vendor` or `.repocortex`.
 
 **Negated exclude patterns are discarded.** `fs.NewWalker` drops any exclude
 pattern with a leading `!`. Coercing `!**` into `**` would honour the letter of
@@ -74,15 +74,15 @@ patterns may still negate, because `include` cannot weaken a default — it is
 intersected with the exclusions, not applied over them.
 
 **Redaction is not configurable, by repository or by anyone.** `RepoConfig` has
-no `security` block, so `security.redact_secrets` in `.cortex.yml` is a parse
+no `security` block, so `security.redact_secrets` in `.repocortex.yml` is a parse
 error like any other unknown key:
 
 ```
-$ cat .cortex.yml
+$ cat .repocortex.yml
 security:
   redact_secrets: false
-$ cortex status
-error: repo config: parse .cortex.yml: yaml: unmarshal errors:
+$ repocortex status
+error: repo config: parse .repocortex.yml: yaml: unmarshal errors:
   line 1: field security not found in type config.RepoConfig
 ```
 
@@ -253,18 +253,18 @@ Two supporting properties:
   `source`. Stripping that at the edge would defeat the entire confidence model.
 
 A third property is a correctness control that happens to matter here:
-`cortex serve` opens the database **read-only**. An agent session cannot mutate
+`repocortex serve` opens the database **read-only**. An agent session cannot mutate
 the index it is querying, so a prompt-injected tool call cannot corrupt state for
 the next session.
 
 ## The HTTP transport
 
-`cortex serve` speaks stdio unless `--http` is given. Over HTTP:
+`repocortex serve` speaks stdio unless `--http` is given. Over HTTP:
 
 - Every request needs a bearer token (header, or the last path segment for
   clients that only take a URL), compared with `crypto/subtle`. With no
-  `CORTEX_MCP_TOKEN` a 256-bit token is generated per run and written to
-  `.cortex/mcp-token` with mode 0600. The token is never printed or logged, so it
+  `REPOCORTEX_MCP_TOKEN` a 256-bit token is generated per run and written to
+  `.repocortex/mcp-token` with mode 0600. The token is never printed or logged, so it
   does not end up in terminal scrollback or CI logs.
 - The listen address must be loopback unless `--allow-remote` is passed, so a
   typo such as `:7788` cannot publish the index to the local network.
@@ -283,7 +283,7 @@ it through an HTTPS tunnel or proxy.
 
 By default, nothing RepoCortex does makes a network request.
 
-- Storage is a local SQLite file at `.cortex/index.db`, which `init`
+- Storage is a local SQLite file at `.repocortex/index.db`, which `init`
   `.gitignore`s so it is never committed.
 - Git access is in-process through `go-git`. RepoCortex deliberately does **not**
   shell out to a `git` binary: it may be absent, it behaves differently across
@@ -340,7 +340,7 @@ Errors recorded on spans carry only `error.type` (the Go type name). The error
 Stated plainly. A security document that only lists wins is a marketing document.
 
 **The index itself is not encrypted, and it is a structural map of your code.**
-`.cortex/index.db` contains every symbol name, signature, doc comment and
+`.repocortex/index.db` contains every symbol name, signature, doc comment and
 FTS-indexed file content. Anyone who can read that file learns a great deal about
 the codebase. It is `.gitignore`d, not protected. On a shared machine, ordinary
 filesystem permissions are the only control.
@@ -361,7 +361,7 @@ being filtered on the way out. `RedactFile` classifies by path first, so an
 entire `.env` or private key is suppressed wholesale rather than pattern-matched
 line by line. Verified: a repository containing `AWS_KEY=AKIAIOSFODNN7EXAMPLE`
 in both a `.env` and a Go constant yields no match for that key from
-`cortex search`, and zero rows in `files_fts` containing it.
+`repocortex search`, and zero rows in `files_fts` containing it.
 
 Redaction runs **unconditionally**, and there is no longer a setting that
 suggests otherwise. `security.redact_secrets` was removed from repository config
@@ -386,15 +386,15 @@ with no recognisable shape — a bare high-entropy string in an unrecognised
 format — is not detected. Exclude secrets-bearing files rather than relying on
 detection alone.
 
-**`exact` confidence is implemented, via `cortex scip import`.** A
+**`exact` confidence is implemented, via `repocortex scip import`.** A
 compiler-backed SCIP index is ingested and its relationships written with
 `confidence=exact`, `source=compiler`; `doctor --verify-index` refuses any
 `exact` edge without compiler provenance. What follows describes the accuracy
 MODE flag, which is a separate thing.
 
 That has landed, and this paragraph used to say it had not. `internal/indexer`
-downloads and runs third-party indexers under `cortex indexers list` and
-`cortex indexers install`, so `accuracy.mode`, `provision`, `runner` and
+downloads and runs third-party indexers under `repocortex indexers list` and
+`repocortex indexers install`, so `accuracy.mode`, `provision`, `runner` and
 `mount_local_artifacts` are live execution settings rather than dormant ones —
 the config trust split is now load-bearing in practice, not only in principle.
 Read [Package indexer's own threat
@@ -402,11 +402,11 @@ model](../internal/indexer/doc.go) with this document: pinned versions and
 digests, no shell, absolute argv paths, bounded output and timeouts, and nothing
 read out of the repository beyond marker file NAMES.
 
-What `accuracy.mode` still does not do is change `cortex index`. That command
+What `accuracy.mode` still does not do is change `repocortex index`. That command
 records the mode on the run and never calls the orchestrator, so `exact` does not
-make an ordinary index fail on a language it cannot prove — it makes `cortex
+make an ordinary index fail on a language it cannot prove — it makes `repocortex
 indexers install` fail. `exact` confidence in the graph arrives only via
-`cortex scip import`, whatever the mode says.
+`repocortex scip import`, whatever the mode says.
 
 **The ignore predicate used by the watcher is an optimisation, not a boundary.**
 It applies configuration-level rules only, because per-directory `.gitignore`
@@ -437,7 +437,7 @@ meaningful but is not a review.
 
 ## Reporting
 
-If you find a way to make `git clone && cortex index` execute code, read a file
+If you find a way to make `git clone && repocortex index` execute code, read a file
 outside the repository root, or send repository content off the machine, that is
 the class of bug this project cares most about. Include the repository that
 triggers it — a fixture that fails is worth more than a description.

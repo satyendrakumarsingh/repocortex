@@ -106,7 +106,7 @@ func TestRealSQLiteConstraintIsConflict(t *testing.T) {
 }
 
 // TestRealSQLiteNotADatabaseIsCorrupt proves the corrupt path is reachable
-// from the driver too, so `cortex doctor` can tell a user to rebuild rather
+// from the driver too, so `repocortex doctor` can tell a user to rebuild rather
 // than retry.
 func TestRealSQLiteNotADatabaseIsCorrupt(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "garbage.db")

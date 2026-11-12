@@ -15,19 +15,21 @@ import (
 	"strings"
 	"time"
 
+	"github.com/satyendrakumarsingh/repocortex/internal/restapi"
+
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // mcpTokenEnv names the environment variable that supplies the bearer token
-// for `cortex serve --http`. When it is unset a random token is generated for
+// for `repocortex serve --http`. When it is unset a random token is generated for
 // the life of the process.
-const mcpTokenEnv = "CORTEX_MCP_TOKEN" //nolint:gosec // G101: the name of an environment variable, not a credential
+const mcpTokenEnv = "REPOCORTEX_MCP_TOKEN" //nolint:gosec // G101: the name of an environment variable, not a credential
 
 // mcpPath is where the Streamable HTTP endpoint is mounted. A client that
 // cannot send an Authorization header uses mcpPath + "/" + token instead.
 const mcpPath = "/mcp"
 
-// minTokenLen keeps a hand-picked CORTEX_MCP_TOKEN from being guessable.
+// minTokenLen keeps a hand-picked REPOCORTEX_MCP_TOKEN from being guessable.
 const minTokenLen = 24
 
 // httpServeOptions configures the HTTP transport.
@@ -93,6 +95,26 @@ func resolveToken() (token string, generated bool, err error) {
 // The token may also be the last path segment (/mcp/<token>), for clients
 // that take a URL but cannot set headers.
 func newHTTPMCPHandler(srv *sdk.Server, opts httpServeOptions, logger *slog.Logger) http.Handler {
+	return newHTTPHandler(srv, nil, opts, logger)
+}
+
+// healthPath answers liveness probes. It is the one route served without a
+// token, and it says nothing but that the process is up: no project name, no
+// version, no counts. A supervisor needs to know the server is alive without
+// being handed the credential that reads the index.
+const healthPath = "/healthz"
+
+// newHTTPHandler is newHTTPMCPHandler plus the REST API.
+//
+// api is mounted at restapi.BasePath behind the SAME guard as the MCP
+// endpoint: one Host allowlist, one Origin check, one token. Two front ends
+// with two notions of who may call them is how one of them ends up open.
+//
+// The REST routes take the token only as a bearer header. The path-token form
+// exists for MCP clients that accept nothing but a URL; an HTTP client that
+// can make a REST call can set a header, and a token in a path is a token in
+// every access log and proxy between the caller and here.
+func newHTTPHandler(srv *sdk.Server, api http.Handler, opts httpServeOptions, logger *slog.Logger) http.Handler {
 	allowed := map[string]bool{}
 	for _, h := range opts.AllowedHosts {
 		if h = strings.ToLower(strings.TrimSpace(h)); h != "" {
@@ -134,29 +156,46 @@ func newHTTPMCPHandler(srv *sdk.Server, opts httpServeOptions, logger *slog.Logg
 		}
 
 		path := r.URL.Path
+		bearerOK := func() bool {
+			bearer, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+			return ok && tokenOK(strings.TrimSpace(bearer))
+		}
+
+		var next http.Handler
 		authorized := false
 		switch {
+		case path == healthPath:
+			if r.Method != http.MethodGet && r.Method != http.MethodHead {
+				w.Header().Set("Allow", http.MethodGet)
+				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json; charset=utf-8")
+			w.Header().Set("Cache-Control", "no-store")
+			_, _ = io.WriteString(w, `{"status":"ok"}`+"\n")
+			return
 		case path == mcpPath:
-			bearer, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
-			authorized = ok && tokenOK(strings.TrimSpace(bearer))
+			next, authorized = mcp, bearerOK()
 		case strings.HasPrefix(path, mcpPath+"/"):
-			authorized = tokenOK(strings.TrimPrefix(path, mcpPath+"/"))
+			next, authorized = mcp, tokenOK(strings.TrimPrefix(path, mcpPath+"/"))
+		case api != nil && (path == restapi.BasePath || strings.HasPrefix(path, restapi.BasePath+"/")):
+			next, authorized = api, bearerOK()
 		default:
 			http.NotFound(w, r)
 			return
 		}
 		if !authorized {
-			w.Header().Set("WWW-Authenticate", `Bearer realm="cortex"`)
+			w.Header().Set("WWW-Authenticate", `Bearer realm="repocortex"`)
 			http.Error(w, "missing or wrong token", http.StatusUnauthorized)
 			return
 		}
-		mcp.ServeHTTP(w, r)
+		next.ServeHTTP(w, r)
 	})
 }
 
 // writeTokenFile stores a generated token where only the user can read it,
 // rather than printing it: a token on stderr ends up in terminal scrollback,
-// CI logs and log collectors. The .cortex directory is git-ignored.
+// CI logs and log collectors. The .repocortex directory is git-ignored.
 func writeTokenFile(path, token string) error {
 	if err := os.WriteFile(path, []byte(token+"\n"), 0o600); err != nil {
 		return fmt.Errorf("write token file: %w", err)
@@ -168,7 +207,7 @@ func writeTokenFile(path, token string) error {
 
 // serveHTTP runs the MCP server over Streamable HTTP until ctx ends. tokenFrom
 // tells the user where the token is, never the token itself.
-func serveHTTP(ctx context.Context, srv *sdk.Server, opts httpServeOptions, logger *slog.Logger, out io.Writer, tokenFrom string) error {
+func serveHTTP(ctx context.Context, srv *sdk.Server, api http.Handler, opts httpServeOptions, logger *slog.Logger, out io.Writer, tokenFrom string) error {
 	if err := checkListenAddr(opts.Addr, opts.AllowRemote); err != nil {
 		return err
 	}
@@ -177,14 +216,19 @@ func serveHTTP(ctx context.Context, srv *sdk.Server, opts httpServeOptions, logg
 		return fmt.Errorf("listen on %s: %w", opts.Addr, err)
 	}
 	hs := &http.Server{
-		Handler:           newHTTPMCPHandler(srv, opts, logger),
+		Handler:           newHTTPHandler(srv, api, opts, logger),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
-	endpoint := "http://" + ln.Addr().String() + mcpPath
+	base := "http://" + ln.Addr().String()
+	endpoint := base + mcpPath
 	_, _ = fmt.Fprintf(out, "MCP over HTTP: %s\n", endpoint)
+	if api != nil {
+		_, _ = fmt.Fprintf(out, "REST API:      %s%s  (OpenAPI: %s%s/openapi.json)\n",
+			base, restapi.BasePath, base, restapi.BasePath)
+	}
 	_, _ = fmt.Fprintf(out, "Token: %s\n", tokenFrom)
-	_, _ = fmt.Fprintf(out, "Send it as 'Authorization: Bearer <token>', or use %s/<token> if the client cannot set headers.\n", endpoint)
+	_, _ = fmt.Fprintf(out, "Send it as 'Authorization: Bearer <token>', or use %s/<token> if an MCP client cannot set headers.\n", endpoint)
 
 	errc := make(chan error, 1)
 	go func() { errc <- hs.Serve(ln) }()

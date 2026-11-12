@@ -68,7 +68,7 @@ appearing twice on one card with two unrelated meanings. Use `label`.
     "trustworthy": false,            // gate the banner on THIS, not on a string compare
     "headline": "This index is degraded: 3 problem(s) mean every count on every screen is a lower bound, not a total.",
     "reasons": [
-      { "code": "files_unaccounted", "count": 412, "detail": "...", "remedy": "cortex doctor --verify-index" }
+      { "code": "files_unaccounted", "count": 412, "detail": "...", "remedy": "repocortex doctor --verify-index" }
     ]
   }
 }

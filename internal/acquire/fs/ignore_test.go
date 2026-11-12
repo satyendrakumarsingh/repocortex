@@ -152,7 +152,7 @@ func TestRuleSetLastMatchWins(t *testing.T) {
 			want:  true,
 		},
 		{
-			name:  "cortexignore layers onto gitignore",
+			name:  "repocortexignore layers onto gitignore",
 			files: [][2]string{{"", "*.log\n"}, {"", "*.tmp\n"}},
 			path:  "x.tmp",
 			want:  true,

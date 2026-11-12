@@ -13,7 +13,7 @@ export const REPOS = {
   payment: {
     name: 'payment-platform',
     port: PORTS.payment,
-    root: process.env.CORTEX_E2E_PAYMENT_ROOT || '',
+    root: process.env.REPOCORTEX_E2E_PAYMENT_ROOT || '',
     endpoints: 1,
     tables: 2,
     // The class has one definition; the service name is shared by a class and
@@ -41,12 +41,12 @@ export const REPOS = {
   public and a fixture that is a real repository on one developer's disk is
   not. Those live in local-fixtures.mjs, which is gitignored; the shape is in
   local-fixtures.example.mjs. The file is optional: absent, or under
-  CORTEX_E2E_TIER=ci, the suite runs against the shipped fixture alone, and
+  REPOCORTEX_E2E_TIER=ci, the suite runs against the shipped fixture alone, and
   a spec that needs what only a local fixture has skips on the missing field.
 */
 const LOCAL_FILE = new URL('./local-fixtures.mjs', import.meta.url);
 let local = {};
-if (process.env.CORTEX_E2E_TIER !== 'ci' && fs.existsSync(LOCAL_FILE)) {
+if (process.env.REPOCORTEX_E2E_TIER !== 'ci' && fs.existsSync(LOCAL_FILE)) {
   local = await import(LOCAL_FILE.href);
 }
 Object.assign(REPOS, local.LOCAL_REPOS || {});

@@ -55,7 +55,7 @@ if [ "$VERSION" = "latest" ]; then
   [ -n "$VERSION" ] || { echo "error: could not resolve the latest release tag" >&2; exit 1; }
 fi
 
-archive="cortex_${VERSION}_${os}_${arch}.tar.gz"
+archive="repocortex_${VERSION}_${os}_${arch}.tar.gz"
 base="https://github.com/${REPO}/releases/download/${VERSION}"
 
 tmp="$(mktemp -d)"
@@ -83,10 +83,10 @@ expected="$(grep "${archive}" "${tmp}/SHA256SUMS" | cut -d' ' -f1)"
 tar -xzf "${tmp}/${archive}" -C "$tmp"
 mkdir -p "$INSTALL_DIR"
 extracted=""
-for cand in "${tmp}/cortex_${VERSION}_${os}_${arch}/cortex" \
+for cand in "${tmp}/repocortex_${VERSION}_${os}_${arch}/repocortex" \
             "${tmp}/repocortex_${VERSION}_${os}_${arch}/repocortex" \
-            "${tmp}/cortex_${VERSION}_${os}_${arch}/cortex" \
-            "${tmp}/cortex" "${tmp}/cortex"; do
+            "${tmp}/repocortex_${VERSION}_${os}_${arch}/repocortex" \
+            "${tmp}/repocortex" "${tmp}/repocortex"; do
   if [ -f "$cand" ]; then
     extracted="$cand"
     break
@@ -94,19 +94,19 @@ for cand in "${tmp}/cortex_${VERSION}_${os}_${arch}/cortex" \
 done
 [ -n "$extracted" ] || { echo "error: could not find binary in archive" >&2; exit 1; }
 
-install -m 0755 "$extracted" "${INSTALL_DIR}/cortex" 2>/dev/null \
-  || { cp "$extracted" "${INSTALL_DIR}/cortex" && chmod 0755 "${INSTALL_DIR}/cortex"; }
-ln -sf "${INSTALL_DIR}/cortex" "${INSTALL_DIR}/repocortex" 2>/dev/null || cp "${INSTALL_DIR}/cortex" "${INSTALL_DIR}/repocortex"
+install -m 0755 "$extracted" "${INSTALL_DIR}/repocortex" 2>/dev/null \
+  || { cp "$extracted" "${INSTALL_DIR}/repocortex" && chmod 0755 "${INSTALL_DIR}/repocortex"; }
+ln -sf "${INSTALL_DIR}/repocortex" "${INSTALL_DIR}/repocortex" 2>/dev/null || cp "${INSTALL_DIR}/repocortex" "${INSTALL_DIR}/repocortex"
 
 # Gatekeeper quarantines anything curl wrote. Without this the first run dies
 # with a dialog the user cannot dismiss from a terminal.
 if [ "$os" = "darwin" ] && command -v xattr >/dev/null 2>&1; then
-  xattr -d com.apple.quarantine "${INSTALL_DIR}/cortex" 2>/dev/null || true
+  xattr -d com.apple.quarantine "${INSTALL_DIR}/repocortex" 2>/dev/null || true
   xattr -d com.apple.quarantine "${INSTALL_DIR}/repocortex" 2>/dev/null || true
 fi
 
-echo "installed ${INSTALL_DIR}/cortex (with repocortex alias)"
-"${INSTALL_DIR}/cortex" version
+echo "installed ${INSTALL_DIR}/repocortex (with repocortex alias)"
+"${INSTALL_DIR}/repocortex" version
 
 case ":${PATH}:" in
   *":${INSTALL_DIR}:"*) ;;
@@ -115,5 +115,5 @@ esac
 
 echo ""
 echo "Next: cd into a repository and run"
-echo "  cortex init && cortex index && cortex resolve"
-echo "  cortex install     # register with your coding agent"
+echo "  repocortex init && repocortex index && repocortex resolve"
+echo "  repocortex install     # register with your coding agent"

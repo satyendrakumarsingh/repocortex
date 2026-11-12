@@ -12,7 +12,7 @@ func TestOpenNonRepositoryIsNotAnError(t *testing.T) {
 	t.Parallel()
 
 	// The core promise: RepoCortex works on plain directories. If this ever
-	// regresses, `cortex index` on an extracted tarball starts failing.
+	// regresses, `repocortex index` on an extracted tarball starts failing.
 	dir := t.TempDir()
 	r, err := Open(dir)
 	if err != nil {
@@ -127,7 +127,7 @@ func TestHeadSHANonRepositoryIsEmpty(t *testing.T) {
 func TestHeadSHAEmptyRepositoryIsEmpty(t *testing.T) {
 	t.Parallel()
 
-	// `cortex init` on a freshly `git init`ed project hits exactly this.
+	// `repocortex init` on a freshly `git init`ed project hits exactly this.
 	f := newFixture(t)
 	r := f.open()
 
@@ -200,7 +200,7 @@ func TestInfoDirtyAndClean(t *testing.T) {
 func TestEmptyRepositoryDoesNotCrash(t *testing.T) {
 	t.Parallel()
 
-	// `cortex init` on a freshly `git init`ed project hits exactly this.
+	// `repocortex init` on a freshly `git init`ed project hits exactly this.
 	f := newFixture(t)
 	r := f.open()
 	ctx := context.Background()

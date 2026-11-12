@@ -26,10 +26,10 @@ func run(t *testing.T, projectRoot string, args ...string) (stdout string, err e
 }
 
 // isolate gives each test its own project root and user-config home so tests
-// never read the developer's real ~/.config/cortex.
+// never read the developer's real ~/.config/repocortex.
 func isolate(t *testing.T) string {
 	t.Helper()
-	t.Setenv("CORTEX_CONFIG_HOME", t.TempDir())
+	t.Setenv("REPOCORTEX_CONFIG_HOME", t.TempDir())
 	return t.TempDir()
 }
 
@@ -51,7 +51,7 @@ func TestInitCreatesIndex(t *testing.T) {
 		t.Fatalf("index dir must self-ignore: %v", err)
 	}
 	if strings.TrimSpace(string(ignore)) != "*" {
-		t.Errorf(".cortex/.gitignore = %q, want \"*\"", ignore)
+		t.Errorf(".repocortex/.gitignore = %q, want \"*\"", ignore)
 	}
 }
 
@@ -225,7 +225,7 @@ func TestVersionJSON(t *testing.T) {
 }
 
 func TestUnknownProjectRootIsRejected(t *testing.T) {
-	t.Setenv("CORTEX_CONFIG_HOME", t.TempDir())
+	t.Setenv("REPOCORTEX_CONFIG_HOME", t.TempDir())
 	if _, err := run(t, filepath.Join(t.TempDir(), "does-not-exist"), "status"); err == nil {
 		t.Fatal("expected an error for a nonexistent project root")
 	}

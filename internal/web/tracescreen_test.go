@@ -135,7 +135,7 @@ func TestTraceWithoutAnExportReportsCoverageRatherThanDeadCode(t *testing.T) {
 		t.Errorf("guidance does not name the third state: %q", got.Help.Detail)
 	}
 	steps := strings.Join(got.Help.Steps, "\n")
-	if !strings.Contains(steps, "cortex trace") {
+	if !strings.Contains(steps, "repocortex trace") {
 		t.Errorf("guidance names no command that populates the screen: %q", steps)
 	}
 	if got.Export.Path != traceExportFile || !got.Export.Defaulted {

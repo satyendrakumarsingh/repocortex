@@ -39,7 +39,7 @@ import (
 // session is an open, read-only view of the committed index.
 //
 // Read-only at the store level rather than by convention: a query command that
-// can write is one bad code path away from mutating an index while `cortex
+// can write is one bad code path away from mutating an index while `repocortex
 // watch` holds it, and SQLite's answer to that is a locked database, not an
 // error anyone can act on.
 type session struct {
@@ -67,7 +67,7 @@ func (s *session) close() {
 func openQuery(ctx stdctx.Context, g *Global) (*session, error) {
 	dbPath := g.DBPath()
 	if _, err := os.Stat(dbPath); errors.Is(err, os.ErrNotExist) {
-		return nil, fmt.Errorf("no index at %s — run 'cortex init' first", dbPath)
+		return nil, fmt.Errorf("no index at %s — run 'repocortex init' first", dbPath)
 	}
 
 	db, err := openReadOnly(ctx, dbPath)
@@ -80,7 +80,7 @@ func openQuery(ctx stdctx.Context, g *Global) (*session, error) {
 	if err != nil {
 		_ = db.Close()
 		if strings.Contains(err.Error(), "no rows") {
-			return nil, errors.New("no committed index — run 'cortex index' first")
+			return nil, errors.New("no committed index — run 'repocortex index' first")
 		}
 		return nil, err
 	}
@@ -126,7 +126,7 @@ func staleAgainst(ctx stdctx.Context, reg *registry.Registry, runID int64, runni
 		return "This index does not record which build wrote it, so whether its " +
 			"resolution rules match this binary is unknown. Re-index to be sure."
 	case run.ProducerVersion != running:
-		return fmt.Sprintf("This index was written by cortex %s and you are running %s. "+
+		return fmt.Sprintf("This index was written by repocortex %s and you are running %s. "+
 			"Resolution rules change between builds, so these results may come from "+
 			"different rules than this binary would produce. Re-index to refresh.",
 			run.ProducerVersion, running)
@@ -202,7 +202,7 @@ func emptyCaveat(ctx stdctx.Context, s *session) string {
 	switch {
 	case rs.Total == 0:
 		return "No references were extracted from this index at all, so there is nothing to " +
-			"search. Run 'cortex index' first."
+			"search. Run 'repocortex index' first."
 
 	case rs.Pending == rs.Total:
 		// The condition used to be `rs.Total == 0`, which is only true when no
@@ -213,7 +213,7 @@ func emptyCaveat(ctx stdctx.Context, s *session) string {
 		// for the one situation with an obvious one.
 		return fmt.Sprintf(
 			"%d reference(s) were extracted but none have been resolved yet — run "+
-				"'cortex resolve' to build the call graph. Until then this query has "+
+				"'repocortex resolve' to build the call graph. Until then this query has "+
 				"nothing to search.", rs.Total)
 
 	case rs.Pending > 0:
@@ -222,7 +222,7 @@ func emptyCaveat(ctx stdctx.Context, s *session) string {
 		// coverage of the part that WAS resolved, and hiding the pending rows
 		// would overstate it.
 		return bindingCaveat(rs) + fmt.Sprintf(" A further %d reference(s) have not been "+
-			"resolved since the last index — re-run 'cortex resolve'.", rs.Pending)
+			"resolved since the last index — re-run 'repocortex resolve'.", rs.Pending)
 	}
 
 	return bindingCaveat(rs)
@@ -278,7 +278,7 @@ func resolveTarget(ctx stdctx.Context, s *session, name, path string) (registry.
 	}
 	if len(syms) == 0 {
 		return registry.SymbolHit{}, nil, fmt.Errorf(
-			"no symbol named %q in the index; names must match exactly — use 'cortex search' for partial matches", name)
+			"no symbol named %q in the index; names must match exactly — use 'repocortex search' for partial matches", name)
 	}
 
 	if path != "" {
@@ -312,7 +312,7 @@ handlePaymentCallback and PaymentCallbackController. Search covers indexed
 files only: binary, generated and oversized files are recorded in the index but
 carry no searchable text, and secrets are redacted before storage.
 
-This searches TEXT. To find a definition by name, use 'cortex symbol'.`,
+This searches TEXT. To find a definition by name, use 'repocortex symbol'.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
@@ -371,7 +371,7 @@ func newSymbolCmd(g *Global) *cobra.Command {
 		Long: `Looks up symbol definitions by exact name.
 
 Exact, not fuzzy: asking for "TransactionService" returns that type, not the
-forty symbols whose names contain it. Use 'cortex search' for partial matches.
+forty symbols whose names contain it. Use 'repocortex search' for partial matches.
 
 Every result carries the confidence of the EXTRACTION and its source, so a
 compiler-proven definition is distinguishable from a parsed one.`,
@@ -406,7 +406,7 @@ compiler-proven definition is distinguishable from a parsed one.`,
 				if kind != "" {
 					fmt.Fprintf(out, "\nThe --kind filter was %q; try without it.\n", kind)
 				}
-				fmt.Fprintln(out, "\nNames must match exactly. Use 'cortex search' for partial matches.")
+				fmt.Fprintln(out, "\nNames must match exactly. Use 'repocortex search' for partial matches.")
 				return nil
 			}
 
@@ -639,7 +639,7 @@ out is reported with the reason it was cut.
 
 Example:
 
-  cortex context "Add idempotency to payment callback processing"`,
+  repocortex context "Add idempotency to payment callback processing"`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()

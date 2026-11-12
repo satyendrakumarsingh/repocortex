@@ -99,7 +99,7 @@ func TestCSVNeutralizesEqualsFormula(t *testing.T) {
 }
 
 // TestCSVNeutralizesAtFormula is the realistic case named in the finding:
-// cortex indexes dependency trees, and an npm-scoped package directory
+// repocortex indexes dependency trees, and an npm-scoped package directory
 // like "@babel/core" is an ordinary path component, not a contrived attack
 // string, yet a leading '@' is still a spreadsheet formula trigger.
 func TestCSVNeutralizesAtFormula(t *testing.T) {

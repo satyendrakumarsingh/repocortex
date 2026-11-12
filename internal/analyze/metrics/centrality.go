@@ -150,7 +150,7 @@ type BetweennessOptions struct {
 //
 // Exact betweenness is O(V*E), which on a 100k-symbol graph is not an
 // interactive operation. Sampling 70 sources makes this affordable at
-// cortex's scale, but the sampling is deterministic striding over
+// repocortex's scale, but the sampling is deterministic striding over
 // sorted keys (see selectSources), not the uniform-random draw that
 // Brandes' classical estimator assumes. That is a deliberate departure
 // from "standard": a wobbling centrality score reads as real architectural

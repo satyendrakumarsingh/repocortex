@@ -107,7 +107,7 @@ jobs:
       # disagree, the same discipline applied to the byte-reproducible
       # generated docs below.
       - name: the dependency inventory is current
-        run: go run ./cmd/cortex licenses --check
+        run: go run ./cmd/repocortex licenses --check
 
   # Tier 2 — every PR, on every platform RepoCortex ships to.
   #
@@ -207,17 +207,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          go build -o /tmp/cortex ./cmd/cortex
-          /tmp/cortex init
-          /tmp/cortex index
-          /tmp/cortex resolve
-          /tmp/cortex compile "Add a confidence floor to impact traversal" --json > /tmp/contract.json
+          go build -o /tmp/repocortex ./cmd/repocortex
+          /tmp/repocortex init
+          /tmp/repocortex index
+          /tmp/repocortex resolve
+          /tmp/repocortex compile "Add a confidence floor to impact traversal" --json > /tmp/contract.json
           test -s /tmp/contract.json
           # Exit 0 (pass or advisory) or 1 (a fact) are both real answers. Exit 2
           # is 'unverified' — nothing to check against — and that must never
           # happen on a repository that just compiled a contract successfully.
           set +e
-          /tmp/cortex verify --contract /tmp/contract.json \
+          /tmp/repocortex verify --contract /tmp/contract.json \
             --changed internal/capability/impact/impact.go
           code=$?
           set -e
@@ -237,7 +237,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          /tmp/cortex bench fixtures/bench/self.yml || true
+          /tmp/repocortex bench fixtures/bench/self.yml || true
           echo "Above is tracked, not gating. See docs/NON-GOALS.md for why it fails."
 
       # The fixture benchmark IS a gate: it is small, it is green, and a
@@ -247,8 +247,8 @@ jobs:
         run: |
           set -euo pipefail
           cd fixtures/payment-platform
-          /tmp/cortex init && /tmp/cortex index && /tmp/cortex resolve
-          /tmp/cortex bench ../../fixtures/bench/payment.yml --fail-on-regression
+          /tmp/repocortex init && /tmp/repocortex index && /tmp/repocortex resolve
+          /tmp/repocortex bench ../../fixtures/bench/payment.yml --fail-on-regression
 
       # The accuracy report took twenty minutes on a 91,548-symbol repository
       # before migration 0011 and the join inversion; it takes seconds now.
@@ -268,7 +268,7 @@ jobs:
         run: |
           set -euo pipefail
           start=$(date +%s)
-          /tmp/cortex accuracy > /tmp/accuracy.txt 2>&1 || {
+          /tmp/repocortex accuracy > /tmp/accuracy.txt 2>&1 || {
             echo "accuracy failed:"; cat /tmp/accuracy.txt; exit 1; }
           echo "elapsed: $(( $(date +%s) - start ))s on $(wc -l < /tmp/accuracy.txt) lines of report"
           # It must REFUSE to report rather than invent a number when no
@@ -291,19 +291,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          /tmp/cortex docs --out /tmp/docs-a
-          /tmp/cortex docs --out /tmp/docs-b
+          /tmp/repocortex docs --out /tmp/docs-a
+          /tmp/repocortex docs --out /tmp/docs-b
           diff -u /tmp/docs-a/ARCHITECTURE.md /tmp/docs-b/ARCHITECTURE.md
           diff -u /tmp/docs-a/CAPABILITIES.md /tmp/docs-b/CAPABILITIES.md
           # And it must survive a re-index: same tree, new run, same document.
-          /tmp/cortex index
-          /tmp/cortex resolve
-          /tmp/cortex docs --out /tmp/docs-c
+          /tmp/repocortex index
+          /tmp/repocortex resolve
+          /tmp/repocortex docs --out /tmp/docs-c
           diff -u /tmp/docs-a/ARCHITECTURE.md /tmp/docs-c/ARCHITECTURE.md
 
   # Tier 2 — the portal, driven by a browser against the fixture that ships
   # with the repository. Every screen the portal has is asserted here; before
-  # this job the 14,000 lines of Go and 10,000 of JS behind `cortex ui` had
+  # this job the 14,000 lines of Go and 10,000 of JS behind `repocortex ui` had
   # no automated coverage anywhere a pull request could see.
   portal-e2e:
     name: portal e2e (ci fixture)
@@ -346,7 +346,7 @@ jobs:
           exit 1
       - name: run the ci tier
         env:
-          CORTEX_E2E_TIER: ci
+          REPOCORTEX_E2E_TIER: ci
         run: npm --prefix internal/web/e2e test
       - name: keep the traces of anything that failed
         if: failure()
@@ -381,7 +381,7 @@ jobs:
           for target in darwin/amd64 darwin/arm64 linux/amd64 linux/arm64 windows/amd64; do
             os="${target%/*}"; arch="${target#*/}"
             echo "--- $os/$arch"
-            GOOS="$os" GOARCH="$arch" go build -o /dev/null ./cmd/cortex
+            GOOS="$os" GOARCH="$arch" go build -o /dev/null ./cmd/repocortex
           done
 
       - name: tests pass with CGO disabled
@@ -481,13 +481,13 @@ jobs:
           - { name: scrapy, url: "https://github.com/scrapy/scrapy.git", sha: "c7eacdbb30a4563bbbe04ed02781768f4e19eabb", language: python }
     steps:
       - uses: actions/checkout@v4
-        with: { path: cortex }
+        with: { path: repocortex }
       - uses: actions/setup-go@v5
         with: { go-version: "${{ env.GO_VERSION }}", cache: true }
 
       - name: build
-        working-directory: cortex
-        run: CGO_ENABLED=0 go build -o "$RUNNER_TEMP/cortex" ./cmd/cortex
+        working-directory: repocortex
+        run: CGO_ENABLED=0 go build -o "$RUNNER_TEMP/repocortex" ./cmd/repocortex
 
       - name: fetch ${{ matrix.name }} at its pinned revision
         run: |
@@ -500,16 +500,16 @@ jobs:
       - name: index and resolve
         working-directory: corpus
         run: |
-          "$RUNNER_TEMP/cortex" init
-          "$RUNNER_TEMP/cortex" index
-          "$RUNNER_TEMP/cortex" resolve
+          "$RUNNER_TEMP/repocortex" init
+          "$RUNNER_TEMP/repocortex" index
+          "$RUNNER_TEMP/repocortex" resolve
 
       # The assertions. Indexing "not crashing" is the weakest possible claim,
       # so each of these is a property that has been violated at least once.
       - name: assert the run committed something
         working-directory: corpus
         run: |
-          status=$("$RUNNER_TEMP/cortex" status)
+          status=$("$RUNNER_TEMP/repocortex" status)
           echo "$status"
           echo "$status" | grep -qE "Index: +(READY|DEGRADED)" || {
             echo "::error::indexing left no committed revision"; exit 1; }
@@ -519,12 +519,12 @@ jobs:
         run: |
           # doctor exits non-zero when any invariant fails, and prints the
           # location, the consequence and the remedy for each.
-          "$RUNNER_TEMP/cortex" doctor --verify-index
+          "$RUNNER_TEMP/repocortex" doctor --verify-index
 
       - name: assert no file defeated the indexer
         working-directory: corpus
         run: |
-          failed=$("$RUNNER_TEMP/cortex" status --json | grep -o '"parse_failures":[0-9]*' | cut -d: -f2)
+          failed=$("$RUNNER_TEMP/repocortex" status --json | grep -o '"parse_failures":[0-9]*' | cut -d: -f2)
           echo "files that failed to parse or persist: ${failed:-0}"
           # A parse failure is normal data on a large tree; a large one is not.
           # The number that must stay at zero is enforced by doctor above.
@@ -532,8 +532,8 @@ jobs:
       - name: assert indexing is deterministic
         working-directory: corpus
         run: |
-          a=$("$RUNNER_TEMP/cortex" index --full --digest --json | grep -o '"registry_digest": *"[^"]*"')
-          b=$("$RUNNER_TEMP/cortex" index --full --digest --json | grep -o '"registry_digest": *"[^"]*"')
+          a=$("$RUNNER_TEMP/repocortex" index --full --digest --json | grep -o '"registry_digest": *"[^"]*"')
+          b=$("$RUNNER_TEMP/repocortex" index --full --digest --json | grep -o '"registry_digest": *"[^"]*"')
           echo "$a"; echo "$b"
           [ "$a" = "$b" ] || { echo "::error::two indexes of the same tree disagree"; exit 1; }
 
@@ -551,6 +551,24 @@ jobs:
         with: { go-version: "${{ env.GO_VERSION }}", cache: true }
       - name: fuzz identifier splitter
         run: go test -run=NONE -fuzz=FuzzSplitIdentifier -fuzztime=5m ./internal/search/
+
+  # Tier 3 — nightly. The size suite runs on every push at 5,000 symbols as part
+  # of `go test ./...`; this job takes the real measurement. It is not on the
+  # push path because a 250,000-symbol fixture takes three minutes to build and
+  # query, which is time a commit should not wait for.
+  scale:
+    name: scale (250k symbols)
+    if: github.event_name == 'schedule' || inputs.run_soak
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: "${{ env.GO_VERSION }}", cache: true }
+      # No -race: the budgets are wall-clock and heap figures, and the detector
+      # multiplies both. The default run already covers this code under -race.
+      - name: size suite
+        run: go test ./tests/scale/ -v -timeout 40m -scale.symbols=250000 -scale.source-files=5000 -scale.commits=2000
 
   # Tier 3 — nightly. The endurance suite lives behind the `soak` build tag, so
   # `go test ./...` cannot see it (verified: `go list ./tests/soak` reports zero

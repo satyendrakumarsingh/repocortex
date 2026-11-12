@@ -15,7 +15,7 @@ import (
 //   - the DECLARED ARCHITECTURE. "Reporting must not write the payments table"
 //     is a rule someone wrote down; a contract that omits it hands the agent a
 //     brief that is silent on the one boundary the change is most likely to
-//     cross. It is not an invention — the rule exists in .cortex.yml and the
+//     cross. It is not an invention — the rule exists in .repocortex.yml and the
 //     constraint cites it by id.
 //   - the IMPACT of the change. Scope answers "what does this task touch";
 //     blast radius answers "what does touching it reach". A contract that lists

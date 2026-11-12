@@ -47,7 +47,7 @@ func benchFixture(b *testing.B) *Repo {
 }
 
 func buildBenchRepo() (repo *Repo, err error) {
-	dir, err := os.MkdirTemp("", "cortex-git-bench-")
+	dir, err := os.MkdirTemp("", "repocortex-git-bench-")
 	if err != nil {
 		return nil, err
 	}
@@ -290,7 +290,7 @@ func BenchmarkGoGitBlame(b *testing.B) {
 // The fixture above cannot show this: go-git commits loose objects and has no
 // repack, so a walk over it never opens a packfile and the two variants below
 // would be indistinguishable. Both skip unless the enclosing checkout is packed
-// or CORTEX_TEST_PACKED_REPO names one that is.
+// or REPOCORTEX_TEST_PACKED_REPO names one that is.
 //
 // Measured on a 767-commit, 499-file repository, 200 commits with paths:
 //

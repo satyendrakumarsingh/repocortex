@@ -37,8 +37,8 @@ What separates the two is not vocabulary but structure. So graph connectivity is
 an **admission gate**, not merely a ranking signal, and lexical evidence alone
 admits a candidate only when several distinct task terms corroborate it.
 
-`cortex search` exists and is a perfectly ordinary FTS5 query. It is a
-utility, not the product, and `cortex context` is not a better version of it.
+`repocortex search` exists and is a perfectly ordinary FTS5 query. It is a
+utility, not the product, and `repocortex context` is not a better version of it.
 
 ## It does not use a model as a resolver
 
@@ -82,10 +82,10 @@ determinism is what makes the output usable.
 - **`context`** — an agent that gets a different answer on a retry cannot build
   a cache, a test, or trust.
 
-Two shipped features rest on this directly. `cortex diff` is only meaningful
+Two shipped features rest on this directly. `repocortex diff` is only meaningful
 because two runs over identical source produce identical graphs; otherwise "this
 edge disappeared" might mean a worker pool interleaved differently.
-`cortex docs --check` can only gate CI because generated documents are
+`repocortex docs --check` can only gate CI because generated documents are
 byte-reproducible.
 
 `compile` also refuses the adjacent temptation: it does not invent requirements
@@ -97,9 +97,9 @@ hallucination".
 
 ## It does not persist runtime spans alongside a static index
 
-**Where:** `internal/trace/trace.go`, `cortex trace --help`
+**Where:** `internal/trace/trace.go`, `repocortex trace --help`
 
-`cortex trace` correlates an exported trace against the graph and then throws
+`repocortex trace` correlates an exported trace against the graph and then throws
 the spans away. Runtime data ages out in hours while an index describes a
 commit, and storing them together would produce a graph whose edges are true at
 different times.
@@ -142,7 +142,7 @@ because it is the tool an agent should reach for first: one call instead of a
 dozen exploratory ones.
 
 ```
-$ cortex serve --list-tools
+$ repocortex serve --list-tools
 MCP profile "minimal" exposes 7 tool(s):
   get_project_overview
   search_code
@@ -164,15 +164,15 @@ have given afterwards.
 
 ## It does not infer your architecture
 
-**Where:** `cortex arch --help`, `internal/arch`
+**Where:** `repocortex arch --help`, `internal/arch`
 
 Components are **declared**, never inferred. A component model RepoCortex guessed
 would be a description of the code's current shape, and checking code against a
 description of itself finds nothing by construction.
 
-This is why `cortex arch` on a repository with no `architecture:` block does
+This is why `repocortex arch` on a repository with no `architecture:` block does
 not silently invent one from directory names — it says there is nothing declared
-and explains what to declare. `cortex docs` behaves the same way: a repository
+and explains what to declare. `repocortex docs` behaves the same way: a repository
 that declares no components is told so rather than handed a component model
 invented for it.
 
@@ -185,7 +185,7 @@ contributor's home directory is a rule that is not enforced.**
 
 ## It does not ship vulnerability data
 
-**Where:** `cortex deps --help`
+**Where:** `repocortex deps --help`
 
 `deps` reports versions accurately so that a real scanner can consume them, and
 performs no vulnerability lookup itself. A scanner shipping an embedded advisory
@@ -203,7 +203,7 @@ name that does not match its distribution name.
 
 ## It does not read configuration values
 
-**Where:** `cortex config --help`, `internal/analyze/config`,
+**Where:** `repocortex config --help`, `internal/analyze/config`,
 `internal/security/doc.go`
 
 Values are never read. Not masked, not truncated — never read at all. The
@@ -232,13 +232,13 @@ that is quietly ignored.
 
 **Where:** `internal/indexer/doc.go`, `internal/config`
 
-`cortex index` is expected to be run immediately after `git clone`, on code
+`repocortex index` is expected to be run immediately after `git clone`, on code
 nobody has read yet, so everything in the working tree is attacker-controlled.
 Two of the four indexers execute the repository's own build system, and a Maven
 plugin or a Gradle build script is arbitrary code by design — that is what a
 build system *is*.
 
-So execution settings live in `~/.config/cortex/config.yml` and the repository
+So execution settings live in `~/.config/repocortex/config.yml` and the repository
 config **structurally cannot express them**: the fields do not exist on the
 type, and unknown keys are a parse error. `TestRepoCannotSetExecutionSettings`
 holds the line.
@@ -256,7 +256,7 @@ this?":
 - **Every subprocess is timeboxed and its output bounded**, in the runner rather
   than left to callers to remember.
 - **Repository-derived strings never become command arguments.** `project.name`
-  from `.cortex.yml` is the obvious temptation; it is replaced by a fixed
+  from `.repocortex.yml` is the obvious temptation; it is replaced by a fixed
   literal.
 
 The payoff is that `exact` means something. If a detected language cannot be
@@ -268,7 +268,7 @@ missing tool**. It never degrades quietly, because a silent downgrade from
 
 **Where:** `internal/bench/bench.go`
 
-`cortex bench` measures one thing: whether the context pack contained what a
+`repocortex bench` measures one thing: whether the context pack contained what a
 human said it should, and whether it stayed inside its budget.
 
 Whether an agent handed a good pack then went on to write correct code is a
@@ -304,7 +304,7 @@ does not.
 
 ## It does not tell you whether an ADR is still true
 
-**Where:** `cortex arch adr --help`
+**Where:** `repocortex arch adr --help`
 
 An ADR is why a choice was made. Surfacing it to an agent is how "we
 deliberately use optimistic locking here" survives contact with a refactor
@@ -316,7 +316,7 @@ conflating the two would let a stale document overrule the code.
 
 ## It does not discover routes from strings that look like paths
 
-**Where:** `cortex api --help`, `internal/analyze/api`
+**Where:** `repocortex api --help`, `internal/analyze/api`
 
 Routes are discovered from the framework's own spelling — a Spring annotation, a
 Go router registration, a FastAPI or Flask decorator, a Django `path()` in a
@@ -371,7 +371,7 @@ codebase-context.
 
 **1. It does not fix the number that is weak.** RepoCortex's measured gap is
 *resolution* recall: `high` catches **61.5%** of adjudicable calls, and 2,855 of
-8,315 known call sites produce no edge at all (`cortex accuracy`). No embedding
+8,315 known call sites produce no edge at all (`repocortex accuracy`). No embedding
 model closes that. Finding a file by meaning and binding `s.repo.Save(id)` to its
 definition are different operations — the second needs a receiver type, and a
 vector has no opinion about types. Effort spent on embeddings is effort not spent

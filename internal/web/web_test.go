@@ -847,12 +847,12 @@ func TestWebUnindexedRepoYieldsGuidanceNotA500(t *testing.T) {
 		}
 		var mentionsIndex bool
 		for _, s := range steps {
-			if strings.Contains(s.(string), "cortex index") {
+			if strings.Contains(s.(string), "repocortex index") {
 				mentionsIndex = true
 			}
 		}
 		if !mentionsIndex {
-			t.Errorf("GET %s: guidance does not tell the reader to run `cortex index`: %v", path, steps)
+			t.Errorf("GET %s: guidance does not tell the reader to run `repocortex index`: %v", path, steps)
 		}
 	}
 

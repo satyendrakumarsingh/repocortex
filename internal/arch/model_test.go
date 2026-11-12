@@ -437,7 +437,7 @@ func TestSeverityOrDefaultFallsBackToMedium(t *testing.T) {
 }
 
 func TestHostileInputNeitherPanicsNorHangs(t *testing.T) {
-	// Every input here is something a .cortex.yml in an untrusted repository
+	// Every input here is something a .repocortex.yml in an untrusted repository
 	// could contain. None of them may hang the indexer or take the process down;
 	// returning "no match" is an acceptable answer for all of them.
 	long := strings.Repeat("a/", 100000) + "z.go"

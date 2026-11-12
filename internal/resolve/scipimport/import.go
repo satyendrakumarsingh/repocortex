@@ -242,7 +242,7 @@ func (imp *Importer) Import(ctx context.Context, path string) (ImportResult, err
 	}
 	if len(files) == 0 {
 		return res, fmt.Errorf("scip import: run %d has no indexed files; "+
-			"run 'cortex index' before importing", imp.runID)
+			"run 'repocortex index' before importing", imp.runID)
 	}
 	pathOf := make(map[int64]string, len(files))
 	known := make([]string, 0, len(files))

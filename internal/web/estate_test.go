@@ -39,7 +39,7 @@ func TestEstateWithoutAManifestGuidesRatherThanBlanks(t *testing.T) {
 			got.Help.Detail)
 	}
 	steps := strings.Join(got.Help.Steps, "\n")
-	if !strings.Contains(steps, "cortex system") {
+	if !strings.Contains(steps, "repocortex system") {
 		t.Errorf("guidance names no command: %q", steps)
 	}
 	if got.Manifest.Path != estateFile || !got.Manifest.Defaulted {
@@ -114,7 +114,7 @@ func TestEstateFederatesAndReportsEveryMemberItCouldNotRead(t *testing.T) {
 		t.Errorf("orders.unavailable = %q, want it to distinguish an uncommitted index from a "+
 			"missing one — the two look identical and have different fixes", orders.Unavailable)
 	}
-	if !strings.Contains(orders.Unavailable, "cortex index") {
+	if !strings.Contains(orders.Unavailable, "repocortex index") {
 		t.Errorf("orders.unavailable names no command that fixes it: %q", orders.Unavailable)
 	}
 	web := byName["web"]

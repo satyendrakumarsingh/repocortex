@@ -57,13 +57,13 @@ func (b fsnotifyBackend) Close() error                  { return b.w.Close() }
 // .git turns every `git status` into thousands of events for index.lock and
 // object files, none of which can change the source tree; node_modules is
 // hundreds of thousands of directories, more than the OS will grant watches
-// for; .cortex is RepoCortex's own store, so watching it would let the
+// for; .repocortex is RepoCortex's own store, so watching it would let the
 // consumer's own writes feed back in as changes to re-index — an infinite
 // loop with a filesystem in the middle.
 var builtinIgnoredDirs = map[string]struct{}{
 	".git":         {},
 	"node_modules": {},
-	".cortex":      {},
+	".repocortex":  {},
 }
 
 // entry is one path discovered while registering watches.
@@ -92,7 +92,7 @@ type dirSet struct {
 	dirs map[string]struct{}
 
 	// n mirrors len(dirs) so the count can be read from another goroutine (a
-	// status line, `cortex doctor`) without a lock and without the race
+	// status line, `repocortex doctor`) without a lock and without the race
 	// detector rightly objecting to a concurrent map read.
 	n atomic.Int64
 }

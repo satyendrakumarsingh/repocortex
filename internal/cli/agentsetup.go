@@ -42,7 +42,7 @@ import (
 // actually has:
 //
 //   - get_task_context's own description opens "CALL THIS FIRST".
-//   - impact_analysis and find_tests appear only in the 'standard' and 'full'
+//   - analyze_impact and find_tests appear only in the 'standard' and 'full'
 //     profiles, so the blast-radius rule names find_callers as the fallback
 //     rather than an unavailable tool.
 //   - the confidence vocabulary is find_references' own: exact | high | medium
@@ -63,12 +63,12 @@ import (
 // look for, so "is the guidance wired up?" is answered by a substring match
 // rather than by guessing at prose.
 const (
-	agentGuidanceOpen  = "<!-- cortex:guidance -->"
-	agentGuidanceClose = "<!-- /cortex:guidance -->"
+	agentGuidanceOpen  = "<!-- repocortex:guidance -->"
+	agentGuidanceClose = "<!-- /repocortex:guidance -->"
 )
 
 // agentGuidance is the canonical block. It is duplicated verbatim in
-// .claude-plugin/skills/cortex/SKILL.md, and TestAgentGuidanceMatchesSkill
+// .claude-plugin/skills/repocortex/SKILL.md, and TestAgentGuidanceMatchesSkill
 // fails if the two ever drift.
 const agentGuidance = agentGuidanceOpen + `
 ## RepoCortex
@@ -79,7 +79,7 @@ about code that already exists, prefer it to grep and to opening files.
 - Before changing code, call ` + "`get_task_context`" + ` with the task in plain English.
   It returns the files, symbols, tests and tables the change touches, found by
   following the call graph. One call instead of a dozen exploratory ones.
-- Before editing a symbol, ask for its blast radius: ` + "`impact_analysis`" + ` where the
+- Before editing a symbol, ask for its blast radius: ` + "`analyze_impact`" + ` where the
   profile exposes it, otherwise ` + "`find_callers`" + `. Read it before the edit, not
   after a test fails.
 - Before changing behaviour, ` + "`find_tests`" + ` says what to run and which signal
@@ -90,18 +90,18 @@ about code that already exists, prefer it to grep and to opening files.
 - An empty relationship result means UNRESOLVED, not absent. "No callers" is not
   proof a symbol is unused; do not delete or narrow one on that evidence.
 - A ` + "`COVERAGE TOO LOW`" + ` or ` + "`COVERAGE UNKNOWN`" + ` note outranks the list beneath it.
-  Run ` + "`cortex resolve`" + ` and ask again rather than reporting that list.
+  Run ` + "`repocortex resolve`" + ` and ask again rather than reporting that list.
 - "No index has been built" is a missing index, not a broken tool. Run
-  ` + "`cortex index`" + `, then ` + "`cortex resolve`" + `, and ask again.
+  ` + "`repocortex index`" + `, then ` + "`repocortex resolve`" + `, and ask again.
 - ` + "`find_symbol`" + ` matches whole names only; use ` + "`search_code`" + ` for partial ones.
   Generated, oversized and excluded files are not indexed, so absence from the
   index is not absence from the repository.
 - The index is a snapshot, not your working tree. Read files you have just
-  edited directly, or keep the index current with ` + "`cortex watch`" + `.
+  edited directly, or keep the index current with ` + "`repocortex watch`" + `.
 ` + agentGuidanceClose + "\n"
 
 // agentMCPName is the server name RepoCortex registers under.
-const agentMCPName = "cortex"
+const agentMCPName = "repocortex"
 
 // pluginManifestPath is where a Claude Code plugin manifest lives, relative to
 // the plugin root. Verified against the plugin reference documentation.
@@ -145,10 +145,10 @@ but no guidance still greps, because nothing told it that a blast radius is
 available before it edits a symbol, or that an empty caller list means
 "unresolved" rather than "unused".
 
-  cortex agent                     print the registration and the guidance
-  cortex agent --guidance          print the guidance block alone, to pipe
-  cortex agent --check             report what is and is not wired up
-  cortex agent --write PATH        write the guidance block to a new file
+  repocortex agent                     print the registration and the guidance
+  repocortex agent --guidance          print the guidance block alone, to pipe
+  repocortex agent --check             report what is and is not wired up
+  repocortex agent --write PATH        write the guidance block to a new file
 
 This command does not touch your configuration. Wiring an agent into your
 machine is your decision, so the default is to print and let you place the
@@ -157,7 +157,7 @@ already exists unless you pass --force, which says what it replaced.
 
 To add the guidance to project memory you already have, append it:
 
-    cortex agent --guidance >> CLAUDE.md
+    repocortex agent --guidance >> CLAUDE.md
 
 --check reads only. It never reports a missing piece as a failure — an
 un-integrated project is the normal starting state, not a malfunction — so it
@@ -227,7 +227,7 @@ func runAgentPrint(cmd *cobra.Command, g *Global) error {
 	cfg := g.Config()
 	spec := agentServerSpec{
 		Name:    agentMCPName,
-		Command: "cortex",
+		Command: "repocortex",
 		// --project is explicit rather than relying on the client's working
 		// directory. An MCP client starts the server from wherever it happens
 		// to be, and a server that silently indexes the wrong repository is
@@ -274,8 +274,8 @@ func runAgentPrint(cmd *cobra.Command, g *Global) error {
 
 	_, _ = fmt.Fprintf(out, "2. Give the agent the guidance below — this is the part that decides\n")
 	_, _ = fmt.Fprintf(out, "   whether it uses the index or greps anyway. Append it to project memory:\n\n")
-	_, _ = fmt.Fprintf(out, "     cortex agent --guidance >> CLAUDE.md\n\n")
-	_, _ = fmt.Fprintf(out, "3. Confirm it landed:\n\n     cortex agent --check\n\n")
+	_, _ = fmt.Fprintf(out, "     repocortex agent --guidance >> CLAUDE.md\n\n")
+	_, _ = fmt.Fprintf(out, "3. Confirm it landed:\n\n     repocortex agent --check\n\n")
 	_, _ = fmt.Fprintf(out, "%s", agentGuidance)
 	return nil
 }
@@ -330,7 +330,7 @@ func runAgentWrite(cmd *cobra.Command, path string, force bool) error {
 	switch _, err := os.Stat(path); {
 	case err == nil && !force:
 		return fmt.Errorf("%s already exists and RepoCortex will not overwrite it — "+
-			"append instead with 'cortex agent --guidance >> %s', or pass --force to replace it",
+			"append instead with 'repocortex agent --guidance >> %s', or pass --force to replace it",
 			path, path)
 	case err == nil:
 		_, _ = fmt.Fprintf(cmd.ErrOrStderr(),
@@ -357,7 +357,7 @@ func runAgentWrite(cmd *cobra.Command, path string, force bool) error {
 //
 // NOTHING MISSING IS A FAILURE HERE. A project that has not been wired up yet
 // is the normal case — it is why the command exists — and renderChecks turns
-// "fail" into a non-zero exit, which would make `cortex agent --check` in a
+// "fail" into a non-zero exit, which would make `repocortex agent --check` in a
 // CI job or a setup script look like a broken tool rather than a to-do list.
 // The same reasoning as internal/mcp's isError policy: reserve the alarm for
 // something the reader cannot fix by following the instruction. Only a genuinely
@@ -382,7 +382,7 @@ func agentIndexChecks(ctx stdctx.Context, g *Global) []check {
 			Status: "warn",
 			Detail: "absent at " + dbPath,
 			Impact: "every tool answers \"no index has been built\", so the agent gets nothing and falls back to grep",
-			Remedy: "cortex init && cortex index && cortex resolve",
+			Remedy: "repocortex init && repocortex index && repocortex resolve",
 		}}
 	}
 
@@ -398,9 +398,9 @@ func agentIndexChecks(ctx stdctx.Context, g *Global) []check {
 			Detail: err.Error(),
 			Impact: "RepoCortex cannot serve this project at all",
 			// The store's own error names its fix — a stale schema says
-			// "run 'cortex index'". Repeating a generic remedy over the
+			// "run 'repocortex index'". Repeating a generic remedy over the
 			// specific one would send the reader past the useful sentence.
-			Remedy: "do what the message above says; if it persists, 'cortex doctor --verify-index'",
+			Remedy: "do what the message above says; if it persists, 'repocortex doctor --verify-index'",
 		}}
 	}
 	defer func() { _ = db.Close() }()
@@ -414,7 +414,7 @@ func agentIndexChecks(ctx stdctx.Context, g *Global) []check {
 				Status: "warn",
 				Detail: "initialised but never indexed",
 				Impact: "there is a database and no content in it; every query returns nothing",
-				Remedy: "cortex index && cortex resolve",
+				Remedy: "repocortex index && repocortex resolve",
 			}}
 		}
 		return []check{{
@@ -422,7 +422,7 @@ func agentIndexChecks(ctx stdctx.Context, g *Global) []check {
 			Status: "fail",
 			Detail: err.Error(),
 			Impact: "the committed revision could not be read",
-			Remedy: "cortex doctor --verify-index",
+			Remedy: "repocortex doctor --verify-index",
 		}}
 	}
 
@@ -434,14 +434,14 @@ func agentIndexChecks(ctx stdctx.Context, g *Global) []check {
 		out = append(out, check{
 			Name: "index", Status: "fail", Detail: err.Error(),
 			Impact: "index contents could not be counted",
-			Remedy: "cortex doctor --verify-index",
+			Remedy: "repocortex doctor --verify-index",
 		})
 	case counts.Symbols == 0:
 		out = append(out, check{
 			Name: "index", Status: "warn",
 			Detail: fmt.Sprintf("revision %d is committed and empty", run.ID),
 			Impact: "no symbols were recorded, so every query returns nothing",
-			Remedy: "cortex index --full, and check that this project's languages are supported",
+			Remedy: "repocortex index --full, and check that this project's languages are supported",
 		})
 	default:
 		out = append(out, check{
@@ -463,14 +463,14 @@ func agentIndexChecks(ctx stdctx.Context, g *Global) []check {
 				Name: "resolution", Status: "warn",
 				Detail: "no references recorded",
 				Impact: "the call graph is empty, so callers, impact and tests answer nothing",
-				Remedy: "cortex index && cortex resolve",
+				Remedy: "repocortex index && repocortex resolve",
 			})
 		case rs.Pending == rs.Total:
 			out = append(out, check{
 				Name: "resolution", Status: "warn",
 				Detail: fmt.Sprintf("%d reference(s) extracted, none resolved", rs.Total),
 				Impact: "find_callers and find_references return nothing until the graph is built",
-				Remedy: "cortex resolve",
+				Remedy: "repocortex resolve",
 			})
 		// BindingRate against capability.CoverageFloor, the same rate and the
 		// same floor the MCP tools gate on. This check exists to predict what
@@ -483,7 +483,7 @@ func agentIndexChecks(ctx stdctx.Context, g *Global) []check {
 				Detail: fmt.Sprintf("%.0f%% of the %d references that name something this index defines are bound (%d matched nothing here)",
 					rs.BindingRate()*100, rs.Bindable(), rs.Unresolved),
 				Impact: "relationship answers carry a COVERAGE TOO LOW caveat and should not be reported as answers",
-				Remedy: "cortex resolve, or import a compiler index with 'cortex scip import'",
+				Remedy: "repocortex resolve, or import a compiler index with 'repocortex scip import'",
 			})
 		default:
 			out = append(out, check{
@@ -510,9 +510,9 @@ func agentIndexChecks(ctx stdctx.Context, g *Global) []check {
 		// deficiency — see profileTools in internal/mcp/server.go. The line
 		// exists so a reader who wants the blast-radius tools knows the one
 		// setting that adds them, without being told his default is wrong.
-		if !slices.Contains(tools, "impact_analysis") {
-			c.Impact = "impact_analysis and find_tests are not exposed on this profile; the guidance falls back to find_callers"
-			c.Remedy = "set mcp.profile: standard in .cortex.yml (or .cortex.yml) to add them"
+		if !slices.Contains(tools, "analyze_impact") {
+			c.Impact = "analyze_impact and find_tests are not exposed on this profile; the guidance falls back to find_callers"
+			c.Remedy = "set mcp.profile: standard in .repocortex.yml (or .repocortex.yml) to add them"
 		}
 		out = append(out, c)
 	}
@@ -544,9 +544,9 @@ func agentWiringChecks(ctx stdctx.Context, root string) ([]check, error) {
 			Impact: "whether this project registers RepoCortex could not be determined",
 			Remedy: "check .mcp.json is valid JSON",
 		})
-	case slices.Contains(registered, "cortex") || slices.Contains(registered, "repocortex"):
+	case slices.Contains(registered, "repocortex") || slices.Contains(registered, "repocortex"):
 		matched := agentMCPName
-		for _, name := range []string{"cortex", "repocortex"} {
+		for _, name := range []string{"repocortex", "repocortex"} {
 			if slices.Contains(registered, name) {
 				matched = name
 				break
@@ -561,7 +561,7 @@ func agentWiringChecks(ctx stdctx.Context, root string) ([]check, error) {
 			Name: "mcp registration", Status: "warn",
 			Detail: "not in this repository's .mcp.json",
 			Impact: "no project-scope registration; a user- or local-scope one is not visible from here",
-			Remedy: "cortex agent, and run the 'claude mcp add' line it prints",
+			Remedy: "repocortex agent, and run the 'claude mcp add' line it prints",
 		})
 	}
 
@@ -580,7 +580,7 @@ func agentWiringChecks(ctx stdctx.Context, root string) ([]check, error) {
 			Name: "guidance", Status: "warn",
 			Detail: "not found in " + strings.Join(agentMemoryFiles, " or "),
 			Impact: "the agent has the tools but no rule telling it when to use them, so it will keep grepping",
-			Remedy: "cortex agent --guidance >> CLAUDE.md",
+			Remedy: "repocortex agent --guidance >> CLAUDE.md",
 		})
 	}
 

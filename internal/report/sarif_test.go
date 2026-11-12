@@ -11,9 +11,9 @@ import (
 
 func TestBuildSARIF(t *testing.T) {
 	findings := []Finding{
-		{RuleID: "cortex/b", RuleDescription: "B", Severity: "low", Message: "m3", Path: "z.go", Line: 9},
-		{RuleID: "cortex/a", RuleDescription: "A", Severity: "high", Message: "m1", Path: "a.go", Line: 3, Confidence: "exact"},
-		{RuleID: "cortex/a", RuleDescription: "A", Severity: "medium", Message: "m2"},
+		{RuleID: "repocortex/b", RuleDescription: "B", Severity: "low", Message: "m3", Path: "z.go", Line: 9},
+		{RuleID: "repocortex/a", RuleDescription: "A", Severity: "high", Message: "m1", Path: "a.go", Line: 3, Confidence: "exact"},
+		{RuleID: "repocortex/a", RuleDescription: "A", Severity: "medium", Message: "m2"},
 	}
 	log := BuildSARIF("1.2.3", findings)
 
@@ -33,8 +33,8 @@ func TestBuildSARIF(t *testing.T) {
 		level string
 		loc   bool
 	}{
-		{0, "cortex/a", "error", true}, // locationless m2 is omitted from results
-		{1, "cortex/b", "note", true},
+		{0, "repocortex/a", "error", true}, // locationless m2 is omitted from results
+		{1, "repocortex/b", "note", true},
 	}
 	for _, tc := range tests {
 		r := run.Results[tc.i]
@@ -48,7 +48,7 @@ func TestBuildSARIF(t *testing.T) {
 	if len(run.Results) != 2 {
 		t.Errorf("want 2 located results, got %d", len(run.Results))
 	}
-	if findings[0].RuleID != "cortex/b" {
+	if findings[0].RuleID != "repocortex/b" {
 		t.Error("BuildSARIF reordered its input slice")
 	}
 
@@ -83,7 +83,7 @@ func TestConverters(t *testing.T) {
 		Kind: missed.BlindspotOrphanTable, Severity: "high", Target: "payments",
 		Path: "db/schema.sql", Line: 12, Description: "table is never read", Remediation: "drop it or map it",
 	}})
-	if len(b) != 1 || b[0].RuleID != "cortex/blindspot/orphan_table" || b[0].Path != "db/schema.sql" ||
+	if len(b) != 1 || b[0].RuleID != "repocortex/blindspot/orphan_table" || b[0].Path != "db/schema.sql" ||
 		b[0].Line != 12 || !strings.Contains(b[0].Message, "drop it or map it") {
 		t.Errorf("blindspot finding = %+v", b)
 	}
@@ -93,10 +93,10 @@ func TestConverters(t *testing.T) {
 		From: "web", To: "repo", FromName: "Handler", ToName: "Save",
 		Kind: "CALLS", Confidence: "high", FilePath: "web/h.go", Line: 40,
 	}, {Severity: "low", FilePath: "x.go"}})
-	if v[0].RuleID != "cortex/arch/no-controller-to-repo" || v[0].Confidence != "high" || v[0].Line != 40 {
+	if v[0].RuleID != "repocortex/arch/no-controller-to-repo" || v[0].Confidence != "high" || v[0].Line != 40 {
 		t.Errorf("violation finding = %+v", v[0])
 	}
-	if v[1].RuleID != "cortex/arch/unnamed" {
+	if v[1].RuleID != "repocortex/arch/unnamed" {
 		t.Errorf("unnamed rule id = %q", v[1].RuleID)
 	}
 
@@ -106,7 +106,7 @@ func TestConverters(t *testing.T) {
 			{Symbol: "GET /x"}, {Symbol: "load", FilePath: "svc/load.go", Line: 7},
 		}},
 	}})
-	if d[0].RuleID != "cortex/data/pci-isolation" || d[0].Path != "svc/load.go" || d[0].Line != 7 {
+	if d[0].RuleID != "repocortex/data/pci-isolation" || d[0].Path != "svc/load.go" || d[0].Line != 7 {
 		t.Errorf("data violation finding = %+v", d[0])
 	}
 }
@@ -181,7 +181,7 @@ func TestConvertersEdgeCases(t *testing.T) {
 	d := FromDataViolations([]architecture.DataViolation{{
 		Path: architecture.DataPath{Steps: []architecture.PathStep{{Symbol: "x"}}},
 	}})
-	if d[0].Path != "" || d[0].Line != 0 || d[0].RuleID != "cortex/data/unnamed" {
+	if d[0].Path != "" || d[0].Line != 0 || d[0].RuleID != "repocortex/data/unnamed" {
 		t.Errorf("no-file-hop finding = %+v", d[0])
 	}
 }

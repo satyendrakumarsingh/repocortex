@@ -98,7 +98,7 @@ type Stats struct {
 	// saved. Both are pure counters: nothing below reads them, so they cannot
 	// change a binding.
 	//
-	// This matters more than it did, because `cortex accuracy` now publishes
+	// This matters more than it did, because `repocortex accuracy` now publishes
 	// recall, and a cap-drop is a named, countable component of the calls that
 	// produce no edge.
 	CapExceeded int64
@@ -200,7 +200,7 @@ type candidate struct {
 // selector_expression, nothing matches, and Receiver is left empty. An empty
 // receiver conflates "no receiver in the source" with "a receiver the query
 // cannot express", and chained calls are ordinary Go. Measured: it took
-// `cortex callers Save` on the CLI fixture from two bound callers to zero.
+// `repocortex callers Save` on the CLI fixture from two bound callers to zero.
 // Unit tests over synthetic references passed throughout, because they set
 // Receiver directly; only the end-to-end path exercises the parser that leaves
 // it empty. The rule becomes sound the moment parse can distinguish the two
@@ -803,12 +803,12 @@ func fileSegments(spec LanguageSpec, filePath string) []string {
 // segment of any import path. That is not a containment test on packages, it is
 // a bag-of-words match, and `internal` or `src` or `com` is a segment of nearly
 // every import in a repository. `internal/config/x.go` therefore "lived in" an
-// import of `cortex/internal/anything`, and because pickImported reports
+// import of `repocortex/internal/anything`, and because pickImported reports
 // ConfidenceHigh whenever the match is UNIQUE, one such coincidence was enough
 // to publish a high-confidence edge to a file the reference never imported.
 //
 // Matching TRAILING segments instead is what an import path actually asserts.
-// `cortex/internal/config` names the package whose directory ENDS with
+// `repocortex/internal/config` names the package whose directory ENDS with
 // internal/config; it says nothing about a file that merely happens to sit
 // under some other `internal`. Anchoring costs nothing real, because the
 // alphabets still differ in their prefixes — an import of `com.pay.repository`
@@ -920,7 +920,7 @@ func (r *Resolver) pickAliased(
 // An import is DECLARED evidence: the file said it depends on that module.
 //
 // Where several candidates are covered, the one matching the LONGEST run of
-// trailing segments wins: an import of `cortex/internal/pay/store` covers
+// trailing segments wins: an import of `repocortex/internal/pay/store` covers
 // both `internal/pay/store/x.go` (three segments) and, in a repository that
 // also imports `.../store`, `internal/store/x.go` (one), and the deeper match
 // is the one that import path actually named. Only a tie among equally deep

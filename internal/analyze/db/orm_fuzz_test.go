@@ -7,7 +7,7 @@ import (
 
 // The ORM extractors run over source RepoCortex did not write, so "must not
 // panic" is a security property rather than a tidiness one — a single malformed
-// file in a dependency's vendor directory must not stop `cortex index`.
+// file in a dependency's vendor directory must not stop `repocortex index`.
 //
 // Four invariants are checked on every input, and each corresponds to something
 // a caller downstream relies on:

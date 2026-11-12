@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sync"
@@ -9,6 +10,8 @@ import (
 
 	acquiregit "github.com/satyendrakumarsingh/repocortex/internal/acquire/git"
 	"github.com/satyendrakumarsingh/repocortex/internal/capability"
+	"github.com/satyendrakumarsingh/repocortex/internal/capability/hotspots"
+	"github.com/satyendrakumarsingh/repocortex/internal/capability/ownership"
 	"github.com/satyendrakumarsingh/repocortex/internal/config"
 	devctx "github.com/satyendrakumarsingh/repocortex/internal/context"
 	"github.com/satyendrakumarsingh/repocortex/internal/graph"
@@ -40,14 +43,32 @@ type Deps struct {
 
 	Config config.Config
 	Limits Limits
+
+	// History supplies recent commits for list_hotspots. Optional: without it
+	// the tool answers that no history is available rather than failing, which
+	// is also the truth for a directory that is not a git repository.
+	History hotspots.History
+
+	// Owners supplies recent commits with their authors for find_owners.
+	// Optional, like History, and for the same reason.
+	Owners ownership.History
+
+	// Judgeable reports whether the index binds cross-file references for a
+	// language, so list_dead_code can leave out languages where "no caller"
+	// is the parser's limit and not a finding. Nil judges every language.
+	Judgeable func(language string) bool
+
+	// Audit, when set, receives one record per tool call. See audit.go.
+	Audit *AuditLog
 }
 
 // Server wraps the SDK server with RepoCortex's tool set.
 type Server struct {
-	sdk    *sdk.Server
-	deps   Deps
-	tools  []string
-	limits Limits
+	sdk     *sdk.Server
+	deps    Deps
+	tools   []string
+	prompts []string
+	limits  Limits
 
 	// assembler owns the context engine's catalogue cache for this server's
 	// lifetime. This is the one place the cache genuinely pays: an agent asks
@@ -68,7 +89,7 @@ type Server struct {
 	//
 	// It was being constructed PER REQUEST, which allocated a fresh empty cache
 	// each time and re-ran LoadSymbolIndex — an unbounded scan of the whole
-	// symbol table — on every impact_analysis and find_tests call. The
+	// symbol table — on every analyze_impact and find_tests call. The
 	// capability package's own doc says "long-lived callers, the MCP server
 	// especially, should use NewDeps"; the server was the one caller ignoring
 	// it.
@@ -103,6 +124,13 @@ type Server struct {
 	// (~1ms) is what is cached, since the repository path never changes for
 	// a running server.
 	headRepo *acquiregit.Repo
+
+	// frontEnds names the in-process sessions opened by NewInvoker, keyed by
+	// *sdk.ServerSession. Membership means two things: the audit log records
+	// the front end's name instead of "mcp", and reply() skips session dedup,
+	// because a REST call or a CLI invocation is not a conversation. See
+	// invoke.go.
+	frontEnds sync.Map
 }
 
 // runMeta is the slice of a committed run's data Provenance needs.
@@ -123,7 +151,7 @@ func New(deps Deps) (*Server, error) {
 	}
 
 	impl := &sdk.Implementation{
-		Name:    "cortex",
+		Name:    "repocortex",
 		Version: Version,
 		Title:   "RepoCortex code intelligence",
 	}
@@ -136,7 +164,7 @@ func New(deps Deps) (*Server, error) {
 	headRepo, _ := acquiregit.Open(deps.Config.RepoRoot)
 
 	s := &Server{
-		sdk:       sdk.NewServer(impl, nil),
+		sdk:       sdk.NewServer(impl, &sdk.ServerOptions{Instructions: serverInstructions(deps.Config.MCPProfile)}),
 		deps:      deps,
 		limits:    limits,
 		assembler: devctx.NewAssembler(),
@@ -151,10 +179,16 @@ func New(deps Deps) (*Server, error) {
 	}
 	s.registerTaskContext(profileTools(deps.Config.MCPProfile))
 	s.registerCapabilities(profileTools(deps.Config.MCPProfile))
+	s.registerStructure(profileTools(deps.Config.MCPProfile))
+	s.registerChange(profileTools(deps.Config.MCPProfile))
+	s.registerOwners(profileTools(deps.Config.MCPProfile))
+	s.registerPrompts()
+
+	s.sdk.AddReceivingMiddleware(s.auditMiddleware)
 	return s, nil
 }
 
-// Tools lists the registered tool names. For `cortex serve --list-tools` and
+// Tools lists the registered tool names. For `repocortex serve --list-tools` and
 // for tests asserting a profile's surface.
 func (s *Server) Tools() []string { return append([]string(nil), s.tools...) }
 
@@ -181,31 +215,31 @@ func profileLists() (minimal, standard []string) {
 		"find_references",
 		"find_callers",
 	}
-	// `find_callees` used to be listed here and is not registered anywhere — no
-	// such tool exists. The name was inert, so the profile promised a surface it
-	// did not have. It was removed rather than implemented, because the argument
-	// above says the default surface should be small. (`get_file_outline` was
-	// once in the same position; it is registered now and listed below.)
+	// `find_callees` used to be listed here while no such tool was registered:
+	// the name was inert, so the profile promised a surface it did not have. It
+	// is registered now, and lives in fullOnlyTools rather than here, because
+	// the argument above says the standard surface should stay small.
+	// (`get_file_outline` was once in the same position.)
 	//
-	// TestProfilesOnlyNameRegisteredTools now fails the build on a repeat.
+	// TestProfilesOnlyNameRegisteredTools fails the build on a repeat.
 	standard = append(append([]string{}, minimal...),
 		"find_tests",
-		"impact_analysis",
+		"analyze_impact",
 		// Kept out of `minimal` because get_project_overview already states the
 		// figure once, and minimal's whole argument is that seven schemas is
-		// the budget. It joins `standard` with impact_analysis because that is
+		// the budget. It joins `standard` with analyze_impact because that is
 		// the profile where an agent starts reading relationship results, and a
 		// short result it cannot re-check against the index's own coverage is
 		// the one an agent over-reads.
-		"resolution_coverage",
+		"get_resolution_coverage",
 		"plan_rename",
-		"find_api_endpoints",
-		"find_db_access",
+		"list_api_endpoints",
+		"list_db_tables",
 		"get_config_key",
 		"get_file_outline",
 		"minimize_diff",
 		"plan_change",
-		"detect_blindspots",
+		"list_blindspots",
 	)
 
 	return minimal, standard
@@ -216,6 +250,29 @@ func ProfileTools() (minimal, standard []string) {
 	m, st := profileLists()
 	return append([]string(nil), m...), append([]string(nil), st...)
 }
+
+// fullOnlyTools are exposed by the `full` profile alone.
+//
+// These are whole-repository and navigation questions an agent asks rarely
+// compared with "who calls this": worth having, not worth five more schemas in
+// every request of a session that never uses them. `standard` therefore stays
+// at the size its users chose it for, and a team that wants these opts in with
+// `mcp: { profile: full }`. The REST endpoint and `repocortex tool` follow the same
+// profile, so the choice is made once.
+func fullOnlyTools() []string {
+	return []string{
+		"analyze_change",
+		"find_owners",
+		"find_callees",
+		"find_implementations",
+		"trace_call_path",
+		"list_dead_code",
+		"list_hotspots",
+	}
+}
+
+// FullOnlyTools returns a copy of the tools only the `full` profile exposes.
+func FullOnlyTools() []string { return fullOnlyTools() }
 
 // profileTools maps a profile to the tools it exposes.
 //
@@ -247,10 +304,29 @@ func profileTools(p config.MCPProfile) map[string]bool {
 	}
 }
 
+// compactOutputSchema is the output schema every tool advertises.
+//
+// Every tool returns the same envelope (Response). Left to itself the SDK
+// derives a full schema of that type for EACH tool, field descriptions
+// included: about 2.7 KB repeated per tool, which was three quarters of the
+// tools/list payload (62 KB of 84 KB on the full profile) and, for a client
+// that forwards output schemas to its model, three quarters of the context the
+// tool list costs. The envelope is documented once, in the docs and in each
+// answer's own text; here it is named, not described. The structured result is
+// unchanged and still validates against this.
+func compactOutputSchema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{` +
+		`"summary":{"type":"string"},"items":{"type":"array"},"notes":{"type":"array"},` +
+		`"truncated":{"type":"boolean"},"index_revision":{"type":"integer"}},"required":["summary"]}`)
+}
+
 // addTool registers a tool if the active profile allows it.
 func addTool[In, Out any](s *Server, allowed map[string]bool, t *sdk.Tool, h sdk.ToolHandlerFor[In, Out]) {
 	if allowed != nil && !allowed[t.Name] {
 		return
+	}
+	if t.OutputSchema == nil {
+		t.OutputSchema = compactOutputSchema()
 	}
 	sdk.AddTool(s.sdk, t, h)
 	s.tools = append(s.tools, t.Name)
@@ -280,7 +356,7 @@ func addTool[In, Out any](s *Server, allowed map[string]bool, t *sdk.Tool, h sdk
 // answer is "nothing, and here is what to do next". Those return through
 // guide(), which produces an ordinary SUCCESSFUL result whose text carries the
 // next step. The next step is the load-bearing part — an agent that reads "no
-// index — run 'cortex index'" acts on it, whereas one that reads a failure
+// index — run 'repocortex index'" acts on it, whereas one that reads a failure
 // gives up on the server.
 
 // errNotIndexed marks the recoverable "nothing has been indexed yet" state.
@@ -350,13 +426,13 @@ func (s *Server) noRun(ctx context.Context, req *sdk.CallToolRequest, err error)
 	if errors.Is(err, errIndexing) {
 		return s.guide(ctx, req, 0, string(model.StatusIndexing),
 			"The first index for this project is still being built, so there is nothing to answer from yet.",
-			"Wait for 'cortex index' to finish, then ask again. Do not start a second index. "+
-				"If no index is running, a previous one was interrupted: run 'cortex index' again.")
+			"Wait for 'repocortex index' to finish, then ask again. Do not start a second index. "+
+				"If no index is running, a previous one was interrupted: run 'repocortex index' again.")
 	}
 	if errors.Is(err, errNotIndexed) {
 		return s.guide(ctx, req, 0, "absent",
 			"No index has been built for this project yet, so there is nothing to answer from.",
-			"Run 'cortex index' in the project root, then ask again. This is not a tool "+
+			"Run 'repocortex index' in the project root, then ask again. This is not a tool "+
 				"failure: RepoCortex is working and the index is simply absent.")
 	}
 	return failFrom(err, "%v", err)
@@ -432,7 +508,13 @@ func (s *Server) reply(ctx context.Context, req *sdk.CallToolRequest, r *Respons
 		}
 	}
 
-	s.ledgers.forSession(sessionOf(req)).apply(s.deps.Config.ProjectName, r)
+	// A front-end session (REST, CLI) is a series of unrelated questions, not
+	// a conversation, so nothing it was sent earlier may be elided now.
+	if ss := sessionOf(req); ss != nil {
+		if _, stateless := s.frontEnds.Load(ss); !stateless {
+			s.ledgers.forSession(ss).apply(s.deps.Config.ProjectName, r)
+		}
+	}
 	return &sdk.CallToolResult{
 		Content: []sdk.Content{&sdk.TextContent{Text: r.RenderText()}},
 	}, r, nil

@@ -63,7 +63,7 @@ type Executor struct {
 // its own target/ — that is Maven's doing and refusing it would mean refusing
 // exact Java altogether.)
 func OutputDir() (string, error) {
-	dir, err := os.MkdirTemp("", "cortex-scip-")
+	dir, err := os.MkdirTemp("", "repocortex-scip-")
 	if err != nil {
 		return "", errs.Wrap(errs.KindInternal, "indexer.OutputDir", err)
 	}
@@ -176,7 +176,7 @@ func (e *Executor) timeout() time.Duration {
 // command builds the argv for one indexer.
 //
 // Read this function as a list of what is NOT here. No --config flag pointing
-// at a repository file. No project name taken from .cortex.yml. No package
+// at a repository file. No project name taken from .repocortex.yml. No package
 // manager install step: `npm install` and `mvn dependency:resolve` both execute
 // repository-supplied code, so scip-typescript indexes whatever node_modules is
 // already on disk and reports less rather than RepoCortex running the repository's
@@ -215,10 +215,10 @@ func (e *Executor) command(inst Installed, p Project, rel, projectDir, repoRoot,
 				"index", "--output", indexPath,
 				// Fixed literals. scip-python wants a project name and version,
 				// and the tempting sources for them — package.json's "name",
-				// pyproject.toml's [project], .cortex.yml's project.name — are
+				// pyproject.toml's [project], .repocortex.yml's project.name — are
 				// all attacker-controlled strings that would land in an argv. The
 				// name only labels the index, so a constant costs nothing.
-				"--project-name", "cortex-repository",
+				"--project-name", "repocortex-repository",
 				"--project-version", "0.0.0",
 			},
 			Dir: projectDir,

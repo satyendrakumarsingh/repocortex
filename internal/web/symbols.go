@@ -145,7 +145,7 @@ func (s *Server) handleSymbols(w http.ResponseWriter, r *http.Request) {
 			Detail: "The index holds only what its parsers could extract. A language with no extracted symbols will never match.",
 			Steps: []string{
 				"Check the overview's blind spots for the language you expected.",
-				"cortex index — if the file is newer than the index",
+				"repocortex index — if the file is newer than the index",
 			},
 		}
 	}

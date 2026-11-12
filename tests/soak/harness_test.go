@@ -32,13 +32,13 @@ import (
 // these through a job matrix, where editing a command line per variant is far
 // more error-prone than setting one variable.
 var (
-	flagDuration = flag.Duration("soak.duration", envDuration("CORTEX_SOAK_DURATION", 30*time.Second),
+	flagDuration = flag.Duration("soak.duration", envDuration("REPOCORTEX_SOAK_DURATION", 30*time.Second),
 		"how long EACH soak test runs; the suite takes roughly this times the number of tests")
-	flagFiles = flag.Int("soak.files", envInt("CORTEX_SOAK_FILES", 200),
+	flagFiles = flag.Int("soak.files", envInt("REPOCORTEX_SOAK_FILES", 200),
 		"size of the synthetic repository, in files")
-	flagInterval = flag.Duration("soak.interval", envDuration("CORTEX_SOAK_INTERVAL", 3*time.Millisecond),
+	flagInterval = flag.Duration("soak.interval", envDuration("REPOCORTEX_SOAK_INTERVAL", 3*time.Millisecond),
 		"pause between filesystem mutations; lower means more events per second")
-	flagSeed = flag.Int64("soak.seed", envInt64("CORTEX_SOAK_SEED", 1),
+	flagSeed = flag.Int64("soak.seed", envInt64("REPOCORTEX_SOAK_SEED", 1),
 		"seed for the mutation stream, so a failing run can be replayed")
 )
 
@@ -482,11 +482,11 @@ func newRepo(t *testing.T, nFiles int) *repo {
 		}
 	}
 
-	// The index lives inside the repository, exactly as `cortex init` puts
-	// it. config.Defaults excludes .cortex from discovery and watch's
+	// The index lives inside the repository, exactly as `repocortex init` puts
+	// it. config.Defaults excludes .repocortex from discovery and watch's
 	// builtinIgnoredDirs refuses to watch it, so this placement also asserts
 	// that the index's own WAL writes do not feed back in as changes to index.
-	dbPath := filepath.Join(root, ".cortex", "index.db")
+	dbPath := filepath.Join(root, ".repocortex", "index.db")
 	db, err := store.Open(ctx, store.Options{Path: dbPath})
 	if err != nil {
 		t.Fatalf("open store: %v", err)
@@ -613,7 +613,7 @@ func (r *repo) divergence(ctx context.Context) ([]pipeline.FileChange, error) {
 
 // integrityProblems reports referential damage accumulated in the store.
 //
-// This is the invariant gate `cortex doctor --verify-index` enforces, run
+// This is the invariant gate `repocortex doctor --verify-index` enforces, run
 // against SQL directly because the Go read API cannot see the damage:
 // Registry.Symbols JOINs files, so a symbol whose file row is gone is filtered
 // out of the very query a reader would use to notice it. The corruption is

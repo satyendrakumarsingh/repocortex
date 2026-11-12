@@ -5,7 +5,7 @@
 # the archive is unblocked after verification, not before.
 [CmdletBinding()]
 param(
-    [string]$Dir = "$env:LOCALAPPDATA\Programs\cortex",
+    [string]$Dir = "$env:LOCALAPPDATA\Programs\repocortex",
     [string]$Version = "latest"
 )
 
@@ -18,9 +18,9 @@ if ($Version -eq "latest") {
 }
 if (-not $Version) { throw "could not resolve the latest release tag" }
 
-$archive = "cortex_${Version}_windows_amd64.zip"
+$archive = "repocortex_${Version}_windows_amd64.zip"
 $base = "https://github.com/$repo/releases/download/$Version"
-$tmp = Join-Path $env:TEMP ("cortex-" + [guid]::NewGuid().ToString())
+$tmp = Join-Path $env:TEMP ("repocortex-" + [guid]::NewGuid().ToString())
 New-Item -ItemType Directory -Path $tmp -Force | Out-Null
 
 try {
@@ -41,15 +41,15 @@ try {
     Expand-Archive -Path (Join-Path $tmp $archive) -DestinationPath $tmp -Force
 
     New-Item -ItemType Directory -Path $Dir -Force | Out-Null
-    $src = Join-Path $tmp "cortex_${Version}_windows_amd64\cortex.exe"
+    $src = Join-Path $tmp "repocortex_${Version}_windows_amd64\repocortex.exe"
     if (-not (Test-Path $src)) {
-        $src = Join-Path $tmp "cortex_${Version}_windows_amd64\cortex.exe"
+        $src = Join-Path $tmp "repocortex_${Version}_windows_amd64\repocortex.exe"
     }
-    Copy-Item -Path $src -Destination (Join-Path $Dir "cortex.exe") -Force
+    Copy-Item -Path $src -Destination (Join-Path $Dir "repocortex.exe") -Force
     Copy-Item -Path $src -Destination (Join-Path $Dir "repocortex.exe") -Force
 
-    Write-Host "installed $Dir\cortex.exe (with repocortex.exe alias)"
-    & (Join-Path $Dir "cortex.exe") version
+    Write-Host "installed $Dir\repocortex.exe (with repocortex.exe alias)"
+    & (Join-Path $Dir "repocortex.exe") version
 
     $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
     if ($userPath -notlike "*$Dir*") {
@@ -59,8 +59,8 @@ try {
 
     Write-Host ""
     Write-Host "Next: cd into a repository and run"
-    Write-Host "  cortex init; cortex index; cortex resolve"
-    Write-Host "  cortex install     # register with your coding agent"
+    Write-Host "  repocortex init; repocortex index; repocortex resolve"
+    Write-Host "  repocortex install     # register with your coding agent"
 }
 finally {
     Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue

@@ -8,7 +8,7 @@ Index run 7: 4 files, 11 symbols, 8 edges — of which 2 EXPOSES, 3 table read/w
 
 ## Components
 
-The repository declares 4 components and 1 rule in `.cortex.yml`.
+The repository declares 4 components and 1 rule in `.repocortex.yml`.
 
 | Component | Files | Symbols | Declared include patterns |
 | --- | ---: | ---: | --- |

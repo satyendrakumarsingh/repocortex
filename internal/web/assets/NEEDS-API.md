@@ -32,8 +32,8 @@ gate that fails a build on five leads is how a team switches the gate off — an
 it takes the facts with it.
 
 **What is wanted.** Either a `min_confidence` dimension on `ci_gates[]`, so the
-API states what `cortex arch --fail-on high --min-confidence high` would do; or
-a `--min-confidence` flag on `cortex arch` whose effect the API reports.
+API states what `repocortex arch --fail-on high --min-confidence high` would do; or
+a `--min-confidence` flag on `repocortex arch` whose effect the API reports.
 
 **Graceful degradation, shipped.** The portal computes the breakdown itself from
 `violations_by_confidence` and prints, beside the gate table, how many violations
@@ -131,7 +131,7 @@ Nothing claims it is stable across runs.
 
 **Screen:** 02 Graph explorer.
 
-**Why.** `cortex diff` exists as a command, and "what changed between the run
+**Why.** `repocortex diff` exists as a command, and "what changed between the run
 we shipped and the run we are about to ship" is the strongest question a change
 -safety graph can answer: an edge that appeared, an edge that lost a tier, a
 component that grew a dependency it did not have. It was considered for this

@@ -330,7 +330,7 @@ func TestWebDepsReverseDirectionIsStatedNotFakedWithoutAnEnumerator(t *testing.T
 
 // TestWebDepsReportsTheLanguageTiersFromTheParserItself.
 //
-// The tiers are what `cortex languages` computes, derived from the query maps
+// The tiers are what `repocortex languages` computes, derived from the query maps
 // at run time. Joining them against the repository's own language mix is what
 // makes an empty dependency answer interpretable.
 func TestWebDepsReportsTheLanguageTiersFromTheParserItself(t *testing.T) {

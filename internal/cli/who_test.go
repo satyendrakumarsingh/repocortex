@@ -15,7 +15,7 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/object"
 )
 
-// Tests for `cortex who`.
+// Tests for `repocortex owners`.
 //
 // They drive the whole stack — index, resolve, blast radius, git history — for
 // the reason query_test.go gives: the defects that matter in a command like this
@@ -303,7 +303,7 @@ func TestWhoFramesContextNotOwnership(t *testing.T) {
 
 	// Logged so a reviewer can read the artifact this command exists to
 	// produce, which is worth as much as the assertions above it.
-	t.Logf("cortex who Save:\n%s", out)
+	t.Logf("repocortex owners Save:\n%s", out)
 }
 
 // TestWhoIsDeterministic is the property the registry digest guarantee rests on.

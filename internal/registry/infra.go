@@ -1146,7 +1146,7 @@ func (r *Registry) attachInfraProblems(
 // CASCADE has already taken this file's infra rows with its old file row, and
 // without this, editing a compose file would silently delete every service it
 // declares. That erosion is invisible — an empty result and a correct empty
-// result look identical — and it is the exact defect that made `cortex api`
+// result look identical — and it is the exact defect that made `repocortex api`
 // report zero endpoints during a watch session.
 //
 // Insert-only, like its siblings: the caller has just replaced the file, so

@@ -1,6 +1,6 @@
 # Reading RepoCortex output: a guide to every command
 
-This guide walks through every `cortex` command, shows what it prints, and
+This guide walks through every `repocortex` command, shows what it prints, and
 explains how to read it. Each output block was captured by running the command,
 not written by hand.
 
@@ -11,7 +11,7 @@ something to report, the copy used here had three commits:
 1. `init` – the fixture as shipped.
 2. `Add build, config, deployment and event publisher` – a `pom.xml`, an
    `application.yml`, a `Dockerfile`, a `docker-compose.yml`, a Kafka publisher
-   and listener, one ADR, and a `.cortex.yml` that declares four components and
+   and listener, one ADR, and a `.repocortex.yml` that declares four components and
    two rules.
 3. `Skip duplicate status callbacks` – a seven-line change to
    `TransactionService.updateStatus`.
@@ -22,7 +22,7 @@ three-span trace file for `trace`, and a two-file Go module (indexed with
 `scip-go`) for `scip import` and `accuracy`. The output is still real.
 
 Absolute paths have been shortened: the projects live under `/work/`, the
-`cortex` binary is shown as `/work/bin/cortex`, and the home directory as `~`. Long output is cut where you see a line
+`repocortex` binary is shown as `/work/bin/repocortex`, and the home directory as `~`. Long output is cut where you see a line
 containing only `…`. No value has been changed.
 
 ## Contents
@@ -65,7 +65,7 @@ Two rules hold everywhere:
   along the path.
 
 To turn `high` into `exact`, import a compiler index: see
-[`cortex indexers`](#cortex-indexers) and [`cortex scip import`](#cortex-scip-import).
+[`repocortex indexers`](#repocortex-indexers) and [`repocortex scip import`](#repocortex-scip-import).
 
 ### Exit codes
 
@@ -86,20 +86,20 @@ their answer, so CI can act on them:
 | Flag | Effect |
 |---|---|
 | `--project <dir>` | Run against another project root instead of the current directory. |
-| `--json` | Print machine-readable JSON on stdout. Every query command supports it. Use it for scripts, CI and `cortex report`. |
+| `--json` | Print machine-readable JSON on stdout. Every query command supports it. Use it for scripts, CI and `repocortex report`. |
 | `-q`, `--quiet` | Silence log lines (the `time=… level=INFO` lines on stderr). Results still print. |
 | `-v`, `--verbose` | More log lines on stderr. |
 
-Logs always go to stderr and results to stdout, so `cortex --json callers X | jq`
+Logs always go to stderr and results to stdout, so `repocortex --json callers X | jq`
 is safe.
 
 Example of `--json`:
 
 ```console
-$ cortex --json status
+$ repocortex --json status
 {
   "project": "payment-platform",
-  "index_path": "/work/payment-platform/.cortex/index.db",
+  "index_path": "/work/payment-platform/.repocortex/index.db",
   "index_status": "ready",
   "schema_version": 13,
   "index_run": 3,
@@ -117,87 +117,87 @@ $ cortex --json status
 
 | Job | Question | Command |
 |---|---|---|
-| **Set up and keep current** | Create the index | [`init`](#cortex-init) |
-| | Parse the code | [`index`](#cortex-index) |
-| | Join calls to definitions | [`resolve`](#cortex-resolve) |
-| | Is the index there and fresh? | [`status`](#cortex-status) |
-| | Re-index while I edit | [`watch`](#cortex-watch) |
-| | Re-index on every commit | [`hooks`](#cortex-hooks) |
-| | Get compiler-proven facts | [`indexers`](#cortex-indexers), [`scip import`](#cortex-scip-import) |
-| **Find and navigate** | Where is X defined? | [`symbol`](#cortex-symbol) |
-| | Which files mention a word? | [`search`](#cortex-search) |
-| | Who calls X? | [`callers`](#cortex-callers) |
-| | What does X call? | [`callees`](#cortex-callees) |
-| | Everything that points at X | [`references`](#cortex-references) |
-| **Change safely** | What does this commit range put at risk? | [`impact`](#cortex-impact) |
-| | Steps to change X | [`plan-change`](#cortex-plan-change) |
-| | Rename X everywhere it is safe to | [`rename`](#cortex-rename) |
-| | Who should review a change to X? | [`who`](#cortex-who) |
-| | Which facts changed between two runs? | [`diff`](#cortex-diff) |
-| **Across the stack** | HTTP routes | [`api`](#cortex-api) |
-| | Tables, and who reads or writes them | [`db`](#cortex-db) |
-| | Config keys read but not declared | [`config`](#cortex-config) |
-| | Kafka, RabbitMQ, SQS, Pub/Sub topics | [`events`](#cortex-events) |
-| | Which service does a file run in? | [`infra`](#cortex-infra) |
-| | Declared but unused dependencies | [`deps`](#cortex-deps) |
-| | What ran in production? | [`trace`](#cortex-trace) |
-| | Calls between repositories | [`system`](#cortex-system) |
-| **Quality and governance** | Does the code break declared rules? | [`arch`](#cortex-arch) |
-| | Where is the index blind? | [`missed`](#cortex-missed) |
-| | How accurate is the index here? | [`accuracy`](#cortex-accuracy) |
-| | Does context retrieval find the right code? | [`bench`](#cortex-bench) |
-| | Is the setup healthy? | [`doctor`](#cortex-doctor) |
-| | What can it do per language? | [`languages`](#cortex-languages) |
-| **Agents** | Serve the index over MCP | [`serve`](#cortex-serve) |
-| | Show what an agent needs | [`agent`](#cortex-agent) |
-| | Register with installed agents | [`install`](#cortex-install) |
-| | Context for a task | [`context`](#cortex-context) |
-| | Turn a request into a task contract | [`compile`](#cortex-compile) |
-| | Check a change against the contract | [`verify`](#cortex-verify) |
-| | Signatures only, no bodies | [`prune`](#cortex-prune) |
-| | Shrink a diff for an agent | [`diff-minimize`](#cortex-diff-minimize) |
-| **Reports and export** | PR comment or SARIF for CI | [`report`](#cortex-report) |
-| | Architecture docs | [`docs`](#cortex-docs) |
-| | Graph for other tools | [`export`](#cortex-export) |
-| **Portal** | Browse the index in a browser | [`ui`](#cortex-ui) |
-| **Housekeeping** | Version, completion, licence file | [`version`](#cortex-version), [`completion`](#cortex-completion), [`licenses`](#cortex-licenses) |
+| **Set up and keep current** | Create the index | [`init`](#repocortex-init) |
+| | Parse the code | [`index`](#repocortex-index) |
+| | Join calls to definitions | [`resolve`](#repocortex-resolve) |
+| | Is the index there and fresh? | [`status`](#repocortex-status) |
+| | Re-index while I edit | [`watch`](#repocortex-watch) |
+| | Re-index on every commit | [`hooks`](#repocortex-hooks) |
+| | Get compiler-proven facts | [`indexers`](#repocortex-indexers), [`scip import`](#repocortex-scip-import) |
+| **Find and navigate** | Where is X defined? | [`symbol`](#repocortex-symbol) |
+| | Which files mention a word? | [`search`](#repocortex-search) |
+| | Who calls X? | [`callers`](#repocortex-callers) |
+| | What does X call? | [`callees`](#repocortex-callees) |
+| | Everything that points at X | [`references`](#repocortex-references) |
+| **Change safely** | What does this commit range put at risk? | [`impact`](#repocortex-impact) |
+| | Steps to change X | [`plan-change`](#repocortex-plan-change) |
+| | Rename X everywhere it is safe to | [`rename`](#repocortex-rename) |
+| | Who should review a change to X? | [`who`](#repocortex-who) |
+| | Which facts changed between two runs? | [`diff`](#repocortex-diff) |
+| **Across the stack** | HTTP routes | [`api`](#repocortex-api) |
+| | Tables, and who reads or writes them | [`db`](#repocortex-db) |
+| | Config keys read but not declared | [`config`](#repocortex-config) |
+| | Kafka, RabbitMQ, SQS, Pub/Sub topics | [`events`](#repocortex-events) |
+| | Which service does a file run in? | [`infra`](#repocortex-infra) |
+| | Declared but unused dependencies | [`deps`](#repocortex-deps) |
+| | What ran in production? | [`trace`](#repocortex-trace) |
+| | Calls between repositories | [`system`](#repocortex-system) |
+| **Quality and governance** | Does the code break declared rules? | [`arch`](#repocortex-arch) |
+| | Where is the index blind? | [`missed`](#repocortex-missed) |
+| | How accurate is the index here? | [`accuracy`](#repocortex-accuracy) |
+| | Does context retrieval find the right code? | [`bench`](#repocortex-bench) |
+| | Is the setup healthy? | [`doctor`](#repocortex-doctor) |
+| | What can it do per language? | [`languages`](#repocortex-languages) |
+| **Agents** | Serve the index over MCP | [`serve`](#repocortex-serve) |
+| | Show what an agent needs | [`agent`](#repocortex-agent) |
+| | Register with installed agents | [`install`](#repocortex-install) |
+| | Context for a task | [`context`](#repocortex-context) |
+| | Turn a request into a task contract | [`compile`](#repocortex-compile) |
+| | Check a change against the contract | [`verify`](#repocortex-verify) |
+| | Signatures only, no bodies | [`prune`](#repocortex-prune) |
+| | Shrink a diff for an agent | [`diff-minimize`](#repocortex-diff-minimize) |
+| **Reports and export** | PR comment or SARIF for CI | [`report`](#repocortex-report) |
+| | Architecture docs | [`docs`](#repocortex-docs) |
+| | Graph for other tools | [`export`](#repocortex-export) |
+| **Portal** | Browse the index in a browser | [`ui`](#repocortex-ui) |
+| **Housekeeping** | Version, completion, licence file | [`version`](#repocortex-version), [`completion`](#repocortex-completion), [`licenses`](#repocortex-licenses) |
 
 ---
 
 ## Set up and keep current
 
-### `cortex init`
+### `repocortex init`
 
-**Answers:** Creates the `.cortex/` directory and an empty index.
+**Answers:** Creates the `.repocortex/` directory and an empty index.
 
 **Use it when:** You first use RepoCortex in a repository.
 
-**Run:** `cortex init`
+**Run:** `repocortex init`
 
 **Output:**
 
 ```console
-$ cortex init
+$ repocortex init
 Initialized RepoCortex for "payment-platform"
-  Index:          /work/payment-platform/.cortex/index.db
+  Index:          /work/payment-platform/.repocortex/index.db
   Schema version: 13 (13 migration(s) applied)
   Accuracy mode:  auto
 
-Next: cortex index
+Next: repocortex index
 ```
 
 **How to read it:**
 
-- `Index` is the database file. Add `.cortex/` to `.gitignore`; it is local.
+- `Index` is the database file. Add `.repocortex/` to `.gitignore`; it is local.
 - `Schema version` is the index format. Migrations run automatically.
 - `Accuracy mode` is `fast`, `auto` or `exact`. `auto` uses a compiler-backed
   indexer when one is installed and allowed, and falls back to the syntax tree
   when not.
-- Nothing is indexed yet. Run [`cortex index`](#cortex-index) next.
+- Nothing is indexed yet. Run [`repocortex index`](#repocortex-index) next.
 
 **Useful flags:** `--force` deletes and recreates an existing index.
 
-### `cortex index`
+### `repocortex index`
 
 **Answers:** Parses every supported file and stores symbols, references, routes,
 SQL, config keys and deployment files.
@@ -205,12 +205,12 @@ SQL, config keys and deployment files.
 **Use it when:** After `init`, and whenever the code has changed and no hook or
 `watch` is running.
 
-**Run:** `cortex index --full`, then later `cortex index`
+**Run:** `repocortex index --full`, then later `repocortex index`
 
 **Output:**
 
 ```console
-$ cortex index --full
+$ repocortex index --full
 Indexed payment-platform
   Revision:      4
   Git:           eae0f8a662b9
@@ -220,7 +220,7 @@ Indexed payment-platform
   Imports:       3
   Duration:      321ms
 
-$ cortex index        # after editing one file
+$ repocortex index        # after editing one file
 Updated payment-platform (revision 2)
   Added:     0
   Modified:  1
@@ -229,7 +229,7 @@ Updated payment-platform (revision 2)
   Symbols:   7 written
   Duration:  123ms
 
-$ cortex index        # when nothing changed
+$ repocortex index        # when nothing changed
 payment-platform is up to date (18 files, revision 4, 86ms)
 ```
 
@@ -242,7 +242,7 @@ payment-platform is up to date (18 files, revision 4, 86ms)
 - `Symbols` counts definitions extracted in this run. `status` reports a larger
   number because it also counts tables, config keys, endpoints and units.
 - `References … (unresolved until M2)` means references are stored but not yet
-  joined to definitions. Run [`cortex resolve`](#cortex-resolve) next.
+  joined to definitions. Run [`repocortex resolve`](#repocortex-resolve) next.
 - Without `--full`, only changed files are re-parsed (`Added`, `Modified`,
   `Deleted`, `Unchanged`). The revision number does not go up.
 - Progress lines (`level=INFO msg=indexing progress=…`) go to stderr. Hide them
@@ -252,19 +252,19 @@ payment-platform is up to date (18 files, revision 4, 86ms)
 `--accuracy fast|auto|exact`; `--workers N` parse concurrency (memory grows with
 it); `--digest` print the registry digest after a run, for determinism checks.
 
-### `cortex resolve`
+### `repocortex resolve`
 
 **Answers:** Joins each stored reference to the definition it names, which
 builds the call graph and the table and config links.
 
-**Use it when:** After every `cortex index`.
+**Use it when:** After every `repocortex index`.
 
-**Run:** `cortex resolve`
+**Run:** `repocortex resolve`
 
 **Output:**
 
 ```console
-$ cortex resolve
+$ repocortex resolve
 Resolved payment-platform (revision 4)
   References:  63
   Resolved:    21 (67.7% of the 31 that name something this index defines)
@@ -274,7 +274,7 @@ Resolved payment-platform (revision 4)
     high:    21
   Data access: 7 statement(s), 7 bound to a declared table, 7 edges
   Config:      1 read(s), 0 bound to a declared key, 0 edges
-    1 read(s) name keys no configuration file here declares — see 'cortex config'
+    1 read(s) name keys no configuration file here declares — see 'repocortex config'
   Deployment:  3 unit(s), 1 naming a build context, 1 edges
   Duration:    33ms
 ```
@@ -284,35 +284,35 @@ Resolved payment-platform (revision 4)
 - `Resolved … 67.7% of the 31` is the key number. It is the share of references
   to code in this repository that were bound. Above about 80% is good for
   syntax-only indexing. Much lower means imports or receiver types are not
-  being followed; check `cortex languages` for your language's tier.
+  being followed; check `repocortex languages` for your language's tier.
 - `Ambiguous` references matched several definitions and none was chosen. They
   show up as gaps in `callers` and `impact`.
 - `Unresolved` references matched nothing here, mostly library calls. That is
   normal.
 - `Edges` by confidence: only `high`, `medium` and `low` appear. `exact` only
-  comes from [`scip import`](#cortex-scip-import).
+  comes from [`scip import`](#repocortex-scip-import).
 - `Data access`, `Config`, `Deployment` show how many SQL statements, config
   reads and deployment units were linked. A config line like the one above is
-  a real finding; follow it with [`cortex config`](#cortex-config).
+  a real finding; follow it with [`repocortex config`](#repocortex-config).
 - After an incremental `index`, `Edges` can read `0`. That counts new edges
   written in this pass, not the total.
 
 **Useful flags:** `--min-confidence high|medium|low` drops weaker bindings;
 `--no-scip` skips auto-import of an `index.scip` found in the project root or
-`.cortex/`.
+`.repocortex/`.
 
-### `cortex status`
+### `repocortex status`
 
 **Answers:** Is there an index, and what does it hold?
 
 **Use it when:** Before trusting any answer, or when an agent says "no index".
 
-**Run:** `cortex status`
+**Run:** `repocortex status`
 
 **Output:**
 
 ```console
-$ cortex status
+$ repocortex status
 Project:        payment-platform
 Index:          READY
 Schema:         v13
@@ -330,44 +330,44 @@ Capabilities:   code
 In a directory with no index:
 
 ```console
-$ cortex status
+$ repocortex status
 Project:        empty
 Index:          ABSENT
 Accuracy mode:  auto
 MCP profile:    minimal
 Capabilities:   code
 
-Run 'cortex init' to create the index.
+Run 'repocortex init' to create the index.
 ```
 
 **How to read it:**
 
 - `Index` is `READY` when a committed run exists and `ABSENT` when there is no
-  index. If you see anything else, run `cortex doctor --verify-index`.
+  index. If you see anything else, run `repocortex doctor --verify-index`.
 - `Revision` is the full commit SHA the index describes. Compare it with
   `git rev-parse HEAD`. If they differ, the index is stale.
 - `Symbols` and `Relationships` include tables, config keys, endpoints and
   deployment units, so they are larger than the numbers `index` prints.
 - `MCP profile` is the tool set `serve` exposes (`minimal`, `standard`, `full`),
-  set by `mcp.profile` in `.cortex.yml`.
+  set by `mcp.profile` in `.repocortex.yml`.
 - `Last indexed` is the last full run. Incremental updates do not move it.
 
 **Exit codes:** `0` even when the index is absent. Use `--json` and check
 `index_status` in scripts.
 
-### `cortex watch`
+### `repocortex watch`
 
 **Answers:** Keeps the index current as you save files.
 
 **Use it when:** You are editing and an agent is querying the index at the same
 time.
 
-**Run:** `cortex watch`, edit a file, then press Ctrl-C.
+**Run:** `repocortex watch`, edit a file, then press Ctrl-C.
 
 **Output:**
 
 ```console
-$ cortex watch
+$ repocortex watch
 Watching payment-platform (revision 3). Press Ctrl-C to stop.
 ```
 
@@ -384,12 +384,12 @@ time=2026-11-11T21:16:56.792+05:30 level=INFO msg="index updated" added=0 modifi
 - No line after a save means the file is not indexed (excluded, generated, or
   an unsupported type).
 - `watch` only re-parses. If cross-file answers look stale, run
-  `cortex resolve`.
+  `repocortex resolve`.
 
 **Useful flags:** `--debounce 300ms` quiet period before reacting to a burst of
 saves.
 
-### `cortex hooks`
+### `repocortex hooks`
 
 **Answers:** Installs, checks or removes a Git post-commit hook that re-indexes
 after every commit.
@@ -397,26 +397,26 @@ after every commit.
 **Use it when:** You want the index to follow your commits without thinking
 about it.
 
-**Run:** `cortex hooks status`, `cortex hooks install`, `cortex hooks uninstall`
+**Run:** `repocortex hooks status`, `repocortex hooks install`, `repocortex hooks uninstall`
 
 **Output:**
 
 ```console
-$ cortex hooks status
+$ repocortex hooks status
 post-commit: not installed
-The index is only as current as the last 'cortex index'.
-Install it with: cortex hooks install
+The index is only as current as the last 'repocortex index'.
+Install it with: repocortex hooks install
 
-$ cortex hooks install
+$ repocortex hooks install
 Installed post-commit hook
   /work/payment-platform/.git/hooks/post-commit
-  Runs: /work/bin/cortex index && /work/bin/cortex resolve  (detached, never fails a commit)
+  Runs: /work/bin/repocortex index && /work/bin/repocortex resolve  (detached, never fails a commit)
 
-$ cortex hooks status
+$ repocortex hooks status
 post-commit: installed  (/work/payment-platform/.git/hooks/post-commit)
 The index is rebuilt after every commit on this machine.
 
-$ cortex hooks uninstall
+$ repocortex hooks uninstall
 Removed RepoCortex's block. Anything else in that hook is untouched.
 ```
 
@@ -425,26 +425,26 @@ Removed RepoCortex's block. Anything else in that hook is untouched.
 - `Runs:` shows the exact binary path baked into the hook. If you move or
   upgrade the binary, run `install` again.
 - The hook runs in the background and cannot block or fail a commit. If the
-  index lags, check `cortex status`.
+  index lags, check `repocortex status`.
 - An existing hook is appended to, not replaced. `uninstall` removes only the
   RepoCortex block.
 
-**Useful flags:** `hooks install --binary <path>` sets which `cortex` the hook
+**Useful flags:** `hooks install --binary <path>` sets which `repocortex` the hook
 calls.
 
-### `cortex indexers`
+### `repocortex indexers`
 
 **Answers:** Which compiler-backed indexers (scip-go, scip-java,
 scip-typescript, scip-python) this project needs, and installs them on request.
 
 **Use it when:** You want `exact` answers instead of `high`.
 
-**Run:** `cortex indexers list`, `cortex indexers pins`, `cortex indexers install`
+**Run:** `repocortex indexers list`, `repocortex indexers pins`, `repocortex indexers install`
 
 **Output:**
 
 ```console
-$ cortex indexers list
+$ repocortex indexers list
 Accuracy mode: auto
 Toolchain:     java: openjdk version "25.0.2" 2026-01-20 LTS, mvn: present
 
@@ -453,13 +453,13 @@ java      scip-java  blocked  .
 
 scip-java: indexing Java runs the repository's own Maven or Gradle build, which executes arbitrary code from the repository; re-run with the explicit build opt-in, or set accuracy.indexers.runner to docker to run it in a container
 
-$ cortex indexers pins
+$ repocortex indexers pins
 scip-go	v0.2.7	go-install	github.com/scip-code/scip-go/cmd/scip-go@v0.2.7	-
 scip-java	0.12.2	docker	sourcegraph/scip-java@sha256:a05564b9c9951660fc7069b431f1a18f4575b570b7ce09a14936729832c1fc8d	sha256:a05564b9c9951660fc7069b431f1a18f4575b570b7ce09a14936729832c1fc8d
 scip-python	0.6.6	npm	@sourcegraph/scip-python@0.6.6	be8e0a1ec180423c60e9f2c2672c208f49a35ab690ac0f8f1259e4223dbd6e42
 scip-typescript	0.3.14	npm	@sourcegraph/scip-typescript@0.3.14	92a88678bcc021e7ff2afd0ab2684c1094344796840e582578aa4595020cc3f5
 
-$ cortex indexers install
+$ repocortex indexers install
 
   scip-java        skipped: indexing Java runs the repository's own Maven or Gradle build, which executes arbitrary code from the repository; re-run with the explicit build opt-in, or set accuracy.indexers.runner to docker to run it in a container
 ```
@@ -479,7 +479,7 @@ $ cortex indexers install
 **Useful flags:** `install --yes`; `install --allow-repo-build` (Java; runs code
 from the repository); `install --out-dir <dir>` keep the `.scip` files.
 
-### `cortex scip import`
+### `repocortex scip import`
 
 **Answers:** Loads a compiler-built `.scip` file and upgrades matching edges to
 `exact`.
@@ -487,11 +487,11 @@ from the repository); `install --out-dir <dir>` keep the `.scip` files.
 **Use it when:** CI or a local `scip-*` tool has already produced an index.
 
 **Run:** In a two-file Go module (`main.go` calls `store.Add` and
-`store.Balance`), after `cortex index && cortex resolve` and
+`store.Balance`), after `repocortex index && repocortex resolve` and
 `scip-go --output index.scip`:
 
 ```console
-$ cortex scip import index.scip
+$ repocortex scip import index.scip
 scip-go 0.2.7: 2 document(s), 2 matched
 symbols: 7 matched, 11 with no counterpart in the index
 edges:   4 new, 4 upgraded from heuristic, 1 already known
@@ -504,7 +504,7 @@ duration: 6ms
 After the import, `callers` reports the compiler as the source:
 
 ```console
-$ cortex callers Add
+$ repocortex callers Add
 Add (method) at store/store.go:7
 
 KIND   SYMBOL  EVIDENCE    CONFIDENCE
@@ -535,18 +535,18 @@ CALLS  credit  main.go:10  exact (compiler)
 
 ## Find and navigate
 
-### `cortex symbol`
+### `repocortex symbol`
 
 **Answers:** Where is a name defined?
 
 **Use it when:** You know the exact name of a class, method or function.
 
-**Run:** `cortex symbol TransactionService`
+**Run:** `repocortex symbol TransactionService`
 
 **Output:**
 
 ```console
-$ cortex symbol TransactionService
+$ repocortex symbol TransactionService
 KIND    NAME                LOCATION                                                  CONFIDENCE
 class   TransactionService  src/main/java/com/pay/service/TransactionService.java:6   high (source_code)
 method  TransactionService  src/main/java/com/pay/service/TransactionService.java:12  high (source_code)
@@ -561,22 +561,22 @@ method  TransactionService  src/main/java/com/pay/service/TransactionService.jav
 - `CONFIDENCE` here is about the extraction of the definition, not about any
   relationship.
 - Matching is exact and case-sensitive. For partial names, use
-  [`search`](#cortex-search). A miss prints an error and exits `1`.
+  [`search`](#repocortex-search). A miss prints an error and exits `1`.
 
 **Useful flags:** `--kind class|method|function|…`; `-n, --limit N`.
 
-### `cortex search`
+### `repocortex search`
 
 **Answers:** Which indexed files contain these words?
 
 **Use it when:** You know a word but not the symbol name.
 
-**Run:** `cortex search callback`
+**Run:** `repocortex search callback`
 
 **Output:**
 
 ```console
-$ cortex search callback
+$ repocortex search callback
 src/main/java/com/pay/controller/CallbackController.java
 src/test/java/com/pay/controller/CallbackControllerTest.java
 
@@ -589,22 +589,22 @@ src/test/java/com/pay/controller/CallbackControllerTest.java
 - Identifiers are split into parts, so `callback` matches `CallbackController`.
 - Binary, generated, oversized and excluded files are never searched. Missing
   from here does not mean missing from the repository.
-- Next step: `cortex symbol <Name>` for a definition, or open the file.
+- Next step: `repocortex symbol <Name>` for a definition, or open the file.
 
 **Useful flags:** `-n, --limit N` (default 20).
 
-### `cortex callers`
+### `repocortex callers`
 
 **Answers:** What calls this symbol?
 
 **Use it when:** Before you change a function's signature or behaviour.
 
-**Run:** `cortex callers updateStatus`
+**Run:** `repocortex callers updateStatus`
 
 **Output:**
 
 ```console
-$ cortex callers updateStatus
+$ repocortex callers updateStatus
 updateStatus (method) at src/main/java/com/pay/service/TransactionService.java:18
 
 KIND   SYMBOL          EVIDENCE                                                     CONFIDENCE
@@ -628,18 +628,18 @@ CALLS  handleCallback  src/main/java/com/pay/controller/CallbackController.java:
 
 **Exit codes:** `1` when no symbol has that name.
 
-### `cortex callees`
+### `repocortex callees`
 
 **Answers:** What does this symbol call?
 
 **Use it when:** You want to know what a function depends on.
 
-**Run:** `cortex callees updateStatus`
+**Run:** `repocortex callees updateStatus`
 
 **Output:**
 
 ```console
-$ cortex callees updateStatus
+$ repocortex callees updateStatus
 updateStatus (method) at src/main/java/com/pay/service/TransactionService.java:18
 
 KIND   SYMBOL               EVIDENCE                                                  CONFIDENCE
@@ -664,19 +664,19 @@ CALLS  send                 src/main/java/com/pay/service/TransactionService.jav
 
 **Useful flags:** `--path`, `--min-confidence`, `-n, --limit`.
 
-### `cortex references`
+### `repocortex references`
 
 **Answers:** Everything that points at a symbol: calls, imports,
 implementations, extensions.
 
 **Use it when:** `callers` is too narrow, for example for an interface or type.
 
-**Run:** `cortex references updateStatus` and `cortex references TransactionRepository --path TransactionRepository.java`
+**Run:** `repocortex references updateStatus` and `repocortex references TransactionRepository --path TransactionRepository.java`
 
 **Output:**
 
 ```console
-$ cortex references updateStatus
+$ repocortex references updateStatus
 updateStatus (method) at src/main/java/com/pay/service/TransactionService.java:18
 
 KIND   SYMBOL          EVIDENCE                                                     CONFIDENCE
@@ -684,7 +684,7 @@ CALLS  handleCallback  src/main/java/com/pay/controller/CallbackController.java:
 
 1 reference(s).
 
-$ cortex references TransactionRepository --path TransactionRepository.java
+$ repocortex references TransactionRepository --path TransactionRepository.java
 TransactionRepository (class) at src/main/java/com/pay/repository/TransactionRepository.java:3
 
 No references found.
@@ -713,18 +713,18 @@ Pass --path to choose another:
 
 ## Change safely
 
-### `cortex impact`
+### `repocortex impact`
 
 **Answers:** What does a range of commits put at risk?
 
 **Use it when:** Reviewing a branch or PR, or gating CI.
 
-**Run:** `cortex impact --base HEAD~1 --head HEAD`
+**Run:** `repocortex impact --base HEAD~1 --head HEAD`
 
 **Output:**
 
 ```console
-$ cortex impact --base HEAD~1 --head HEAD
+$ repocortex impact --base HEAD~1 --head HEAD
 Blast radius of HEAD~1..HEAD
 
 1 file changed; 7 changed symbols found in the index, 7 analysed.
@@ -778,25 +778,25 @@ WHAT THIS DOES NOT SAY
   because the change is safe.
 - If the index was built at neither end of the range, the output says
   `STALE INDEX`. Re-index first.
-- Next: `cortex who <symbol>` for reviewers, `cortex --json impact … > impact.json`
-  for [`report pr`](#cortex-report).
+- Next: `repocortex owners <symbol>` for reviewers, `repocortex --json impact … > impact.json`
+  for [`report pr`](#repocortex-report).
 
 **Useful flags:** `--base` (required), `--head` (default `HEAD`), `--depth N`,
 `--min-confidence` (default `medium`), `--limit N`.
 
-### `cortex plan-change`
+### `repocortex plan-change`
 
 **Answers:** An ordered plan for changing one symbol, with its callers and
 checks.
 
 **Use it when:** Before a refactor, or to hand a clear plan to an agent.
 
-**Run:** `cortex plan-change updateStatus`
+**Run:** `repocortex plan-change updateStatus`
 
 **Output:**
 
 ```console
-$ cortex plan-change updateStatus
+$ repocortex plan-change updateStatus
 RepoCortex Change Plan for updateStatus (method)
 Location:      src/main/java/com/pay/service/TransactionService.java:18
 Risk Level:    MODERATE (Score: 25/100)
@@ -821,13 +821,13 @@ Postconditions:
   scale from `impact`, which scores a whole commit range, so do not compare the
   two numbers.
 - `Execution Sequence` lists one step per direct caller, in order. Callers it
-  could not bind are not listed. Run `cortex search <name>` to catch them.
+  could not bind are not listed. Run `repocortex search <name>` to catch them.
 - Covering tests appear as extra steps when a test edge exists. None appear
   here because the test calls were not bound.
 
 **Useful flags:** `--min-confidence` (default `medium`).
 
-### `cortex rename`
+### `repocortex rename`
 
 **Answers:** Renames a symbol at its definition and every bound reference, and
 refuses if any site is not safe.
@@ -835,16 +835,16 @@ refuses if any site is not safe.
 **Use it when:** You want a mechanical rename you can trust, with a dry run
 first.
 
-**Run:** `cortex rename updateStatus applyStatus` (dry run), then with
+**Run:** `repocortex rename updateStatus applyStatus` (dry run), then with
 `--floor high`. Finally `--apply` in the Go sample.
 
 **Output:**
 
 ```console
-$ cortex rename updateStatus applyStatus
+$ repocortex rename updateStatus applyStatus
 Rename updateStatus -> applyStatus  (src/main/java/com/pay/service/TransactionService.java:updateStatus, src/main/java/com/pay/service/TransactionService.java:18)
 REFUSED: nothing was written. Every site must be exact or better, unambiguous on its line, and unchanged since indexing.
-  High sites need a compiler-backed index to become exact ('cortex indexers install', then 'cortex scip import'), or an explicit --floor high (measured 86.8-96.1% precise).
+  High sites need a compiler-backed index to become exact ('repocortex indexers install', then 'repocortex scip import'), or an explicit --floor high (measured 86.8-96.1% precise).
 
 SITES
   high  src/main/java/com/pay/controller/CallbackController.java:23  CALLS
@@ -858,7 +858,7 @@ NOT COMPLETE: RepoCortex renames the definition and the references it resolved, 
 ```
 
 ```console
-$ cortex rename updateStatus applyStatus --floor high
+$ repocortex rename updateStatus applyStatus --floor high
 Rename updateStatus -> applyStatus  (…)
 WARNING --floor high: `high` bindings measure 86.8-96.1% precision against compiler indexes (docs/accuracy.md); at 90%, a rename touching thirty sites gets three wrong. Read every high site below, then build and test.
 DRY RUN: nothing was written. Re-run with --apply to make these edits.
@@ -876,7 +876,7 @@ LEFTOVER OCCURRENCES (2 line(s) still name updateStatus; showing 2)
 ```
 
 ```console
-$ cortex rename credit creditAccount --floor high --apply     # Go sample
+$ repocortex rename credit creditAccount --floor high --apply     # Go sample
 WARNING --floor high: …
 Rename credit -> creditAccount  (main.go:credit, main.go:9)
 APPLIED to 1 file(s).
@@ -885,10 +885,10 @@ SITES
   high   main.go:9   DEFINITION
   exact  main.go:15  CALLS
 
-VERIFY: PASS  (contract: /work/ledger-go/.cortex/rename-contract.json)
+VERIFY: PASS  (contract: /work/ledger-go/.repocortex/rename-contract.json)
   [UNKNOWN] The repository declares no architecture, so there was no rule for this change to break. …
   [UNKNOWN] The contract names no covering test, so for the 1 changed scope symbol(s) there is nothing to check coverage against. …
-  Checked against the pre-rename index; run 'cortex index' to refresh it.
+  Checked against the pre-rename index; run 'repocortex index' to refresh it.
 …
 ```
 
@@ -913,18 +913,18 @@ VERIFY: PASS  (contract: /work/ledger-go/.cortex/rename-contract.json)
 **Exit codes:** `0` would apply or applied and verified; `1` error or verify
 failed; `2` refused; `3` applied but leftovers remain or verify could not run.
 
-### `cortex who`
+### `repocortex owners`
 
 **Answers:** Who has recently touched the code a change to this symbol reaches?
 
 **Use it when:** Choosing reviewers, or finding someone to ask.
 
-**Run:** `cortex who updateStatus`
+**Run:** `repocortex owners updateStatus`
 
 **Output:**
 
 ```console
-$ cortex who updateStatus
+$ repocortex owners updateStatus
 updateStatus  src/main/java/com/pay/service/TransactionService.java:18
 src/main/java/com/pay/service/TransactionService.java:updateStatus
 
@@ -964,7 +964,7 @@ WHAT THIS DOES NOT SAY
 **Useful flags:** `--depth N`, `--commits N` (history window), `--limit N`,
 `--min-confidence`.
 
-### `cortex diff`
+### `repocortex diff`
 
 **Answers:** Which facts changed between two index runs: symbols, edges,
 endpoints, table readers and writers.
@@ -976,7 +976,7 @@ between a release and now.
 the head run is the current index.
 
 ```console
-$ cortex diff --from-index ../base-index.db --from b407474 --to eae0f8a
+$ repocortex diff --from-index ../base-index.db --from b407474 --to eae0f8a
 diff b4074746b182a763ac350782c6557ebf2b4ed523..eae0f8a662b912761434ed4a606c74d33f111471 (runs 2..3)
   base: status=ready accuracy=auto digest=6c0f8a7a0b46
   head: status=ready accuracy=auto digest=16b98160bf1a
@@ -993,7 +993,7 @@ EDGES
 
 COULD NOT COMPARE
   - 7 files did not parse cleanly in one of the runs; changes inside them are marked uncertain
-    unreliable: .cortex.yml
+    unreliable: .repocortex.yml
     unreliable: Dockerfile
     unreliable: README.md
     unreliable: docker-compose.yml
@@ -1005,10 +1005,10 @@ COULD NOT COMPARE
 A ref that matches no run:
 
 ```console
-$ cortex diff --from 1 --to 3
-error: no indexed run matches "1": nothing in /work/payment-platform/.cortex/index.db was indexed at that ref.
-No run carries that id and no recorded commit SHA starts with it. Index the commit you meant ('git checkout <sha> && cortex index') and diff the run it produces.
-runs recorded in /work/payment-platform/.cortex/index.db:
+$ repocortex diff --from 1 --to 3
+error: no indexed run matches "1": nothing in /work/payment-platform/.repocortex/index.db was indexed at that ref.
+No run carries that id and no recorded commit SHA starts with it. Index the commit you meant ('git checkout <sha> && repocortex index') and diff the run it produces.
+runs recorded in /work/payment-platform/.repocortex/index.db:
   run 3  rev eae0f8a662b912761434ed4a606c74d33f111471  status ready  (committed)
 ```
 
@@ -1037,19 +1037,19 @@ runs recorded in /work/payment-platform/.cortex/index.db:
 
 ## Across the stack
 
-### `cortex api`
+### `repocortex api`
 
 **Answers:** Which HTTP routes does this service expose, and which handler
 serves each?
 
 **Use it when:** Mapping a service, or before changing a handler.
 
-**Run:** `cortex api`
+**Run:** `repocortex api`
 
 **Output:**
 
 ```console
-$ cortex api
+$ repocortex api
 METHOD & PATH           HANDLER         DECLARED AT
 POST /payment/callback  handleCallback  src/main/java/com/pay/controller/CallbackController.java:21
 
@@ -1065,27 +1065,27 @@ POST /payment/callback  handleCallback  src/main/java/com/pay/controller/Callbac
   nothing about your service.
 - Django routes are `medium` confidence because the `include()` prefix is not
   visible from one file.
-- Next: `cortex callees <handler>` to follow the request.
+- Next: `repocortex callees <handler>` to follow the request.
 
-### `cortex db`
+### `repocortex db`
 
 **Answers:** Which tables does the code read or write, and how often?
 
 **Use it when:** Before changing a table or column.
 
-**Run:** `cortex db`, then `cortex db table transactions` and `cortex db table transaction_events`
+**Run:** `repocortex db`, then `repocortex db table transactions` and `repocortex db table transaction_events`
 
 **Output:**
 
 ```console
-$ cortex db
+$ repocortex db
 TABLE               READS  WRITES  DECLARED HERE
 transactions        1      1       yes
 transaction_events  0      1       yes
 
 2 table(s).
 
-$ cortex db table transactions
+$ repocortex db table transactions
 transactions (declared in this repository)
 
 WRITTEN BY (1)
@@ -1094,7 +1094,7 @@ WRITTEN BY (1)
 READ BY (1)
   findById (src/main/java/com/pay/repository/TransactionRepository.java)  src/main/java/com/pay/repository/TransactionRepository.java:14  high (SELECT (literal SQL))
 
-$ cortex db table transaction_events
+$ repocortex db table transaction_events
 transaction_events (declared in this repository)
 
 WRITTEN BY (1)
@@ -1114,28 +1114,28 @@ READ BY (0)
   string; ORM access shows its own label.
 - A table written but never read here (like `transaction_events`) is normal for
   audit tables. A table read but never written here usually belongs to another
-  service; check with [`system`](#cortex-system).
+  service; check with [`system`](#repocortex-system).
 
-### `cortex config`
+### `repocortex config`
 
 **Answers:** Which config keys are read but never declared, and which are
 declared but never read?
 
 **Use it when:** A service fails at start-up, or before deleting config.
 
-**Run:** `cortex config`, then `cortex config --all`
+**Run:** `repocortex config`, then `repocortex config --all`
 
 **Output:**
 
 ```console
-$ cortex config
+$ repocortex config
 READ BUT NOT DECLARED (1) — a service that needs these and finds nothing fails at start-up
   payment.events.topic-prefix  1 reader(s)  
 
 35 key(s) total: 34 declared and never read, 5 labelled sensitive by name.
 Pass --all for the full inventory.
 
-$ cortex config --all
+$ repocortex config --all
 READ BUT NOT DECLARED (1) — a service that needs these and finds nothing fails at start-up
   payment.events.topic-prefix  1 reader(s)  
 
@@ -1144,7 +1144,7 @@ payment.events.topic-prefix                            1        (not declared)
 PAYMENT_CALLBACK_SECRET                                0        docker-compose.yml:7                   sensitive (by name)
 POSTGRES_PASSWORD                                      0        docker-compose.yml:16                  sensitive (by name)
 SPRING_DATASOURCE_URL                                  0        docker-compose.yml:8                   
-architecture                                           0        .cortex.yml:1                          
+architecture                                           0        .repocortex.yml:1                          
 …
 payment.callback.secret                                0        src/main/resources/application.yml:3   sensitive (by name)
 …
@@ -1159,26 +1159,26 @@ spring.datasource.url                                  0        src/main/resourc
   reads a key no file declares, so the service will fail to start unless the
   environment supplies it.
 - **Declared and never read** is mostly noise on real projects: parent YAML
-  keys, Compose keys and even `.cortex.yml` are counted. Use it as a list to
+  keys, Compose keys and even `.repocortex.yml` are counted. Use it as a list to
   scan, not to delete from.
 - `SENSITIVE` is decided from the key name only. Values are never read.
 - Kubernetes, Helm, Terraform and CI files are not read here; use
-  [`infra`](#cortex-infra) for those.
+  [`infra`](#repocortex-infra) for those.
 
 **Useful flags:** `--all`.
 
-### `cortex events`
+### `repocortex events`
 
 **Answers:** Which message topics exist, and who publishes and consumes each?
 
 **Use it when:** Changing an event payload or a listener.
 
-**Run:** `cortex events`, then `cortex events topic payment.status-changed`
+**Run:** `repocortex events`, then `repocortex events topic payment.status-changed`
 
 **Output:**
 
 ```console
-$ cortex events
+$ repocortex events
 Supported event brokers: Kafka, RabbitMQ, AWS SQS/SNS, GCP Pub/Sub
 
 BROKER  TOPIC                   PRODUCERS  CONSUMERS  FQN
@@ -1186,7 +1186,7 @@ kafka   payment.status-changed  1          1          event:kafka:payment.status
 
 1 event topic(s) discovered.
 
-$ cortex events topic payment.status-changed
+$ repocortex events topic payment.status-changed
 Topic:  payment.status-changed
 Broker: kafka
 FQN:    event:kafka:payment.status-changed
@@ -1209,19 +1209,19 @@ Consumers (1):
   example from the unread `topic-prefix` key) is not seen.
 - `FQN` is the graph id; use it with `export` or `jq`.
 
-### `cortex infra`
+### `repocortex infra`
 
 **Answers:** Which services, ports and config keys do the Dockerfiles, Compose,
 Kubernetes, Helm and Terraform files declare? Which service does a file run in?
 
 **Use it when:** You need to know what restarts when you change code or a key.
 
-**Run:** `cortex infra`, `cortex infra --for <file>`, `cortex infra --key <NAME>`
+**Run:** `repocortex infra`, `repocortex infra --for <file>`, `repocortex infra --key <NAME>`
 
 **Output:**
 
 ```console
-$ cortex infra
+$ repocortex infra
 2 manifest(s), 3 unit(s), 4 configuration key(s) (3 sensitive by name or source).
 
 Dockerfile  [dockerfile]
@@ -1234,12 +1234,12 @@ docker-compose.yml  [compose]
 No configuration VALUE was read to produce this report: key names, their source and their location only.
 Read from the index. Try --for <path> for the service a file runs in, or --key <NAME> for what changing a key restarts.
 
-$ cortex infra --for src/main/java/com/pay/service/TransactionService.java
+$ repocortex infra --for src/main/java/com/pay/service/TransactionService.java
 src/main/java/com/pay/service/TransactionService.java runs in:
 
   payments  service  (built from source)  build context   docker-compose.yml:2
 
-$ cortex infra --key PAYMENT_CALLBACK_SECRET
+$ repocortex infra --key PAYMENT_CALLBACK_SECRET
 Changing PAYMENT_CALLBACK_SECRET restarts 2 unit(s):
 
   stage1    stage    Dockerfile:1
@@ -1263,18 +1263,18 @@ This key is a credential by name or by source. Its VALUE was never read and is n
 **Useful flags:** `--for <path>`, `--key <NAME>`, `--keys`, `--format compose|kubernetes|…`,
 `--disk` (scan files directly, no index needed).
 
-### `cortex deps`
+### `repocortex deps`
 
 **Answers:** Which declared dependencies are never imported?
 
 **Use it when:** Cleaning up a manifest, or checking what a scanner should look at.
 
-**Run:** `cortex deps`, then `cortex deps --all`
+**Run:** `repocortex deps`, then `repocortex deps --all`
 
 **Output:**
 
 ```console
-$ cortex deps --all
+$ repocortex deps --all
 DECLARED BUT NOT IMPORTED (4)
   org.apache.commons:commons-lang3                  3.17.0  runtime  pom.xml:22
   org.postgresql:postgresql                         42.7.4  runtime  pom.xml:17
@@ -1305,7 +1305,7 @@ org.springframework.kafka:spring-kafka            3.2.4    maven      runtime  n
 
 **Useful flags:** `--all`.
 
-### `cortex trace`
+### `repocortex trace`
 
 **Answers:** Which indexed endpoints and symbols did a recorded trace actually
 reach?
@@ -1320,7 +1320,7 @@ one `POST /payment/callback` server span with `http.route`, one child span with
 **Output:**
 
 ```console
-$ cortex trace ../trace.json
+$ repocortex trace ../trace.json
 otlp-json: 3 span(s) across 1 trace(s), service(s): payments
 
 EXERCISED (1)
@@ -1349,7 +1349,7 @@ That means the correlation is weak here, not that the code is absent: most servi
   calling one dead.
 - Spans are not stored in the index.
 
-### `cortex system`
+### `repocortex system`
 
 **Answers:** Which HTTP calls cross between repositories, and which tables do
 several repositories share?
@@ -1362,7 +1362,7 @@ call it.
 `fetch("/receipts")`, each indexed on its own:
 
 ```console
-$ cortex system --member payments=payment-platform/.cortex/index.db --member web=checkout-web/.cortex/index.db
+$ repocortex system --member payments=payment-platform/.repocortex/index.db --member web=checkout-web/.repocortex/index.db
 SYSTEM: 2 member repositories, 2 readable
   MEMBER    REVISION    INDEXED  ENDPOINTS  OUTBOUND  TABLES
   payments  eae0f8a662  0h ago   1          0         2
@@ -1420,16 +1420,16 @@ unreadable, so the report is incomplete.
 
 ## Quality and governance
 
-### `cortex arch`
+### `repocortex arch`
 
 **Answers:** Does the call and data graph break the architecture rules declared
-in `.cortex.yml`?
+in `.repocortex.yml`?
 
 **Use it when:** In CI, and when reviewing a change that crosses layers.
 
-**Run:** `cortex arch`, `cortex arch --crossings`, `cortex arch --fail-on medium`, `cortex arch adr`
+**Run:** `repocortex arch`, `repocortex arch --crossings`, `repocortex arch --fail-on medium`, `repocortex arch adr`
 
-The `.cortex.yml` used declares `controller`, `service`, `repository` and
+The `.repocortex.yml` used declares `controller`, `service`, `repository` and
 `notification` components and two rules: controllers must not depend on
 repositories (high), and services must not call notification code directly
 (medium).
@@ -1437,7 +1437,7 @@ repositories (high), and services must not call notification code directly
 **Output:**
 
 ```console
-$ cortex arch --crossings
+$ repocortex arch --crossings
 VIOLATIONS (1)
   SEVERITY  RULE                             CROSSING                                        EVIDENCE                                                  CONFIDENCE
   medium    services-do-not-notify-directly  service -> notification (updateStatus -> send)  src/main/java/com/pay/service/TransactionService.java:25  high
@@ -1461,14 +1461,14 @@ COMPONENTS
 
 Confidence is the confidence of the RELATIONSHIP, not of the rule. A violation on a low-confidence edge is a lead; one on a compiler-proven edge is a fact.
 
-$ cortex arch adr 1
+$ repocortex arch adr 1
 ADR   STATUS    TITLE                                  FILE
 0001  accepted  Record status changes as audit events  docs/adr/0001-record-status-changes-as-events.md
 
 Support needs a history of every status change on a transaction.
 ```
 
-With no `architecture:` block, `cortex arch` prints `No architecture declared.`
+With no `architecture:` block, `repocortex arch` prints `No architecture declared.`
 and how to add one.
 
 **How to read it:**
@@ -1494,7 +1494,7 @@ and how to add one.
 **Exit codes:** with `--fail-on`, `1` when a violation at or above that
 severity exists (the `--fail-on medium` run above exited `1`), otherwise `0`.
 
-### `cortex missed`
+### `repocortex blindspots`
 
 **Answers:** Where is the index blind: unbound calls, untested hot spots,
 routes without handlers, orphan tables, undeclared config, files that did not
@@ -1502,12 +1502,12 @@ parse?
 
 **Use it when:** Before trusting an empty answer, and in CI.
 
-**Run:** `cortex missed`, `cortex missed --kind missing_config`
+**Run:** `repocortex blindspots`, `repocortex blindspots --kind missing_config`
 
 **Output:**
 
 ```console
-$ cortex missed
+$ repocortex blindspots
 RepoCortex Blindspot Report (Run 4)
 Total Blindspots: 43
 
@@ -1524,7 +1524,7 @@ Top Actionable Findings:
   -> Remediation: Verify import paths or install SCIP indexer for full external library binding.
 ... and 23 more items (use --json or --limit to inspect all)
 
-$ cortex missed --kind missing_config
+$ repocortex blindspots --kind missing_config
 RepoCortex Blindspot Report (Run 3)
 Total Blindspots: 1
 
@@ -1554,7 +1554,7 @@ Top Actionable Findings:
 **Exit codes:** with `--fail-on`, `1` when a finding at or above that severity
 exists.
 
-### `cortex accuracy`
+### `repocortex accuracy`
 
 **Answers:** How often are this repository's `high`, `medium` and `low` call
 edges right, and how many calls do they miss, compared with a compiler index?
@@ -1567,12 +1567,12 @@ edges right, and how many calls do they miss, compared with a compiler index?
 **Output:**
 
 ```console
-$ cortex accuracy                 # payment sample, no SCIP import
+$ repocortex accuracy                 # payment sample, no SCIP import
 RESOLUTION ACCURACY
 Not measured. No call site in this index could be adjudicated: it holds no
 compiler facts, or none of them landed on a line the parser saw a call on.
 Nothing here — including every language listed below — has been checked
-against a compiler. Run 'cortex scip import <index.scip>' first.
+against a compiler. Run 'repocortex scip import <index.scip>' first.
 
 LANGUAGES
   LANGUAGE  FILES  CALL SITES  CALLS EDGES  COMPILER FACTS  ADJUDICATED  STATUS
@@ -1580,7 +1580,7 @@ LANGUAGES
 ```
 
 ```console
-$ cortex accuracy                 # Go sample, after scip import
+$ repocortex accuracy                 # Go sample, after scip import
 RESOLUTION ACCURACY
   Recall is computed ONLY over call sites: …
 
@@ -1625,19 +1625,19 @@ WHAT THIS IS NOT
 - The `HOW TO READ IT` line about `--min-confidence high` tells you whether
   filtering to `high` loses many calls.
 - `doctor --resolution-precision` reports a related precision-only number per
-  edge; see [`doctor`](#cortex-doctor).
+  edge; see [`doctor`](#repocortex-doctor).
 
 **Exit codes:** `0`. The exit code does not depend on the numbers; gate on
 `--json` fields instead.
 
-### `cortex bench`
+### `repocortex bench`
 
 **Answers:** Does `context` return the code a human says a task needs, and
 leave out what it should not?
 
-**Use it when:** Tuning `.cortex.yml`, or guarding context quality in CI.
+**Use it when:** Tuning `.repocortex.yml`, or guarding context quality in CI.
 
-**Run:** `cortex bench ../cases.yml` with two cases:
+**Run:** `repocortex bench ../cases.yml` with two cases:
 
 ```yaml
 - id: idempotent-callback
@@ -1654,7 +1654,7 @@ leave out what it should not?
 **Output:**
 
 ```console
-$ cortex bench ../cases.yml
+$ repocortex bench ../cases.yml
 CASE                 RESULT  RECALL  TOKENS  MISSING
 audit-events         pass    100%    1872    —
 idempotent-callback  pass    100%    2741    —
@@ -1677,25 +1677,25 @@ idempotent-callback  pass    100%    2741    —
 
 **Exit codes:** with `--fail-on-regression`, `1` when any case fails.
 
-### `cortex doctor`
+### `repocortex doctor`
 
 **Answers:** Is the environment healthy and is the index internally
 consistent?
 
 **Use it when:** Something looks wrong, or as a CI step after indexing.
 
-**Run:** `cortex doctor --verify-index`, `cortex doctor --resolution-precision`
+**Run:** `repocortex doctor --verify-index`, `repocortex doctor --resolution-precision`
 
 **Output:**
 
 ```console
-$ cortex doctor --verify-index
+$ repocortex doctor --verify-index
 [ok  ]  go runtime                go1.26.11 darwin/amd64
 [ok  ]  sqlite                    3.53.3
 [ok  ]  fts5                      ENABLE_FTS5 present
 [ok  ]  user config               using defaults (no user config)
 [ok  ]  repo config               none
-[ok  ]  index                     /work/payment-platform/.cortex/index.db
+[ok  ]  index                     /work/payment-platform/.repocortex/index.db
 [ok  ]  dangling edges            none
 [ok  ]  orphaned symbols          none
 [ok  ]  unproven exact edges      none
@@ -1709,7 +1709,7 @@ $ cortex doctor --verify-index
 ```
 
 ```console
-$ cortex doctor --resolution-precision      # Go sample, after scip import
+$ repocortex doctor --resolution-precision      # Go sample, after scip import
 …
 RESOLUTION PRECISION
   ! Only 4 edge(s) were judged. The percentages are arithmetic on a small
@@ -1730,7 +1730,7 @@ HOW TO READ IT
 
 - Each line is `[status] check detail`. Anything other than `ok` needs action;
   the detail says what.
-- `repo config` shows whether `.cortex.yml` was found. It can only change
+- `repo config` shows whether `.repocortex.yml` was found. It can only change
   indexing settings, never what runs.
 - `--verify-index` adds graph checks. `unproven exact edges` must always be
   `none`: an `exact` edge without compiler evidence would be a bug.
@@ -1742,19 +1742,19 @@ HOW TO READ IT
 **Exit codes:** The precision numbers never change the exit code. Use `--json`
 (the `resolution_precision` field) to gate on them.
 
-### `cortex languages`
+### `repocortex languages`
 
 **Answers:** What can RepoCortex do for each language?
 
 **Use it when:** Before judging results on a language you have not used it
 with.
 
-**Run:** `cortex languages`
+**Run:** `repocortex languages`
 
 **Output:**
 
 ```console
-$ cortex languages
+$ repocortex languages
 TIER      COUNT  WHAT YOU GET
 typed     3      definitions, imports, receiver and arity discrimination — references can reach 'high'
 resolved  11     definitions and imports — references bind across files
@@ -1779,21 +1779,21 @@ resolved: [c c_sharp cpp javascript kotlin php python ruby rust scala tsx]
 
 ## Agents
 
-### `cortex serve`
+### `repocortex serve`
 
 **Answers:** Runs the MCP server on stdin and stdout so an AI agent can query
 the index.
 
 **Use it when:** An agent launches it; you rarely run it by hand.
 
-**Run:** `cortex serve --list-tools`, then one real MCP exchange piped to
-`cortex serve`: `initialize`, then `tools/call` for `find_callers` with
+**Run:** `repocortex serve --list-tools`, then one real MCP exchange piped to
+`repocortex serve`: `initialize`, then `tools/call` for `find_callers` with
 `{"name": "updateStatus"}`.
 
 **Output:**
 
 ```console
-$ cortex serve --list-tools
+$ repocortex serve --list-tools
 MCP profile "minimal" exposes 7 tool(s):
   get_project_overview
   search_code
@@ -1827,8 +1827,8 @@ time=… level=INFO msg="serving MCP on stdio" project=payment-platform profile=
 
 **How to read it:**
 
-- `--list-tools` shows what the agent will see. To add `impact_analysis` and
-  `find_tests`, set `mcp.profile: standard` (or `full`) in `.cortex.yml`.
+- `--list-tools` shows what the agent will see. To add `analyze_impact` and
+  `find_tests`, set `mcp.profile: standard` (or `full`) in `.repocortex.yml`.
 - Each tool result starts with a metadata block: the count, index revision,
   a `note` on how much is unbound, a `verdict` (strong or weak, with counts per
   confidence), and a `next_step` for the agent.
@@ -1843,62 +1843,62 @@ With `--http`, for clients that only connect to a URL, stderr shows the endpoint
 and how to send the token instead:
 
 ```console
-$ cortex serve --http 127.0.0.1:7788
+$ repocortex serve --http 127.0.0.1:7788
 MCP over HTTP: http://127.0.0.1:7788/mcp
-Token: new for this run, in /path/to/repo/.cortex/mcp-token (set CORTEX_MCP_TOKEN to keep one)
+Token: new for this run, in /path/to/repo/.repocortex/mcp-token (set REPOCORTEX_MCP_TOKEN to keep one)
 Send it as 'Authorization: Bearer <token>', or use http://127.0.0.1:7788/mcp/<token> if the client cannot set headers.
 ```
 
 - A request without the token gets `401`; a `Host` or `Origin` that is not this
   machine (or a host given with `--allowed-host`) gets `403`.
-- The token itself is never printed. A generated one is in `.cortex/mcp-token`,
-  readable only by you; with `CORTEX_MCP_TOKEN` set the line reads
-  `Token: from CORTEX_MCP_TOKEN`.
+- The token itself is never printed. A generated one is in `.repocortex/mcp-token`,
+  readable only by you; with `REPOCORTEX_MCP_TOKEN` set the line reads
+  `Token: from REPOCORTEX_MCP_TOKEN`.
 
 **Useful flags:** `--list-tools`, `--http`, `--allow-remote`, `--allowed-host`.
 
-### `cortex agent`
+### `repocortex agent`
 
 **Answers:** Prints the MCP registration line and the guidance text an agent
 needs, and checks what is already wired up.
 
 **Use it when:** Connecting an agent by hand.
 
-**Run:** `cortex agent --check`, then `cortex agent`
+**Run:** `repocortex agent --check`, then `repocortex agent`
 
 **Output:**
 
 ```console
-$ cortex agent --check
+$ repocortex agent --check
 [ok  ]  index             revision 3 — 18 files, 105 symbols, 37 relationships
 [ok  ]  resolution        68% of the 31 references that name something this index defines are bound (32 matched nothing here)
 [ok  ]  mcp tools         profile "minimal" exposes 7: get_project_overview, search_code, find_symbol, get_symbol, find_references, find_callers, get_task_context
-                            means: impact_analysis and find_tests are not exposed on this profile; the guidance falls back to find_callers
-                            do:    set mcp.profile: standard in .cortex.yml (or .cortex.yml) to add them
+                            means: analyze_impact and find_tests are not exposed on this profile; the guidance falls back to find_callers
+                            do:    set mcp.profile: standard in .repocortex.yml (or .repocortex.yml) to add them
 [warn]  mcp registration  not in this repository's .mcp.json
                             means: no project-scope registration; a user- or local-scope one is not visible from here
-                            do:    cortex agent, and run the 'claude mcp add' line it prints
+                            do:    repocortex agent, and run the 'claude mcp add' line it prints
 [warn]  guidance          not found in CLAUDE.md or AGENTS.md
                             means: the agent has the tools but no rule telling it when to use them, so it will keep grepping
-                            do:    cortex agent --guidance >> CLAUDE.md
+                            do:    repocortex agent --guidance >> CLAUDE.md
 [warn]  plugin manifest   .claude-plugin/plugin.json absent
                             means: this repository cannot be installed as a Claude Code plugin; the one-line registration still works
                             do:    not required — see docs/agent-integration.md
 ```
 
 ```console
-$ cortex agent
+$ repocortex agent
 RepoCortex agent integration for "payment-platform"
 
 1. Register the MCP server.
 
    Claude Code, one line:
 
-     claude mcp add cortex -- cortex --project /work/payment-platform serve
+     claude mcp add repocortex -- repocortex --project /work/payment-platform serve
    …
    Any other MCP client, over stdio:
 
-     command  cortex
+     command  repocortex
      args     --project /work/payment-platform serve
      transport stdio
 
@@ -1906,13 +1906,13 @@ RepoCortex agent integration for "payment-platform"
 
 2. Give the agent the guidance below — …
 
-     cortex agent --guidance >> CLAUDE.md
+     repocortex agent --guidance >> CLAUDE.md
 
 3. Confirm it landed:
 
-     cortex agent --check
+     repocortex agent --check
 
-<!-- cortex:guidance -->
+<!-- repocortex:guidance -->
 ## RepoCortex
 
 RepoCortex serves a resolved index of this repository over MCP. For questions
@@ -1920,7 +1920,7 @@ about code that already exists, prefer it to grep and to opening files.
 
 - Before changing code, call `get_task_context` with the task in plain English.
 …
-<!-- /cortex:guidance -->
+<!-- /repocortex:guidance -->
 ```
 
 **How to read it:**
@@ -1928,8 +1928,8 @@ about code that already exists, prefer it to grep and to opening files.
 - `--check` prints one line per piece: `ok` or `warn`, then `means:` (why it
   matters) and `do:` (the exact fix). `warn` is the normal starting state, not a
   failure.
-- `cortex agent` prints three numbered steps. Step 1 is the registration
-  command, step 2 the guidance block (between the `cortex:guidance` markers),
+- `repocortex agent` prints three numbered steps. Step 1 is the registration
+  command, step 2 the guidance block (between the `repocortex:guidance` markers),
   step 3 the check.
 - The command changes nothing. `--write <path>` writes the guidance to a new
   file and refuses to overwrite one unless you add `--force`.
@@ -1938,19 +1938,19 @@ about code that already exists, prefer it to grep and to opening files.
 
 **Exit codes:** `--check` exits `0` unless something is actually broken.
 
-### `cortex install`
+### `repocortex install`
 
 **Answers:** Writes the MCP registration into the config of every agent client
 it finds on this machine.
 
 **Use it when:** You want one command to connect all your agents.
 
-**Run:** `cortex install --dry-run`, and `cortex install --list` to see every supported agent
+**Run:** `repocortex install --dry-run`, and `repocortex install --list` to see every supported agent
 
 **Output:**
 
 ```console
-$ cortex install --dry-run
+$ repocortex install --dry-run
 would update  Antigravity                  ~/.gemini/config/mcp_config.json
 would update  Claude Code                  ~/.claude.json
 would update  Claude Desktop               ~/Library/Application Support/Claude/claude_desktop_config.json
@@ -1972,7 +1972,7 @@ Nothing was written. Run without --dry-run to apply.
 - Every other server and setting in those files is kept. Each agent gets the
   shape its own documentation specifies (`mcpServers`, `servers`,
   `context_servers`, a Codex TOML table, a Goose YAML extension, and so on).
-- `cortex install --list` shows all supported agents, which are detected here,
+- `repocortex install --list` shows all supported agents, which are detected here,
   the exact file each one uses, and the manual step for agents that are
   configured through their own command or settings screen.
 - Agents without detection are skipped; `--create` writes them anyway.
@@ -1981,7 +1981,7 @@ Nothing was written. Run without --dry-run to apply.
 not detected), `--rules` (add guidance to `AGENTS.md` and to any agent
 instruction file the project already has).
 
-### `cortex context`
+### `repocortex context`
 
 **Answers:** Which files, symbols, tables, config and tests a plain-English
 task touches, ranked and sized for an agent.
@@ -1989,14 +1989,14 @@ task touches, ranked and sized for an agent.
 **Use it when:** Starting a task, or checking why an agent was given what it
 was given.
 
-**Run:** `cortex context "Add idempotency to payment callback processing" --show-excluded`
+**Run:** `repocortex context "Add idempotency to payment callback processing" --show-excluded`
 
 **Output:** (rows and the `WHY` column are shortened, so the columns were
 re-aligned; every row after the first five ends with the same "source
 withheld" note.)
 
 ```console
-$ cortex context "Add idempotency to payment callback processing" --show-excluded
+$ repocortex context "Add idempotency to payment callback processing" --show-excluded
 Task: Add idempotency to payment callback processing
 Understood as: Concepts: callback, idempotency, payment, processing, add; action: add. Anchored on 15 symbols named by the task (PAYMENT_CALLBACK_SECRET, services.payments.environment.PAYMENT_CALLBACK_SECRET, POST /payment/callback, payment.callback, payment.callback.secret, …); expanded to 42 reachable symbols in the call graph
 
@@ -2043,7 +2043,7 @@ Excluded (1):
 **Useful flags:** `--show-excluded`, `--max-files N`, `--max-symbols N`,
 `--max-lines N`.
 
-### `cortex compile`
+### `repocortex compile`
 
 **Answers:** Turns a one-line request into a task contract: scope, out of
 scope, constraints, risks and unknowns, each with evidence.
@@ -2051,12 +2051,12 @@ scope, constraints, risks and unknowns, each with evidence.
 **Use it when:** Before handing a task to an agent, and to produce the input
 for `verify`.
 
-**Run:** `cortex compile "Add idempotency to payment callback processing"`
+**Run:** `repocortex compile "Add idempotency to payment callback processing"`
 
 **Output:** (long `source withheld` notes are cut with `…`.)
 
 ```console
-$ cortex compile "Add idempotency to payment callback processing"
+$ repocortex compile "Add idempotency to payment callback processing"
 # Task Contract
 
 ## Intent
@@ -2118,11 +2118,11 @@ Add idempotency to payment callback processing.
   `TransactionService` out of the 12-entry scope in favour of config keys, so a
   change there will show as "neither in scope nor out of scope" in `verify`.
   Raise `--max-scope` when that happens.
-- Save it with `cortex --json compile "…" > contract.json` for `verify`.
+- Save it with `repocortex --json compile "…" > contract.json` for `verify`.
 
 **Useful flags:** `--max-scope N`.
 
-### `cortex verify`
+### `repocortex verify`
 
 **Answers:** Did a change stay inside its task contract, respect the declared
 rules, reach every flagged caller, and keep its tests?
@@ -2132,8 +2132,8 @@ rules, reach every flagged caller, and keep its tests?
 **Run:**
 
 ```console
-$ cortex --json compile "Add idempotency to payment callback processing" > contract.json
-$ cortex verify --contract contract.json --changed src/main/java/com/pay/service/TransactionService.java
+$ repocortex --json compile "Add idempotency to payment callback processing" > contract.json
+$ repocortex verify --contract contract.json --changed src/main/java/com/pay/service/TransactionService.java
 VERIFY: ADVISORY
 
 [LEAD] src/main/java/com/pay/service/TransactionService.java violates architecture rule services-do-not-notify-directly: updateStatus (service) calls send (notification).
@@ -2148,7 +2148,7 @@ UNKNOWN
 Adding an edit to an out-of-scope file:
 
 ```console
-$ cortex verify --contract contract.json --changed src/main/java/com/pay/service/TransactionService.java,unrelated/marketing/MarketingReport.java
+$ repocortex verify --contract contract.json --changed src/main/java/com/pay/service/TransactionService.java,unrelated/marketing/MarketingReport.java
 VERIFY: FAIL
 
 [FACT] unrelated/marketing/MarketingReport.java was edited, and the contract listed it as out of scope.
@@ -2174,19 +2174,19 @@ VERIFY: FAIL
 **Exit codes:** `0` pass or advisory; `1` fail; `2` unverified. With
 `--fail-on-leads`, advisory also exits non-zero.
 
-### `cortex prune`
+### `repocortex outline`
 
 **Answers:** The file with method bodies removed, keeping signatures, types and
 doc comments.
 
 **Use it when:** Giving an agent the shape of a large file without its bodies.
 
-**Run:** `cortex prune src/main/java/com/pay/service/TransactionService.java`
+**Run:** `repocortex outline src/main/java/com/pay/service/TransactionService.java`
 
 **Output:**
 
 ```console
-$ cortex prune src/main/java/com/pay/service/TransactionService.java
+$ repocortex outline src/main/java/com/pay/service/TransactionService.java
 package com.pay.service;
 
 import com.pay.repository.TransactionRepository;
@@ -2217,19 +2217,19 @@ public class TransactionService {
 
 **Useful flags:** `--placeholder "<text>"`, `--no-docstrings`.
 
-### `cortex diff-minimize`
+### `repocortex minimize-diff`
 
 **Answers:** A shorter version of a unified diff, with the enclosing scope of
 each hunk and long unchanged runs collapsed.
 
 **Use it when:** Passing a diff to an agent with a tight token budget.
 
-**Run:** `git diff HEAD~1 > change.diff && cortex diff-minimize change.diff`
+**Run:** `git diff HEAD~1 > change.diff && repocortex minimize-diff change.diff`
 
 **Output:**
 
 ```console
-$ cortex diff-minimize ../change.diff
+$ repocortex minimize-diff ../change.diff
 Compressed diff: 911 -> 561 bytes (38.4% token reduction, ~141 tokens)
 
 --- src/main/java/com/pay/service/TransactionService.java (+7 -0) ---
@@ -2258,13 +2258,13 @@ Compressed diff: 911 -> 561 bytes (38.4% token reduction, ~141 tokens)
 - One block per file with `(+added -removed)`. The `@@ … @@` line names the
   enclosing class or function.
 - `... (N unchanged lines) ...` replaces context the agent does not need.
-- It also reads stdin: `git diff | cortex diff-minimize`.
+- It also reads stdin: `git diff | repocortex minimize-diff`.
 
 ---
 
 ## Reports and export
 
-### `cortex report`
+### `repocortex report`
 
 **Answers:** Turns the `--json` output of `impact`, `arch` and `missed` into a
 pull-request comment (`report pr`) or a SARIF file (`report sarif`).
@@ -2274,16 +2274,16 @@ pull-request comment (`report pr`) or a SARIF file (`report sarif`).
 **Run:**
 
 ```console
-$ cortex --json arch   > arch.json
-$ cortex --json missed > missed.json
-$ cortex --json impact --base HEAD~1 --head HEAD > impact.json
-$ cortex report pr --impact impact.json --arch arch.json --missed missed.json
+$ repocortex --json arch   > arch.json
+$ repocortex --json blindspots > missed.json
+$ repocortex --json impact --base HEAD~1 --head HEAD > impact.json
+$ repocortex report pr --impact impact.json --arch arch.json --blindspots missed.json
 ```
 
 **Output:**
 
 ```markdown
-<!-- cortex:pr-report -->
+<!-- repocortex:pr-report -->
 ## RepoCortex change-safety report
 
 | Check | Result |
@@ -2326,17 +2326,17 @@ _…and 23 more._
 ```
 
 ```console
-$ cortex report sarif --arch arch.json --missed missed.json --out cortex.sarif
+$ repocortex report sarif --arch arch.json --blindspots missed.json --out repocortex.sarif
 ```
 
 The SARIF file holds one run with rules such as
-`cortex/arch/services-do-not-notify-directly`,
-`cortex/blindspot/missing_config` and `cortex/blindspot/unresolved_call`, and
+`repocortex/arch/services-do-not-notify-directly`,
+`repocortex/blindspot/missing_config` and `repocortex/blindspot/unresolved_call`, and
 one result per finding (44 here).
 
 **How to read it:**
 
-- The first line, `<!-- cortex:pr-report -->`, is a marker so CI can update the
+- The first line, `<!-- repocortex:pr-report -->`, is a marker so CI can update the
   same comment instead of posting a new one.
 - The summary table has one row per input. An input you did not pass shows as
   "not run", never as zero.
@@ -2350,14 +2350,14 @@ one result per finding (44 here).
 **Useful flags:** `pr --out comment.md`, `pr --max-rows N`,
 `sarif --out file`, `sarif --path-prefix <dir>`.
 
-### `cortex docs`
+### `repocortex docs`
 
 **Answers:** Writes `ARCHITECTURE.md` and `CAPABILITIES.md` from the index,
 with Mermaid diagrams and a citation for every claim.
 
 **Use it when:** You want architecture docs that stay true, checked in CI.
 
-**Run:** `cortex docs` (prints to stdout)
+**Run:** `repocortex docs` (prints to stdout)
 
 **Output:**
 
@@ -2370,7 +2370,7 @@ Index run 3: 18 files, 105 symbols, 37 edges — of which 1 EXPOSES, 3 table rea
 
 ## Components
 
-The repository declares 4 components and 2 rules in `.cortex.yml`.
+The repository declares 4 components and 2 rules in `.repocortex.yml`.
 
 | Component | Files | Symbols | Declared include patterns |
 | --- | ---: | ---: | --- |
@@ -2414,7 +2414,7 @@ Nothing was omitted: every section fitted inside its cap.
 
 **How to read it:**
 
-- **Components** come from `.cortex.yml`. A component with 0 files has wrong
+- **Components** come from `.repocortex.yml`. A component with 0 files has wrong
   globs.
 - **Component dependencies**: dashed arrows violate a rule. The evidence table
   under it cites one line per dependency.
@@ -2432,18 +2432,18 @@ Nothing was omitted: every section fitted inside its cap.
 
 **Exit codes:** with `--check`, non-zero when the committed files have drifted.
 
-### `cortex export`
+### `repocortex export`
 
 **Answers:** Writes the graph in DOT, GraphML, JSON, CSV or SVG.
 
 **Use it when:** You want to draw, query or diff the graph in another tool.
 
-**Run:** `cortex export --format csv`, `--format dot --min-confidence high`, `--format json`
+**Run:** `repocortex export --format csv`, `--format dot --min-confidence high`, `--format json`
 
 **Output:**
 
 ```console
-$ cortex export --format csv
+$ repocortex export --format csv
 source,target,kind,confidence
 event:kafka:payment.status-changed,src/main/java/com/pay/events/PaymentEventPublisher.java:kafkaTemplate,CALLS,high
 src/main/java/com/pay/controller/CallbackController.java#POST /payment/callback,src/main/java/com/pay/controller/CallbackController.java:handleCallback,EXPOSES,high
@@ -2466,8 +2466,8 @@ note: csv export is lossy — edge list only: nodes with no edges are omitted, n
 ```
 
 ```console
-$ cortex export --format dot --min-confidence high
-digraph cortex {
+$ repocortex export --format dot --min-confidence high
+digraph repocortex {
   graph [rankdir=LR];
   node [shape=box, fontname="Helvetica"];
   "config:PAYMENT_CALLBACK_SECRET@Dockerfile" [kind="configuration"];
@@ -2488,7 +2488,7 @@ The JSON form has `"directed": true`, a `nodes` array (`id`, `kind`) and an
   `CONSUMES`, `CONFIGURED_BY`, `CONTAINS`, `DEPENDS_ON`.
 - Notes on stderr say what the chosen format cannot hold, and how many edges
   were dropped by `--min-confidence`. Stdout stays clean for pipes.
-- Render DOT with `cortex export --format dot | dot -Tsvg -o graph.svg`, or use
+- Render DOT with `repocortex export --format dot | dot -Tsvg -o graph.svg`, or use
   `--format svg` with no Graphviz.
 
 **Useful flags:** `--format csv|dot|graphml|json|svg`, `--out <file>`,
@@ -2498,24 +2498,24 @@ The JSON form has `"directed": true`, a `nodes` array (`id`, `kind`) and an
 
 ## Portal
 
-### `cortex ui`
+### `repocortex ui`
 
 **Answers:** Serves a local, read-only web portal over the index.
 
 **Use it when:** You want to browse the map, blast radius, tables, config,
 architecture and accuracy screens instead of reading terminal output.
 
-**Run:** `cortex ui --print-url`, then `cortex ui --port 7791`
+**Run:** `repocortex ui --print-url`, then `repocortex ui --port 7791`
 
 **Output:**
 
 ```console
-$ cortex ui --print-url
+$ repocortex ui --print-url
 http://127.0.0.1:7777/
 
-$ cortex ui --port 7791
+$ repocortex ui --port 7791
 RepoCortex portal: http://127.0.0.1:7791/
-  index      /work/payment-platform/.cortex/index.db (opened read-only; this portal never writes)
+  index      /work/payment-platform/.repocortex/index.db (opened read-only; this portal never writes)
   binding    loopback only — not reachable from other machines.
              Requests whose Host header is not a loopback address are refused, so a
              page on the internet cannot use your browser to read this index.
@@ -2539,39 +2539,39 @@ Press Ctrl-C to stop.
 
 ## Housekeeping
 
-### `cortex version`
+### `repocortex version`
 
 **Answers:** Which build is this?
 
 **Use it when:** Reporting a bug, or comparing CI and local builds.
 
 ```console
-$ cortex version
-cortex dev (commit none, built unknown, darwin/amd64)
+$ repocortex version
+repocortex dev (commit none, built unknown, darwin/amd64)
 ```
 
 **How to read it:** A release build shows a version, commit and build date. A
-local `go build` shows `dev`, `none` and `unknown`, as here. `cortex --version`
+local `go build` shows `dev`, `none` and `unknown`, as here. `repocortex --version`
 prints the short form.
 
-### `cortex completion`
+### `repocortex completion`
 
 **Answers:** A shell completion script for bash, zsh, fish or PowerShell.
 
 **Use it when:** Setting up your shell.
 
 ```console
-$ cortex completion zsh | head -4
-#compdef cortex
-compdef _cortex cortex
+$ repocortex completion zsh | head -4
+#compdef repocortex
+compdef _repocortex repocortex
 
-# zsh completion for cortex                               -*- shell-script -*-
+# zsh completion for repocortex                               -*- shell-script -*-
 ```
 
 **How to read it:** It is a script, not a report. Follow
-`cortex completion <shell> --help` for where to save it.
+`repocortex completion <shell> --help` for where to save it.
 
-### `cortex licenses`
+### `repocortex licenses`
 
 **Answers:** Regenerates `THIRD_PARTY.md` from the Go module graph.
 
@@ -2579,7 +2579,7 @@ compdef _cortex cortex
 repositories you index.
 
 ```console
-$ cortex licenses --check      # run inside the Java sample
+$ repocortex licenses --check      # run inside the Java sample
 error: go list -m: exit status 1
 ```
 
@@ -2593,64 +2593,64 @@ committed file is out of date, which is how CI uses it.
 
 ### 1. Onboard to a new codebase
 
-1. `cortex init && cortex index && cortex resolve` – build the index
-   ([init](#cortex-init), [index](#cortex-index), [resolve](#cortex-resolve)).
+1. `repocortex init && repocortex index && repocortex resolve` – build the index
+   ([init](#repocortex-init), [index](#repocortex-index), [resolve](#repocortex-resolve)).
    Note the bound share in the `resolve` output.
-2. `cortex languages` – check your languages are `typed` or `resolved`.
-3. `cortex api` and `cortex db` – the entry points and the data.
-4. `cortex infra` and `cortex events` – how it is deployed and what it
+2. `repocortex languages` – check your languages are `typed` or `resolved`.
+3. `repocortex api` and `repocortex db` – the entry points and the data.
+4. `repocortex infra` and `repocortex events` – how it is deployed and what it
    publishes.
-5. `cortex docs --out docs/generated` – a map to read, if components are
-   declared; otherwise `cortex ui`.
-6. `cortex missed` – where the index is blind, so you know which answers to
+5. `repocortex docs --out docs/generated` – a map to read, if components are
+   declared; otherwise `repocortex ui`.
+6. `repocortex blindspots` – where the index is blind, so you know which answers to
    double-check.
 
 ### 2. Refactor a function safely
 
-1. `cortex callers <fn>` and `cortex references <fn>` – who depends on it.
+1. `repocortex callers <fn>` and `repocortex references <fn>` – who depends on it.
    If the list is empty, read the bound share before believing it.
-2. `cortex plan-change <fn>` – an ordered list of callers to update.
-3. `cortex who <fn>` – someone to ask before you start.
-4. For a rename: `cortex rename <old> <new> --floor high`, read every site and
+2. `repocortex plan-change <fn>` – an ordered list of callers to update.
+3. `repocortex owners <fn>` – someone to ask before you start.
+4. For a rename: `repocortex rename <old> <new> --floor high`, read every site and
    every leftover line, then add `--apply`.
-5. After committing: `cortex index && cortex resolve`, then
-   `cortex impact --base HEAD~1` to confirm the reach is what you expected.
+5. After committing: `repocortex index && repocortex resolve`, then
+   `repocortex impact --base HEAD~1` to confirm the reach is what you expected.
 
 ### 3. Review a pull request
 
-1. `cortex index && cortex resolve` on the PR branch.
-2. `cortex impact --base origin/main --head HEAD` – callers at risk, and whether
+1. `repocortex index && repocortex resolve` on the PR branch.
+2. `repocortex impact --base origin/main --head HEAD` – callers at risk, and whether
    each has a test.
-3. `cortex arch --crossings` – any new rule violations or new component links.
-4. `cortex diff --from-index <main-index.db> --from <main-sha>` – which facts
+3. `repocortex arch --crossings` – any new rule violations or new component links.
+4. `repocortex diff --from-index <main-index.db> --from <main-sha>` – which facts
    changed (new edges, moved endpoints, new table writers).
-5. `cortex who <changed symbol>` – who else should look.
+5. `repocortex owners <changed symbol>` – who else should look.
 
 ### 4. Gate CI
 
-1. `cortex index && cortex resolve` (optionally `cortex scip import index.scip`
+1. `repocortex index && repocortex resolve` (optionally `repocortex scip import index.scip`
    from your build).
-2. `cortex doctor --verify-index` – fail on a broken index.
-3. `cortex --json arch --fail-on high > arch.json`
-4. `cortex --json missed --fail-on high > missed.json`
-5. `cortex --json impact --base origin/main --head HEAD > impact.json`
-6. `cortex report pr --impact impact.json --arch arch.json --missed missed.json --out comment.md`
-   and `cortex report sarif --arch arch.json --missed missed.json --out cortex.sarif`
-   ([report](#cortex-report)).
-7. Optional: `cortex docs --check --out docs/generated` and
-   `cortex bench cases.yml --fail-on-regression`.
+2. `repocortex doctor --verify-index` – fail on a broken index.
+3. `repocortex --json arch --fail-on high > arch.json`
+4. `repocortex --json blindspots --fail-on high > missed.json`
+5. `repocortex --json impact --base origin/main --head HEAD > impact.json`
+6. `repocortex report pr --impact impact.json --arch arch.json --blindspots missed.json --out comment.md`
+   and `repocortex report sarif --arch arch.json --blindspots missed.json --out repocortex.sarif`
+   ([report](#repocortex-report)).
+7. Optional: `repocortex docs --check --out docs/generated` and
+   `repocortex bench cases.yml --fail-on-regression`.
 
 ### 5. Give an agent context
 
-1. `cortex agent --check` – see what is missing.
-2. `cortex install --dry-run`, then `cortex install`, or run the
-   `claude mcp add …` line from `cortex agent`.
-3. `cortex agent --guidance >> CLAUDE.md` (or `AGENTS.md`) so the agent knows
+1. `repocortex agent --check` – see what is missing.
+2. `repocortex install --dry-run`, then `repocortex install`, or run the
+   `claude mcp add …` line from `repocortex agent`.
+3. `repocortex agent --guidance >> CLAUDE.md` (or `AGENTS.md`) so the agent knows
    when to use the tools.
-4. Set `mcp.profile: standard` in `.cortex.yml` if you want `impact_analysis`
-   and `find_tests`; confirm with `cortex serve --list-tools`.
-5. Per task: `cortex --json compile "<task>" > contract.json`, give the agent
+4. Set `mcp.profile: standard` in `.repocortex.yml` if you want `analyze_impact`
+   and `find_tests`; confirm with `repocortex serve --list-tools`.
+5. Per task: `repocortex --json compile "<task>" > contract.json`, give the agent
    the contract (or let it call `get_task_context`), then check its work with
-   `cortex verify --contract contract.json --changed $(git diff --name-only | paste -sd, -)`.
-6. Keep the index current while it works: `cortex watch` or
-   `cortex hooks install`.
+   `repocortex verify --contract contract.json --changed $(git diff --name-only | paste -sd, -)`.
+6. Keep the index current while it works: `repocortex watch` or
+   `repocortex hooks install`.

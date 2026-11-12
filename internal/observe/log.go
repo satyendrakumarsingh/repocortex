@@ -37,7 +37,7 @@ type Options struct {
 // New builds a logger.
 //
 // Human output goes to stderr so that stdout stays clean for --json payloads;
-// piping `cortex search --json` into jq must never be polluted by log lines.
+// piping `repocortex search --json` into jq must never be polluted by log lines.
 func New(opts Options) *slog.Logger {
 	w := opts.Writer
 	if w == nil {

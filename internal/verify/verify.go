@@ -588,7 +588,7 @@ func (v *Verifier) checkArchitecture(ctx context.Context, changed map[string]str
 	if err != nil {
 		if isNoModel(err) {
 			rep.Unknowns = append(rep.Unknowns,
-				"The repository declares no architecture, so there was no rule for this change to break. Declaring components in .cortex.yml is what makes this question answerable.")
+				"The repository declares no architecture, so there was no rule for this change to break. Declaring components in .repocortex.yml is what makes this question answerable.")
 			return nil, nil
 		}
 		return nil, fmt.Errorf("verify: architecture check for run %d: %w", v.runID, err)

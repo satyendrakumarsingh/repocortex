@@ -167,9 +167,9 @@ func (s *Server) handleAgent(w http.ResponseWriter, r *http.Request) {
 
 	configSnippet := map[string]any{
 		"mcpServers": map[string]any{
-			"cortex": map[string]any{
-				"command": "cortex",
-				// The same entry `cortex install` writes: the server is `serve`,
+			"repocortex": map[string]any{
+				"command": "repocortex",
+				// The same entry `repocortex install` writes: the server is `serve`,
 				// pinned to this repository so the client's working directory
 				// cannot change which index it reads.
 				"args": []string{"--project", repoRoot, "serve"},
@@ -253,13 +253,13 @@ func mcpCatalogue() []MCPToolInfo {
 			Benefit:     "Tells the agent which tests to run.",
 		},
 		{
-			Name:        "impact_analysis",
+			Name:        "analyze_impact",
 			Category:    "Change safety",
 			Description: "Lists what a change to a symbol can reach, including the endpoints it affects.",
 			Benefit:     "Shows what could break before an edit is made.",
 		},
 		{
-			Name:        "resolution_coverage",
+			Name:        "get_resolution_coverage",
 			Category:    "Index quality",
 			Description: "Reports how many references were bound to a definition, per language.",
 			Benefit:     "Shows how far an agent can trust the answers for each language.",
@@ -277,13 +277,13 @@ func mcpCatalogue() []MCPToolInfo {
 			Benefit:     "Turns a large change into a checked sequence.",
 		},
 		{
-			Name:        "find_api_endpoints",
+			Name:        "list_api_endpoints",
 			Category:    "Cross-stack",
 			Description: "Lists HTTP endpoints, their methods and handlers.",
 			Benefit:     "Maps a request path to the code that serves it.",
 		},
 		{
-			Name:        "find_db_access",
+			Name:        "list_db_tables",
 			Category:    "Cross-stack",
 			Description: "Lists database tables and the code that reads and writes them.",
 			Benefit:     "Shows who touches a table before its schema changes.",
@@ -307,7 +307,7 @@ func mcpCatalogue() []MCPToolInfo {
 			Benefit:     "Lets an agent review a large change in far fewer tokens.",
 		},
 		{
-			Name:        "detect_blindspots",
+			Name:        "list_blindspots",
 			Category:    "Index quality",
 			Description: "Lists what the index could not see: unbound calls, unmapped endpoints, unparsed files.",
 			Benefit:     "Tells an agent where an empty answer is not proof.",

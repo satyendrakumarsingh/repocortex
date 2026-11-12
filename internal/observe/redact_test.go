@@ -82,10 +82,10 @@ func TestAcceptsSafeAttributes(t *testing.T) {
 		Status("timeout"),
 		CacheHit(true),
 		Operation("select"),
-		attribute.Int64("cortex.batch_size", 512),
-		attribute.Float64("cortex.ratio", 0.93),
-		attribute.Bool("cortex.incremental", true),
-		attribute.String("cortex.stage", "resolve"),
+		attribute.Int64("repocortex.batch_size", 512),
+		attribute.Float64("repocortex.ratio", 0.93),
+		attribute.Bool("repocortex.incremental", true),
+		attribute.String("repocortex.stage", "resolve"),
 	}
 	for _, kv := range safe {
 		if err := CheckAttr(kv); err != nil {
@@ -275,5 +275,23 @@ func TestRecordErrorExportsNoMessage(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("RecordError exported no %s, so the failure is untyped in the trace", AttrErrorType)
+	}
+}
+
+// The product's own namespace contains "repo", a denied word. Only the leading
+// namespace is forgiven: a sensitive word after it, or the product name
+// anywhere else in a key, is still refused.
+func TestNamespaceIsExemptButWhatFollowsItIsNot(t *testing.T) {
+	for key, wantSafe := range map[string]bool{
+		"repocortex.batch_size": true,
+		"repocortex.stage":      true,
+		"repocortex.repo.path":  false, // "repo" and "path" after the namespace
+		"repocortex.file_count": false, // "file" after the namespace
+		"my.repocortex.stage":   false, // not a leading namespace: "repo" is caught
+		"repo.stage":            false,
+	} {
+		if got := unsafeKey(key) == ""; got != wantSafe {
+			t.Errorf("unsafeKey(%q): safe = %v, want %v", key, got, wantSafe)
+		}
 	}
 }

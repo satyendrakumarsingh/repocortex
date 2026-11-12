@@ -53,7 +53,7 @@ func (s Span) End() {
 }
 
 // Recording reports whether this span will be exported. Call sites should not
-// need it; it exists for tests and for `cortex doctor`.
+// need it; it exists for tests and for `repocortex doctor`.
 func (s Span) Recording() bool { return s.span != nil }
 
 // RecordError records that an operation failed, and deliberately not why.
@@ -150,7 +150,7 @@ func startSpan(ctx context.Context, p *providers, name string, attrs []attribute
 
 // SpanContextFrom returns the trace and span ids active in ctx, or empty
 // strings when there is no recording span. Used by the log correlation in
-// slogtrace.go and by `cortex doctor`.
+// slogtrace.go and by `repocortex doctor`.
 func SpanContextFrom(ctx context.Context) (traceID, spanID string) {
 	sc := trace.SpanContextFromContext(ctx)
 	if !sc.IsValid() {

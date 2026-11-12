@@ -98,7 +98,7 @@ func TestQueryCommandsRefuseWithoutAnIndex(t *testing.T) {
 			t.Errorf("%v succeeded without an index:\n%s", args, out)
 			continue
 		}
-		if !strings.Contains(err.Error(), "cortex init") {
+		if !strings.Contains(err.Error(), "repocortex init") {
 			t.Errorf("%v: error should name the fix, got %q", args, err)
 		}
 	}
@@ -116,8 +116,8 @@ func TestQueryCommandsRefuseWithNothingCommitted(t *testing.T) {
 	if err == nil {
 		t.Fatal("symbol succeeded against an empty index")
 	}
-	if !strings.Contains(err.Error(), "cortex index") {
-		t.Errorf("error should point at 'cortex index', got %q", err)
+	if !strings.Contains(err.Error(), "repocortex index") {
+		t.Errorf("error should point at 'repocortex index', got %q", err)
 	}
 }
 
@@ -181,7 +181,7 @@ func TestSymbolExactNotFuzzy(t *testing.T) {
 	if !strings.Contains(out, "No definition named") {
 		t.Errorf("prefix matched a symbol; lookup must be exact:\n%s", out)
 	}
-	if !strings.Contains(out, "cortex search") {
+	if !strings.Contains(out, "repocortex search") {
 		t.Errorf("a miss should point at the command that does match partially:\n%s", out)
 	}
 }
@@ -377,7 +377,7 @@ func mapKeys(m map[string]any) []string {
 // TestQueryReadsOnlyTheCommittedRun guards the two-phase swap from the read
 // side. An in-flight index must be invisible to queries; if a query could see
 // staging rows, every command would intermittently report half a repository
-// while `cortex index` was running.
+// while `repocortex index` was running.
 func TestQueryReadsOnlyTheCommittedRun(t *testing.T) {
 	root := queryFixture(t)
 	ctx := context.Background()

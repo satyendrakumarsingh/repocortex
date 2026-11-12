@@ -101,7 +101,7 @@ func TestRefreshRejectsCrossSiteRequests(t *testing.T) {
 		},
 		{
 			name:   "a non-loopback Host is refused before any of this",
-			mutate: func(r *http.Request) { r.Host = "cortex.example.com" },
+			mutate: func(r *http.Request) { r.Host = "repocortex.example.com" },
 			want:   http.StatusForbidden,
 			reason: "DNS rebinding reaches a loopback socket with a public Host",
 		},
@@ -222,7 +222,7 @@ func TestIndexStateDescribesRefreshAndHook(t *testing.T) {
 			t.Fatalf("refresh.enabled = %v, want false", refresh["enabled"])
 		}
 		cmd, _ := refresh["command"].(string)
-		if !strings.Contains(cmd, "cortex index") {
+		if !strings.Contains(cmd, "repocortex index") {
 			t.Errorf("a portal that cannot refresh must name the command that can; got %q", cmd)
 		}
 	})

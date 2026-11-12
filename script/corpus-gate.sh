@@ -19,7 +19,7 @@
 # a bug that actually shipped.
 #
 # Usage:
-#   script/corpus-gate.sh <repo-list-file> [cortex-binary]
+#   script/corpus-gate.sh <repo-list-file> [repocortex-binary]
 #
 # where <repo-list-file> holds one absolute repository path per line ('#' comments
 # and blank lines ignored). A list, not a parent directory, because the corpus is
@@ -31,7 +31,7 @@
 set -uo pipefail
 
 LIST="${1:?usage: corpus-gate.sh <repo-list-file> [binary]}"
-DEV="${2:-cortex}"
+DEV="${2:-repocortex}"
 FAILURES=0
 CHECKED=0
 UNMEASURED=0
@@ -45,7 +45,7 @@ while read -r repo; do
   [ -d "$repo" ] || { fail "$repo: not a directory"; continue; }
   echo "── $name"
   CHECKED=$((CHECKED+1))
-  rm -rf "$repo/.cortex"
+  rm -rf "$repo/.repocortex"
 
   # 1. Indexes to completion. Catches the slice panic that killed `index` on a
   #    string literal containing "WITH a FROM b".
@@ -76,7 +76,7 @@ while read -r repo; do
   fingerprint() { python3 - "$repo" <<'FP'
 import hashlib, os, sys
 h = hashlib.sha256()
-skip = {'.git', '.cortex', 'node_modules'}
+skip = {'.git', '.repocortex', 'node_modules'}
 for root, dirs, files in os.walk(sys.argv[1]):
     dirs[:] = sorted(d for d in dirs if d not in skip)
     for f in sorted(files):
@@ -117,7 +117,7 @@ OK={('typescript','tsx'),('typescript','javascript'),('typescript','vue'),
     ('java','kotlin'),('java','scala'),('kotlin','java'),('kotlin','scala'),
     ('scala','java'),('scala','kotlin')}
 KNOWN={'go','python','typescript','tsx','javascript','vue','java','kotlin','scala'}
-c=sqlite3.connect('.cortex/index.db')
+c=sqlite3.connect('.repocortex/index.db')
 n=0
 for a,b,cnt in c.execute("""SELECT sf.language, df.language, COUNT(*) FROM edges e
   JOIN symbols s ON s.id=e.src_id JOIN files sf ON sf.id=s.file_id

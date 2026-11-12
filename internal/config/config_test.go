@@ -36,12 +36,12 @@ func TestDefaultsAreSafe(t *testing.T) {
 // TestRepoCannotSetExecutionSettings is THE security test for this package.
 //
 // A repository is attacker-controlled the moment you clone it. If a repo could
-// set accuracy.mode=exact and provision=auto, then `cortex index` on a
+// set accuracy.mode=exact and provision=auto, then `repocortex index` on a
 // hostile repo would download and execute an attacker-named binary.
 func TestRepoCannotSetExecutionSettings(t *testing.T) {
 	repo := t.TempDir()
 	cfgHome := t.TempDir()
-	t.Setenv("CORTEX_CONFIG_HOME", cfgHome)
+	t.Setenv("REPOCORTEX_CONFIG_HOME", cfgHome)
 
 	// A repo config that tries very hard to gain execution.
 	writeFile(t, filepath.Join(repo, RepoConfigName), `
@@ -89,7 +89,7 @@ func TestRepoCannotDisableRedaction(t *testing.T) {
 		"security: {}\n",
 	} {
 		repo := t.TempDir()
-		t.Setenv("CORTEX_CONFIG_HOME", t.TempDir())
+		t.Setenv("REPOCORTEX_CONFIG_HOME", t.TempDir())
 		writeFile(t, filepath.Join(repo, RepoConfigName), body)
 
 		_, err := Load(repo)
@@ -107,7 +107,7 @@ func TestRepoCannotDisableRedaction(t *testing.T) {
 // node_modules to get RepoCortex to index and expose them.
 func TestRepoExcludesAreAdditive(t *testing.T) {
 	repo := t.TempDir()
-	t.Setenv("CORTEX_CONFIG_HOME", t.TempDir())
+	t.Setenv("REPOCORTEX_CONFIG_HOME", t.TempDir())
 	writeFile(t, filepath.Join(repo, RepoConfigName), `
 index:
   exclude:
@@ -128,7 +128,7 @@ index:
 func TestUserConfigCanSetExecutionSettings(t *testing.T) {
 	repo := t.TempDir()
 	cfgHome := t.TempDir()
-	t.Setenv("CORTEX_CONFIG_HOME", cfgHome)
+	t.Setenv("REPOCORTEX_CONFIG_HOME", cfgHome)
 	writeFile(t, filepath.Join(cfgHome, "config.yml"), `
 accuracy:
   mode: exact
@@ -158,7 +158,7 @@ accuracy:
 
 func TestRepoConfigAppliesIndexingSettings(t *testing.T) {
 	repo := t.TempDir()
-	t.Setenv("CORTEX_CONFIG_HOME", t.TempDir())
+	t.Setenv("REPOCORTEX_CONFIG_HOME", t.TempDir())
 	writeFile(t, filepath.Join(repo, RepoConfigName), `
 project:
   name: payment-platform
@@ -211,7 +211,7 @@ func TestValidateRejectsBadValues(t *testing.T) {
 }
 
 func TestLoadWithNoConfigFilesUsesDefaults(t *testing.T) {
-	t.Setenv("CORTEX_CONFIG_HOME", t.TempDir())
+	t.Setenv("REPOCORTEX_CONFIG_HOME", t.TempDir())
 	cfg, err := Load(t.TempDir())
 	if err != nil {
 		t.Fatalf("load with no files: %v", err)
@@ -230,7 +230,7 @@ func TestLoadWithNoConfigFilesUsesDefaults(t *testing.T) {
 // to express it.
 func TestRepoCannotMountTheLocalArtifactCache(t *testing.T) {
 	repo := t.TempDir()
-	t.Setenv("CORTEX_CONFIG_HOME", t.TempDir())
+	t.Setenv("REPOCORTEX_CONFIG_HOME", t.TempDir())
 	writeFile(t, filepath.Join(repo, RepoConfigName), `
 accuracy:
   indexers:

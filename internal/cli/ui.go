@@ -18,7 +18,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// `cortex ui` — the local portal.
+// `repocortex ui` — the local portal.
 //
 // # Why it binds to loopback and says so
 //
@@ -53,6 +53,7 @@ func newUICmd(g *Global) *cobra.Command {
 		maxNodes     int
 		printOnly    bool
 		allowRefresh bool
+		next         bool
 	)
 
 	cmd := &cobra.Command{
@@ -91,7 +92,7 @@ stated in every response, never dropped in silence.`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return runUI(cmd, g, uiOptions{
 				Host: host, Port: port, MaxNodes: maxNodes, PrintOnly: printOnly,
-				AllowRefresh: allowRefresh,
+				AllowRefresh: allowRefresh, Next: next,
 			})
 		},
 	}
@@ -103,6 +104,9 @@ stated in every response, never dropped in silence.`,
 		"maximum symbol nodes in one graph response; whatever it excludes is stated, never dropped")
 	cmd.Flags().BoolVar(&printOnly, "print-url", false,
 		"print the URL that would be served and exit, without listening")
+	cmd.Flags().BoolVar(&next, "next", false,
+		"serve the redesigned portal: a page per symbol, built on the same tools an agent calls. "+
+			"Loopback only. The current portal stays the default until this one covers every screen.")
 	cmd.Flags().BoolVar(&allowRefresh, "allow-refresh", false,
 		"let the portal rebuild the index from its own page; without this the portal is "+
 			"strictly read-only and serves no route that writes. Even when enabled the "+
@@ -120,6 +124,10 @@ type uiOptions struct {
 	// AllowRefresh adds the one route that writes. Default false, and the
 	// default is the security decision: see internal/web/reindex.go.
 	AllowRefresh bool
+
+	// Next serves the redesigned portal (internal/portal) instead of the
+	// current one.
+	Next bool
 }
 
 func runUI(cmd *cobra.Command, g *Global, opts uiOptions) error {
@@ -140,11 +148,30 @@ func runUI(cmd *cobra.Command, g *Global, opts uiOptions) error {
 	}
 
 	dbPath := g.DBPath()
-	srv, closePortal, err := newPortal(ctx, g, opts)
-	if err != nil {
-		return err
+	var handler http.Handler
+	if opts.Next {
+		// The new portal has no login and calls the tool endpoint without a
+		// token, so it is never served beyond this machine.
+		if !loopback {
+			return errors.New("--next serves on loopback only; drop --host, or use the current portal")
+		}
+		if opts.AllowRefresh {
+			return errors.New("--allow-refresh applies to the current portal; the new one has no route that writes")
+		}
+		h, closeNext, err := newNextPortal(ctx, g)
+		if err != nil {
+			return err
+		}
+		defer closeNext()
+		handler = h
+	} else {
+		srv, closePortal, err := newPortal(ctx, g, opts)
+		if err != nil {
+			return err
+		}
+		defer closePortal()
+		handler = srv.Handler()
 	}
-	defer closePortal()
 
 	addr := net.JoinHostPort(opts.Host, fmt.Sprint(opts.Port))
 	ln, err := net.Listen("tcp", addr)
@@ -194,7 +221,7 @@ func runUI(cmd *cobra.Command, g *Global, opts uiOptions) error {
 	}
 
 	httpSrv := &http.Server{
-		Handler: srv.Handler(),
+		Handler: handler,
 		// A local server still gets scanned, and an idle half-open connection
 		// should not be able to hold a slot forever (CLAUDE.md §4.4).
 		ReadHeaderTimeout: 5 * time.Second,
@@ -207,7 +234,7 @@ func runUI(cmd *cobra.Command, g *Global, opts uiOptions) error {
 	// Shutdown is driven by the command's context, which the root wires to the
 	// signal handler. Serve returns ErrServerClosed on a clean stop, which is
 	// how a server ENDS rather than how it fails — reporting it as an error
-	// would make `cortex ui` exit non-zero on every Ctrl-C.
+	// would make `repocortex ui` exit non-zero on every Ctrl-C.
 	stopped := make(chan struct{})
 	go func() {
 		defer close(stopped)
@@ -244,7 +271,7 @@ func newPortal(ctx stdctx.Context, g *Global, opts uiOptions, extra ...web.Optio
 		// Not a fault. The portal itself answers an unindexed repository with
 		// guidance rather than an error, but there is no database to open at
 		// all here, so the guidance has to come from the command.
-		return nil, nil, fmt.Errorf("no index at %s — run 'cortex init' and 'cortex index' first", dbPath)
+		return nil, nil, fmt.Errorf("no index at %s — run 'repocortex init' and 'repocortex index' first", dbPath)
 	}
 
 	// Read-only at the file level too, not only by convention: a portal must

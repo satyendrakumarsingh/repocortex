@@ -45,14 +45,14 @@ a reader or a writer.
 Both sides name a run that is already in an index. A ref is either a run id or
 the commit SHA the run recorded when it was indexed:
 
-  cortex diff --from 41 --to 42
-  cortex diff 8f3c1ab..a19d7e0
-  cortex diff --from 8f3c1ab            # --to defaults to the committed run
+  repocortex diff --from 41 --to 42
+  repocortex diff 8f3c1ab..a19d7e0
+  repocortex diff --from 8f3c1ab            # --to defaults to the committed run
 
 Nothing here invokes git. A ref that matches no indexed run fails and says so —
 it never falls back to the run that happens to be committed, because a diff
 against the wrong run is worse than no diff at all. To compare against a commit
-this index has never seen, index it first ('git checkout <ref> && cortex
+this index has never seen, index it first ('git checkout <ref> && repocortex
 index') and diff the run that produces.
 
 Committing a run retires and deletes the one before it, so one index database
@@ -60,7 +60,7 @@ holds one committed run. The two sides of a comparison across commits therefore
 normally live in two index files — the working index and a second index built at
 the other ref — which is what --from-index and --to-index are for:
 
-  cortex diff --from-index ../release-1.4/.cortex/index.db --from 8f3c1ab --to 42
+  repocortex diff --from-index ../release-1.4/.repocortex/index.db --from 8f3c1ab --to 42
 
 Determinism is the property the whole feature rests on. Identity is content-based
 (path, fqn, kind for a symbol; the two endpoints and the kind for an edge), never
@@ -136,7 +136,7 @@ func runDiff(cmd *cobra.Command, g *Global, args []string) error {
 
 // diffRefs reads the two refs from either the range argument or the flags.
 //
-// The two spellings are not allowed to mix. `cortex diff a..b --from c` has
+// The two spellings are not allowed to mix. `repocortex diff a..b --from c` has
 // two plausible readings and no way to tell which one the caller meant, and
 // picking one silently is how a tool ends up diffing something nobody asked for.
 func diffRefs(cmd *cobra.Command, args []string) (from, to string, err error) {
@@ -272,11 +272,11 @@ func openProjectIndex(ctx stdctx.Context, g *Global) (*diffIndex, error) {
 // openForeignIndex opens a second index named by --from-index/--to-index.
 //
 // Read-only, like every query path: the other checkout's index may be in use by
-// a `cortex watch` over there, and a diff has no business writing to it.
+// a `repocortex watch` over there, and a diff has no business writing to it.
 func openForeignIndex(ctx stdctx.Context, path string) (*diffIndex, error) {
 	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
 		return nil, fmt.Errorf(
-			"no index at %s — build one in that checkout first: 'cortex index --project <that checkout>'", path)
+			"no index at %s — build one in that checkout first: 'repocortex index --project <that checkout>'", path)
 	} else if err != nil {
 		return nil, fmt.Errorf("diff: open index %s: %w", path, err)
 	}
@@ -350,7 +350,7 @@ func (idx *diffIndex) resolve(ref string) (int64, error) {
 	if ref == "" {
 		if idx.committed == 0 {
 			return 0, fmt.Errorf(
-				"no committed run in %s to use as the default side — run 'cortex index', "+
+				"no committed run in %s to use as the default side — run 'repocortex index', "+
 					"or name both sides explicitly", idx.path)
 		}
 		return idx.committed, nil
@@ -396,10 +396,10 @@ func (idx *diffIndex) errNoSuchRun(ref string) error {
 	// A numeric ref was read as a run id first, so "git checkout 99" would be
 	// nonsense advice; say what was actually tried instead.
 	how := fmt.Sprintf("Index that commit and diff the run it produces:\n"+
-		"  git checkout %s && cortex index\n", ref)
+		"  git checkout %s && repocortex index\n", ref)
 	if _, err := strconv.ParseInt(ref, 10, 64); err == nil {
 		how = "No run carries that id and no recorded commit SHA starts with it. " +
-			"Index the commit you meant ('git checkout <sha> && cortex index') " +
+			"Index the commit you meant ('git checkout <sha> && repocortex index') " +
 			"and diff the run it produces.\n"
 	}
 	return fmt.Errorf("no indexed run matches %q: nothing in %s was indexed at that ref.\n%s%s",
@@ -409,7 +409,7 @@ func (idx *diffIndex) errNoSuchRun(ref string) error {
 // knownRuns renders the catalogue, in id order so the message is deterministic.
 func (idx *diffIndex) knownRuns() string {
 	if len(idx.runs) == 0 {
-		return fmt.Sprintf("%s records no runs at all — run 'cortex index' first.", idx.path)
+		return fmt.Sprintf("%s records no runs at all — run 'repocortex index' first.", idx.path)
 	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "runs recorded in %s:\n", idx.path)

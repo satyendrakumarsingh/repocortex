@@ -10,8 +10,8 @@ import (
 // prints a verdict on how far to trust this index's relationships.
 //
 // One constant because there used to be two, and they disagreed in the same
-// session: impact_analysis and find_tests judged ResolutionStats.Rate against
-// 0.5 while resolution_coverage judged BindingRate against 0.6, so one real
+// session: analyze_impact and find_tests judged ResolutionStats.Rate against
+// 0.5 while get_resolution_coverage judged BindingRate against 0.6, so one real
 // index was simultaneously "COVERAGE TOO LOW" at 37% and unremarkable at 79%.
 // An agent given both numbers cannot act on either.
 //

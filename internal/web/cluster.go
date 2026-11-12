@@ -80,7 +80,7 @@ const clusterMethod = "deterministic asynchronous label propagation over the dra
 
 const clusterCaveat = "A community is a description of how this code currently talks to itself, " +
 	"not a declared architecture. It is a drawing aid: it decides what is collapsed by default, " +
-	"nothing more. Declared components come from .cortex.yml and are the only grouping this " +
+	"nothing more. Declared components come from .repocortex.yml and are the only grouping this " +
 	"product presents as intent."
 
 // summariseClusters turns an assignment into the ordered cluster list, counting

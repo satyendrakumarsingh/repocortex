@@ -15,7 +15,7 @@ import (
 // it. That was defensible while exactly one caller existed. It stopped being
 // defensible the moment the portal needed the same numbers: two copies of a
 // measurement are two measurements, and the failure mode is not a compile error
-// — it is `cortex accuracy` and /api/accuracy publishing different F1 scores
+// — it is `repocortex accuracy` and /api/accuracy publishing different F1 scores
 // for one index, for a reason nobody can locate. CLAUDE.md §2 puts SQL here;
 // this is that rule applied to the one query where drift would be silent.
 //
@@ -92,7 +92,7 @@ type LanguageCoverage struct {
 // CallSiteMiss is one reason an adjudicable call site produced no edge at all.
 //
 // Reported because "missed" without a cause is unactionable and the causes have
-// different owners: unresolved is a resolver problem, pending means `cortex
+// different owners: unresolved is a resolver problem, pending means `repocortex
 // resolve` was never run, and resolved-with-no-edge is a call outside any
 // indexed symbol — a modelling choice rather than a defect.
 type CallSiteMiss struct {
@@ -203,7 +203,7 @@ var tierByRank = []string{"exact", "high", "medium", "low", "unclassified"}
 var missReasons = []CallSiteMiss{
 	{Reason: "unresolved", Explanation: "the reference was bound to nothing"},
 	{Reason: "ambiguous", Explanation: "several candidates and no way to choose, so no edge was claimed"},
-	{Reason: "pending", Explanation: "never resolved — run 'cortex resolve'"},
+	{Reason: "pending", Explanation: "never resolved — run 'repocortex resolve'"},
 	{Reason: "ignored", Explanation: "deliberately skipped when references were bound"},
 	{Reason: "resolved", Explanation: "resolved, but the call sits outside any indexed symbol, so there was no caller to attribute the edge to"},
 	{Reason: "unknown", Explanation: "no call reference recorded for the line"},
@@ -212,7 +212,7 @@ var missReasons = []CallSiteMiss{
 // AccuracyAdjudication measures the heuristic resolver against the compiler
 // facts imported into the same run, over the call sites both can see.
 //
-// It is the single gatherer behind `cortex accuracy` and /api/accuracy. Both
+// It is the single gatherer behind `repocortex accuracy` and /api/accuracy. Both
 // fold the result with bench.AccuracyOf, which is what makes it impossible for
 // them to publish two different F1 scores for one index.
 func (r *Registry) AccuracyAdjudication(ctx context.Context, runID int64) (Adjudication, error) {

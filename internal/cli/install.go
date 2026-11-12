@@ -1,6 +1,6 @@
 package cli
 
-// `cortex agent` prints the registration a user must paste. This writes it.
+// `repocortex agent` prints the registration a user must paste. This writes it.
 //
 // The merge is deliberately conservative: an MCP client's config file is the
 // user's, not ours. It holds other servers and unrelated settings, and losing
@@ -70,8 +70,8 @@ var guidanceUpdate = []string{
 
 // cliGuidanceOpen marks the block for agents that cannot use MCP.
 const (
-	cliGuidanceOpen  = "<!-- cortex:cli-guidance -->"
-	cliGuidanceClose = "<!-- /cortex:cli-guidance -->"
+	cliGuidanceOpen  = "<!-- repocortex:cli-guidance -->"
+	cliGuidanceClose = "<!-- /repocortex:cli-guidance -->"
 )
 
 // cliGuidance is for agents without an MCP client (Aider, for example). They
@@ -82,14 +82,14 @@ const cliGuidance = cliGuidanceOpen + `
 This repository has a RepoCortex index. Run these commands instead of grepping;
 add --json for machine-readable output.
 
-- Before changing code: ` + "`cortex context \"<the task in plain English>\"`" + `
-- Who calls a symbol: ` + "`cortex callers <symbol>`" + `
-- What a change can break: ` + "`cortex impact --base main --head HEAD`" + `
-- Routes, tables and settings: ` + "`cortex api`" + `, ` + "`cortex db`" + `, ` + "`cortex config`" + `
+- Before changing code: ` + "`repocortex context \"<the task in plain English>\"`" + `
+- Who calls a symbol: ` + "`repocortex callers <symbol>`" + `
+- What a change can break: ` + "`repocortex impact --base main --head HEAD`" + `
+- Routes, tables and settings: ` + "`repocortex api`" + `, ` + "`repocortex db`" + `, ` + "`repocortex config`" + `
 
 Every relationship says how sure it is: exact means a compiler proved it;
 anything else is a lead to check. An empty result means nothing was found, not
-that nothing exists. If the index is missing, run ` + "`cortex index`" + ` then ` + "`cortex resolve`" + `.
+that nothing exists. If the index is missing, run ` + "`repocortex index`" + ` then ` + "`repocortex resolve`" + `.
 ` + cliGuidanceClose + "\n"
 
 // injectAgentGuidance writes the guidance block into AGENTS.md (created when
@@ -249,7 +249,7 @@ func printInstallResults(w io.Writer, results []installResult, dryRun bool) (wri
 func printClientList(w io.Writer, home, root string, spec agentServerSpec) {
 	clients := mcpClients(home, root)
 	sort.Slice(clients, func(i, j int) bool { return clients[i].Name < clients[j].Name })
-	_, _ = fmt.Fprintln(w, "Configured automatically by `cortex install`:")
+	_, _ = fmt.Fprintln(w, "Configured automatically by `repocortex install`:")
 	for _, c := range clients {
 		if c.OnlyIfExists {
 			continue
@@ -264,8 +264,8 @@ func printClientList(w io.Writer, home, root string, spec agentServerSpec) {
 	for _, m := range manualClients() {
 		_, _ = fmt.Fprintf(w, "  %s\n    %s\n", m.Name, m.Step(spec))
 	}
-	_, _ = fmt.Fprintln(w, "\nNo MCP client (use the CLI): Aider, Plandex. `cortex install --rules` writes CONVENTIONS.md for Aider.")
-	_, _ = fmt.Fprintln(w, "Remote MCP only: ChatGPT, Android Studio. Run `cortex serve --http 127.0.0.1:7788` and see docs/guides/coding-agents.md.")
+	_, _ = fmt.Fprintln(w, "\nNo MCP client (use the CLI): Aider, Plandex. `repocortex install --rules` writes CONVENTIONS.md for Aider.")
+	_, _ = fmt.Fprintln(w, "Remote MCP only: ChatGPT, Android Studio. Run `repocortex serve --http 127.0.0.1:7788` and see docs/guides/coding-agents.md.")
 }
 
 func newInstallCmd(g *Global) *cobra.Command {
@@ -304,7 +304,7 @@ RepoCortex before it searches.`,
 			root := g.Config().RepoRoot
 			spec := agentServerSpec{
 				Name:    agentMCPName,
-				Command: "cortex",
+				Command: "repocortex",
 				Args:    []string{"--project", root, "serve"},
 			}
 			out := cmd.OutOrStdout()
@@ -327,7 +327,7 @@ RepoCortex before it searches.`,
 			}
 
 			if written == 0 {
-				_, _ = fmt.Fprintln(out, "\nNo coding agent was detected. Run 'cortex install --list' to see every supported agent, or 'cortex install --create' to write all their configs.")
+				_, _ = fmt.Fprintln(out, "\nNo coding agent was detected. Run 'repocortex install --list' to see every supported agent, or 'repocortex install --create' to write all their configs.")
 				return nil
 			}
 			if dryRun {
@@ -336,7 +336,7 @@ RepoCortex before it searches.`,
 			}
 			_, _ = fmt.Fprintln(out, "\nRestart your agent, then ask it to use RepoCortex.")
 			if !withRules {
-				_, _ = fmt.Fprintln(out, "Tip: add guidance so your agent reaches for RepoCortex instead of grepping: cortex install --rules")
+				_, _ = fmt.Fprintln(out, "Tip: add guidance so your agent reaches for RepoCortex instead of grepping: repocortex install --rules")
 			}
 			return nil
 		},

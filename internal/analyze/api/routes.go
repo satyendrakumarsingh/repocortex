@@ -95,7 +95,7 @@ func (r Route) Signature() string {
 	return m + " " + r.Path
 }
 
-// SupportedFrameworks is the coverage statement. `cortex doctor` prints it so
+// SupportedFrameworks is the coverage statement. `repocortex doctor` prints it so
 // "no endpoints found" can be read correctly: it means either that the service
 // exposes none, or that it uses a framework not in this list, and a user must
 // be able to tell those apart.

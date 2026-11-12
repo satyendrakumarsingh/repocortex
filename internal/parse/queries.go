@@ -175,7 +175,7 @@ var supplements = map[string]string{
 	// tags already capture the function_definition nested inside it, so adding
 	// one produced TWO symbols for every decorated function — one at the
 	// decorator, one at the `def`. On a real Python service that was 4,224
-	// duplicate symbol rows: `cortex symbol` listed each test twice, and a
+	// duplicate symbol rows: `repocortex symbol` listed each test twice, and a
 	// context pack spent its budget saying the same thing twice, which is the
 	// waste this product exists to remove. Undecorated functions were never
 	// affected, which is why it survived the fixtures.
@@ -555,7 +555,7 @@ func Supplement(language string) string { return supplements[language] }
 func ImportQuery(language string) string { return importQueries[language] }
 
 // SupplementedLanguages lists languages carrying a RepoCortex supplement. Used by
-// tests and by `cortex doctor` to report where coverage is strongest.
+// tests and by `repocortex doctor` to report where coverage is strongest.
 func SupplementedLanguages() []string {
 	out := make([]string, 0, len(supplements))
 	for k := range supplements {

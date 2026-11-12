@@ -224,7 +224,7 @@ func (s *Server) handleFactDiff(w http.ResponseWriter, r *http.Request) {
 		resp.Next = NextAction{
 			Label:   "Index this repository first",
 			Detail:  "A fact diff compares two runs. There is not yet one.",
-			Command: "cortex index && cortex resolve",
+			Command: "repocortex index && repocortex resolve",
 		}
 		s.writeJSON(w, http.StatusOK, resp)
 		return
@@ -238,10 +238,10 @@ func (s *Server) handleFactDiff(w http.ResponseWriter, r *http.Request) {
 			Detail: "A fact diff needs to open two runs of the index. The registry this portal was " +
 				"given resolves only the committed one, so there is no base side to compare against " +
 				"— a gap in this build's wiring, not a statement that nothing changed.",
-			Steps: []string{"cortex diff --from <run> --to <run>"},
+			Steps: []string{"repocortex diff --from <run> --to <run>"},
 		}
 		resp.Next = NextAction{Label: "Run the comparison from the command line",
-			Command: "cortex diff --from 41 --to 42"}
+			Command: "repocortex diff --from 41 --to 42"}
 		s.writeJSON(w, http.StatusOK, resp)
 		return
 	}
@@ -272,7 +272,7 @@ func (s *Server) handleFactDiff(w http.ResponseWriter, r *http.Request) {
 				"the code has not changed.",
 			Steps: []string{
 				"Pass ?from= and ?to= naming two different runs.",
-				"cortex index — index the current tree to produce a second run",
+				"repocortex index — index the current tree to produce a second run",
 			},
 		}
 		resp.Next = diffNextAction(resp)
@@ -322,25 +322,25 @@ func (s *Server) handleFactDiff(w http.ResponseWriter, r *http.Request) {
 			fmt.Sprintf("The %s section holds %d change(s) and %d are listed, ordered by %s. "+
 				"The counts on this screen are computed over the listed rows, so they are a LOWER BOUND "+
 				"for this section.", t.Section, t.Total, t.Shown, t.OrderedBy),
-			"raise ?max_per_section=, or read the whole report with `cortex diff --json`")
+			"raise ?max_per_section=, or read the whole report with `repocortex diff --json`")
 	}
 	if !rep.Caveats.Comparable {
 		om.Note(ReasonUnresolvedReferences,
 			"The two runs are not cleanly comparable: "+strings.Join(rep.Caveats.Notes, " ")+
 				" An absence below may be an indexing gap rather than a deletion.",
-			"cortex doctor")
+			"repocortex doctor")
 	}
 	if rep.Caveats.UnreliableFiles > 0 {
 		om.Hide(ReasonUnresolvedReferences, rep.Caveats.UnreliableFiles,
 			"File(s) did not parse cleanly on one side, so every symbol and edge they would have "+
 				"contributed is missing rather than deleted. A removal attributed to one of them is "+
 				"not a removal.",
-			"cortex doctor")
+			"repocortex doctor")
 	}
 	if rep.Caveats.DanglingEdges > 0 {
 		om.Hide(ReasonUnresolvedReferences, rep.Caveats.DanglingEdges,
 			"Edge(s) referenced a symbol that is not in the snapshot they belong to, so they could "+
-				"not be keyed and are not compared.", "cortex doctor --verify-index")
+				"not be keyed and are not compared.", "repocortex doctor --verify-index")
 	}
 
 	resp.Next = diffNextAction(resp)
@@ -420,8 +420,8 @@ func diffRefGuidance(ref string, err error) *Guidance {
 				"run. A fact diff needs a second one, which is why the two sides of a comparison " +
 				"across commits usually live in two index files.",
 			Steps: []string{
-				"cortex index — index the current tree; the run it produces becomes the head side",
-				"cortex diff --from-index ../release-1.4/.cortex/index.db --from <sha> --to <run>",
+				"repocortex index — index the current tree; the run it produces becomes the head side",
+				"repocortex diff --from-index ../release-1.4/.repocortex/index.db --from <sha> --to <run>",
 				"Then re-open this screen with ?from=<run>&to=<run>",
 			},
 		}
@@ -431,7 +431,7 @@ func diffRefGuidance(ref string, err error) *Guidance {
 		Detail: "A ref names a run that is ALREADY in this index. It never falls back to whatever happens to be committed, because a diff against the wrong run is worse than no diff at all. " + err.Error(),
 		Steps: []string{
 			"Pass a run id: ?from=41&to=42",
-			"git checkout <ref> && cortex index — to compare against a commit this index has never seen",
+			"git checkout <ref> && repocortex index — to compare against a commit this index has never seen",
 		},
 	}
 }
@@ -533,7 +533,7 @@ func diffNextAction(resp FactDiffResponse) NextAction {
 		return NextAction{
 			Label:   "Produce a second run to compare against",
 			Detail:  "The fact diff is the only view here that reports a change rather than a state.",
-			Command: "cortex index",
+			Command: "repocortex index",
 		}
 	case resp.Counts.Downgraded > 0:
 		return NextAction{

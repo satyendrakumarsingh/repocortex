@@ -191,7 +191,7 @@ func BuildSARIF(toolVersion string, findings []Finding, opts ...SARIFOption) SAR
 			ToolExecutionNotifications: []SARIFNotification{{
 				Level: "warning",
 				Message: SARIFText{Text: fmt.Sprintf("%d findings have no source location and are not shown in code scanning; "+
-					"see the RepoCortex PR comment or `cortex missed` / `cortex arch`.", locationless)},
+					"see the RepoCortex PR comment or `repocortex blindspots` / `repocortex arch`.", locationless)},
 			}},
 		}}
 	}

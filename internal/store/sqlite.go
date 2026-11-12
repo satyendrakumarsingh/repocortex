@@ -42,7 +42,7 @@ func (d *DB) Path() string { return d.path }
 // Open opens (creating if needed) a store and applies connection pragmas.
 //
 // It does not migrate; call Migrate explicitly so callers decide when schema
-// changes happen. `cortex init` migrates, query paths do not.
+// changes happen. `repocortex init` migrates, query paths do not.
 func Open(ctx context.Context, opts Options) (*DB, error) {
 	dsn, path := buildDSN(opts)
 
@@ -86,7 +86,7 @@ func maxOpenConns(opts Options) int {
 // This is not cosmetic. `file::memory:?cache=shared` is a SINGLE database
 // shared by every connection in the process, so two Open calls would silently
 // hand back the same store: one test's writes would appear in another's reads.
-// Naming each one (`file:cortex-mem-N?mode=memory&cache=shared`) gives real
+// Naming each one (`file:repocortex-mem-N?mode=memory&cache=shared`) gives real
 // isolation while still allowing several connections to reach the same
 // database when needed.
 var memCounter atomic.Uint64
@@ -129,7 +129,7 @@ func buildDSN(opts Options) (dsn, path string) {
 	}
 
 	if opts.Path == "" {
-		name := fmt.Sprintf("cortex-mem-%d", memCounter.Add(1))
+		name := fmt.Sprintf("repocortex-mem-%d", memCounter.Add(1))
 		return "file:" + name + "?mode=memory&cache=shared&" + strings.Join(params, "&"), ""
 	}
 

@@ -283,7 +283,7 @@ func hasProjection(up string) bool {
 //
 // It was also a PANIC. `up[len("SELECT "):i]` assumed i > 7, and both
 // "WITH a FROM b" (i=6) and "SELECT FROM t" (i=6) put it below that: slice
-// bounds out of range [7:6], crashing `cortex index` on any repository
+// bounds out of range [7:6], crashing `repocortex index` on any repository
 // containing either string. Found by another agent running a real index, not by
 // the unit tests, which only ever fed it well-formed queries.
 //
@@ -642,7 +642,7 @@ func isIdentifier(t string) bool {
 	// EVERY character, not just the first. Checking only the first accepted
 	// `flex-1` and `font-medium` as table names, because a Vue template writes
 	// `class="truncate flex-1"` and the scan read that literal as
-	// `TRUNCATE <table>`. `cortex db` then listed Tailwind utility classes
+	// `TRUNCATE <table>`. `repocortex db` then listed Tailwind utility classes
 	// among the repository's tables — an invented table, which the doc comment
 	// on LooksLikeSQL calls the failure that costs the reader's trust in every
 	// other row.
@@ -691,7 +691,7 @@ var sqlKeywords = map[string]bool{
 // its prefix is not a keyword — and then unqualify throws that prefix away.
 // "SELECT FROM A.FROM" reported a table called `from`: the token "A.FROM" is
 // not a keyword, but what survives unqualification is. A keyword indexed as a
-// table is worse than no result, because `cortex db` then reports a table
+// table is worse than no result, because `repocortex db` then reports a table
 // that does not exist and nothing downstream can tell it apart from a real one.
 func unqualifiedIdent(t string) string {
 	name := unqualify(t)
@@ -811,7 +811,7 @@ var constraintKeywords = map[string]bool{
 // Any offset found in it and then applied to the original is then wrong, and
 // far enough past the end to panic: "INSERT \xe4\xe4\xe4\xe4 INTO 0" produced
 // slice bounds out of range [19:18] in insertColumns, which means a repository
-// containing one malformed .sql file crashed `cortex index`.
+// containing one malformed .sql file crashed `repocortex index`.
 //
 // SQL keywords are ASCII, so restricting the fold to ASCII loses nothing —
 // this is the primitive keyword scanning wanted in the first place.

@@ -15,7 +15,7 @@ import (
 // cancel out. The edge triples are what queries actually answer from.
 func graphFingerprint(t *testing.T, root string) string {
 	t.Helper()
-	db, err := sql.Open("sqlite", filepath.Join(root, ".cortex", "index.db"))
+	db, err := sql.Open("sqlite", filepath.Join(root, ".repocortex", "index.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,13 +70,13 @@ func graphFingerprint(t *testing.T, root string) string {
 // assertion that catches an entire class of omission, and it caught three in a
 // row — each a thing reindexOne extracted and then failed to write:
 //
-//   - analysis facts (endpoints, table accesses, config usages), so `cortex
+//   - analysis facts (endpoints, table accesses, config usages), so `repocortex
 //     api` lost a controller's routes on an unrelated edit;
 //   - references and imports, so a re-indexed file kept zero references,
 //     nothing in it could resolve again, and its intra-file call edges bled
 //     away one edited file at a time;
 //   - resolutions into an edited file, orphaned by the delete cascade and
-//     never revisited, which made `cortex arch` report "No violations" on a
+//     never revisited, which made `repocortex arch` report "No violations" on a
 //     repo that had one.
 //
 // Every one of those was invisible from the outside: an eroded index and a
@@ -92,7 +92,7 @@ func TestIncrementalConvergesWithFullIndex(t *testing.T) {
 	}
 
 	// A working session: edit several files, re-indexing after each, the way
-	// `cortex watch` does. One edit was not enough to expose the erosion.
+	// `repocortex watch` does. One edit was not enough to expose the erosion.
 	edits := []string{
 		filepath.Join("src", "api", "handler.go"),
 		filepath.Join("src", "db", "store.go"),

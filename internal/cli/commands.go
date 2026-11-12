@@ -38,9 +38,9 @@ func newInitCmd(g *Global) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "init",
 		Short: "Create the RepoCortex index for this project",
-		Long: `Creates .cortex/ and applies the registry schema.
+		Long: `Creates .repocortex/ and applies the registry schema.
 
-This does not index anything; run "cortex index" afterwards.`,
+This does not index anything; run "repocortex index" afterwards.`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx := cmd.Context()
 			cfg := g.Config()
@@ -100,7 +100,7 @@ This does not index anything; run "cortex index" afterwards.`,
 			_, _ = fmt.Fprintf(out, "  Index:          %s\n", dbPath)
 			_, _ = fmt.Fprintf(out, "  Schema version: %d (%d migration(s) applied)\n", version, len(applied))
 			_, _ = fmt.Fprintf(out, "  Accuracy mode:  %s\n", cfg.Accuracy)
-			_, _ = fmt.Fprintf(out, "\nNext: cortex index\n")
+			_, _ = fmt.Fprintf(out, "\nNext: repocortex index\n")
 			return nil
 		},
 	}
@@ -140,7 +140,7 @@ All figures are read from the registry. Nothing is estimated.`,
 			fi, err := os.Stat(dbPath)
 			if os.IsNotExist(err) {
 				st.IndexStatus = "absent"
-				return renderStatus(cmd, g, st, "Run 'cortex init' to create the index.")
+				return renderStatus(cmd, g, st, "Run 'repocortex init' to create the index.")
 			} else if err != nil {
 				return err
 			}
@@ -164,7 +164,7 @@ All figures are read from the registry. Nothing is estimated.`,
 					st.IndexStatus = "outdated"
 					st.ExpectedSchema = outdated.Wanted
 					return renderStatus(cmd, g, st, fmt.Sprintf(
-						"Index schema is v%d but this build expects v%d. Run 'cortex index' to upgrade.",
+						"Index schema is v%d but this build expects v%d. Run 'repocortex index' to upgrade.",
 						outdated.Found, outdated.Wanted))
 				}
 				return err
@@ -178,7 +178,7 @@ All figures are read from the registry. Nothing is estimated.`,
 			switch {
 			case err != nil && strings.Contains(err.Error(), "no rows"):
 				st.IndexStatus = "empty"
-				return renderStatus(cmd, g, st, "Schema is ready but nothing is indexed yet. Run 'cortex index'.")
+				return renderStatus(cmd, g, st, "Schema is ready but nothing is indexed yet. Run 'repocortex index'.")
 			case err != nil:
 				return err
 			}
@@ -186,7 +186,7 @@ All figures are read from the registry. Nothing is estimated.`,
 			// Count live rows rather than reading index_runs' snapshot columns.
 			//
 			// Those columns are written once, by CommitRun. Anything that
-			// changes the graph afterwards — `cortex resolve` building the
+			// changes the graph afterwards — `repocortex resolve` building the
 			// call graph, an incremental update adding or removing symbols —
 			// leaves them stale, and status reported "Relationships: 0" while
 			// 16 edges sat in the table. A status command that contradicts the
@@ -320,10 +320,10 @@ already imported into this index, and reports agreement per confidence tier —
 on YOUR repository, not on ours. It needs a run holding both, so import a SCIP
 index first:
 
-    cortex index && cortex resolve
+    repocortex index && repocortex resolve
     scip-go --output index.scip
-    cortex scip import index.scip
-    cortex doctor --resolution-precision
+    repocortex scip import index.scip
+    repocortex doctor --resolution-precision
 
 It reports precision, never recall, and it reports the coverage the precision
 was computed over: how many heuristic edges were adjudicated out of how many
@@ -380,7 +380,7 @@ see docs/accuracy.md for what the numbers do and do not mean.`,
 			var prec *precisionReport
 			dbPath := g.DBPath()
 			if _, err := os.Stat(dbPath); os.IsNotExist(err) {
-				checks = append(checks, check{Name: "index", Status: "warn", Detail: "absent — run 'cortex init'"})
+				checks = append(checks, check{Name: "index", Status: "warn", Detail: "absent — run 'repocortex init'"})
 			} else {
 				checks = append(checks, check{Name: "index", Status: "ok", Detail: dbPath})
 				if verifyIndex {
@@ -513,10 +513,10 @@ func collectPrecision(cmd *cobra.Command, dbPath string) (*precisionReport, erro
 	reg := registry.New(db)
 	run, err := reg.CurrentRun(ctx)
 	if errors.Is(err, registry.ErrNoCommittedRun) {
-		// Rewritten for the same reason `cortex scip import` rewrites it: the
+		// Rewritten for the same reason `repocortex scip import` rewrites it: the
 		// registry's message describes the store, not the next step.
 		return nil, errors.New("no committed index to measure — run " +
-			"'cortex index && cortex resolve' first")
+			"'repocortex index && repocortex resolve' first")
 	}
 	if err != nil {
 		return nil, fmt.Errorf("resolution precision: %w", err)
@@ -775,7 +775,7 @@ func renderPrecision(out io.Writer, rep *precisionReport) error {
 		_, _ = fmt.Fprintf(out,
 			"Not measured. This index holds no compiler facts, so nothing here has been\n"+
 				"checked against a compiler — including every language listed below.\n"+
-				"Run 'cortex scip import <index.scip>' first; see 'cortex doctor --help'.\n")
+				"Run 'repocortex scip import <index.scip>' first; see 'repocortex doctor --help'.\n")
 		renderPrecisionLanguages(out, rep)
 		return nil
 	}
@@ -966,7 +966,7 @@ func verifyGraph(cmd *cobra.Command, dbPath string) []check {
 			 WHERE NOT EXISTS (SELECT 1 FROM symbols s WHERE s.id = e.src_id)
 			    OR NOT EXISTS (SELECT 1 FROM symbols s WHERE s.id = e.dst_id)`,
 			impact: "graph queries may return relationships whose ends cannot be shown",
-			remedy: "re-run 'cortex index --full && cortex resolve'; report it if it comes back",
+			remedy: "re-run 'repocortex index --full && repocortex resolve'; report it if it comes back",
 		},
 		{
 			name: "orphaned symbols",
@@ -974,7 +974,7 @@ func verifyGraph(cmd *cobra.Command, dbPath string) []check {
 			sql: `SELECT count(*) FROM symbols s
 			 WHERE NOT EXISTS (SELECT 1 FROM files f WHERE f.id = s.file_id)`,
 			impact: "search and symbol lookup can return locations that no longer exist",
-			remedy: "re-run 'cortex index --full'; report it if it comes back",
+			remedy: "re-run 'repocortex index --full'; report it if it comes back",
 		},
 		{
 			name:   "unproven exact edges",
@@ -991,7 +991,7 @@ func verifyGraph(cmd *cobra.Command, dbPath string) []check {
 			 JOIN symbols b ON b.id = e.dst_id
 			 WHERE a.index_run_id <> e.index_run_id OR b.index_run_id <> e.index_run_id`,
 			impact: "relationships may mix code from two different revisions",
-			remedy: "re-run 'cortex index --full && cortex resolve'; report it if it comes back",
+			remedy: "re-run 'repocortex index --full && repocortex resolve'; report it if it comes back",
 		},
 		{
 			name: "uncommitted visible runs",
@@ -999,7 +999,7 @@ func verifyGraph(cmd *cobra.Command, dbPath string) []check {
 			sql: `SELECT CASE WHEN count(*) > 1 THEN count(*) ELSE 0 END
 			 FROM index_runs WHERE committed = 1`,
 			impact: "queries may read a half-finished revision",
-			remedy: "re-run 'cortex index --full'; report it if it comes back",
+			remedy: "re-run 'repocortex index --full'; report it if it comes back",
 		},
 		{
 			// Double extraction. Two declarations that agree on file, qualified
@@ -1029,7 +1029,7 @@ func verifyGraph(cmd *cobra.Command, dbPath string) []check {
 			  AND b.end_line = a.end_line AND b.start_line > a.start_line
 			  AND b.index_run_id = a.index_run_id`,
 			impact: "symbol counts are inflated and a context pack may spend budget saying the same thing twice; callers and references are unaffected",
-			remedy: "exclude the affected paths under index.exclude in .cortex.yml if they are vendored, otherwise report the language and one example line",
+			remedy: "exclude the affected paths under index.exclude in .repocortex.yml if they are vendored, otherwise report the language and one example line",
 			examples: `SELECT f.path || ':' || a.start_line || ' (' || a.name || ')'
 			   FROM symbols a JOIN symbols b
 			     ON b.file_id = a.file_id AND b.fqn = a.fqn AND b.kind = a.kind
@@ -1059,7 +1059,7 @@ func verifyGraph(cmd *cobra.Command, dbPath string) []check {
 			desc: "table names containing characters no SQL identifier can hold",
 			sql: `SELECT count(*) FROM table_accesses
 			  WHERE table_name GLOB '*[^A-Za-z0-9_.$]*'`,
-			impact: "'cortex db' lists tables your schema does not have; real tables are still correct",
+			impact: "'repocortex db' lists tables your schema does not have; real tables are still correct",
 			remedy: "ignore those rows, and report the file and line below — a string in that file is being read as SQL",
 			examples: `SELECT f.path || ':' || t.start_line || ' (' || t.table_name || ')'
 			   FROM table_accesses t JOIN files f ON f.id = t.file_id
@@ -1071,14 +1071,14 @@ func verifyGraph(cmd *cobra.Command, dbPath string) []check {
 			name:   "implausible config keys",
 			desc:   "configuration keys with no letter or digit in them",
 			sql:    `SELECT count(*) FROM config_usages WHERE key_name NOT GLOB '*[A-Za-z0-9]*'`,
-			impact: "'cortex config' lists keys your service does not read; real keys are still correct",
+			impact: "'repocortex config' lists keys your service does not read; real keys are still correct",
 			remedy: "ignore those rows, and report the file and line below",
 			examples: `SELECT f.path || ':' || c.start_line || ' (' || c.key_name || ')'
 			   FROM config_usages c JOIN files f ON f.id = c.file_id
 			  WHERE c.key_name NOT GLOB '*[A-Za-z0-9]*' LIMIT 3`,
 		},
 		{
-			// This state is why `cortex arch` once reported "No violations"
+			// This state is why `repocortex arch` once reported "No violations"
 			// on a repo that had one: the reference had been silently orphaned
 			// by an edit to the definition it pointed at, and resolve skips
 			// anything not marked pending, so the call edge never came back.
@@ -1087,7 +1087,7 @@ func verifyGraph(cmd *cobra.Command, dbPath string) []check {
 			sql: `SELECT count(*) FROM symbol_references
 			 WHERE resolution = 'resolved' AND resolved_symbol_id IS NULL`,
 			impact: "callers, references and arch may under-report: edges that should exist are missing",
-			remedy: "run 'cortex resolve' — it repairs this state; report it if the count survives",
+			remedy: "run 'repocortex resolve' — it repairs this state; report it if the count survives",
 		},
 	}
 

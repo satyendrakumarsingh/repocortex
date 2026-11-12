@@ -21,7 +21,7 @@ func newMissedCmd(g *Global) *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "missed",
+		Use:   "blindspots",
 		Short: "Detect code intelligence blindspots and hidden risks",
 		Long: `Audits the index for blindspots:
   - Unresolved external and internal calls
@@ -32,10 +32,10 @@ func newMissedCmd(g *Global) *cobra.Command {
   - Partially parsed or errored source files
 
 Examples:
-  cortex missed
-  cortex missed --kind unresolved_call
-  cortex missed --json
-  cortex missed --fail-on high    # exit 1 in CI when a high-severity blindspot exists`,
+  repocortex blindspots
+  repocortex blindspots --kind unresolved_call
+  repocortex blindspots --json
+  repocortex blindspots --fail-on high    # exit 1 in CI when a high-severity blindspot exists`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx := cmd.Context()
 			// Validated before the index is opened: a mistyped --kind used to
@@ -60,7 +60,7 @@ Examples:
 				return fmt.Errorf("read current index run: %w", err)
 			}
 			if currentRun == nil {
-				return fmt.Errorf("index is empty: run 'cortex index' first")
+				return fmt.Errorf("index is empty: run 'repocortex index' first")
 			}
 
 			gr := graph.New(db)

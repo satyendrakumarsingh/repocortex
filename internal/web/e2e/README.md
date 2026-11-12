@@ -5,7 +5,7 @@ One command runs everything:
     npm --prefix internal/web/e2e install     # once
     npm --prefix internal/web/e2e test
 
-`globalSetup` runs `go build ./cmd/cortex`, copies `fixtures/payment-platform`
+`globalSetup` runs `go build ./cmd/repocortex`, copies `fixtures/payment-platform`
 out of the tree and indexes it with that binary, then starts one portal per
 fixture repository (payment-platform on :7925, and any machine-local fixtures
 you declare on :7920, :7921 and :7923). `globalTeardown` stops only the processes it started
@@ -46,7 +46,7 @@ Selected files or one test:
 
 ## The ci tier
 
-    CORTEX_E2E_TIER=ci npm --prefix internal/web/e2e test
+    REPOCORTEX_E2E_TIER=ci npm --prefix internal/web/e2e test
 
 keeps only the shipped fixture. The three machine-local fixtures are removed
 from `REPOS` before any spec reads them, and the refresh repository's root is

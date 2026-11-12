@@ -71,7 +71,7 @@ func (s *RegistrySink) WriteFile(ctx context.Context, facts FileFacts) error {
 // recordUnpersistableFile writes the file row alone, marked failed, so a file
 // whose facts could not be stored is still visible as a gap.
 //
-// Silence would be the worse outcome: `cortex status` reports parse failures,
+// Silence would be the worse outcome: `repocortex status` reports parse failures,
 // and a file that vanished entirely would read as one that simply contains
 // nothing.
 func (s *RegistrySink) recordUnpersistableFile(ctx context.Context, f model.File, cause error) error {
@@ -193,7 +193,7 @@ func (s *RegistrySink) writeFileRows(ctx context.Context, facts FileFacts) error
 		// REDACT BEFORE STORING. This is the first of two barriers, and the
 		// more important one: a credential that never enters the index cannot
 		// leak from it later, through search results, an excerpt, a backup of
-		// .cortex/, or a future tool nobody has written yet.
+		// .repocortex/, or a future tool nobody has written yet.
 		//
 		// RedactFile classifies by path first, so an entire .env or private key
 		// is suppressed wholesale rather than pattern-matched line by line.

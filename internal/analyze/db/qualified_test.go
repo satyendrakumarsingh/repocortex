@@ -7,7 +7,7 @@ import "testing"
 //
 // isIdentifier runs on the whole token, so "A.FROM" passes it — "A.FROM" is
 // not a keyword — and unqualify then discards the prefix and yields "from".
-// `cortex db` reported a table called `from`, which nothing downstream can
+// `repocortex db` reported a table called `from`, which nothing downstream can
 // distinguish from a real one.
 //
 // The guard must not overcorrect: stripping a schema prefix is the entire
@@ -48,7 +48,7 @@ func TestQualifiedNameKeepsItsTableAndDropsKeywords(t *testing.T) {
 // strings.ToUpper replaces each invalid UTF-8 byte with a three-byte U+FFFD,
 // so the uppercased string is LONGER than its input. insertColumns found an
 // offset in it and applied that offset to the original, and a repository
-// containing one malformed file crashed `cortex index` with
+// containing one malformed file crashed `repocortex index` with
 // "slice bounds out of range [19:18]".
 func TestInvalidUTF8DoesNotPanic(t *testing.T) {
 	for _, s := range []string{
@@ -72,7 +72,7 @@ func TestInvalidUTF8DoesNotPanic(t *testing.T) {
 // said TRUNCATE TABLE, and isIdentifier validated only the FIRST character of
 // a name, so `flex-1` looked like a table.
 //
-// `cortex db` consequently reported tables named `flex-1`, `font-medium` and
+// `repocortex db` consequently reported tables named `flex-1`, `font-medium` and
 // `block` on a repository that has none of them. An invented table is the
 // failure this package's own documentation calls worse than a missed one.
 func TestCSSClassListIsNotATruncate(t *testing.T) {

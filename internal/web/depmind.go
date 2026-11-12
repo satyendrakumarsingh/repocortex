@@ -39,7 +39,7 @@ import (
 //
 // # Why the language tiers are on this screen
 //
-// `cortex languages` reports what the parser can do per language: typed,
+// `repocortex languages` reports what the parser can do per language: typed,
 // resolved or parsed. That is the same question DepMind answers about packages,
 // asked about the toolchain — "how much of this can RepoCortex actually see" —
 // and it is what makes an empty dependency answer interpretable. A repository
@@ -162,7 +162,7 @@ type LanguageTier struct {
 	Tier string `json:"tier"`
 
 	// WhatYouGet is parse.Tier.Description, verbatim, so this screen and
-	// `cortex languages` cannot phrase the same capability two ways.
+	// `repocortex languages` cannot phrase the same capability two ways.
 	WhatYouGet string `json:"what_you_get"`
 
 	// Supported is every language the shipping binary places at this tier.
@@ -230,7 +230,7 @@ type DepsResponse struct {
 	Meta   Meta   `json:"meta"`
 	Legend []Tier `json:"confidence_legend"`
 
-	// The mismatch first, then the inventory — the order `cortex deps` uses,
+	// The mismatch first, then the inventory — the order `repocortex deps` uses,
 	// because the inventory is the boring half.
 	NotImported []DependencyRow `json:"declared_but_not_imported"`
 	Declared    []DependencyRow `json:"declared"`
@@ -286,7 +286,7 @@ func (s *Server) handleDeps(w http.ResponseWriter, r *http.Request) {
 		resp.ImportedNotDeclared = reverseUnavailable(reverseNoRun)
 		resp.LanguageTiers = languageTiers(nil)
 		resp.Next = NextAction{
-			Label: "Index this repository", Command: "cortex index",
+			Label: "Index this repository", Command: "repocortex index",
 			Detail: "Dependencies are extracted from manifests during indexing; there is nothing committed to read.",
 		}
 		s.writeJSON(w, http.StatusOK, resp)
@@ -316,12 +316,12 @@ func (s *Server) handleDeps(w http.ResponseWriter, r *http.Request) {
 				"of this screen has no source. That is missing wiring, not a project without " +
 				"dependencies — the language tiers below are still real.",
 			Steps: []string{
-				"cortex ui — the shipped portal wires the full registry",
-				"cortex deps --all — the same report in the terminal",
+				"repocortex ui — the shipped portal wires the full registry",
+				"repocortex deps --all — the same report in the terminal",
 			},
 		}
 		resp.Next = NextAction{
-			Label: "Read it in the terminal instead", Command: "cortex deps --all",
+			Label: "Read it in the terminal instead", Command: "repocortex deps --all",
 			Detail: "Same source, no portal wiring required.",
 		}
 		resp.Omissions = om
@@ -382,10 +382,10 @@ func (s *Server) handleDeps(w http.ResponseWriter, r *http.Request) {
 
 	resp.NotImported = capped(unused, maxRows, &om, ReasonRowBudget,
 		fmt.Sprintf("Unused declarations beyond the first %d (alphabetical) are not listed. "+
-			"counts.declared_but_not_imported is the full figure.", maxRows), "cortex deps")
+			"counts.declared_but_not_imported is the full figure.", maxRows), "repocortex deps")
 	resp.Declared = capped(rows, maxRows, &om, ReasonRowBudget,
 		fmt.Sprintf("Declared dependencies beyond the first %d are not listed. counts.declared is the "+
-			"full figure.", maxRows), "cortex deps --all")
+			"full figure.", maxRows), "repocortex deps --all")
 	if resp.NotImported == nil {
 		resp.NotImported = []DependencyRow{}
 	}
@@ -400,27 +400,27 @@ func (s *Server) handleDeps(w http.ResponseWriter, r *http.Request) {
 			Detail: depsCoverageLimit + " No manifest was recognised in this repository, so there is no " +
 				"declared set to join against — which is not the same as a project with no dependencies.",
 			Steps: []string{
-				"cortex index — manifests are read during indexing",
-				"cortex deps — the same report in the terminal, with the manifest list",
+				"repocortex index — manifests are read during indexing",
+				"repocortex deps — the same report in the terminal, with the manifest list",
 				"Check the language tiers below: a toolchain RepoCortex parses at `parsed` still has its manifest read, so an empty answer here really is an absent manifest",
 			},
 		}
 		resp.Next = NextAction{
 			Label:   "Confirm the manifest is one of the seven read",
 			Detail:  "A project declaring dependencies in a format outside that list reports nothing here by construction.",
-			Command: "cortex deps",
+			Command: "repocortex deps",
 		}
 	case len(unused) > 0:
 		resp.Next = NextAction{
 			Label:   fmt.Sprintf("%d declared dependency(ies) are imported by nothing", len(unused)),
 			Detail:  unusedDependencyCaveat,
-			Command: "cortex deps",
+			Command: "repocortex deps",
 		}
 	default:
 		resp.Next = NextAction{
 			Label:   "Every direct declaration has an importer",
 			Detail:  fmt.Sprintf("%d declared, %d of them marked indirect by the manifest itself.", len(rows), resp.Counts.Indirect),
-			Command: "cortex deps --all",
+			Command: "repocortex deps --all",
 		}
 	}
 
@@ -446,7 +446,7 @@ var (
 		detail: "There is no committed index, so no import path has been recorded and nothing " +
 			"can be subtracted from the declared set. This is an absent index, not a repository " +
 			"whose every import is declared.",
-		remedy: "cortex index",
+		remedy: "repocortex index",
 	}
 
 	// reverseNoImportEnumerator: the port is unwired. Kept reachable because a
@@ -458,7 +458,7 @@ var (
 			"missing wiring, not a missing fact. An empty list is not published here, because an " +
 			"empty list would assert that every import in this repository matches a declaration, " +
 			"which nothing checked.",
-		remedy: "cortex ui — the shipped portal wires the full registry",
+		remedy: "repocortex ui — the shipped portal wires the full registry",
 	}
 
 	// reverseNoDeclaredSet: the declared half is missing, so the subtraction has
@@ -467,7 +467,7 @@ var (
 		detail: "The declared set could not be read, and \"imported but never declared\" is a " +
 			"subtraction: without it the remainder would be every import path in the repository, " +
 			"presented as if each were a missing declaration.",
-		remedy: "cortex deps --all",
+		remedy: "repocortex deps --all",
 	}
 )
 
@@ -502,7 +502,7 @@ func (s *Server) reverseDirection(ctx context.Context, runID int64,
 	if err != nil {
 		return reverseUnavailable(reverseGap{
 			detail: "The run's import paths could not be read: " + err.Error(),
-			remedy: "cortex doctor",
+			remedy: "repocortex doctor",
 		}), -1
 	}
 
@@ -546,7 +546,7 @@ func (s *Server) reverseDirection(ctx context.Context, runID int64,
 	rows = capped(rows, maxRows, om, ReasonRowBudget,
 		fmt.Sprintf("Undeclared import paths beyond the first %d (ordered by importing files) are "+
 			"not listed. counts.imported_but_not_declared is the full figure.", maxRows),
-		"cortex deps --all")
+		"repocortex deps --all")
 	if rows == nil {
 		rows = []ImportRow{}
 	}

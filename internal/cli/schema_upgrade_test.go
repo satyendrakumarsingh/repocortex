@@ -11,7 +11,7 @@ import (
 )
 
 // dropLatestMigration rewinds an index one schema version, simulating a
-// database written by the previous release of cortex.
+// database written by the previous release of repocortex.
 //
 // It drops the objects the newest migration created and deletes its
 // schema_migrations row, which is what an older binary's index actually looks
@@ -97,13 +97,13 @@ func schemaVersionOf(t *testing.T, dbPath string) int {
 
 // TestUpgradeAppliesPendingMigrations pins the upgrade path.
 //
-// store.Migrate was called only by `cortex init`. Every other command opened
+// store.Migrate was called only by `repocortex init`. Every other command opened
 // the database and used it as-is, so upgrading the binary left an existing user
 // on their old schema permanently: migration 0005's foreign-key indexes were
 // never created, and before that, a v2 index met a build expecting
 // table_accesses and failed with a raw driver error from deep inside a query.
 //
-// Anyone who ran `cortex init` once and then upgraded was affected, which is
+// Anyone who ran `repocortex init` once and then upgraded was affected, which is
 // every user who keeps the tool longer than one release.
 func TestUpgradeAppliesPendingMigrations(t *testing.T) {
 	root := isolate(t)
@@ -118,7 +118,7 @@ func TestUpgradeAppliesPendingMigrations(t *testing.T) {
 		}
 	}
 
-	dbPath := filepath.Join(root, ".cortex", "index.db")
+	dbPath := filepath.Join(root, ".repocortex", "index.db")
 	current := schemaVersionOf(t, dbPath)
 	rewound := dropLatestMigration(t, dbPath)
 	if got := schemaVersionOf(t, dbPath); got != rewound-1 {
@@ -152,7 +152,7 @@ func TestOutdatedSchemaIsReportedNotCrashed(t *testing.T) {
 			t.Fatalf("%v: %v\n%s", args, err, out)
 		}
 	}
-	dbPath := filepath.Join(root, ".cortex", "index.db")
+	dbPath := filepath.Join(root, ".repocortex", "index.db")
 	dropLatestMigration(t, dbPath)
 
 	out, err := run(t, root, "symbol", "A")
@@ -160,7 +160,7 @@ func TestOutdatedSchemaIsReportedNotCrashed(t *testing.T) {
 		t.Fatalf("a query against an outdated schema succeeded; expected a refusal:\n%s", out)
 	}
 	// The message has to name the fix, not just the problem.
-	if !strings.Contains(err.Error()+out, "cortex index") {
+	if !strings.Contains(err.Error()+out, "repocortex index") {
 		t.Errorf("error does not tell the user how to fix it: %v\n%s", err, out)
 	}
 

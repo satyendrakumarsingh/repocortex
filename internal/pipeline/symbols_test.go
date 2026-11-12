@@ -27,7 +27,7 @@ func sym(name string, line, col int) model.Symbol {
 //
 // Line 152 declares a function `json` and, inside its own parameter type, a
 // method signature `json`. Before this, the second insert failed the UNIQUE
-// constraint and took the whole run with it: `cortex index` exited 1 at 80%
+// constraint and took the whole run with it: `repocortex index` exited 1 at 80%
 // of an 8,094-file repository and committed nothing.
 func TestCollapseDuplicateDeclarations(t *testing.T) {
 	t.Run("the real case: same name and line, different column", func(t *testing.T) {

@@ -366,7 +366,7 @@ func FuzzParseGo(f *testing.F) {
 //
 // A tags query sees `var _ = x` as a definition. The language guarantees no
 // reference can ever bind to it, so it is a row that can only ever be noise —
-// and `cortex symbol _` answering with 46 results devalues a table whose
+// and `repocortex symbol _` answering with 46 results devalues a table whose
 // worth is that every row means something.
 func TestBlankIdentifierIsNotASymbol(t *testing.T) {
 	src := []byte(`package p

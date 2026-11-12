@@ -27,7 +27,7 @@ import (
 //
 // # Federated, never merged
 //
-// Each member keeps its own index and is opened READ-ONLY, exactly as `cortex
+// Each member keeps its own index and is opened READ-ONLY, exactly as `repocortex
 // diff --from-index` does and for the same reasons: members are indexed at
 // different commits on different schedules, one committed run per database is
 // an invariant the index swap depends on, and a combined database would have to
@@ -49,8 +49,8 @@ import (
 // still a row, `complete` is false, and every count is stated as a floor.
 
 // estateFile is the conventional manifest looked for when ?estate= is absent.
-// The name matches the one `cortex system --members` documents.
-const estateFile = "cortex.system.yml"
+// The name matches the one `repocortex system --members` documents.
+const estateFile = "repocortex.system.yml"
 
 // Bounds. Each member costs one opened database and several whole-run reads, so
 // the member count is the number that has to stay small.
@@ -150,7 +150,7 @@ func (s *Server) handleEstate(w http.ResponseWriter, r *http.Request) {
 		resp.Next = NextAction{
 			Label:   "Index this repository first",
 			Detail:  "This repository is a member of its own estate; without an index it contributes nothing to one.",
-			Command: "cortex index",
+			Command: "repocortex index",
 		}
 		s.writeJSON(w, http.StatusOK, resp)
 		return
@@ -183,7 +183,7 @@ func (s *Server) handleEstate(w http.ResponseWriter, r *http.Request) {
 			Title:  fmt.Sprintf("%s is not a readable estate file", resp.Manifest.Path),
 			Detail: err.Error(),
 			Steps: []string{
-				"members:\n  - name: web\n    index: ../web/.cortex/index.db\n  - name: orders\n    index: ../orders/.cortex/index.db",
+				"members:\n  - name: web\n    index: ../web/.repocortex/index.db\n  - name: orders\n    index: ../orders/.repocortex/index.db",
 				"Paths are resolved relative to the FILE, so the estate means the same thing from every directory.",
 			},
 		}
@@ -220,7 +220,7 @@ func (s *Server) handleEstate(w http.ResponseWriter, r *http.Request) {
 			fmt.Sprintf("Member(s) beyond the first %d (by name) were not opened at all. Every "+
 				"count on this screen is missing whatever they would have contributed, and an edge "+
 				"into one of them appears here as an unjoined call.", maxEstateMembers),
-			"cortex system --members "+resp.Manifest.Path)
+			"repocortex system --members "+resp.Manifest.Path)
 	}
 
 	cat := newMemberCatalogue()
@@ -261,7 +261,7 @@ func (s *Server) handleEstate(w http.ResponseWriter, r *http.Request) {
 		om.Hide(ReasonRowBudget, n,
 			fmt.Sprintf("The %s section was capped at %d row(s) and %d more exist.",
 				section, maxEstateRows, n),
-			"cortex system --members "+resp.Manifest.Path+" --max-unjoined 1000")
+			"repocortex system --members "+resp.Manifest.Path+" --max-unjoined 1000")
 	}
 	if !resp.Complete {
 		om.Hide(ReasonUnresolvedReferences, len(rep.Unjoined.UnavailableMembers),
@@ -344,9 +344,9 @@ func estateMissingGuidance(ref FileRef) *Guidance {
 		Title:  fmt.Sprintf("No estate manifest at %s", ref.Path),
 		Detail: detail,
 		Steps: []string{
-			"Write " + estateFile + ":\n  members:\n    - name: web\n      index: ../web/.cortex/index.db\n    - name: orders\n      index: ../orders/.cortex/index.db",
-			"Index each member in its own checkout: cortex index --project <that checkout>",
-			"cortex system --members " + estateFile + " — the same federation from the command line",
+			"Write " + estateFile + ":\n  members:\n    - name: web\n      index: ../web/.repocortex/index.db\n    - name: orders\n      index: ../orders/.repocortex/index.db",
+			"Index each member in its own checkout: repocortex index --project <that checkout>",
+			"repocortex system --members " + estateFile + " — the same federation from the command line",
 		},
 	}
 }
@@ -357,7 +357,7 @@ func estateNextAction(resp EstateResponse) NextAction {
 		return NextAction{
 			Label:   "Declare the estate",
 			Detail:  "Until it is declared, every cross-repository call in this repository is an unbound call.",
-			Command: "cortex system --members " + estateFile,
+			Command: "repocortex system --members " + estateFile,
 		}
 	case !resp.Complete:
 		return NextAction{
@@ -403,13 +403,13 @@ func estateNextAction(resp EstateResponse) NextAction {
 // an oversight of the Registry port: the port serves THIS repository's index,
 // and the members of an estate are by definition other files this server was
 // never given. They are opened READ-ONLY and never migrated — a reader must
-// never mutate somebody else's index, that index may be held by a `cortex
+// never mutate somebody else's index, that index may be held by a `repocortex
 // watch` in the other checkout, and a schema mismatch is reported as a member
 // row rather than fixed behind the operator's back.
 //
 // The paths come from a manifest confined to the indexed repository (see
 // repoFile) and are the repository authors' own declaration, at the same trust
-// level as .cortex.yml. The manifest is confined; the members it names are
+// level as .repocortex.yml. The manifest is confined; the members it names are
 // not, because a sibling checkout is the entire point.
 type memberCatalogue struct {
 	byPath map[string]*openMember
@@ -464,7 +464,7 @@ func (c *memberCatalogue) closeAll() {
 func openMemberIndex(ctx context.Context, path string) *openMember {
 	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
 		return &openMember{failure: fmt.Sprintf(
-			"no index at %s. Build one in that checkout: 'cortex index --project <that checkout>'.",
+			"no index at %s. Build one in that checkout: 'repocortex index --project <that checkout>'.",
 			path)}
 	} else if err != nil {
 		return &openMember{failure: fmt.Sprintf("cannot stat %s: %v", path, err)}
@@ -473,7 +473,7 @@ func openMemberIndex(ctx context.Context, path string) *openMember {
 	db, err := store.Open(ctx, store.Options{Path: path, ReadOnly: true})
 	if err != nil {
 		return &openMember{failure: fmt.Sprintf(
-			"cannot open %s: %v. Re-index that checkout with this build of cortex.", path, err)}
+			"cannot open %s: %v. Re-index that checkout with this build of repocortex.", path, err)}
 	}
 	if err := store.CheckVersion(ctx, db.DB); err != nil {
 		_ = db.Close()
@@ -492,7 +492,7 @@ func openMemberIndex(ctx context.Context, path string) *openMember {
 		// somebody staring at a member with no edges, and each has a different
 		// fix.
 		return &openMember{failure: fmt.Sprintf(
-			"%s holds no committed run, so it exposes no facts. Run 'cortex index' in that checkout.",
+			"%s holds no committed run, so it exposes no facts. Run 'repocortex index' in that checkout.",
 			path)}
 	}
 	if err != nil {

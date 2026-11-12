@@ -30,7 +30,7 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 		s.writeJSON(w, http.StatusOK, EventsPayload{
 			Total:    0,
 			Topics:   []registry.EventTopology{},
-			Guidance: "No index run found. Run 'cortex index' to index the repository.",
+			Guidance: "No index run found. Run 'repocortex index' to index the repository.",
 		})
 		return
 	}

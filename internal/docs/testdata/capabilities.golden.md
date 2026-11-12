@@ -19,7 +19,7 @@ The capabilities above account for 3 of 3 endpoints and 2 of 2 tables in this in
 
 ## api
 
-Declared in `.cortex.yml` as `internal/api/**`.
+Declared in `.repocortex.yml` as `internal/api/**`.
 
 ### Exposes
 
@@ -50,7 +50,7 @@ These are the component crossings the graph records, in the same order the archi
 
 ## store
 
-Declared in `.cortex.yml` as `internal/store/**, migrations/**`.
+Declared in `.repocortex.yml` as `internal/store/**, migrations/**`.
 
 ### Exposes
 
@@ -75,7 +75,7 @@ These are the component crossings the graph records, in the same order the archi
 
 ## service
 
-Declared in `.cortex.yml` as `internal/service/**`.
+Declared in `.repocortex.yml` as `internal/service/**`.
 
 ### Exposes
 
@@ -96,7 +96,7 @@ These are the component crossings the graph records, in the same order the archi
 
 ## frontend
 
-Declared in `.cortex.yml` as `web/**`.
+Declared in `.repocortex.yml` as `web/**`.
 
 **The graph is silent about this component.** It matches 0 files and 0 symbols, but this index attributes no HTTP endpoint, no table access and no dependency on another declared component to it. That is not evidence it does nothing — it may be a library, a front end, or code whose framework this indexer does not recognise — so nothing is claimed about it here.
 

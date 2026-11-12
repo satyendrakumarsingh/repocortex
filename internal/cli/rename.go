@@ -122,7 +122,7 @@ exit code is 2. Each file is written atomically; if one write fails, files
 already written are restored.
 
 After applying, a task contract for the rename is written (default
-.cortex/rename-contract.json) and 'cortex verify' runs on the changed
+.repocortex/rename-contract.json) and 'repocortex verify' runs on the changed
 files — against the index as it was BEFORE the rename.
 
 Exit codes: 0 would apply / applied and verify passed or advised; 1 error or
@@ -147,7 +147,7 @@ build and test.`,
 		"weakest confidence an edit may rest on: exact, or high (measured "+rename.HighPrecision+" precise)")
 	cmd.Flags().StringVar(&o.Path, "path", "", "substring of the defining file's path, when several definitions share the name")
 	cmd.Flags().BoolVar(&o.Apply, "apply", false, "write the edits (default is a dry run)")
-	cmd.Flags().StringVar(&o.ContractOut, "contract-out", "", "where to write the rename's task contract (default .cortex/rename-contract.json)")
+	cmd.Flags().StringVar(&o.ContractOut, "contract-out", "", "where to write the rename's task contract (default .repocortex/rename-contract.json)")
 	cmd.Flags().IntVar(&o.MaxSites, "max-sites", 0, "refuse renames with more references than this (0 = default 2000)")
 	return cmd
 }
@@ -261,7 +261,7 @@ func problemRefusal(p edit.Problem) renameRefusal {
 	case errors.Is(p.Err, edit.ErrAmbiguous):
 		reason += "; rename this line by hand"
 	case errors.Is(p.Err, edit.ErrNotFound):
-		reason += "; the file no longer matches the index, run 'cortex index' and try again"
+		reason += "; the file no longer matches the index, run 'repocortex index' and try again"
 	}
 	return renameRefusal{Path: p.Path, Line: p.Line, Reason: reason}
 }
@@ -314,7 +314,7 @@ func renderRename(w io.Writer, rep renameReport) error {
 			"unambiguous on its line, and unchanged since indexing.\n", rep.Floor)
 		if belowExactOnlyHigh(rep) {
 			fmt.Fprintf(w, "  High sites need a compiler-backed index to become exact "+
-				"('cortex indexers install', then 'cortex scip import'), or an explicit --floor high "+
+				"('repocortex indexers install', then 'repocortex scip import'), or an explicit --floor high "+
 				"(measured %s precise).\n", rename.HighPrecision)
 		}
 	case rep.Applied && !rep.Clear():
@@ -361,7 +361,7 @@ func renderRename(w io.Writer, rep renameReport) error {
 		for _, u := range rep.Verify.Unknowns {
 			fmt.Fprintf(w, "  [UNKNOWN] %s\n", u)
 		}
-		fmt.Fprintln(w, "  Checked against the pre-rename index; run 'cortex index' to refresh it.")
+		fmt.Fprintln(w, "  Checked against the pre-rename index; run 'repocortex index' to refresh it.")
 	}
 	fmt.Fprintf(w, "\nNOT COMPLETE: %s\n", rep.Warning)
 	return nil
@@ -485,7 +485,7 @@ func commitOutcome(err error) (applied bool, code int, msg string) {
 		code = renameExitRefused
 	case errors.Is(cause, edit.ErrStale):
 		msg = fmt.Sprintf("a file changed while the rename was being written; every file already written "+
-			"was restored. Run 'cortex index' and try again (%v)", cause)
+			"was restored. Run 'repocortex index' and try again (%v)", cause)
 		code = renameExitRefused
 	default:
 		msg = fmt.Sprintf("a write failed; every file already written was restored (%v)", cause)

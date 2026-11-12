@@ -211,7 +211,7 @@ func (s *Server) handleOwnership(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		resp.Status = BlastNoQuery
 		resp.Help = meta.Help
-		resp.Next = NextAction{Label: "Index this repository first", Command: "cortex index"}
+		resp.Next = NextAction{Label: "Index this repository first", Command: "repocortex index"}
 		s.writeJSON(w, http.StatusOK, resp)
 		return
 	}
@@ -322,7 +322,7 @@ func (s *Server) handleOwnership(w http.ResponseWriter, r *http.Request) {
 	people := capped(report.People, ownershipListedPeople, &om, ReasonRowBudget,
 		fmt.Sprintf("Identities beyond the first %d (ranked by share of the radius, then recency) "+
 			"are not listed. people_found above is the full figure.", ownershipListedPeople),
-		"cortex who <symbol> --limit 100")
+		"repocortex owners <symbol> --limit 100")
 	if people != nil {
 		resp.People = people
 	}
@@ -332,7 +332,7 @@ func (s *Server) handleOwnership(w http.ResponseWriter, r *http.Request) {
 				"bus-factor count above an OVERSTATEMENT: a second contributor outside that cap "+
 				"would have disqualified a file counted as single-contributor.",
 				ownershipMaxPeopleRanked),
-			"cortex who <symbol> --limit 500")
+			"repocortex owners <symbol> --limit 500")
 	}
 
 	impacted := append(append([]impact.Impacted{}, rep.Direct...), rep.Indirect...)
@@ -371,7 +371,7 @@ func (s *Server) handleOwnership(w http.ResponseWriter, r *http.Request) {
 	if n := report.Untouched.FileCount - len(report.Untouched.Files); n > 0 {
 		om.Hide(ReasonRowBudget, n,
 			"Reached files nobody in the window touched, beyond the listed ones. untouched.file_count is the full figure.",
-			"cortex who <symbol> --commits 1000")
+			"repocortex owners <symbol> --commits 1000")
 	}
 	if !hist.available() {
 		om.Note(ReasonUnresolvedReferences,
@@ -469,13 +469,13 @@ func ownershipNextAction(resp OwnershipResponse) NextAction {
 				resp.BusFactor.SingleContributor),
 			Detail: "Widen the window before treating that as a staffing fact — it is a property of " +
 				"the last N commits, not of the repository.",
-			Command: "cortex who <symbol> --commits 1000",
+			Command: "repocortex owners <symbol> --commits 1000",
 		}
 	case len(resp.People) == 0:
 		return NextAction{
 			Label:   "Nobody in the history read has touched any of this",
 			Detail:  "Either the window is too narrow or the reached files are genuinely untouched. Widening the window tells you which.",
-			Command: "cortex who <symbol> --commits 1000",
+			Command: "repocortex owners <symbol> --commits 1000",
 		}
 	default:
 		return NextAction{

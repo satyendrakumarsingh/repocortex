@@ -62,7 +62,7 @@ test.describe('read-only portals — index provenance', () => {
       // stated as a gap with the command that closes it, in the same omissions
       // vocabulary the rest of the portal uses.
       expect(said, 'the schema version is named as unstated, not invented').toMatch(/schema version/i);
-      expect(said, 'with the command that prints it').toContain('cortex status');
+      expect(said, 'with the command that prints it').toContain('repocortex status');
 
       expect(said, 'what an index costs to build').toMatch(/zero model calls/);
       assertNoPlaceholders(said, `${repo.name} provenance panel`);
@@ -75,7 +75,7 @@ test.describe('read-only portals — index provenance', () => {
         .toHaveCount(0);
       await page.locator('#prov-toggle').click();
       const said = (await page.locator('#provenance').innerText()).trim();
-      expect(said, 'it names the command that rebuilds').toContain('cortex index && cortex resolve');
+      expect(said, 'it names the command that rebuilds').toContain('repocortex index && repocortex resolve');
       expect(said, 'and the flag that would enable the button').toContain('--allow-refresh');
       expect(said, 'and says why there is no button').toMatch(/read-only/i);
     });
@@ -88,7 +88,7 @@ test.describe('read-only portals — index provenance', () => {
       if (/commit hook\s*\nnot installed/i.test(said)) {
         expect(said, 'a missing hook means the index is only as current as the last build')
           .toMatch(/only as current as/);
-        expect(said, 'and the command that installs it is named').toContain('cortex hooks install');
+        expect(said, 'and the command that installs it is named').toContain('repocortex hooks install');
         expect(said, 'and the portal says why it does not do it itself').toMatch(/\.git directory/);
       }
       // Whatever the state, the page must never offer to write to the repo.
@@ -212,7 +212,7 @@ test.describe('--allow-refresh — the refresh control', () => {
     const posts = [];
     const reads = [];
     page.on('request', (r) => {
-      if (r.method() === 'POST') posts.push({ url: r.url(), header: r.headers()['x-cortex-reindex'] });
+      if (r.method() === 'POST') posts.push({ url: r.url(), header: r.headers()['x-repocortex-reindex'] });
       if (r.method() === 'GET' && r.url().includes('/api/overview')) reads.push(r.url());
     });
 

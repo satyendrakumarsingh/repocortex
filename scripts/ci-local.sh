@@ -232,7 +232,7 @@ else
   for target in darwin/amd64 darwin/arm64 linux/amd64 linux/arm64 windows/amd64; do
     os="${target%/*}"; arch="${target#*/}"
     printf '  --- %s/%s\n' "$os" "$arch"
-    CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build -o /dev/null ./cmd/cortex
+    CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build -o /dev/null ./cmd/repocortex
   done
   printf '  all five targets build with no C toolchain\n'
 

@@ -91,7 +91,7 @@ hour. Expect `UNMEASURED` there.
 Against an explicit list of paths:
 
 ```
-script/corpus-gate.sh <repo-list-file> [cortex-binary]
+script/corpus-gate.sh <repo-list-file> [repocortex-binary]
 ```
 
 Exit 0 if every repository satisfies every invariant; 1 otherwise, naming the

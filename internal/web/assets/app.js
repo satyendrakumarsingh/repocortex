@@ -30,7 +30,7 @@
   4. NEVER RENDER A FIELD THE API DOES NOT SEND. Three bugs shipped from
      reading `c.name`, `f.exported` and `d.scope`; each rendered "undefined" or
      a silently wrong zero with no error anywhere. Every field read below was
-     confirmed against live JSON from `cortex ui` over a 14,614-file
+     confirmed against live JSON from `repocortex ui` over a 14,614-file
      repository, and `num()`/`text()` render an em dash rather than the string
      "undefined" if one ever goes missing.
 */
@@ -187,7 +187,7 @@ function showError(container, err, what) {
     el('h3', { text: (what || 'This view') + ' could not load' }),
     el('p', { text: String(err && err.message ? err.message : err) }),
     el('p', { class: 'small muted', text: 'The server is running, so the index is the suspect: it may be absent, or built by an older schema than this binary expects.' }),
-    el('p', { class: 'small muted' }, 'Try ', el('code', { text: 'cortex doctor' }), ', then ', el('code', { text: 'cortex index' }), '.')
+    el('p', { class: 'small muted' }, 'Try ', el('code', { text: 'repocortex doctor' }), ', then ', el('code', { text: 'repocortex index' }), '.')
   ));
 }
 
@@ -215,13 +215,13 @@ function tierOf(v) { return TIER[v] ? v : 'unknown'; }
 // The shell's module is the authority; TIER's label is the same word, kept so
 // this file still renders if the module never ran.
 function tierWord(v) {
-  const dv = window.cortex;
+  const dv = window.repocortex;
   return dv && typeof dv.tierWord === 'function' ? dv.tierWord(tierOf(v)) : TIER[tierOf(v)].label;
 }
 // The word with its measurement — "very likely (measured 87–96% right)" — for
 // titles and hover cards, guarded the same way.
 function tierSentence(v) {
-  const dv = window.cortex;
+  const dv = window.repocortex;
   const tv = tierOf(v);
   return dv && typeof dv.tierSentence === 'function' ? dv.tierSentence(tv) : TIER[tv].label + ' (' + TIER[tv].at + ')';
 }
@@ -3343,7 +3343,7 @@ function roundRect(ctx, x, y, w, h, r) {
   section elements in the shell all use them. The rail itself — its groups, in
   the reader's words, and the label each screen carries — is one list in
   assets/js/nav.mjs, built into the shell before this script runs and handed
-  here through window.cortex; showScreen reads the label from it for the
+  here through window.repocortex; showScreen reads the label from it for the
   document title. The order here is not the rail's order and does not need
   to be.
 
@@ -3390,7 +3390,7 @@ function showScreen(name) {
     const on = btn.dataset.screen === name;
     if (on) btn.setAttribute('aria-current', 'page'); else btn.removeAttribute('aria-current');
   }
-  document.title = 'RepoCortex — ' + ((window.cortex && window.cortex.LABEL && window.cortex.LABEL[name]) || name);
+  document.title = 'RepoCortex — ' + ((window.repocortex && window.repocortex.LABEL && window.repocortex.LABEL[name]) || name);
   const loader = LOADERS[name];
   if (loader) loader();
   window.scrollTo({ top: 0, behavior: 'auto' });
@@ -3617,7 +3617,7 @@ function toggleGlossary() {
   host.style.setProperty('padding', '14px 24px 0');
   const heading = el('h3', { text: 'What these words mean', tabindex: '-1' });
   const close = el('button', { class: 'ghost', type: 'button', text: 'Close', onclick: toggleGlossary });
-  const dv = window.cortex;
+  const dv = window.repocortex;
   const list = dv && typeof dv.renderGlossary === 'function'
     ? dv.renderGlossary()
     : el('p', { class: 'small muted', text: 'The glossary did not load.' });
@@ -3924,7 +3924,7 @@ function renderProvenance() {
         el('span', { class: 'fix' }, 'Check: ', el('code', { text: 'git rev-parse HEAD' }))),
       el('li', null,
         el('span', { class: 'what' }, 'The schema version of the store. No payload this portal receives carries it, so it is left unstated rather than guessed.'),
-        el('span', { class: 'fix' }, 'Check: ', el('code', { text: 'cortex status' }))))));
+        el('span', { class: 'fix' }, 'Check: ', el('code', { text: 'repocortex status' }))))));
 
   if (refresh.last) {
     const at = absoluteWhen(refresh.last.at_unix);
@@ -3965,7 +3965,7 @@ function hookProse(hook, says) {
       nextAction({
         label: 'Ask the repository',
         detail: 'The command reports the hook; this page only ever reports what it is told.',
-        command: text(hook.command, 'cortex hooks status'),
+        command: text(hook.command, 'repocortex hooks status'),
       }));
   }
   return el('div', null,
@@ -3976,7 +3976,7 @@ function hookProse(hook, says) {
     nextAction({
       label: 'Install the commit hook',
       detail: 'From a shell, not from here — a page must never write to a repository .git directory.',
-      command: text(hook.command, 'cortex hooks install'),
+      command: text(hook.command, 'repocortex hooks install'),
     }));
 }
 
@@ -3992,14 +3992,14 @@ function refreshFooter(refresh) {
       detail: text(refresh.detail,
         'This portal is read-only by default and cannot rebuild the index. Start it with --allow-refresh '
         + 'to enable a refresh button here, or run the rebuild yourself.'),
-      command: text(refresh.command, 'cortex index && cortex resolve'),
+      command: text(refresh.command, 'repocortex index && repocortex resolve'),
     });
   }
   return nextAction({
     label: 'Refresh index, in the bar above',
     detail: 'It runs the same work as the command, then re-reads this screen from the new run. '
       + 'One refresh at a time: a second is refused rather than run beside the first.',
-    command: text(refresh.command, 'cortex index && cortex resolve'),
+    command: text(refresh.command, 'repocortex index && repocortex resolve'),
   });
 }
 
@@ -4009,13 +4009,13 @@ function applyTheme(mode) {
   document.documentElement.setAttribute('data-theme', mode);
   const btn = $('#theme-toggle');
   if (btn) btn.textContent = 'Theme: ' + mode;
-  try { window.localStorage.setItem('cortex-theme', mode); } catch (e) { /* private mode */ }
+  try { window.localStorage.setItem('repocortex-theme', mode); } catch (e) { /* private mode */ }
   if (state.view) state.view.draw();
 }
 
 function initTheme() {
   let mode = 'system';
-  try { mode = window.localStorage.getItem('cortex-theme') || 'system'; } catch (e) { mode = 'system'; }
+  try { mode = window.localStorage.getItem('repocortex-theme') || 'system'; } catch (e) { mode = 'system'; }
   applyTheme(mode);
   $('#theme-toggle').addEventListener('click', () => {
     const order = ['system', 'light', 'dark'];
@@ -4038,14 +4038,14 @@ function screenHead(title, lede) {
   a figure. Falls back to screenHead if the module did not load.
 */
 function answer(sentence, opts) {
-  const dv = window.cortex || {};
+  const dv = window.repocortex || {};
   if (dv.answerLine) return dv.answerLine(sentence, opts);
   const flat = (Array.isArray(sentence) ? sentence : [sentence]).map((p) => (p && p.b) ? p.b : String(p)).join('');
   return screenHead(flat, (opts && opts.support) || '');
 }
-function B(s) { const dv = window.cortex || {}; return dv.bold ? dv.bold(s) : { b: String(s) }; }
+function B(s) { const dv = window.repocortex || {}; return dv.bold ? dv.bold(s) : { b: String(s) }; }
 function fold(summary, body, opts) {
-  const dv = window.cortex || {};
+  const dv = window.repocortex || {};
   if (dv.foldable) return dv.foldable(summary, body, opts);
   const d = el('details', { class: 'fold' }, el('summary', { text: summary }), body);
   return d;
@@ -4528,8 +4528,8 @@ function renderLiveSurfaceExplorer(d) {
 }
 
 function renderAgentMCPCenter(d) {
-  const pth = (d.meta && d.meta.index_path) ? d.meta.index_path.replace('/.cortex/index.db', '') : '.';
-  const mcpCmd = 'cortex --project ' + pth + ' serve';
+  const pth = (d.meta && d.meta.index_path) ? d.meta.index_path.replace('/.repocortex/index.db', '') : '.';
+  const mcpCmd = 'repocortex --project ' + pth + ' serve';
 
   return el('div', { class: 'agent-mcp-panel' },
     el('div', { class: 'surface-header' },
@@ -4765,7 +4765,7 @@ function blindSpotsCard(d) {
         'The index returned ' + num(spots.length) + ' pairs and they arrive alphabetically, stopping at "' + lastAlpha + '". ',
         el('b', { text: missing.map((m) => m.language).join(', ') }),
         ' sort after that and are cut — including ' + num(missing[0].symbols) + ' symbols in ' + missing[0].language + '. Absence from this table is not a clean bill of health.'),
-      el('p', { class: 'fix' }, 'To check one directly: ', el('code', { text: 'cortex status --language ' + missing[0].language }))));
+      el('p', { class: 'fix' }, 'To check one directly: ', el('code', { text: 'repocortex status --language ' + missing[0].language }))));
   }
 
   return card('Blind spots', num(d.blind_spots ? d.blind_spots.blind_count : 0) + ' pairs with symbols and zero edges',
@@ -4917,7 +4917,7 @@ function codeMapNavigate(view, patch) {
 }
 
 function renderCodeMapHeader() {
-  const cm = window.cortex && window.cortex.codemap;
+  const cm = window.repocortex && window.repocortex.codemap;
   const host = $('#graph-view-host');
   if (cm && host) cm.renderHeader(host, codeMapContext(), graphView());
 }
@@ -4957,7 +4957,7 @@ async function applyGraphView() {
   if (view !== 'map') {
     if (GRAPH_STATE.filtersOpen) setFiltersOpen(false);
     setAnswer($('#graph-head'), codeMapAnswer(view));
-    const cm = window.cortex && window.cortex.codemap;
+    const cm = window.repocortex && window.repocortex.codemap;
     const host = document.getElementById(CODEMAP_HOSTS[view]);
     if (!cm || !host) return;
     try {
@@ -5020,7 +5020,7 @@ function wireGraphShell() {
     The layout is a select rather than a cycling button: a reader can see all
     three choices and which one is on, and the choice rides in the URL.
   */
-  const ico = (name) => (window.cortex && window.cortex.codemap ? window.cortex.codemap.icon(name) : null);
+  const ico = (name) => (window.repocortex && window.repocortex.codemap ? window.repocortex.codemap.icon(name) : null);
   const tool = (attrs, iconName, label) => el('button', Object.assign({ class: 'cm-btn cm-sm' + (label ? '' : ' cm-icon-only'), type: 'button' }, attrs), ico(iconName), label ? el('span', { text: label }) : null);
   const layoutSelect = el('select', {
     class: 'cm-input cm-select', id: 'btn-layout-mode', 'aria-label': 'Layout',
@@ -7003,7 +7003,7 @@ function exportPNG() {
   canvas.canvas.toBlob((blob) => {
     if (!blob) return;
     const url = URL.createObjectURL(blob);
-    const a = el('a', { href: url, download: 'cortex-graph.png' });
+    const a = el('a', { href: url, download: 'repocortex-graph.png' });
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 4000);
   });
@@ -7054,7 +7054,7 @@ function exportJSON() {
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
-  const a = el('a', { href: url, download: 'cortex-graph.json' });
+  const a = el('a', { href: url, download: 'repocortex-graph.json' });
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 4000);
 }
@@ -8335,7 +8335,7 @@ function renderGovernance(d, body) {
   if (!d.architecture_declared) {
     body.appendChild(emptyState('No architecture is declared for this repository',
       ['This screen checks code against rules you write down. There is nothing to check against yet — which is different from "the code has no violations".',
-        'Declare components and rules in .cortex.yml, then run the gate in CI.']));
+        'Declare components and rules in .repocortex.yml, then run the gate in CI.']));
     body.appendChild(renderOmissions(d.omissions, { key: 'governance' }));
     return;
   }
@@ -8604,7 +8604,7 @@ async function runSearch() {
   Ten of the eleven screens that used to render this panel now fetch the
   endpoint their pillar is named for — see THE PILLARS, WIRED TO THEIR ENDPOINTS
   below. `agent` is the one that stays, because the MCP surface is a separate
-  PROCESS rather than a view of this index: an agent speaks to `cortex serve`
+  PROCESS rather than a view of this index: an agent speaks to `repocortex serve`
   over stdio, and this read-only portal is not on that conversation. There is no
   /api/agent to render and there should not be one; a transcript this portal
   invented would be the least honest thing in the product.
@@ -8693,9 +8693,9 @@ pillarScreen('agent', {
     'What every tool result carries besides the answer: a verdict on its own strength, whether it was truncated and why, and which run it was read from.',
     'Whether the index an agent is reading matches the working tree it is editing.',
   ],
-  why: () => 'The MCP surface is a separate process, not a view of this portal: an agent speaks to `cortex serve` over stdio, and nothing in this read-only portal is on that conversation. It will not print a transcript it did not obtain from a running server.',
-  command: 'cortex agent',
-  commandNote: 'prints the MCP registration an agent needs, and the guidance that goes with it. `cortex serve` starts the server itself.',
+  why: () => 'The MCP surface is a separate process, not a view of this portal: an agent speaks to `repocortex serve` over stdio, and nothing in this read-only portal is on that conversation. It will not print a transcript it did not obtain from a running server.',
+  command: 'repocortex agent',
+  commandNote: 'prints the MCP registration an agent needs, and the guidance that goes with it. `repocortex serve` starts the server itself.',
 });
 
 // ================================================================ THE PILLARS, WIRED TO THEIR ENDPOINTS
@@ -8932,7 +8932,7 @@ function renderDB(d, body) {
           ? inlineOmit(el('b', { text: num(withAccessors.length - 8) }), ' further '
             + plural('table', withAccessors.length - 8) + ' with a recorded accessor are not expanded here, by '
             + 'this page’s own cap. Their reader and writer counts are in the inventory above, and ',
-            el('code', { text: 'cortex db table <name>' }), ' lists any one of them in full.')
+            el('code', { text: 'repocortex db table <name>' }), ' lists any one of them in full.')
           : null,
       ]));
   } else if (tables.length) {
@@ -11417,8 +11417,8 @@ async function drawAgent() {
     B(num(tm.total_symbols) + ' symbols'), ' and ', B(num(tm.total_edges) + ' relationships'),
     ' across ', B(num(tm.total_files_indexed) + ' files'), ', through ', B(num(tools.length) + ' tools'), '.'
   ], {
-    support: 'The server runs on stdio (`cortex serve`). Each answer says how sure it is, instead of handing the agent whole files.',
-    next: { label: 'Connect your agent', detail: 'Register cortex with the agents on this machine', command: 'cortex install --rules' }
+    support: 'The server runs on stdio (`repocortex serve`). Each answer says how sure it is, instead of handing the agent whole files.',
+    next: { label: 'Connect your agent', detail: 'Register repocortex with the agents on this machine', command: 'repocortex install --rules' }
   }));
 
   // 1. Headline KPIs
@@ -11434,7 +11434,7 @@ async function drawAgent() {
   const configCard = el('div', { class: 'card', style: 'padding:18px' },
     el('header', { style: 'margin-bottom:12px' },
       el('h3', { text: 'Connect Any AI Agent via MCP in 10 Seconds' }),
-      el('div', { class: 'sub', text: 'RepoCortex adheres to the open Model Context Protocol. Point Claude, Cursor, Gemini, or Antigravity to your local cortex executable.' })
+      el('div', { class: 'sub', text: 'RepoCortex adheres to the open Model Context Protocol. Point Claude, Cursor, Gemini, or Antigravity to your local repocortex executable.' })
     ),
     el('div', { class: 'body' },
       el('div', { style: 'display:grid;grid-template-columns:repeat(auto-fit, minmax(320px, 1fr));gap:16px' },
@@ -11575,7 +11575,7 @@ async function drawAgent() {
   const toolsCard = el('div', { class: 'card' },
     el('header', { style: 'padding:14px 18px 0' },
       el('h3', { text: 'MCP tools' }),
-      el('div', { class: 'sub', text: 'Every tool the server registers. The default profile exposes the first seven; set `mcp: { profile: standard }` in .cortex.yml for all of them.' })
+      el('div', { class: 'sub', text: 'Every tool the server registers. The default profile exposes the first seven; set `mcp: { profile: standard }` in .repocortex.yml for all of them.' })
     ),
     el('div', { class: 'body' })
   );
@@ -11819,7 +11819,7 @@ async function boot() {
     if (state.meta && state.meta.indexed === false) {
       $('#main').appendChild(emptyState('This directory has no index yet',
         ['There is nothing to show — which is different from a repository with nothing in it.',
-          'Run cortex init, then cortex index, then reload this page.']));
+          'Run repocortex init, then repocortex index, then reload this page.']));
       return;
     }
     renderIndexBar();

@@ -305,7 +305,7 @@ var ErrNoModel = errNoModel{}
 type errNoModel struct{}
 
 func (errNoModel) Error() string {
-	return "architecture: no components declared; add an `architecture:` block to .cortex.yml"
+	return "architecture: no components declared; add an `architecture:` block to .repocortex.yml"
 }
 
 // sortViolations orders by severity, then by location, so the output is stable

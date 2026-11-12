@@ -7,7 +7,7 @@
   and foldable — lives in modules, and this file hands them to app.js through
   one global. index.html loads this module first and app.js with `defer`
   second: a module script is deferred by default and deferred scripts run in
-  document order, so window.cortex exists before app.js runs.
+  document order, so window.repocortex exists before app.js runs.
 */
 import { GROUPS, LABEL, renderRail } from './nav.mjs';
 import { TIER_WORDS, tierWord, tierSentence } from './tiers.mjs';
@@ -15,7 +15,7 @@ import { TERMS, term, renderGlossary } from './glossary.mjs';
 import { answerLine, bold, foldable } from './answer.mjs';
 import { renderHeader, renderView, codeMapIcon } from './codemap.mjs';
 
-window.cortex = Object.assign(window.cortex || {}, {
+window.repocortex = Object.assign(window.repocortex || {}, {
   GROUPS, LABEL, renderRail,
   TIER_WORDS, tierWord, tierSentence,
   TERMS, term, renderGlossary,

@@ -52,7 +52,7 @@ func (m Member) Available() bool { return m.Source != nil && m.Unavailable == ""
 // this report exists to prevent. --member survives for the ad-hoc two-repo
 // question, which is the other real case.
 //
-// WHY NOT .cortex.yml. That file is per-repository indexing configuration
+// WHY NOT .repocortex.yml. That file is per-repository indexing configuration
 // owned by internal/config, and the estate is not a property of any one of its
 // members — putting it there would mean N copies that drift.
 type EstateFile struct {
@@ -66,7 +66,7 @@ type EstateMember struct {
 	Name string `yaml:"name"`
 	// Index is the path to that repository's index database, absolute or
 	// relative to the estate file itself. Relative to the FILE and not to the
-	// working directory, so `cortex system --members ../estate.yml` means the
+	// working directory, so `repocortex system --members ../estate.yml` means the
 	// same thing from every directory.
 	Index string `yaml:"index"`
 }
@@ -130,7 +130,7 @@ func ParseMemberFlag(raw string) (EstateMember, error) {
 	name, path = strings.TrimSpace(name), strings.TrimSpace(path)
 	if !ok || name == "" || path == "" {
 		return EstateMember{}, fmt.Errorf(
-			"--member %q is not name=path (for example: --member orders-api=../orders-api/.cortex/index.db)",
+			"--member %q is not name=path (for example: --member orders-api=../orders-api/.repocortex/index.db)",
 			raw)
 	}
 	return EstateMember{Name: name, Index: path}, nil

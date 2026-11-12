@@ -12,7 +12,7 @@ blast radius first". That sentence has to live in project memory.
 Both halves come out of one command:
 
 ```
-cortex agent
+repocortex agent
 ```
 
 ---
@@ -22,14 +22,14 @@ cortex agent
 ### Claude Code, one line
 
 ```
-claude mcp add cortex -- cortex --project /path/to/repo serve
+claude mcp add repocortex -- repocortex --project /path/to/repo serve
 ```
 
 `--project` is explicit on purpose. An MCP client starts the server from
 whatever directory it happens to be in, and a server that quietly indexed the
 wrong repository would be worse than one that failed to start.
 
-`cortex agent` prints this line with your project's real path substituted, so
+`repocortex agent` prints this line with your project's real path substituted, so
 you can paste it rather than editing it.
 
 ### Claude Code, as a plugin
@@ -39,7 +39,7 @@ registers the same MCP server *and* installs the guidance as a skill, so one
 step delivers both halves:
 
 ```
-claude --plugin-dir /path/to/cortex
+claude --plugin-dir /path/to/repocortex
 ```
 
 `--plugin-dir` loads a plugin straight from a directory, without installing it.
@@ -47,8 +47,8 @@ To install it properly, or to hand it to a team, add the repository as a
 marketplace — `.claude-plugin/marketplace.json` is there for that:
 
 ```
-/plugin marketplace add /path/to/cortex
-/plugin install cortex@cortex
+/plugin marketplace add /path/to/repocortex
+/plugin install repocortex@repocortex
 ```
 
 The manifest pins the project root with `${CLAUDE_PROJECT_DIR}`, which Claude
@@ -57,15 +57,15 @@ Code expands to the project you have open:
 ```json
 {
   "mcpServers": {
-    "cortex": {
-      "command": "cortex",
+    "repocortex": {
+      "command": "repocortex",
       "args": ["--project", "${CLAUDE_PROJECT_DIR}", "serve"]
     }
   }
 }
 ```
 
-The plugin does **not** ship the `cortex` binary. Build or install it first
+The plugin does **not** ship the `repocortex` binary. Build or install it first
 and make sure it is on `PATH`.
 
 ### Any other MCP client
@@ -76,7 +76,7 @@ are the three facts it needs:
 | | |
 | --- | --- |
 | transport | stdio |
-| command | `cortex` |
+| command | `repocortex` |
 | args | `--project /path/to/repo serve` |
 
 For a client that reads the common `mcpServers` JSON shape — including a
@@ -85,15 +85,15 @@ project-scope `.mcp.json` in the repository root:
 ```json
 {
   "mcpServers": {
-    "cortex": {
-      "command": "cortex",
+    "repocortex": {
+      "command": "repocortex",
       "args": ["--project", "/path/to/repo", "serve"]
     }
   }
 }
 ```
 
-`cortex agent --json` emits the same spec as machine-readable JSON, if you
+`repocortex agent --json` emits the same spec as machine-readable JSON, if you
 would rather generate the config than write it.
 
 ---
@@ -101,10 +101,10 @@ would rather generate the config than write it.
 ## 2. Give the agent the guidance
 
 ```
-cortex agent --guidance >> CLAUDE.md
+repocortex agent --guidance >> CLAUDE.md
 ```
 
-That appends a short block, delimited by `<!-- cortex:guidance -->` markers,
+That appends a short block, delimited by `<!-- repocortex:guidance -->` markers,
 that tells the agent when to use each tool and how to read what comes back. It
 is deliberately short: an agent skims project memory, and a page of prose is
 ignored in exactly the same way as no prose at all.
@@ -115,7 +115,7 @@ because the output is meant to land in a file you keep.
 If you would rather have it as its own file:
 
 ```
-cortex agent --write docs/cortex-guidance.md
+repocortex agent --write docs/repocortex-guidance.md
 ```
 
 `--write` refuses to replace a file that already exists. Passing `--force`
@@ -130,20 +130,20 @@ Every rule is grounded in behaviour the server has, not in aspiration:
 | Rule | Why it exists |
 | --- | --- |
 | Call `get_task_context` first | Its own description opens `CALL THIS FIRST`. One call replaces a dozen exploratory ones. |
-| Ask for a blast radius before editing | `impact_analysis` on the `standard` profile, `find_callers` otherwise. |
+| Ask for a blast radius before editing | `analyze_impact` on the `standard` profile, `find_callers` otherwise. |
 | `find_tests` before changing behaviour | It reports *which signal* found each test — a proven call edge outranks a filename match. |
 | Treat anything below `exact` as a lead | `exact` means a compiler proved it. `high`/`medium`/`low` were inferred and may be wrong. |
 | An empty result means unresolved, not absent | Relationship answers are a lower bound. An agent told "no callers" will happily delete a live method. |
 | `COVERAGE TOO LOW` outranks the list under it | The server emits that literal string when under half of the repository's references are bound. |
 | "No index has been built" is not a broken tool | It is a recoverable state with a one-command fix, and the server deliberately returns it as a success. |
-| The index is a snapshot, not your working tree | Read files you just edited directly, or run `cortex watch`. |
+| The index is a snapshot, not your working tree | Read files you just edited directly, or run `repocortex watch`. |
 
 ---
 
 ## 3. Check it landed
 
 ```
-cortex agent --check
+repocortex agent --check
 ```
 
 It reports six things, reading only — it never creates what it finds missing:
@@ -151,7 +151,7 @@ It reports six things, reading only — it never creates what it finds missing:
 - **index** — present, committed, non-empty
 - **resolution** — how much of the call graph is actually bound
 - **mcp tools** — which profile is active and what it exposes
-- **mcp registration** — whether this repository's `.mcp.json` names `cortex`
+- **mcp registration** — whether this repository's `.mcp.json` names `repocortex`
 - **guidance** — whether `CLAUDE.md` or `AGENTS.md` carries the marker
 - **plugin manifest** — whether `.claude-plugin/plugin.json` is present
 
@@ -172,7 +172,7 @@ claiming you have not registered it.
 ### The tool surface is small on purpose
 
 ```
-$ cortex serve --list-tools
+$ repocortex serve --list-tools
 MCP profile "minimal" exposes 7 tool(s):
   get_project_overview
   search_code
@@ -188,8 +188,8 @@ a wide tool surface spends the very context RepoCortex exists to save — and a 
 tool list measurably degrades tool selection. Seven is the default, and it is a
 product decision rather than a limitation.
 
-`impact_analysis` and `find_tests` need the `standard` profile. Set it in
-`.cortex.yml`:
+`analyze_impact` and `find_tests` need the `standard` profile. Set it in
+`.repocortex.yml`:
 
 ```yaml
 mcp:
@@ -197,7 +197,7 @@ mcp:
 ```
 
 ```
-$ cortex serve --list-tools
+$ repocortex serve --list-tools
 MCP profile "standard" exposes 9 tool(s):
   get_project_overview
   search_code
@@ -206,7 +206,7 @@ MCP profile "standard" exposes 9 tool(s):
   find_references
   find_callers
   get_task_context
-  impact_analysis
+  analyze_impact
   find_tests
 ```
 
@@ -219,16 +219,16 @@ The server refuses to start without one, and an empty index answers every
 question with nothing:
 
 ```
-cortex init
-cortex index
-cortex resolve
+repocortex init
+repocortex index
+repocortex resolve
 ```
 
 `resolve` is the step people skip. `index` extracts references but cannot bind
 them — that needs the complete symbol table, which does not exist until every
 file is parsed. Until `resolve` runs, `find_callers` and `find_references`
 return nothing, and *nothing is the answer most easily mistaken for a fact*.
-`cortex agent --check` calls this out as its own row for that reason.
+`repocortex agent --check` calls this out as its own row for that reason.
 
 ### Answers carry their own caveats
 
@@ -238,7 +238,7 @@ A relationship answer on a poorly resolved index arrives with the verdict
 
 ```
 COVERAGE TOO LOW — caller lookup for Go is unreliable here: 31% of this index's
-16973 references are bound to a definition. Run 'cortex resolve' to raise it.
+16973 references are bound to a definition. Run 'repocortex resolve' to raise it.
 Do not present what follows as an answer to the question asked.
 ```
 
@@ -247,7 +247,7 @@ to do next, never as a tool error:
 
 ```
 No index has been built for this project yet, so there is nothing to answer from.
-Run 'cortex index' in the project root, then ask again. This is not a tool
+Run 'repocortex index' in the project root, then ask again. This is not a tool
 failure: RepoCortex is working and the index is simply absent.
 ```
 
@@ -269,8 +269,8 @@ not reflect recent edits.
 The index describes the last committed run, not your working tree.
 
 ```
-cortex watch      # re-index on change
-cortex status     # revision, counts, resolution coverage
+repocortex watch      # re-index on change
+repocortex status     # revision, counts, resolution coverage
 ```
 
 For files you edited moments ago, read them directly — the guidance says so, so
@@ -284,13 +284,13 @@ Every MCP tool has a command-line counterpart, which is the fastest way to see
 *why* an agent received what it received:
 
 ```
-cortex context "Add idempotency to payment callback processing"   # get_task_context, with exclusions
-cortex callers <symbol>                                           # find_callers
-cortex references <symbol>                                        # find_references
-cortex symbol <name>                                              # find_symbol
-cortex search <query>                                             # search_code
-cortex status                                                     # get_project_overview
+repocortex context "Add idempotency to payment callback processing"   # get_task_context, with exclusions
+repocortex callers <symbol>                                           # find_callers
+repocortex references <symbol>                                        # find_references
+repocortex symbol <name>                                              # find_symbol
+repocortex search <query>                                             # search_code
+repocortex status                                                     # get_project_overview
 ```
 
-`cortex context --show-excluded` lists everything considered and left out with
+`repocortex context --show-excluded` lists everything considered and left out with
 the reason it was cut, which is the part an agent never shows you.

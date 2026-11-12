@@ -21,7 +21,7 @@ import (
 //
 // The graph-backed tools register only when Deps.Graph is present — an index
 // whose references were never resolved should still serve symbol lookups
-// rather than failing to start — so impact_analysis is unreachable without it.
+// rather than failing to start — so analyze_impact is unreachable without it.
 func newGraphTestServer(t *testing.T, seed func(context.Context, *registry.Registry, int64)) *sdk.ClientSession {
 	t.Helper()
 	return newGraphTestServerAt(t, "", seed)
@@ -54,7 +54,7 @@ func newGraphTestServerAt(t *testing.T, repoRoot string, seed func(context.Conte
 	cfg := config.Defaults()
 	cfg.ProjectName = "testproj"
 	cfg.RepoRoot = repoRoot
-	// impact_analysis is a standard-profile tool; the minimal default does not
+	// analyze_impact is a standard-profile tool; the minimal default does not
 	// expose it.
 	cfg.MCPProfile = config.MCPStandard
 
@@ -152,7 +152,7 @@ func seedDispatchGraph(ctx context.Context, reg *registry.Registry, runID int64)
 // radius was silently shown a smaller one than RepoCortex had computed.
 func TestImpactAnalysisSurfacesDispatchOverMCP(t *testing.T) {
 	sess := newGraphTestServer(t, seedDispatchGraph)
-	text := resultText(callTool(t, sess, "impact_analysis", map[string]any{"symbol": "store.Store#persist"}))
+	text := resultText(callTool(t, sess, "analyze_impact", map[string]any{"symbol": "store.Store#persist"}))
 
 	if !strings.Contains(text, "checkout") {
 		t.Errorf("direct caller missing:\n%s", text)
@@ -336,7 +336,7 @@ func TestNewCapabilityToolsAreRegistered(t *testing.T) {
 		registered[name] = true
 	}
 
-	for _, want := range []string{"find_api_endpoints", "find_db_access", "get_config_key"} {
+	for _, want := range []string{"list_api_endpoints", "list_db_tables", "get_config_key"} {
 		if !registered[want] {
 			t.Errorf("tool %q is not registered; have %v", want, s.Tools())
 		}

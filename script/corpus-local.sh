@@ -9,24 +9,24 @@
 # the day it landed. Membership is now defined by upstream URL (which is stable)
 # plus two local checkouts resolved at run time.
 #
-#   script/corpus-local.sh [cortex-binary]
+#   script/corpus-local.sh [repocortex-binary]
 #
 # Env:
-#   CORPUS_HOME   where the upstream clones live   (default ~/.cortex-corpus)
+#   CORPUS_HOME   where the upstream clones live   (default ~/.repocortex-corpus)
 #   CORPUS_EXTRA  an optional local repository to add as a tenth member (default: none)
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 DEV="${1:-}"
 if [ -z "$DEV" ]; then
-  DEV=$(mktemp -d)/cortex
-  echo "building cortex…"
-  go build -o "$DEV" ./cmd/cortex
+  DEV=$(mktemp -d)/repocortex
+  echo "building repocortex…"
+  go build -o "$DEV" ./cmd/repocortex
 fi
 
 # A local repository to add to the corpus, if any; nothing is assumed about this machine.
 export CORPUS_EXTRA="${CORPUS_EXTRA:-}"
-HOME_DIR="${CORPUS_HOME:-$HOME/.cortex-corpus}"
+HOME_DIR="${CORPUS_HOME:-$HOME/.repocortex-corpus}"
 LIST=$(mktemp)
 
 if [ -z "$CORPUS_EXTRA" ] || [ ! -d "$CORPUS_EXTRA" ]; then

@@ -24,7 +24,7 @@ import (
 
 // newVerifyCmd checks a completed change against the contract it was given.
 //
-// This is the half of the loop that did not exist. `cortex compile` states
+// This is the half of the loop that did not exist. `repocortex compile` states
 // what a task is; nothing then asked whether the change that followed honoured
 // it. `doctor --verify-index` checks that the graph is internally consistent,
 // which is a different question entirely.
@@ -32,7 +32,7 @@ func newVerifyCmd(g *Global) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "verify",
 		Short: "Check a completed change against the task contract it was given",
-		Long: `Reads a contract produced by 'cortex compile --json' and a list of changed
+		Long: `Reads a contract produced by 'repocortex compile --json' and a list of changed
 files, and answers four questions:
 
   1. Did the change stay inside the contract's declared scope?
@@ -45,8 +45,8 @@ violation on a compiler-proven edge is a fact; one on a heuristic edge is a
 lead, because the edge itself may be wrong. Presenting the two identically makes
 the report either alarmist or ignorable, and both end with it switched off.
 
-  cortex compile "Add idempotency to payment callbacks" --json > contract.json
-  cortex verify --contract contract.json --changed $(git diff --name-only | paste -sd, -)
+  repocortex compile "Add idempotency to payment callbacks" --json > contract.json
+  repocortex verify --contract contract.json --changed $(git diff --name-only | paste -sd, -)
 
 Exit codes are the point of the command:
 
@@ -64,7 +64,7 @@ gating on the day contract generation breaks and nobody notices.`,
 		},
 	}
 
-	cmd.Flags().String("contract", "", "path to a contract from 'cortex compile --json' (required)")
+	cmd.Flags().String("contract", "", "path to a contract from 'repocortex compile --json' (required)")
 	cmd.Flags().String("changed", "", "comma-separated changed file paths")
 	cmd.Flags().String("changed-from", "", "file holding one changed path per line ('-' for stdin)")
 	cmd.Flags().String("min-confidence", "", "raise the contract's confidence floor (exact|high|medium|low)")
@@ -90,7 +90,7 @@ func runVerify(cmd *cobra.Command, g *Global) error {
 		return fmt.Errorf("verify: read contract %s: %w", contractPath, err)
 	}
 	if err := json.Unmarshal(raw, &contract); err != nil {
-		return fmt.Errorf("verify: parse contract %s (expected the output of 'cortex compile --json'): %w",
+		return fmt.Errorf("verify: parse contract %s (expected the output of 'repocortex compile --json'): %w",
 			contractPath, err)
 	}
 

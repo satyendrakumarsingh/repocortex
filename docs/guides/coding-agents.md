@@ -1,28 +1,28 @@
 # Coding agents
 
-RepoCortex is an MCP server. It speaks stdio (`cortex --project <repo> serve`)
+RepoCortex is an MCP server. It speaks stdio (`repocortex --project <repo> serve`)
 for agents that launch a local server, and Streamable HTTP
-(`cortex serve --http 127.0.0.1:7788`) for agents that only connect to a URL.
+(`repocortex serve --http 127.0.0.1:7788`) for agents that only connect to a URL.
 Any MCP client can use one of the two. This page lists every
 agent we know of, how RepoCortex reaches it, and what is missing for the few that
 cannot use it yet.
 
 | Section | What is in it |
 |---|---|
-| [Configured automatically](#configured-automatically) | 30 agents that `cortex install` writes the config for |
+| [Configured automatically](#configured-automatically) | 30 agents that `repocortex install` writes the config for |
 | [Set up by hand](#set-up-by-hand) | Agents configured through their own command or settings screen |
 | [Agents without local MCP](#agents-without-local-mcp) | Aider, Plandex, ChatGPT, Android Studio, and how each is served |
-| [Remote MCP over HTTP](#remote-mcp-over-http) | `cortex serve --http`: tokens, hosts, tunnels |
+| [Remote MCP over HTTP](#remote-mcp-over-http) | `repocortex serve --http`: tokens, hosts, tunnels |
 | [Guidance files](#guidance-files) | What `--rules` writes so the agent reaches for the graph first |
-| [How `cortex install` edits config files](#how-cortex-install-edits-config-files) | The merge rules that keep your other servers safe |
+| [How `repocortex install` edits config files](#how-repocortex-install-edits-config-files) | The merge rules that keep your other servers safe |
 | [Adding an agent](#adding-an-agent) | How to add support for one we have missed |
 
 ## Configured automatically
 
 ```bash
-cortex install --list      # every supported agent, which are detected here, and the file each uses
-cortex install --dry-run   # what would change, without writing
-cortex install --rules     # write the configs and the guidance files
+repocortex install --list      # every supported agent, which are detected here, and the file each uses
+repocortex install --dry-run   # what would change, without writing
+repocortex install --rules     # write the configs and the guidance files
 ```
 
 An agent is detected when its config file, its config directory or its command
@@ -40,14 +40,14 @@ are for macOS and Linux; `~/.config` follows `XDG_CONFIG_HOME`, and Windows uses
 | [Cline CLI](https://docs.cline.bot/mcp/configuring-mcp-servers) | CLI | `~/.cline/data/settings/cline_mcp_settings.json` | JSON, `mcpServers` |
 | [CodeBuddy CLI](https://www.workbuddy.ai/docs/cli/mcp) | CLI | `~/.codebuddy/mcp.json` | JSON, `mcpServers` |
 | [Codebuff](https://www.codebuff.com/docs/tips/mcp-servers) | CLI | `~/.agents/mcp.json` | JSON, `mcpServers` |
-| [Codex CLI](https://learn.chatgpt.com/docs/extend/mcp?surface=cli) | CLI, desktop, IDE | `~/.codex/config.toml` (follows `CODEX_HOME`) | TOML, `[mcp_servers.cortex]` |
-| [Continue](https://docs.continue.dev/customize/deep-dives/mcp) | IDE, CLI | `.continue/mcpServers/cortex.yaml` in the project | YAML block file |
+| [Codex CLI](https://learn.chatgpt.com/docs/extend/mcp?surface=cli) | CLI, desktop, IDE | `~/.codex/config.toml` (follows `CODEX_HOME`) | TOML, `[mcp_servers.repocortex]` |
+| [Continue](https://docs.continue.dev/customize/deep-dives/mcp) | IDE, CLI | `.continue/mcpServers/repocortex.yaml` in the project | YAML block file |
 | [Copilot CLI](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-mcp-servers) | CLI | `~/.copilot/mcp-config.json` | JSON, `mcpServers`, `type: local` |
 | [Cursor](https://cursor.com/docs/context/mcp) | Desktop, CLI | `~/.cursor/mcp.json` | JSON, `mcpServers` |
 | [Devin Desktop](https://docs.devin.ai/windsurf/plugins/cascade/mcp.md) | Desktop | `~/.config/devin/mcp_config.json` | JSON, `mcpServers` |
 | [Factory Droid](https://docs.factory.com/cli/configuration/mcp) | CLI | `~/.factory/mcp.json` | JSON, `mcpServers` |
 | [Gemini CLI](https://geminicli.com/docs/tools/mcp-server/) | CLI | `~/.gemini/settings.json` | JSON, `mcpServers` |
-| [Goose](https://goose-docs.ai/docs/guides/config-files) | CLI, desktop | `~/.config/goose/config.yaml` | YAML, `extensions.cortex` |
+| [Goose](https://goose-docs.ai/docs/guides/config-files) | CLI, desktop | `~/.config/goose/config.yaml` | YAML, `extensions.repocortex` |
 | [Junie](https://junie.jetbrains.com/docs/junie-cli-mcp-configuration.html) | CLI, JetBrains IDEs | `~/.junie/mcp/mcp.json` | JSON, `mcpServers` |
 | [Kilo Code](https://kilo.ai/docs/features/mcp/using-mcp-in-kilo-code) | CLI, VS Code | `~/.config/kilo/kilo.json` | JSON, key `mcp`, `type: local` |
 | [Kimi Code CLI](https://www.kimi.com/code/docs/en/kimi-code-cli/customization/mcp.html) | CLI | `~/.kimi-code/mcp.json` (follows `KIMI_CODE_HOME`) | JSON, `mcpServers` |
@@ -63,32 +63,32 @@ are for macOS and Linux; `~/.config` follows `XDG_CONFIG_HOME`, and Windows uses
 | [Windsurf and Windsurf Next](https://docs.devin.ai/windsurf/plugins/cascade/mcp.md) | Desktop | `~/.codeium/windsurf/mcp_config.json`, `~/.codeium/windsurf-next/mcp_config.json` | JSON, `mcpServers` |
 | [Zed](https://zed.dev/docs/ai/mcp) | Editor (macOS, Linux) | `~/.config/zed/settings.json` | JSON, key `context_servers` |
 
-Restart the agent after `cortex install` so it reloads its MCP servers.
+Restart the agent after `repocortex install` so it reloads its MCP servers.
 
 ## Set up by hand
 
 These agents keep MCP servers in a settings screen, a database or a per-project
-file, or add them through their own command. `cortex install --list` prints each
+file, or add them through their own command. `repocortex install --list` prints each
 step with your project path already filled in.
 
 | Agent | Step |
 |---|---|
-| [Amazon Q Developer CLI](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/command-line-mcp-config-CLI.html) | `q mcp add --name cortex --command cortex --args '["--project","/path/to/repo","serve"]'` |
-| [Cline (VS Code extension)](https://docs.cline.bot/mcp/configuring-mcp-servers) | MCP Servers, Configure, then add the `cortex` entry under `mcpServers` |
-| [Crush](https://github.com/charmbracelet/crush/blob/main/docs/config/README.md) | `crush mcp add cortex --type stdio --command cortex --args --project --args /path/to/repo --args serve` |
+| [Amazon Q Developer CLI](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/command-line-mcp-config-CLI.html) | `q mcp add --name repocortex --command repocortex --args '["--project","/path/to/repo","serve"]'` |
+| [Cline (VS Code extension)](https://docs.cline.bot/mcp/configuring-mcp-servers) | MCP Servers, Configure, then add the `repocortex` entry under `mcpServers` |
+| [Crush](https://github.com/charmbracelet/crush/blob/main/docs/config/README.md) | `crush mcp add repocortex --type stdio --command repocortex --args --project --args /path/to/repo --args serve` |
 | [Eclipse (Copilot)](https://github.blog/changelog/2025-05-16-agent-mode-and-mcp-support-for-copilot-in-jetbrains-eclipse-and-xcode-now-in-public-preview/) | Preferences, GitHub Copilot, MCP, then paste the `servers` entry |
-| [Jan](https://www.jan.ai/docs/agent/cli) | `jan cli mcp add cortex --command cortex --arg --project --arg /path/to/repo --arg serve --active` |
+| [Jan](https://www.jan.ai/docs/agent/cli) | `jan cli mcp add repocortex --command repocortex --arg --project --arg /path/to/repo --arg serve --active` |
 | [JetBrains AI Assistant](https://www.jetbrains.com/help/ai-assistant/mcp.html) | Settings, Tools, AI Assistant, Model Context Protocol, then add as JSON |
-| [OpenCode](https://opencode.ai/docs/mcp-servers/) | `opencode mcp add cortex --global -- cortex --project /path/to/repo serve` |
+| [OpenCode](https://opencode.ai/docs/mcp-servers/) | `opencode mcp add repocortex --global -- repocortex --project /path/to/repo serve` |
 | [Qoder, Lingma, CodeBuddy and Trae IDEs](https://docs.qoder.com/user-guide/chat/model-context-protocol) | Settings, MCP, Add, then paste the `mcpServers` entry |
-| [Raycast, Msty, Cherry Studio, 5ire](https://manual.raycast.com/ai/model-context-protocol) | Add a stdio server: command `cortex`, arguments `--project /path/to/repo serve` |
-| [Roo Code](https://roocodeinc.github.io/Roo-Code/features/mcp/using-mcp-in-roo) | Add the `cortex` entry to `.roo/mcp.json` in the project |
+| [Raycast, Msty, Cherry Studio, 5ire](https://manual.raycast.com/ai/model-context-protocol) | Add a stdio server: command `repocortex`, arguments `--project /path/to/repo serve` |
+| [Roo Code](https://roocodeinc.github.io/Roo-Code/features/mcp/using-mcp-in-roo) | Add the `repocortex` entry to `.roo/mcp.json` in the project |
 | Any other MCP client | Add the JSON below to its configuration |
 
 ```json
 {
   "mcpServers": {
-    "cortex": { "command": "cortex", "args": ["--project", "/absolute/path/to/repo", "serve"] }
+    "repocortex": { "command": "repocortex", "args": ["--project", "/absolute/path/to/repo", "serve"] }
   }
 }
 ```
@@ -97,35 +97,35 @@ step with your project path already filled in.
 
 | Agent | What it supports | How RepoCortex serves it today | What would add full support |
 |---|---|---|---|
-| [Aider](https://aider.chat/docs/usage/conventions.html) | No MCP. Reads a conventions file and runs shell commands. | `cortex install --rules` writes a `CONVENTIONS.md` block that tells Aider to run `cortex context`, `cortex callers` and `cortex impact`. Load it with `aider --read CONVENTIONS.md`. | Nothing in RepoCortex. Aider gains MCP or keeps using the CLI. |
-| [Plandex](https://docs.plandex.ai/) | No MCP. Loads files and command output into context. | Load command output: `cortex context "<task>" > ctx.md`, then `plandex load ctx.md`. | Nothing in RepoCortex. |
-| [ChatGPT (developer mode)](https://platform.openai.com/docs/guides/developer-mode) | Remote MCP over HTTPS only, from OpenAI's servers. | `cortex serve --http 127.0.0.1:7788 --allowed-host <tunnel host>` behind an HTTPS tunnel you run; the connector URL is `https://<tunnel host>/mcp/<token>`. See [Remote MCP over HTTP](#remote-mcp-over-http). | Nothing in RepoCortex. |
-| [Android Studio (Gemini)](https://developer.android.com/studio/gemini/add-mcp-server) | Remote MCP over HTTP only. | `cortex serve --http 127.0.0.1:7788`, then add `http://127.0.0.1:7788/mcp` with an `Authorization: Bearer <token>` header in its `mcp.json`. | Nothing in RepoCortex. |
+| [Aider](https://aider.chat/docs/usage/conventions.html) | No MCP. Reads a conventions file and runs shell commands. | `repocortex install --rules` writes a `CONVENTIONS.md` block that tells Aider to run `repocortex context`, `repocortex callers` and `repocortex impact`. Load it with `aider --read CONVENTIONS.md`. | Nothing in RepoCortex. Aider gains MCP or keeps using the CLI. |
+| [Plandex](https://docs.plandex.ai/) | No MCP. Loads files and command output into context. | Load command output: `repocortex context "<task>" > ctx.md`, then `plandex load ctx.md`. | Nothing in RepoCortex. |
+| [ChatGPT (developer mode)](https://platform.openai.com/docs/guides/developer-mode) | Remote MCP over HTTPS only, from OpenAI's servers. | `repocortex serve --http 127.0.0.1:7788 --allowed-host <tunnel host>` behind an HTTPS tunnel you run; the connector URL is `https://<tunnel host>/mcp/<token>`. See [Remote MCP over HTTP](#remote-mcp-over-http). | Nothing in RepoCortex. |
+| [Android Studio (Gemini)](https://developer.android.com/studio/gemini/add-mcp-server) | Remote MCP over HTTP only. | `repocortex serve --http 127.0.0.1:7788`, then add `http://127.0.0.1:7788/mcp` with an `Authorization: Bearer <token>` header in its `mcp.json`. | Nothing in RepoCortex. |
 
-Every agent can also use the CLI directly. `cortex context`, `cortex callers`,
-`cortex impact` and `cortex tests` print plain text an agent can read from any
+Every agent can also use the CLI directly. `repocortex context`, `repocortex callers`,
+`repocortex impact` and `repocortex tests` print plain text an agent can read from any
 shell tool.
 
 ## Remote MCP over HTTP
 
 ```bash
-export CORTEX_MCP_TOKEN="$(openssl rand -hex 32)"   # optional; otherwise one is generated per run into .cortex/mcp-token
-cortex --project /path/to/repo serve --http 127.0.0.1:7788
+export REPOCORTEX_MCP_TOKEN="$(openssl rand -hex 32)"   # optional; otherwise one is generated per run into .repocortex/mcp-token
+repocortex --project /path/to/repo serve --http 127.0.0.1:7788
 ```
 
 ```console
 MCP over HTTP: http://127.0.0.1:7788/mcp
-Token: from CORTEX_MCP_TOKEN
+Token: from REPOCORTEX_MCP_TOKEN
 Send it as 'Authorization: Bearer <token>', or use http://127.0.0.1:7788/mcp/<token> if the client cannot set headers.
 ```
 
 | Protection | What it does |
 |---|---|
-| Token on every request | `Authorization: Bearer <token>`, or the token as the last path segment for clients that only take a URL. Compared in constant time; a missing or wrong token gets `401`. `CORTEX_MCP_TOKEN` must be at least 24 characters. |
+| Token on every request | `Authorization: Bearer <token>`, or the token as the last path segment for clients that only take a URL. Compared in constant time; a missing or wrong token gets `401`. `REPOCORTEX_MCP_TOKEN` must be at least 24 characters. |
 | Loopback by default | `--http` refuses a non-loopback address such as `0.0.0.0:7788` unless `--allow-remote` is given. |
 | Host check | Requests whose `Host` is not this machine or a name in `--allowed-host` get `403`, which blocks DNS rebinding. |
 | Origin check | A request with an `Origin` that is not this machine or an allowed host gets `403`, so a web page open in your browser cannot call the server. |
-| Read-only index | The server opens `.cortex/index.db` read-only, over HTTP as over stdio. |
+| Read-only index | The server opens `.repocortex/index.db` read-only, over HTTP as over stdio. |
 
 **A client on this machine** (Android Studio, or any client that takes a URL and
 headers) connects to `http://127.0.0.1:7788/mcp` with the bearer header.
@@ -141,7 +141,7 @@ header wherever the client supports it.
 
 
 An MCP server alone does not make an agent use it; the agent also needs to know
-*when* to ask. `cortex install --rules` adds a short, marked block:
+*when* to ask. `repocortex install --rules` adds a short, marked block:
 
 | File | When it is written |
 |---|---|
@@ -152,9 +152,9 @@ An MCP server alone does not make an agent use it; the agent also needs to know
 
 Running it again replaces the block in place; nothing else in the file changes.
 
-## How `cortex install` edits config files
+## How `repocortex install` edits config files
 
-- It adds or replaces one entry named `cortex` and keeps every other server and
+- It adds or replaces one entry named `repocortex` and keeps every other server and
   setting in the file.
 - Each agent gets the shape its own documentation specifies. The JSON key,
   `type` field and argument layout differ between agents, and the table above
@@ -162,7 +162,7 @@ Running it again replaces the block in place; nothing else in the file changes.
 - JSON is parsed before it is written. A file with comments (JSONC) or an
   unexpected shape is left untouched and reported as `manual`, with the entry to
   paste.
-- Codex TOML is edited as text: only the `[mcp_servers.cortex]` table is
+- Codex TOML is edited as text: only the `[mcp_servers.repocortex]` table is
   replaced or appended, so comments and ordering elsewhere survive.
 - Goose YAML is edited through a node tree, which keeps comments and the other
   extensions.

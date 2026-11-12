@@ -11,11 +11,11 @@ permissions:
 
 env:
   # Lowest blindspot / architecture severity that fails the build: high|medium|low.
-  CORTEX_FAIL_ON: high
+  REPOCORTEX_FAIL_ON: high
   # auto: install the pinned compiler-backed indexers this repository needs and
   # import their facts as `exact` before impact runs. fast: skip that stage; the
   # report stays heuristic and says so.
-  CORTEX_ACCURACY: auto
+  REPOCORTEX_ACCURACY: auto
 
 jobs:
   gate:
@@ -39,50 +39,50 @@ jobs:
           cache: true
 
       - name: Build RepoCortex
-        run: go build -trimpath -ldflags="-s -w" -o ./bin/cortex ./cmd/cortex
+        run: go build -trimpath -ldflags="-s -w" -o ./bin/repocortex ./cmd/repocortex
 
       # resolve is not optional: without it the index holds definitions but no
       # call graph, and every impact and blindspot result below would be empty
       # for the wrong reason.
       - name: Index and Resolve
         run: |
-          ./bin/cortex init
-          ./bin/cortex index
-          ./bin/cortex resolve
+          ./bin/repocortex init
+          ./bin/repocortex index
+          ./bin/repocortex resolve
 
       # The cache key is the pin table itself, so it changes exactly when a
       # pinned version or digest does.
       - name: Pin Compiler Indexers
-        if: env.CORTEX_ACCURACY == 'auto'
+        if: env.REPOCORTEX_ACCURACY == 'auto'
         run: |
-          mkdir -p cortex-out
-          ./bin/cortex indexers pins > cortex-out/indexer-pins.txt
+          mkdir -p repocortex-out
+          ./bin/repocortex indexers pins > repocortex-out/indexer-pins.txt
 
       # Only scip-go is cached: it is built by `go install` into GOPATH/bin,
       # which setup-go puts on PATH. npm and container indexers are fetched and
       # digest-verified on every run.
       - name: Cache Compiler Indexers
-        if: env.CORTEX_ACCURACY == 'auto'
+        if: env.REPOCORTEX_ACCURACY == 'auto'
         uses: actions/cache@v4
         with:
           path: ~/go/bin/scip-go
-          key: cortex-indexers-${{ runner.os }}-go${{ steps.setup-go.outputs.go-version }}-${{ hashFiles('cortex-out/indexer-pins.txt') }}
+          key: repocortex-indexers-${{ runner.os }}-go${{ steps.setup-go.outputs.go-version }}-${{ hashFiles('repocortex-out/indexer-pins.txt') }}
 
       # An accuracy upgrade, never a requirement: if an indexer is missing, blocked
       # or produces an index that will not import, the edges stay heuristic and the
       # report says so.
       - name: Import Compiler Facts
-        if: env.CORTEX_ACCURACY == 'auto'
+        if: env.REPOCORTEX_ACCURACY == 'auto'
         run: |
-          mkdir -p cortex-out
-          { ./bin/cortex indexers install --yes --out-dir cortex-out/scip 2>&1 \
+          mkdir -p repocortex-out
+          { ./bin/repocortex indexers install --yes --out-dir repocortex-out/scip 2>&1 \
               || echo "::warning::compiler indexers unavailable; the report uses heuristic edges"; } \
-            | tee cortex-out/indexers.txt
+            | tee repocortex-out/indexers.txt
           imported=0
           failed=0
-          for f in cortex-out/scip/*.scip; do
+          for f in repocortex-out/scip/*.scip; do
             [ -f "$f" ] || continue
-            if ./bin/cortex scip import "$f"; then
+            if ./bin/repocortex scip import "$f"; then
               imported=$((imported + 1))
             else
               echo "::warning::scip import of $(basename "$f") failed; its edges stay heuristic"
@@ -93,35 +93,35 @@ jobs:
             echo "### Compiler-backed precision"
             echo "imported: $imported, failed: $failed"
             echo '```'
-            cat cortex-out/indexers.txt
+            cat repocortex-out/indexers.txt
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Verify Index Integrity
-        run: ./bin/cortex doctor --verify-index
+        run: ./bin/repocortex doctor --verify-index
 
       # Reports are collected and published BEFORE the gate runs, so a failing
       # gate still leaves the reviewer a comment and code-scanning alerts that
       # say why.
       - name: Collect Findings
         run: |
-          mkdir -p cortex-out
-          ./bin/cortex --json arch > cortex-out/arch.json
-          ./bin/cortex --json missed > cortex-out/missed.json
+          mkdir -p repocortex-out
+          ./bin/repocortex --json arch > repocortex-out/arch.json
+          ./bin/repocortex --json blindspots > repocortex-out/missed.json
 
       - name: Impact Analysis of the Pull Request
         if: github.event_name == 'pull_request'
-        run: ./bin/cortex --json impact --base "origin/${{ github.base_ref }}" --head HEAD > cortex-out/impact.json
+        run: ./bin/repocortex --json impact --base "origin/${{ github.base_ref }}" --head HEAD > repocortex-out/impact.json
 
       - name: Render Reports
         run: |
-          ./bin/cortex report sarif --arch cortex-out/arch.json --missed cortex-out/missed.json --out cortex-out/cortex.sarif
-          if [ -f cortex-out/impact.json ]; then
-            ./bin/cortex report pr --impact cortex-out/impact.json --arch cortex-out/arch.json --missed cortex-out/missed.json --out cortex-out/pr-report.md
+          ./bin/repocortex report sarif --arch repocortex-out/arch.json --blindspots repocortex-out/missed.json --out repocortex-out/repocortex.sarif
+          if [ -f repocortex-out/impact.json ]; then
+            ./bin/repocortex report pr --impact repocortex-out/impact.json --arch repocortex-out/arch.json --blindspots repocortex-out/missed.json --out repocortex-out/pr-report.md
           else
-            ./bin/cortex report pr --arch cortex-out/arch.json --missed cortex-out/missed.json --out cortex-out/pr-report.md
+            ./bin/repocortex report pr --arch repocortex-out/arch.json --blindspots repocortex-out/missed.json --out repocortex-out/pr-report.md
           fi
-          cat cortex-out/pr-report.md >> "$GITHUB_STEP_SUMMARY"
+          cat repocortex-out/pr-report.md >> "$GITHUB_STEP_SUMMARY"
 
       # A fork pull request's token is read-only and cannot write security
       # events; the PR comment and step summary still carry the findings.
@@ -129,8 +129,8 @@ jobs:
         if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: cortex-out/cortex.sarif
-          category: cortex
+          sarif_file: repocortex-out/repocortex.sarif
+          category: repocortex
 
       # Same-repository pull requests only: a fork's token cannot write
       # comments, and this job never runs fork code with write permissions.
@@ -142,18 +142,18 @@ jobs:
           PR: ${{ github.event.pull_request.number }}
         run: |
           id=$(gh api "repos/$REPO/issues/$PR/comments" --paginate \
-            --jq '.[] | select(.body | contains("<!-- cortex:pr-report -->")) | .id' | head -n 1)
+            --jq '.[] | select(.body | contains("<!-- repocortex:pr-report -->")) | .id' | head -n 1)
           if [ -n "$id" ]; then
-            gh api -X PATCH "repos/$REPO/issues/comments/$id" -F body=@cortex-out/pr-report.md
+            gh api -X PATCH "repos/$REPO/issues/comments/$id" -F body=@repocortex-out/pr-report.md
           else
-            gh api -X POST "repos/$REPO/issues/$PR/comments" -F body=@cortex-out/pr-report.md
+            gh api -X POST "repos/$REPO/issues/$PR/comments" -F body=@repocortex-out/pr-report.md
           fi
 
       - name: Report Event Topology
-        run: ./bin/cortex events
+        run: ./bin/repocortex events
 
       - name: Enforce Architecture Rules
-        run: ./bin/cortex arch --fail-on "$CORTEX_FAIL_ON"
+        run: ./bin/repocortex arch --fail-on "$REPOCORTEX_FAIL_ON"
 
       - name: Audit Code Blindspots
-        run: ./bin/cortex missed --fail-on "$CORTEX_FAIL_ON"
+        run: ./bin/repocortex blindspots --fail-on "$REPOCORTEX_FAIL_ON"

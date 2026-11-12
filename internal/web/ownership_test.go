@@ -200,7 +200,7 @@ func TestOwnershipOverRealHistory(t *testing.T) {
 		},
 		captest.Refs{Resolved: 10})
 	srv := newServer(t, realRegistry(t, deps), deps,
-		config.Config{ProjectName: "cortex", RepoRoot: root})
+		config.Config{ProjectName: "repocortex", RepoRoot: root})
 
 	var got OwnershipResponse
 	pillarGet(t, srv.handleOwnership, "/api/who?symbol=portalHub&commits=40", &got)

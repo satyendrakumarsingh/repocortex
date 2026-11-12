@@ -31,7 +31,7 @@ func (s UpgradeStats) Total() int { return s.Inserted + s.Upgraded + s.Unchanged
 // Duplicated rather than computed in Go because the comparison has to happen
 // inside the UPDATE's WHERE clause: reading the stored confidence, deciding in
 // Go and writing back would be a read-modify-write race against any concurrent
-// writer, and `cortex watch` is a concurrent writer by design.
+// writer, and `repocortex watch` is a concurrent writer by design.
 //
 // Two spellings of one rule, one reading the bound parameter and one the stored
 // column. They are separate constants rather than a format string because the
@@ -56,7 +56,7 @@ const (
 // It also preserves what it overwrites. prior_confidence/prior_source hold the
 // claim the row carried before the FIRST upgrade to touch it — see migration
 // 0012 — because an upgraded edge is not a vanished heuristic edge, it is a
-// heuristic edge the compiler agreed with, and `cortex accuracy` has to be
+// heuristic edge the compiler agreed with, and `repocortex accuracy` has to be
 // able to tell those apart. The CASE guards against a second upgrade
 // overwriting the original claim with an intermediate one; no path produces
 // that today, since exact is the ceiling and only the importer upgrades, but a

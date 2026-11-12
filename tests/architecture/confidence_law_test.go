@@ -71,7 +71,7 @@ func TestAnUnknownTierIsNeverAdmitted(t *testing.T) {
 //
 // `exact` is the tier a consumer is told to act on without checking. The moment
 // a heuristic can label itself `exact`, the distinction between a proof and a
-// guess stops existing anywhere in the product — including in `cortex verify`,
+// guess stops existing anywhere in the product — including in `repocortex verify`,
 // where it is exactly what separates a FACT from a LEAD.
 func TestOnlyTheCompilerProducesExact(t *testing.T) {
 	notCompiler := []model.SourceType{

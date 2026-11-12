@@ -15,7 +15,7 @@ import "errors"
 
 // ErrCGOBackendNotBuilt is returned by CGOBackend in the default build.
 //
-// A sentinel rather than a panic: `cortex doctor` reports which backend is
+// A sentinel rather than a panic: `repocortex doctor` reports which backend is
 // compiled in, and asking for a backend that was not built is a fact to report,
 // not a crash.
 var ErrCGOBackendNotBuilt = errors.New("parse: CGO backend not compiled in; rebuild with -tags cgo_parser")

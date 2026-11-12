@@ -31,7 +31,7 @@ them as commands rather than as a table.
 ## Prerequisites
 
 ```bash
-CGO_ENABLED=0 go build -o /tmp/cortex ./cmd/cortex   # Go 1.26+
+CGO_ENABLED=0 go build -o /tmp/repocortex ./cmd/repocortex   # Go 1.26+
 ```
 
 Zero CGO is not incidental: it is what makes `go install` work without a C
@@ -46,8 +46,8 @@ against:
 | `scip-typescript` | 0.3.14 |
 | `scip-python` | 0.6.6 |
 
-`cortex indexers install --yes` provisions these at pinned versions with
-verified digests. `cortex indexers list` tells you what applies to a
+`repocortex indexers install --yes` provisions these at pinned versions with
+verified digests. `repocortex indexers list` tells you what applies to a
 repository and what is missing, without installing anything.
 
 ## Corpora
@@ -84,10 +84,10 @@ The measurement that turns the confidence labels from an intention into a
 number. Four commands:
 
 ```bash
-cortex index && cortex resolve
+repocortex index && repocortex resolve
 scip-go --output index.scip          # compiler ground truth
-cortex scip import index.scip      # lands as REFERENCES/exact/compiler
-cortex doctor --resolution-precision
+repocortex scip import index.scip      # lands as REFERENCES/exact/compiler
+repocortex doctor --resolution-precision
 ```
 
 Order matters: index, resolve, then import. A heuristic `CALLS` edge is
@@ -169,8 +169,8 @@ for you to threshold yourself.
 ## 2. Retrieval quality
 
 ```bash
-cortex bench fixtures/bench/payment.yml
-cortex bench fixtures/bench/payment.yml --fail-on-regression   # exit 1 on any failure
+repocortex bench fixtures/bench/payment.yml
+repocortex bench fixtures/bench/payment.yml --fail-on-regression   # exit 1 on any failure
 ```
 
 Reproduced against a copy of the bundled payment fixture:
@@ -212,7 +212,7 @@ worked example, not a standard.
 ## 3. Determinism
 
 ```bash
-cortex index --full --digest
+repocortex index --full --digest
 ```
 
 The digest is a sha256 over one run's content. The property is verified **both
@@ -246,7 +246,7 @@ will not catch an ordering bug that needs a real name collision to appear.
 Also worth running alongside:
 
 ```bash
-cortex doctor --verify-index      # graph invariants
+repocortex doctor --verify-index      # graph invariants
 go test -race ./...                 # full suite
 ```
 
@@ -261,10 +261,10 @@ trials on a shared developer laptop is the honest picture.
 The method, reduced:
 
 ```bash
-CGO_ENABLED=0 go build -o /tmp/di-docs ./cmd/cortex
+CGO_ENABLED=0 go build -o /tmp/di-docs ./cmd/repocortex
 cp -R <corpus> /tmp/work/repo && cd /tmp/work/repo && git init && git commit -am init
 for trial in 1 2 3; do
-  rm -rf .cortex && /tmp/di-docs init
+  rm -rf .repocortex && /tmp/di-docs init
   /tmp/di-docs index --full          # full index into an empty database
   /tmp/di-docs index                 # re-index, nothing changed
   echo '// touched' >> <first file>
@@ -297,6 +297,82 @@ and `MaxInFlightBytes` does not bound memory despite having said so — it bound
 admission, while the drain threshold bounds memory.
 
 ---
+
+## 5. Agent benchmark
+
+Does an agent do better with RepoCortex than with search alone? This is the
+measurement other code-graph tools publish, and the one that matters most. One
+round has been run. Its result is not flattering and is reported as measured.
+
+### Round 1: direct callers of a uniquely named function (2026-11-12)
+
+**Setup.** Five functions in this repository, each with a name defined exactly
+once, with 1, 2, 4, 11 and 33 real callers. Each question was asked of two
+agents: one limited to ordinary file search and reading, and one also given
+`repocortex tool call find_callers`. Ten runs, one per task and arm, the same
+model for all (Claude Sonnet), each agent starting cold.
+
+**Ground truth** was computed without RepoCortex: a 90-line Go program walks
+every file's syntax tree and lists the functions whose bodies contain a call
+expression naming the target. For a name defined once, that is exact.
+
+| Function (callers) | Arm | Correct | Tokens | Tool calls | Seconds |
+|---|---|---|---|---|---|
+| `staleAgainst` (1) | search only | 1 / 1 | 58,481 | 4 | 14.6 |
+| | with RepoCortex | 1 / 1 | 58,808 | 4 | 21.0 |
+| `checkListenAddr` (2) | search only | 2 / 2 | 58,546 | 3 | 12.1 |
+| | with RepoCortex | 2 / 2 | 59,815 | 4 | 21.5 |
+| `mergeJSONKey` (4) | search only | 4 / 4 | 59,641 | 3 | 12.5 |
+| | with RepoCortex | 4 / 4 | 59,635 | 4 | 16.8 |
+| `openReadOnly` (11) | search only | 11 / 11 | 59,649 | 3 | 21.3 |
+| | with RepoCortex | 11 / 11 | 59,477 | 3 | 14.2 |
+| `openQuery` (33) | search only | 33 / 33 | 60,958 | 3 | 16.1 |
+| | with RepoCortex | 33 / 33 | 61,722 | 5 | 21.0 |
+| **Total** | search only | 51 / 51 | 297,275 | 16 | 76.6 |
+| | with RepoCortex | 51 / 51 | 299,457 | 20 | 94.5 |
+
+**Result: no advantage.** Both arms were right every time. The agents with
+RepoCortex used 0.7% more tokens, four more tool calls and 23% more time,
+because each called the tool and then checked its answer with a search.
+
+**What this does and does not show.**
+
+- For a function whose name is unique, one search for `name(` is already a
+  complete and exact answer, and an agent finds it in one step. A code graph
+  cannot beat that, and this round confirms it does not.
+- About 58,000 of each run's tokens are the agent's own fixed overhead, so the
+  task itself cost a few thousand tokens in either arm. A benchmark of small
+  lookups cannot show a large saving whichever way it goes.
+- Five tasks, one run each, in one 400-file Go repository. It is an indication,
+  not a statistic.
+- It does not test where a search stops being enough: a name defined many
+  times (`Close`, `Run`, `handle`), a method reached through an interface, what
+  a change reaches several calls away, which tests cover a symbol, or a
+  repository too large to search and read. Those are the cases the tool is
+  built for, and none has been measured yet.
+
+**Do not quote a token saving for RepoCortex.** There is no measurement that
+supports one.
+
+### Round 2, not yet run
+
+The next round needs a ground truth that search cannot produce, which means a
+type-checked one: build the truth from a compiler index (SCIP) on public
+repositories, then ask for callers of ambiguous method names, the transitive
+reach of a change, and the tests that reach a symbol. Report correctness first,
+then tool calls and tokens.
+
+### Reproducing round 1
+
+1. Index the repository: `repocortex init && repocortex index && repocortex resolve`.
+2. Compute the truth for each target with a syntax-tree walk over the same
+   files (exclude `fixtures/`).
+3. Give each agent one question: "find every function or method whose body
+   directly calls `<name>`, defined in `<file>`; answer `CALLERS: a,b,c`".
+   Forbid the search-only arm from running `repocortex` or reading
+   `.repocortex`; give the other arm the `find_callers` command.
+4. Record tokens, tool calls and wall time from the agent runtime, and score
+   the answer line against the truth.
 
 ## Pitfalls
 
@@ -344,9 +420,9 @@ The same applies to the run reproduced at the top of this page: 98.0% here and
 
 ### Pitfall 3: `--full` discards resolved edges
 
-`cortex index --full` rebuilds from scratch and drops the call graph. Re-run
-`cortex resolve` afterwards, or every relationship query will report that no
-references have been resolved yet. A plain incremental `cortex index` does not
+`repocortex index --full` rebuilds from scratch and drops the call graph. Re-run
+`repocortex resolve` afterwards, or every relationship query will report that no
+references have been resolved yet. A plain incremental `repocortex index` does not
 have this effect.
 
 Benchmark scripts that loop over `index --full` and then query without resolving
@@ -355,12 +431,12 @@ are measuring an empty graph.
 ### Pitfall 4: one index database holds one committed run
 
 `registry.CommitRun` publishes a run and deletes the rows of the one it replaces.
-So `cortex diff` across two commits normally needs **two index files** — the
+So `repocortex diff` across two commits normally needs **two index files** — the
 working index and a second index built at the other ref — which is what
 `--from-index` and `--to-index` are for:
 
 ```bash
-cortex diff --from-index ../release-1.4/.cortex/index.db --from 8f3c1ab --to 42
+repocortex diff --from-index ../release-1.4/.repocortex/index.db --from 8f3c1ab --to 42
 ```
 
 A ref that matches no indexed run fails and says so; it never falls back to
@@ -376,7 +452,7 @@ plainly safe and neither survived measurement:
 - "A bare call cannot name a method in Go or Rust" — true of the languages,
   false of the parser, which leaves `Receiver` empty when its query could not
   express the receiver. Every chained Go call was read as bare, and
-  `cortex callers Save` went from two bound callers to zero. **Every unit test
+  `repocortex callers Save` went from two bound callers to zero. **Every unit test
   passed throughout**, because they set `Receiver` directly; only the end-to-end
   CLI path exercised the parser.
 - "Production code never binds to a test definition" — cost **2.4pp** of `high`
@@ -397,7 +473,7 @@ and one of them printed this, the comparison is between two sets of resolution
 rules:
 
 ```
-level=WARN msg="This index was written by cortex dev and you are running 9.9.9-test.
+level=WARN msg="This index was written by repocortex dev and you are running 9.9.9-test.
 Resolution rules change between builds, so these results may come from different rules
 than this binary would produce. Re-index to refresh."
 ```

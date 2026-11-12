@@ -249,7 +249,7 @@ func deleteFileRows(ctx context.Context, tx *sql.Tx, runID int64, path string) e
 	// nothing, and the call edge stayed missing until a full re-index.
 	//
 	// Editing a definition therefore silently deleted its callers' edges.
-	// `cortex arch` reported "No violations" on a repo that had one, which
+	// `repocortex arch` reported "No violations" on a repo that had one, which
 	// for a governance command is the worst possible failure — a false clean
 	// bill of health is acted on, an error is investigated.
 	//

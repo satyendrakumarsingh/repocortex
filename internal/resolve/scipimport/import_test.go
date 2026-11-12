@@ -19,7 +19,7 @@ import (
 )
 
 // These tests drive the whole path: build a repository index the way
-// `cortex index` would, write a .scip the way an indexer would, import it,
+// `repocortex index` would, write a .scip the way an indexer would, import it,
 // and read the graph back.
 //
 // Nothing is stubbed, because everything that can go wrong here lives in the
@@ -318,7 +318,7 @@ func TestImportUpgradesHeuristicEdgeInPlace(t *testing.T) {
 		t.Error("the report does not mention an upgrade; a user cannot tell confirmation from discovery")
 	}
 
-	// One row, not two. A duplicate would make `cortex callers` report the
+	// One row, not two. A duplicate would make `repocortex callers` report the
 	// same call twice, once as a guess.
 	if n := countEdges(t, reg, runID, ids["Handle"], ids["updateStatus"]); n != 1 {
 		t.Errorf("%d rows for one relationship; the upgrade duplicated instead of replacing", n)
@@ -485,7 +485,7 @@ func TestImportRequiresAnIndexedRepository(t *testing.T) {
 	if err == nil {
 		t.Fatal("importing into an empty run succeeded")
 	}
-	if !contains(err.Error(), "cortex index") {
+	if !contains(err.Error(), "repocortex index") {
 		t.Errorf("error should point at the fix; got %q", err)
 	}
 }
@@ -493,7 +493,7 @@ func TestImportRequiresAnIndexedRepository(t *testing.T) {
 // ---------------------------------------------------- the CALLS join
 
 // recordCall stages a parser-recorded call at path:line on a committed run,
-// which is what `cortex index` writes and `cortex resolve` reads. It is the
+// which is what `repocortex index` writes and `repocortex resolve` reads. It is the
 // half of the CALLS join that does NOT come from the compiler, and every test
 // below turns on whether it is present.
 func recordCall(t *testing.T, reg *registry.Registry, runID int64, path, name, receiver string, line int) {
@@ -524,7 +524,7 @@ func recordCall(t *testing.T, reg *registry.Registry, runID int64, path, name, r
 // REFERENCES edge and nothing more — SCIP does not say it is a call. With the
 // parser's own record of a call expression at that same line, the two
 // independently sourced halves join into a CALLS edge at confidence=exact,
-// which is what `cortex callers`, impact and compile actually traverse.
+// which is what `repocortex callers`, impact and compile actually traverse.
 func TestImportProducesExactCallsWhereBothSourcesAgree(t *testing.T) {
 	ctx := context.Background()
 	reg, runID, ids := repoIndex(t)
@@ -587,7 +587,7 @@ func TestImportLeavesNonCallReferencesAsReferences(t *testing.T) {
 
 // TestImportUpgradesHeuristicCallInPlace is requirement three: an existing
 // high-confidence CALLS edge at the same (src, dst, line) must be UPGRADED, not
-// duplicated. A duplicate would make `cortex callers` show the same call
+// duplicated. A duplicate would make `repocortex callers` show the same call
 // twice, once as a guess — and would double every count built on top of it.
 func TestImportUpgradesHeuristicCallInPlace(t *testing.T) {
 	ctx := context.Background()

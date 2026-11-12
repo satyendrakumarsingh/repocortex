@@ -9,7 +9,7 @@ import (
 
 func TestMissedRejectsUnknownKind(t *testing.T) {
 	root := indexedProject(t)
-	_, err := run(t, root, "missed", "--kind", "unresolvd_call")
+	_, err := run(t, root, "blindspots", "--kind", "unresolvd_call")
 	if err == nil || !strings.Contains(err.Error(), "unresolved_call") {
 		t.Fatalf("a mistyped --kind must be rejected and list the valid kinds; got %v", err)
 	}
@@ -17,14 +17,14 @@ func TestMissedRejectsUnknownKind(t *testing.T) {
 
 func TestMissedRejectsUnknownFailOn(t *testing.T) {
 	root := indexedProject(t)
-	if _, err := run(t, root, "missed", "--fail-on", "critical"); err == nil {
+	if _, err := run(t, root, "blindspots", "--fail-on", "critical"); err == nil {
 		t.Fatal("--fail-on accepted a severity that does not exist")
 	}
 }
 
 func TestMissedWritesToTheCommandOutput(t *testing.T) {
 	root := indexedProject(t)
-	out, err := run(t, root, "missed")
+	out, err := run(t, root, "blindspots")
 	if err != nil {
 		t.Fatalf("missed: %v", err)
 	}

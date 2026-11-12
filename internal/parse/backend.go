@@ -6,7 +6,7 @@ package parse
 //
 // RepoCortex's default parser runtime is github.com/odvcencio/gotreesitter: a
 // pure-Go tree-sitter implementation. That choice buys something valuable —
-// `go install cortex` works on any machine with a Go toolchain, and five
+// `go install repocortex` works on any machine with a Go toolchain, and five
 // release targets cross-compile from a single runner with CGO_ENABLED=0. The
 // project is not willing to give that up.
 //

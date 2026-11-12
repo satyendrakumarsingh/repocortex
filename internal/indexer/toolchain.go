@@ -37,7 +37,7 @@ type probe struct {
 	// cheap says whether asking is fast enough to do on every plan.
 	//
 	// `mvn -v` and `gradle --version` each start a JVM, and Gradle's takes
-	// seconds. `cortex indexers list` is meant to be instant, so for those two
+	// seconds. `repocortex indexers list` is meant to be instant, so for those two
 	// the probe stops at presence on PATH and the version is left unknown rather
 	// than paying seconds for a cosmetic string.
 	cheap bool
@@ -116,7 +116,7 @@ func (tc Toolchain) Missing(tools ...Tool) []Tool {
 	return out
 }
 
-// Summary renders the probe result for `cortex indexers list`.
+// Summary renders the probe result for `repocortex indexers list`.
 func (tc Toolchain) Summary() string {
 	names := make([]string, 0, len(tc.Tools))
 	for t := range tc.Tools {

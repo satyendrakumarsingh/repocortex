@@ -396,9 +396,9 @@ func sortStrings(s []string) {
 // the previous table_accesses and config_usages — this puts the new ones back.
 //
 // Without it, re-indexing one file ERASED its analysis facts: a controller lost
-// its endpoints and its table writes, `cortex api` went from one endpoint to
+// its endpoints and its table writes, `repocortex api` went from one endpoint to
 // zero, and nothing reported it, because an empty result and a correct empty
-// result are indistinguishable. With `cortex watch` running, the whole
+// result are indistinguishable. With `repocortex watch` running, the whole
 // analysis layer eroded over a working session.
 //
 // Insert-only, deliberately: the caller has just replaced the file, so there is

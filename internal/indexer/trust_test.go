@@ -24,7 +24,7 @@ import (
 var hostileFiles = map[string]string{
 	// A repo config using only keys the schema allows, with values chosen to
 	// look like flags if they were ever interpolated into a command line.
-	".cortex.yml": "" +
+	".repocortex.yml": "" +
 		"project:\n" +
 		"  name: \"--privileged -v /:/host\"\n" +
 		"index:\n" +
@@ -103,7 +103,7 @@ func fullyEquippedRunner() *fakeRunner {
 // differ only in the CONTENTS of their marker files must produce byte-identical
 // plans, because the contents are never read.
 func TestRepoCannotInfluenceThePlan(t *testing.T) {
-	t.Setenv("CORTEX_CONFIG_HOME", t.TempDir()) // ignore the developer's own config
+	t.Setenv("REPOCORTEX_CONFIG_HOME", t.TempDir()) // ignore the developer's own config
 
 	hostile := writeRepo(t, hostileFiles)
 	benign := writeRepo(t, benignFiles)
@@ -152,7 +152,7 @@ func TestRepoCannotInfluenceThePlan(t *testing.T) {
 // TestRepoCannotInfluenceWhatIsExecuted runs the plan and inspects every argv,
 // working directory and environment that reached the fake operating system.
 func TestRepoCannotInfluenceWhatIsExecuted(t *testing.T) {
-	t.Setenv("CORTEX_CONFIG_HOME", t.TempDir())
+	t.Setenv("REPOCORTEX_CONFIG_HOME", t.TempDir())
 
 	root := writeRepo(t, hostileFiles)
 	cfg, err := config.Load(root)
@@ -216,11 +216,11 @@ func TestRepoCannotInfluenceWhatIsExecuted(t *testing.T) {
 }
 
 // TestRepoConfigCannotNameAnIndexer proves the boundary end to end rather than
-// by inspection: a .cortex.yml that tries to set an execution field is
+// by inspection: a .repocortex.yml that tries to set an execution field is
 // REJECTED by config.Load, so there is no path by which the value could arrive
 // here at all.
 func TestRepoConfigCannotNameAnIndexer(t *testing.T) {
-	t.Setenv("CORTEX_CONFIG_HOME", t.TempDir())
+	t.Setenv("REPOCORTEX_CONFIG_HOME", t.TempDir())
 
 	for name, body := range map[string]string{
 		"accuracy mode":     "accuracy:\n  mode: exact\n",
@@ -230,8 +230,8 @@ func TestRepoConfigCannotNameAnIndexer(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			root := writeRepo(t, map[string]string{
-				".cortex.yml": body,
-				"go.mod":      "module x",
+				".repocortex.yml": body,
+				"go.mod":          "module x",
 			})
 			if _, err := config.Load(root); err == nil {
 				t.Fatal("a repository set an execution field and config.Load accepted it")
@@ -251,12 +251,12 @@ func TestMarkerFilesAreNeverRead(t *testing.T) {
 	if os.Getuid() == 0 {
 		t.Skip("running as root; file modes do not deny reads")
 	}
-	t.Setenv("CORTEX_CONFIG_HOME", t.TempDir())
+	t.Setenv("REPOCORTEX_CONFIG_HOME", t.TempDir())
 
 	readable := writeRepo(t, benignFiles)
 	locked := writeRepo(t, benignFiles)
 	for name := range benignFiles {
-		if name == ".cortex.yml" {
+		if name == ".repocortex.yml" {
 			continue // config.Load legitimately reads this one
 		}
 		if err := os.Chmod(filepath.Join(locked, name), 0o000); err != nil {

@@ -9,7 +9,7 @@ import (
 // backtracking hang.
 //
 // Both halves of the input are hostile. The PATTERNS come from the repository's
-// own .cortex.yml, which RepoCortex did not write; the PATHS come from the
+// own .repocortex.yml, which RepoCortex did not write; the PATHS come from the
 // index, which is a listing of files RepoCortex did not write either. That is why
 // the matcher is a dynamic program rather than a regex or a recursion: a
 // pattern like `**/a/**/a/**/a` costs exponential time under the obvious

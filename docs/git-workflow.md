@@ -5,7 +5,7 @@
 `main` is the only long-lived branch. Work happens on a topic branch and lands
 through a pull request; CI gates the merge.
 
-There is no release branch and no version tag yet — `cortex version` reports
+There is no release branch and no version tag yet — `repocortex version` reports
 `dev`/`none`/`unknown` from a source build, and real values are injected with
 `-ldflags` at release time. Nothing in the repository depends on branch naming.
 
@@ -30,7 +30,7 @@ the change accomplishes, not which files moved:
 
 ```
 Fix scale, add observability, error taxonomy, and soak testing
-Add the filesystem watcher backing `cortex watch`
+Add the filesystem watcher backing `repocortex watch`
 README: state what actually works, and what does not
 M2: resolve references to definitions, building the call graph
 ```
@@ -126,11 +126,11 @@ failing long after the commit that broke it.
 And, when the change touches the graph, the parser, the registry or the walker:
 
 ```bash
-cortex doctor --verify-index
+repocortex doctor --verify-index
 ```
 
 Run it against a **copy** of the repository, not the working tree — every
-RepoCortex command writes `.cortex/` into the directory it is pointed at.
+RepoCortex command writes `.repocortex/` into the directory it is pointed at.
 
 CI enforces all of the above on Linux, macOS and Windows, plus a `CGO_ENABLED=0`
 build of all five release targets, plus `go mod tidy` producing no diff, plus
@@ -174,7 +174,7 @@ order, each in its own transaction so an interrupted run resumes from the last
 fully-applied version.
 
 Four have shipped — `0001_initial`, `0002_references`, `0003_data_access`,
-`0004_config_usage` — so `cortex init` reports `Schema version: 4`, and the
+`0004_config_usage` — so `repocortex init` reports `Schema version: 4`, and the
 next one is `0005_`. The last three are the same pattern applied three times:
 extract a fact during indexing, stage it, bind it in a second pass. If your
 change is a fourth instance of that, read 0003's header comment before writing
@@ -191,7 +191,7 @@ schema:
   `symlink_escapes_root`, `irregular`, `unreadable`). They are written into the
   index and read back out. `walk.go` says so explicitly: "These are stable
   identifiers, not prose... changing one is a schema change."
-- **The digest version** (`cortex/registry-digest/v1`). It is part of the
+- **The digest version** (`repocortex/registry-digest/v1`). It is part of the
   hashed input, so changing what the digest covers changes every digest — an old
   value can never silently compare equal under a new scheme. Bump it whenever the
   field set changes.

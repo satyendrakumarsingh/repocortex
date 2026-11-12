@@ -567,7 +567,7 @@ func (p *Provisioner) timeout() time.Duration {
 // `toolchain` directive) and `npm` in a repository reads its .npmrc, which can
 // redirect the registry to an attacker's host. A temp directory has neither.
 func scratchDir(purpose string) (string, func(), error) {
-	dir, err := os.MkdirTemp("", "cortex-provision-"+purpose+"-")
+	dir, err := os.MkdirTemp("", "repocortex-provision-"+purpose+"-")
 	if err != nil {
 		return "", func() {}, fmt.Errorf("indexer: create scratch dir: %w", err)
 	}

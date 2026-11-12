@@ -2,7 +2,7 @@ package pipeline_test
 
 // Incremental indexing must produce the graph a fresh index would produce.
 //
-// This is not a performance test and not a smoke test. `cortex diff` reports
+// This is not a performance test and not a smoke test. `repocortex diff` reports
 // what changed about the code's FACTS between two runs. If the incremental path
 // and the full path disagree, diff reports a change that the source never made,
 // and there is no way for a user to tell that apart from a real one. The whole
@@ -183,7 +183,7 @@ func TestIncrementalDeleteEqualsFreshIndexWithoutTheFile(t *testing.T) {
 }
 
 // indexFixture indexes dir from scratch and returns an open handle to its
-// registry. It must exercise the SAME code path `cortex index && cortex
+// registry. It must exercise the SAME code path `repocortex index && repocortex
 // resolve` uses — a test-only shortcut would be measuring something no user
 // runs.
 func indexFixture(t *testing.T, dir string) *sql.DB {
@@ -204,25 +204,25 @@ func reindexFixture(t *testing.T, dir string, prev *sql.DB) *sql.DB {
 	return openIndexedProject(t, dir, true /* incremental */)
 }
 
-// openIndexedProject drives the real cortex CLI (internal/cli.NewRoot) over
-// dir — the same entry point `cortex init/index/resolve` uses — and returns
+// openIndexedProject drives the real repocortex CLI (internal/cli.NewRoot) over
+// dir — the same entry point `repocortex init/index/resolve` uses — and returns
 // an open handle to the resulting registry.
 //
 // incremental=false runs init, then index, then resolve, against a directory
 // with no prior index: this is a fresh, full build.
 //
 // incremental=true runs index, then resolve, against a directory that already
-// has a committed index (see indexFixture / reindexFixture above). `cortex
+// has a committed index (see indexFixture / reindexFixture above). `repocortex
 // index` is incremental by default whenever a committed run already exists
 // (see internal/cli/index.go: tryIncremental) — it is not a separate command,
 // so the only difference from the fresh path is whether `init` runs first.
 //
-// Each call gets its own CORTEX_CONFIG_HOME, mirroring internal/cli's
+// Each call gets its own REPOCORTEX_CONFIG_HOME, mirroring internal/cli's
 // isolate() helper, so the CLI never reads or writes the developer's real
-// ~/.config/cortex.
+// ~/.config/repocortex.
 func openIndexedProject(t *testing.T, dir string, incremental bool) *sql.DB {
 	t.Helper()
-	t.Setenv("CORTEX_CONFIG_HOME", t.TempDir())
+	t.Setenv("REPOCORTEX_CONFIG_HOME", t.TempDir())
 
 	steps := [][]string{{"index"}, {"resolve"}}
 	if !incremental {

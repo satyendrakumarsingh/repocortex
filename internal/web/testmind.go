@@ -35,7 +35,7 @@ import (
 // # Nothing here is a second test-discovery implementation
 //
 // The per-symbol answer is capability/tests — FindTestsWith, the same call
-// behind blast radius and `cortex tests` — with its three signals reported
+// behind blast radius and `repocortex tests` — with its three signals reported
 // separately so a filename guess can never be counted as proof. The
 // repository-level answer is one linear scan over the run's own CALLS,
 // REFERENCES and TESTED_BY edges from test symbols, which is the depth-1
@@ -349,7 +349,7 @@ func (s *Server) handleTests(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		resp.Help = meta.Help
 		resp.Next = NextAction{
-			Label: "Index this repository", Command: "cortex index",
+			Label: "Index this repository", Command: "repocortex index",
 			Detail: "Test files are recognised during indexing; there is nothing committed to read.",
 		}
 		s.writeJSON(w, http.StatusOK, resp)
@@ -534,9 +534,9 @@ func testGuidance(counts TestCounts, query string) *Guidance {
 				"here. That is a statement about what this index saw, not a claim that this repository " +
 				"has no tests.",
 			Steps: []string{
-				"cortex index — if the test tree was excluded by .cortex.yml, it was never indexed",
+				"repocortex index — if the test tree was excluded by .repocortex.yml, it was never indexed",
 				"Check the overview's blind spots: a language whose symbols were never extracted yields no test symbols either",
-				"cortex tests <symbol> — the same discovery for one symbol, in the terminal",
+				"repocortex tests <symbol> — the same discovery for one symbol, in the terminal",
 			},
 		}
 	case counts.SymbolsWithProvenTest == 0:
@@ -547,8 +547,8 @@ func testGuidance(counts TestCounts, query string) *Guidance {
 				"never bound, or the language is parsed without binding them — NOT that the tests " +
 				"exercise nothing.",
 			Steps: []string{
-				"cortex resolve — binds references into the edges this screen reads",
-				"cortex indexers status — a compiler-backed index turns relationships inferred from names into proven ones",
+				"repocortex resolve — binds references into the edges this screen reads",
+				"repocortex indexers status — a compiler-backed index turns relationships inferred from names into proven ones",
 				"Lower the standard of proof to " + tierWord(model.ConfidenceLow) + ", to see what it is holding back",
 			},
 		}
@@ -573,14 +573,14 @@ func testNextAction(counts TestCounts, floor model.Confidence) NextAction {
 		return NextAction{
 			Label:   "Confirm the test tree was indexed",
 			Detail:  "An excluded or unparsed test tree produces this screen exactly as an untested repository would, and the two must not be confused.",
-			Command: "cortex index",
+			Command: "repocortex index",
 			Screen:  "overview#blind-spots",
 		}
 	case counts.SymbolsWithProvenTest == 0:
 		return NextAction{
 			Label:   "Bind references so coverage can be proven",
 			Detail:  fmt.Sprintf("No test reaches any symbol through an edge at %s or better.", tierWord(floor)),
-			Command: "cortex resolve",
+			Command: "repocortex resolve",
 		}
 	default:
 		return NextAction{

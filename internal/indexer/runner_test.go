@@ -23,8 +23,8 @@ import (
 
 // helperEnv marks the child process and selects its behaviour.
 const (
-	helperEnv     = "CORTEX_INDEXER_HELPER"
-	helperModeEnv = "CORTEX_INDEXER_HELPER_MODE"
+	helperEnv     = "REPOCORTEX_INDEXER_HELPER"
+	helperModeEnv = "REPOCORTEX_INDEXER_HELPER_MODE"
 )
 
 // TestHelperProcess is not a test. It is the body of the child process the

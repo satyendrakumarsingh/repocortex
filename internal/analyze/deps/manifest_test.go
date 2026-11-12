@@ -7,7 +7,7 @@ import (
 )
 
 func TestParseGoMod(t *testing.T) {
-	m, ok := Parse("go.mod", []byte(`module cortex
+	m, ok := Parse("go.mod", []byte(`module repocortex
 
 go 1.25.0
 
@@ -22,8 +22,8 @@ require github.com/stretchr/testify v1.9.0
 	if !ok {
 		t.Fatal("go.mod not recognised")
 	}
-	if m.Module != "cortex" {
-		t.Errorf("module = %q, want cortex", m.Module)
+	if m.Module != "repocortex" {
+		t.Errorf("module = %q, want repocortex", m.Module)
 	}
 	byName := index(m.Dependencies)
 	if byName["github.com/spf13/cobra"].Version != "v1.10.2" {
@@ -50,7 +50,7 @@ func TestParseGoModOnThisRepository(t *testing.T) {
 		t.Fatal("this repository's own go.mod was not parsed")
 	}
 	// Cross-checked against a naive independent read of the same file rather
-	// than against a literal. The literal was "cortex", and renaming the
+	// than against a literal. The literal was "repocortex", and renaming the
 	// module to a resolvable path broke this test — which told us nothing about
 	// the parser, only that someone had written the answer down twice.
 	//

@@ -249,7 +249,7 @@ func infraRows(
 		// returned it inside "unknown anchor '<value>' referenced". Redaction
 		// matches credential shapes and cannot know an arbitrary token was
 		// somebody's password, so the message is not persisted at all. The
-		// reason and the line are what a reader acts on; `cortex infra
+		// reason and the line are what a reader acts on; `repocortex infra
 		// --disk` still shows the full message without storing it.
 		problems = append(problems, registry.InfraProblem{
 			Format: string(f.Format), Reason: reason, Line: p.Line,

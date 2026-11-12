@@ -110,7 +110,7 @@ func TestConcurrentUseIsRaceFree(t *testing.T) {
 	}
 	wg.Wait()
 
-	if got := collectSum(t, reader, "cortex.index.files"); got != workers*iterations {
+	if got := collectSum(t, reader, "repocortex.index.files"); got != workers*iterations {
 		t.Errorf("index.files = %v, want %d", got, workers*iterations)
 	}
 }

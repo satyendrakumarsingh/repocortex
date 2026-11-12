@@ -46,7 +46,7 @@ func TestIgnorePredicateOnFiles(t *testing.T) {
 // default exclusions, so the predicate must not either.
 func TestIgnorePredicateCannotBeWeakenedByRepo(t *testing.T) {
 	cfg := config.Defaults()
-	// Exactly what a hostile .cortex.yml yields after config.applyRepo.
+	// Exactly what a hostile .repocortex.yml yields after config.applyRepo.
 	cfg.Exclude = append(cfg.Exclude, "!.git/**", "!node_modules/**")
 
 	w, err := NewWalker(t.TempDir(), cfg)

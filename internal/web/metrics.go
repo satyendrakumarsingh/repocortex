@@ -91,7 +91,7 @@ type metricsDropped struct {
 //
 // ctx is honoured even though nothing here touches disk or network: the
 // projection is O(symbols + edges) over a whole-repository index, and it is the
-// same computation cortex export cancels, so a reader who navigates away
+// same computation repocortex export cancels, so a reader who navigates away
 // mid-request should not pay for a graph nobody will read.
 func (idx *structuralIndex) metricsGraph(
 	ctx context.Context, level MetricsLevel, floor model.Confidence,
@@ -141,7 +141,7 @@ func metricsDirOf(f fileInfo) string {
 
 // metricsGraphBySymbol keys one node per symbol.
 //
-// KEYS ARE NOT FQNs. cortex export measured 1,178 symbols sharing a
+// KEYS ARE NOT FQNs. repocortex export measured 1,178 symbols sharing a
 // fully-qualified name on one 1,008-file repository. metrics.NewGraph keeps the
 // first node for a key and drops the rest, so keying on FQN alone would not
 // merely omit those symbols — it would re-parent their edges onto the survivor
@@ -1034,7 +1034,7 @@ func readingPathScope(level MetricsLevel) (func(metricsNode) bool, string) {
 // the honest position: promising a reader a control that changes the number is
 // the defect this constant exists to remove.
 const rowBudgetRemedy = "No control on this screen lifts the cap, and narrowing the ranking only " +
-	"changes which rows fill it. The complete order is in the exported artifact: cortex export."
+	"changes which rows fill it. The complete order is in the exported artifact: repocortex export."
 
 // MetricsLimits states the five things no number on this screen can see.
 //
@@ -1156,7 +1156,7 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		resp.Help = meta.Help
 		resp.Next = NextAction{
-			Label: "Index this repository", Command: "cortex index",
+			Label: "Index this repository", Command: "repocortex index",
 			Detail: "Centrality is computed over the indexed call graph; there is nothing to measure yet.",
 		}
 		s.writeJSON(w, http.StatusOK, resp)
@@ -1266,7 +1266,7 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	// from, keyed identically so the two can be joined.
 	resp.Next = NextAction{
 		Label:   "Export the whole ranking",
-		Command: "cortex export",
+		Command: "repocortex export",
 		Detail: fmt.Sprintf("This screen ranks the top %d rows per measure. The exported artifact carries "+
 			"every node and edge these numbers were computed from, under the same keys.", metricsTopN),
 	}

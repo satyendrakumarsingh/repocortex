@@ -13,7 +13,7 @@ import (
 
 // THE INSTRUMENT MUST NOT MOVE WHEN THE GRAPH IMPROVES.
 //
-// `cortex accuracy` measures the heuristic resolver. Importing a compiler
+// `repocortex accuracy` measures the heuristic resolver. Importing a compiler
 // index does not change what the resolver did, so the report must not change
 // either — and before migration 0012 it changed catastrophically, in the one
 // direction nobody would question. UpgradeEdges rewrites a weaker edge in place,
@@ -25,7 +25,7 @@ import (
 // A measurement that reads best when the graph is worst is worse than none, and
 // this project has reverted nine changes on this instrument's evidence.
 
-// promoteCorrectCalls does to the fixture exactly what `cortex scip import`
+// promoteCorrectCalls does to the fixture exactly what `repocortex scip import`
 // does to a real repository: the calls the resolver got right are confirmed by
 // the compiler and upgraded IN PLACE, so their rows stop saying 'source_code'.
 //
@@ -163,7 +163,7 @@ func TestAccuracyStillSeesTheResolverAfterAnUpgrade(t *testing.T) {
 // moved to registry.AccuracyAdjudication, which reads the same two constants
 // ResolutionPrecision does. The test stays anyway, because sharing a constant
 // is not the same as agreeing on an answer: the two functions still count
-// different relations with different joins, and if `cortex accuracy` and
+// different relations with different joins, and if `repocortex accuracy` and
 // doctor ever disagree about how many CALLS edges the resolver produced on one
 // index, nobody would be able to locate why.
 func TestResolverClaimPredicatesAgree(t *testing.T) {

@@ -43,7 +43,7 @@ func TestHintForKindCoversEveryKindItClaims(t *testing.T) {
 func TestCorruptHintSaysReindexNotRetry(t *testing.T) {
 	_, hint := hintForKind(errs.KindCorrupt)
 	lower := strings.ToLower(hint)
-	if !strings.Contains(lower, "reindex") && !strings.Contains(lower, "cortex index") {
+	if !strings.Contains(lower, "reindex") && !strings.Contains(lower, "repocortex index") {
 		t.Errorf("corrupt hint must direct a reindex, got %q", hint)
 	}
 	if strings.Contains(lower, "retry") {

@@ -175,7 +175,7 @@ type IncrementalOptions struct {
 //
 // The trade-off is deliberate: a full index is atomic all-or-nothing, while an
 // incremental pass is atomic per file. Interrupting one leaves the index
-// consistent but partially updated, which `cortex status` reports honestly
+// consistent but partially updated, which `repocortex status` reports honestly
 // rather than papering over.
 func Incremental(
 	ctx context.Context,
@@ -344,8 +344,8 @@ func reindexOne(ctx context.Context, walker *fs.Walker, parsers parse.Registry, 
 	// ERASED its endpoints, its table accesses and its config usages.
 	//
 	// Reproduced: a controller declaring POST /payment/callback and writing
-	// `transactions` lost both after the file was touched — `cortex api`
-	// went from 1 endpoint to 0. With `cortex watch` running, the whole
+	// `transactions` lost both after the file was touched — `repocortex api`
+	// went from 1 endpoint to 0. With `repocortex watch` running, the whole
 	// analysis layer erodes over a working session, and nothing reports it,
 	// because an empty result and a correct empty result look identical.
 	//

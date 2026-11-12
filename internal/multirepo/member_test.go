@@ -10,7 +10,7 @@ import (
 func writeEstate(t *testing.T, body string) string {
 	t.Helper()
 	dir := t.TempDir()
-	path := filepath.Join(dir, "cortex.system.yml")
+	path := filepath.Join(dir, "repocortex.system.yml")
 	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -18,16 +18,16 @@ func writeEstate(t *testing.T, body string) string {
 }
 
 // TestLoadEstateResolvesRelativeToTheFile is the property that makes the file
-// worth having: `cortex system --members ../estate.yml` must name the same
+// worth having: `repocortex system --members ../estate.yml` must name the same
 // repositories from every directory, or the answer depends on where the caller
 // was standing.
 func TestLoadEstateResolvesRelativeToTheFile(t *testing.T) {
 	path := writeEstate(t, `
 members:
   - name: orders
-    index: orders/.cortex/index.db
+    index: orders/.repocortex/index.db
   - name: web
-    index: ../web/.cortex/index.db
+    index: ../web/.repocortex/index.db
 `)
 	dir := filepath.Dir(path)
 
@@ -42,7 +42,7 @@ members:
 	if got[0].Name != "orders" || got[1].Name != "web" {
 		t.Errorf("members are not name-sorted: %+v", got)
 	}
-	wantOrders := filepath.Join(dir, "orders/.cortex/index.db")
+	wantOrders := filepath.Join(dir, "orders/.repocortex/index.db")
 	if got[0].Index != wantOrders {
 		t.Errorf("index = %q, want %q", got[0].Index, wantOrders)
 	}
@@ -90,11 +90,11 @@ func TestLoadEstateRefusesSilentWrongAnswers(t *testing.T) {
 // TestParseMemberFlag covers the inline spelling, including a path that
 // contains the separator.
 func TestParseMemberFlag(t *testing.T) {
-	m, err := ParseMemberFlag("orders=../orders/.cortex/index.db")
+	m, err := ParseMemberFlag("orders=../orders/.repocortex/index.db")
 	if err != nil {
 		t.Fatalf("ParseMemberFlag: %v", err)
 	}
-	if m.Name != "orders" || m.Index != "../orders/.cortex/index.db" {
+	if m.Name != "orders" || m.Index != "../orders/.repocortex/index.db" {
 		t.Errorf("parsed %+v", m)
 	}
 

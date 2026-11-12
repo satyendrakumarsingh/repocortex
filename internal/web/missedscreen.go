@@ -18,7 +18,7 @@ func (s *Server) handleMissed(w http.ResponseWriter, r *http.Request) {
 		s.writeJSON(w, http.StatusOK, map[string]any{
 			"total_blindspots": 0,
 			"blindspots":       []any{},
-			"guidance":         "No index run found. Run 'cortex index' first.",
+			"guidance":         "No index run found. Run 'repocortex index' first.",
 		})
 		return
 	}

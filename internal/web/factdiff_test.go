@@ -286,7 +286,7 @@ func TestFactDiffWithOneRunGuidesRatherThanBlanks(t *testing.T) {
 		t.Errorf("guidance title = %q, want it to name the single-run state", got.Help.Title)
 	}
 	steps := strings.Join(got.Help.Steps, "\n")
-	if !strings.Contains(steps, "cortex index") {
+	if !strings.Contains(steps, "repocortex index") {
 		t.Errorf("guidance names no command that produces a second run: %q", steps)
 	}
 	if got.Filters.To != runID {

@@ -13,7 +13,7 @@ import (
 )
 
 // Keeping the index current is a scheduling problem, and there are exactly two
-// honest ways to solve it: watch the filesystem (`cortex watch`, a process
+// honest ways to solve it: watch the filesystem (`repocortex watch`, a process
 // that must be running) or hook the moment the tree reaches a state worth
 // indexing (a commit). The second needs no daemon and no editor integration,
 // which is why it exists: a portal reading a three-day-old index is worse than
@@ -27,8 +27,8 @@ import (
 //   - remove exactly what was added and nothing else;
 //   - never fail the commit. A re-index that errors must not cost work.
 const (
-	hookBegin = "# >>> cortex post-commit (managed) >>>"
-	hookEnd   = "# <<< cortex post-commit (managed) <<<"
+	hookBegin = "# >>> repocortex post-commit (managed) >>>"
+	hookEnd   = "# <<< repocortex post-commit (managed) <<<"
 
 	// postCommitName is the only hook RepoCortex writes. post-commit runs after
 	// the commit object exists, so the index it builds names a revision that a
@@ -104,7 +104,7 @@ func newHooksInstallCmd(g *Global) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&binary, "binary", "",
-		"path to the cortex binary the hook should call (default: this executable)")
+		"path to the repocortex binary the hook should call (default: this executable)")
 	return cmd
 }
 
@@ -140,8 +140,8 @@ func newHooksStatusCmd(g *Global) *cobra.Command {
 				return nil
 			}
 			fmt.Fprintln(out, "post-commit: not installed")
-			fmt.Fprintln(out, "The index is only as current as the last 'cortex index'.")
-			fmt.Fprintln(out, "Install it with: cortex hooks install")
+			fmt.Fprintln(out, "The index is only as current as the last 'repocortex index'.")
+			fmt.Fprintln(out, "Install it with: repocortex hooks install")
 			return nil
 		},
 	}
@@ -322,7 +322,7 @@ func CommitHookStatus(root string) HookState {
 
 // resolveOwnBinary names the executable to call from the hook. An absolute path
 // is preferred: a hook runs under Git's environment, whose PATH is not the
-// interactive shell's, and "cortex: command not found" in a background job is
+// interactive shell's, and "repocortex: command not found" in a background job is
 // invisible.
 func resolveOwnBinary() string {
 	if exe, err := os.Executable(); err == nil {
@@ -331,5 +331,5 @@ func resolveOwnBinary() string {
 		}
 		return exe
 	}
-	return "cortex"
+	return "repocortex"
 }

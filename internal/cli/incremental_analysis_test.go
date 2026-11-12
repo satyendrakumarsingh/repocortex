@@ -12,11 +12,11 @@ import (
 // The incremental path writes through ReplaceFile, which deletes and re-inserts
 // the file row; ON DELETE CASCADE then removes that file's table_accesses and
 // config_usages. Analysis was only ever attached on the FULL path, so touching
-// one file erased its endpoints and its table writes — `cortex api` went from
+// one file erased its endpoints and its table writes — `repocortex api` went from
 // one endpoint to zero — and nothing reported it, because an empty result and a
 // correct empty result are indistinguishable.
 //
-// With `cortex watch` running, the whole analysis layer eroded over a working
+// With `repocortex watch` running, the whole analysis layer eroded over a working
 // session. Five edits here rather than one, because a bug that only bites on
 // the second write would pass a single-edit test.
 func TestIncrementalEditDoesNotEraseAnalysisFacts(t *testing.T) {

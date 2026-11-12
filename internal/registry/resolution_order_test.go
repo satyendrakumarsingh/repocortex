@@ -10,7 +10,7 @@ import (
 
 // MarkResolutions must apply its batch in ascending reference-id order.
 //
-// This is the exact regression that made `cortex resolve` superlinear. The
+// This is the exact regression that made `repocortex resolve` superlinear. The
 // method used to take map[int64]ResolvedRef and iterate it directly, so Go's
 // randomised map order sent every UPDATE to a different part of the reference
 // table's B-trees. On a 25,000-file tree that was 2.6 million shuffled

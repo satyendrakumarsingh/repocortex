@@ -35,7 +35,7 @@ import (
 //
 // # Nothing here is scored in this package
 //
-// The rates come from bench.AccuracyOf, the same function `cortex accuracy`
+// The rates come from bench.AccuracyOf, the same function `repocortex accuracy`
 // folds its outcomes with — so a tier's precision on this screen and in the
 // terminal cannot disagree. What this file does is ask for the adjudication,
 // render it, and, when it cannot have it, say exactly why rather than printing
@@ -54,7 +54,7 @@ import (
 // Migration 0012 keeps the overwritten claim in prior_source/prior_confidence,
 // and registry.AccuracyAdjudication is the one place that reads it back. This
 // screen holds a port for that method rather than a query of its own, because
-// the same method is what `cortex accuracy` folds — one computation, two
+// the same method is what `repocortex accuracy` folds — one computation, two
 // callers, and no way for the terminal and the portal to publish two different
 // F1 scores for one index.
 //
@@ -204,7 +204,7 @@ type AccuracyCoverage struct {
 // AccuracyMiss is one reason an adjudicable call site produced no edge at all.
 //
 // Reported because "missed" without a cause is unactionable and the causes have
-// different owners: unresolved is a resolver problem, pending means `cortex
+// different owners: unresolved is a resolver problem, pending means `repocortex
 // resolve` was never run, and resolved-with-no-edge is a call outside any
 // indexed symbol — a modelling choice rather than a defect.
 type AccuracyMiss struct {
@@ -374,7 +374,7 @@ func (s *Server) handleAccuracy(w http.ResponseWriter, r *http.Request) {
 		resp.Next = NextAction{
 			Label:   "Index this repository first",
 			Detail:  "There is no committed run to measure. Accuracy is a property of an index, not of the tool.",
-			Command: "cortex index && cortex resolve",
+			Command: "repocortex index && repocortex resolve",
 		}
 		s.writeJSON(w, http.StatusOK, resp)
 		return
@@ -405,7 +405,7 @@ func (s *Server) handleAccuracy(w http.ResponseWriter, r *http.Request) {
 				"per-tier precision comparison, so there is nothing to measure with — which is a gap " +
 				"in this build's wiring, not a verdict on how references are bound.",
 			Steps: []string{
-				"cortex accuracy — the same measurement, from the command line",
+				"repocortex accuracy — the same measurement, from the command line",
 				"docs/accuracy.md — the method, the denominators and the caveats",
 			},
 		}
@@ -494,7 +494,7 @@ func (s *Server) fillMeasuredAccuracy(resp *AccuracyResponse, adj Adjudication, 
 		fmt.Sprintf("Languages beyond the first %d (ordered by compiler-checked call sites) are not "+
 			"listed. The overall row above is computed over ALL of them, so the headline is not "+
 			"shortened — only the table is.", maxAccuracyLanguages),
-		"cortex accuracy --json")
+		"repocortex accuracy --json")
 
 	resp.Misses = missBreakdown(adj.Misses, overall.Missed)
 
@@ -504,7 +504,7 @@ func (s *Server) fillMeasuredAccuracy(resp *AccuracyResponse, adj Adjudication, 
 				"absent from every blast radius on this portal — not shown weakly, absent. This is "+
 				"the error precision cannot see, which is why it is a headline field here.",
 				overall.Missed),
-			"cortex resolve, then re-import the compiler index")
+			"repocortex resolve, then re-import the compiler index")
 	}
 	if !resp.Measured {
 		resp.Help = unadjudicatedGuidance(cov)
@@ -533,8 +533,8 @@ func unadjudicatedGuidance(cov AccuracyCoverage) *Guidance {
 				cov.CompilerFacts, cov.HeuristicEdges),
 			Steps: []string{
 				"scip-go --output index.scip   (or scip-typescript / scip-python for your language)",
-				"cortex scip import index.scip",
-				"cortex accuracy — the same measurement in the terminal",
+				"repocortex scip import index.scip",
+				"repocortex accuracy — the same measurement in the terminal",
 			},
 		}
 	}
@@ -548,8 +548,8 @@ func unadjudicatedGuidance(cov AccuracyCoverage) *Guidance {
 				"this parser does not record.",
 			cov.CompilerFacts, cov.UnambiguousLines),
 		Steps: []string{
-			"Rebuild the SCIP index from the same checkout, then cortex scip import index.scip",
-			"cortex accuracy — the same measurement, with the per-language coverage",
+			"Rebuild the SCIP index from the same checkout, then repocortex scip import index.scip",
+			"repocortex accuracy — the same measurement, with the per-language coverage",
 			"docs/accuracy.md — why recall is restricted to call sites",
 		},
 	}
@@ -613,8 +613,8 @@ func (s *Server) fillPrecisionOnly(resp *AccuracyResponse, rep registry.Precisio
 				rep.CompilerEdges, rep.HeuristicEdges),
 			Steps: []string{
 				"scip-go --output index.scip   (or scip-typescript / scip-python for your language)",
-				"cortex scip import index.scip",
-				"cortex accuracy — precision, recall and F1 over the imported facts",
+				"repocortex scip import index.scip",
+				"repocortex accuracy — precision, recall and F1 over the imported facts",
 			},
 		}
 	} else {
@@ -625,7 +625,7 @@ func (s *Server) fillPrecisionOnly(resp *AccuracyResponse, rep registry.Precisio
 				"the documented inversion that once reported 51.2%% recall as 0.5%%, so the number is "+
 				"withheld rather than guessed. Precision below is over %d compiler-checked line(s) and is "+
 				"real.", rep.JudgeableLines),
-			"cortex accuracy")
+			"repocortex accuracy")
 		resp.Help = &Guidance{
 			Title: "Half of this measurement is served here; the other half is one command away",
 			Detail: fmt.Sprintf(
@@ -635,7 +635,7 @@ func (s *Server) fillPrecisionOnly(resp *AccuracyResponse, rep registry.Precisio
 					"compute it correctly from its read port. It is reported as unmeasured rather than "+
 					"as zero.", rep.CompilerEdges, rep.JudgeableLines),
 			Steps: []string{
-				"cortex accuracy — precision, recall, F1 and the miss breakdown",
+				"repocortex accuracy — precision, recall, F1 and the miss breakdown",
 				"docs/accuracy.md — why recall is restricted to call sites",
 			},
 		}
@@ -712,7 +712,7 @@ func accuracyNextAction(resp AccuracyResponse) NextAction {
 		return NextAction{
 			Label:   "Import a compiler index to measure this repository",
 			Detail:  "Until one is imported, every edge on every screen is unmeasured on YOUR code.",
-			Command: "cortex scip import index.scip",
+			Command: "repocortex scip import index.scip",
 		}
 	case resp.Scores.Missed > 0:
 		return NextAction{
@@ -725,7 +725,7 @@ func accuracyNextAction(resp AccuracyResponse) NextAction {
 		return NextAction{
 			Label:   "Run the full measurement from the command line",
 			Detail:  "Recall and the miss breakdown are the half this portal cannot compute.",
-			Command: "cortex accuracy",
+			Command: "repocortex accuracy",
 		}
 	default:
 		return NextAction{

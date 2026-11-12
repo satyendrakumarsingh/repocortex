@@ -390,7 +390,7 @@ func (s *Server) handleCrossStack(w http.ResponseWriter, r *http.Request) {
 				"repository serves nothing.",
 			Steps: []string{
 				"Check the overview's blind spots for your API framework's language.",
-				"cortex indexers status — a compiler-backed index raises every hop's tier",
+				"repocortex indexers status — a compiler-backed index raises every hop's tier",
 			},
 		}
 	}

@@ -383,7 +383,7 @@ func (r *Runner) Run(ctx context.Context, sink Sink) (Stats, error) {
 
 	// Final drain: the run is over, so every arena in the pool is garbage.
 	// Leaving them reachable would keep the indexer's peak footprint resident
-	// for the lifetime of a long-running `cortex watch`.
+	// for the lifetime of a long-running `repocortex watch`.
 	r.drainPools()
 
 	stats.FilesIndexed = indexed.Load()
@@ -510,13 +510,13 @@ func (r *Runner) processFile(ctx context.Context, d fs.Discovered) (FileFacts, o
 		// No grammar does not mean nothing to learn. Configuration files and
 		// dependency manifests carry declarations that need text rather than a
 		// syntax tree, and they are precisely the files no grammar claims —
-		// returning here left `cortex config` reporting zero declared keys on
+		// returning here left `repocortex config` reporting zero declared keys on
 		// a repository with a .env in its root.
 		//
 		// Deployment manifests are the same case and then some: a Dockerfile
 		// has no grammar by definition, and a compose file is YAML that no
 		// parser here claims. Skipping them left every service, port and
-		// configuration key out of the index, which is what `cortex infra`
+		// configuration key out of the index, which is what `repocortex infra`
 		// meant when it printed NOT INDEXED on every run.
 		if analyze.Wants(d.Path) || infra.Candidate(d.Path) {
 			if src, err := os.ReadFile(filepath.Join(r.walker.Root(), filepath.FromSlash(d.Path))); err == nil {

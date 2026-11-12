@@ -35,7 +35,7 @@ package registry
 // existed on disk — they expect it to catch up quickly.
 //
 // Full indexing must never use this. It builds a staging run and swaps, which
-// is why `cortex index` remains all-or-nothing and an interrupted full index
+// is why `repocortex index` remains all-or-nothing and an interrupted full index
 // leaves the previous revision untouched.
 
 // AllowCommittedRun permits mutating the currently committed run.

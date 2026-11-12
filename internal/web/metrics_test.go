@@ -19,7 +19,7 @@ import (
 	"github.com/satyendrakumarsingh/repocortex/pkg/model"
 )
 
-// twoSymbolsOneFQN is the case that matters: cortex export found 1,178
+// twoSymbolsOneFQN is the case that matters: repocortex export found 1,178
 // symbols sharing a fully-qualified name on the apm fixture. A projection that
 // keys on FQN alone drops one of them AND re-parents its edges onto the
 // survivor, which invents a relationship that does not exist.
@@ -731,7 +731,7 @@ func TestMetricsHandlerWithoutAnIndexAsksForOne(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("an unindexed repository produced status %d; it must explain, not fail", rec.Code)
 	}
-	if !strings.Contains(rec.Body.String(), "cortex index") {
+	if !strings.Contains(rec.Body.String(), "repocortex index") {
 		t.Errorf("the response does not name the command that fixes it:\n%s", rec.Body.String())
 	}
 }

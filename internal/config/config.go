@@ -2,13 +2,13 @@
 //
 // THE SECURITY BOUNDARY IN THIS FILE IS LOAD-BEARING.
 //
-// Repository config (.cortex.yml, committed and therefore attacker-supplied
+// Repository config (.repocortex.yml, committed and therefore attacker-supplied
 // when you clone an untrusted repo) may only influence what gets indexed.
 // It may never influence what gets EXECUTED.
 //
 // Indexer provisioning runs third-party binaries and build systems — Maven and
 // Gradle plugins execute arbitrary code by design. If a repo could name the
-// indexer to run or the URL to fetch it from, then `git clone && cortex
+// indexer to run or the URL to fetch it from, then `git clone && repocortex
 // index` would be remote code execution. So those settings live exclusively in
 // user config (see UserConfigPath; ~/.config on Linux, ~/Library/Application
 // Support on macOS), which the repo cannot write.
@@ -95,7 +95,7 @@ const (
 	// in both directions — "~6" for a set of 7 and "~15" for a set of 9 — because
 	// a number in a comment beside a list in another package drifts the first
 	// time either changes. internal/mcp.profileTools is the definition, and
-	// `cortex serve --list-tools` prints what a profile actually exposes.
+	// `repocortex serve --list-tools` prints what a profile actually exposes.
 	MCPMinimal  MCPProfile = "minimal"  // the default: lookup, search and task context
 	MCPStandard MCPProfile = "standard" // adds blast radius and test discovery
 	MCPFull     MCPProfile = "full"     // every enabled capability
@@ -109,7 +109,7 @@ func (p MCPProfile) Valid() bool {
 	return false
 }
 
-// RepoConfig is the repository-scoped configuration (.cortex.yml).
+// RepoConfig is the repository-scoped configuration (.repocortex.yml).
 //
 // UNTRUSTED. Everything here describes *what to index*, never *what to run*.
 // Adding an execution-capable field to this struct reintroduces the RCE this
@@ -178,7 +178,7 @@ type RepoConfig struct {
 //
 // The path is OS-dependent and comes from UserConfigPath -- NOT always
 // ~/.config. On macOS os.UserConfigDir resolves to ~/Library/Application
-// Support, so a file written to ~/.config/cortex/config.yml there is read by
+// Support, so a file written to ~/.config/repocortex/config.yml there is read by
 // nothing. This comment used to name that path unconditionally, which cost a
 // real debugging session: the indexer told a user to set
 // accuracy.indexers.runner, they set it, and the same message came back.
@@ -262,7 +262,7 @@ func Defaults() Config {
 		Include: []string{"**"},
 		Exclude: []string{
 			".git/**", "node_modules/**", "vendor/**", "target/**",
-			"build/**", "dist/**", "coverage/**", ".cortex/**", ".repocortex/**",
+			"build/**", "dist/**", "coverage/**", ".repocortex/**", ".repocortex/**",
 			"**/*.min.js", "**/*.lock", "**/testdata/**",
 		},
 		Capabilities:    []string{"code"},
@@ -279,7 +279,7 @@ func Defaults() Config {
 }
 
 // RepoConfigName is the per-repository config filename.
-const RepoConfigName = ".cortex.yml"
+const RepoConfigName = ".repocortex.yml"
 
 // Load resolves configuration for repoRoot.
 //
@@ -325,7 +325,7 @@ func Load(repoRoot string) (Config, error) {
 
 // UserConfigPath returns the trusted config location for this OS.
 func UserConfigPath() (string, error) {
-	if v := os.Getenv("CORTEX_CONFIG_HOME"); v != "" {
+	if v := os.Getenv("REPOCORTEX_CONFIG_HOME"); v != "" {
 		return filepath.Join(v, "config.yml"), nil
 	}
 	dir, err := os.UserConfigDir()
@@ -339,7 +339,7 @@ func UserConfigPath() (string, error) {
 		}
 		dir = filepath.Join(home, ".config")
 	}
-	return filepath.Join(dir, "cortex", "config.yml"), nil
+	return filepath.Join(dir, "repocortex", "config.yml"), nil
 }
 
 func loadUserConfig(path string) (UserConfig, bool, error) {
@@ -357,12 +357,12 @@ func loadUserConfig(path string) (UserConfig, bool, error) {
 	return uc, true, nil
 }
 
-// maxRepoConfigBytes bounds .cortex.yml.
+// maxRepoConfigBytes bounds .repocortex.yml.
 //
 // This file arrives WITH the repository and is therefore untrusted, and it is
 // read by every single subcommand — so an unbounded one is a denial of service
 // against the whole tool, not against one command. Measured before this cap: a
-// 17 MB .cortex.yml drove `cortex status` to 495 MB of resident memory,
+// 17 MB .repocortex.yml drove `repocortex status` to 495 MB of resident memory,
 // roughly 29x amplification, on a command that only prints counts.
 //
 // 1 MiB matches the ceilings already used for .gitignore and for configuration

@@ -13,38 +13,38 @@ and why. An entry with no such note describes current behaviour.
 
 ## Getting started
 
-### `error: no index at /path/.cortex/index.db — run 'cortex init' first`
+### `error: no index at /path/.repocortex/index.db — run 'repocortex init' first`
 
 **Cause.** `index`, `resolve` and `watch` all require the database file to exist.
 `init` creates it. `serve` reports the same condition with a slightly longer
-message: `no index at ... — run 'cortex init' and 'cortex index' first`.
+message: `no index at ... — run 'repocortex init' and 'repocortex index' first`.
 
-**Fix.** `cortex init`. If you expected an index to be there, check the path in
+**Fix.** `repocortex init`. If you expected an index to be there, check the path in
 the message — you are probably in a subdirectory, or the wrong repository. Use
 `--project /path/to/repo` to be explicit.
 
-### `error: index already exists at /path/.cortex/index.db (use --force to recreate)`
+### `error: index already exists at /path/.repocortex/index.db (use --force to recreate)`
 
 **Cause.** `init` refuses to overwrite. It is not idempotent, deliberately: the
 index is expensive to rebuild.
 
-**Fix.** Nothing, usually — run `cortex index` instead. `cortex init --force`
+**Fix.** Nothing, usually — run `repocortex index` instead. `repocortex init --force`
 deletes the database and starts over, losing everything indexed.
 
-### `error: no committed index — run 'cortex index' first`
+### `error: no committed index — run 'repocortex index' first`
 
-Also seen as `no committed index revision — run 'cortex index' first` (watch)
-and `no committed index for this project — run 'cortex index' first` (MCP).
+Also seen as `no committed index revision — run 'repocortex index' first` (watch)
+and `no committed index for this project — run 'repocortex index' first` (MCP).
 
 **Cause.** The database exists and is migrated, but no index run has ever been
-committed. `cortex status` shows `Index: EMPTY`.
+committed. `repocortex status` shows `Index: EMPTY`.
 
-**Fix.** `cortex index`.
+**Fix.** `repocortex index`.
 
 **Caveat worth knowing.** `resolve` and `watch` discard the underlying error at
 this point, so a genuine database failure — locked, corrupt, permissions — is
 reported with this same message and will send you down the wrong path. If
-`cortex index` also fails, read *that* error: it does not swallow the cause.
+`repocortex index` also fails, read *that* error: it does not swallow the cause.
 
 ### `error: project root "/some/path" is not a directory`
 
@@ -63,9 +63,9 @@ check in `internal/cli/root.go`, and they mean different things:
 
 ## Configuration
 
-### `error: repo config: parse .cortex.yml: yaml: unmarshal errors: line N: field X not found in type config.RepoConfig`
+### `error: repo config: parse .repocortex.yml: yaml: unmarshal errors: line N: field X not found in type config.RepoConfig`
 
-**Cause.** An unrecognised key in `.cortex.yml`. Repository config is decoded
+**Cause.** An unrecognised key in `.repocortex.yml`. Repository config is decoded
 with `KnownFields(true)`, so an unknown key is a parse error rather than a silent
 no-op.
 
@@ -75,8 +75,8 @@ repository config structurally cannot express execution settings. See
 [security.md](security.md#repository-config-cannot-grant-execution).
 
 **Fix.** For a typo, correct it against the reference in
-[user-manual.md](user-manual.md#cortexyml--every-key-that-exists). For an
-execution setting, move it to `~/.config/cortex/config.yml`, which is yours.
+[user-manual.md](user-manual.md#repocortexyml--every-key-that-exists). For an
+execution setting, move it to `~/.config/repocortex/config.yml`, which is yours.
 
 ### `error: user config /path/config.yml: parse: yaml: ...`
 
@@ -100,11 +100,11 @@ context.max_files 0: must be >= 1
 **Cause.** A resolved-config value outside its permitted set. These run after
 both files are merged, so the message does not say which file it came from.
 
-**Fix.** `cortex doctor` reports which config files were found, including the
+**Fix.** `repocortex doctor` reports which config files were found, including the
 user config path. Check the trusted one first — it is applied before the
 repository's.
 
-### My `.cortex.yml` exclusion did not remove `.git` / `node_modules`
+### My `.repocortex.yml` exclusion did not remove `.git` / `node_modules`
 
 **Cause.** Working as designed. Repository excludes are **appended** to the
 defaults, never substituted, and negated patterns (`!...`) in an exclude list are
@@ -134,7 +134,7 @@ Verified: a repository containing `AKIAIOSFODNN7EXAMPLE` in a `.go` file and a
 is findable:
 
 ```
-$ cortex search AKIAIOSFODNN7EXAMPLE
+$ repocortex search AKIAIOSFODNN7EXAMPLE
 No files match "AKIAIOSFODNN7EXAMPLE".
 ```
 
@@ -147,28 +147,28 @@ empty result is redaction rather than a broken index.)
 
 ### `error: indexing cancelled; previous revision left in place`
 
-**Cause.** You interrupted `cortex index --full`. The staging run is discarded
+**Cause.** You interrupted `repocortex index --full`. The staging run is discarded
 rather than published; a partial index that looks complete is worse than no new
 index.
 
 **Fix.** Re-run. The previous revision is untouched and still queryable. The
 abandoned run's rows are cleaned up automatically at the start of the next
-`cortex index` (`ReclaimAbandoned`), and you will see
+`repocortex index` (`ReclaimAbandoned`), and you will see
 `level=WARN msg="reclaimed abandoned index runs" runs=[2]`.
 
 ### `--workers` or `--accuracy` seems to be ignored
 
 **Cause.** Both flags take effect only on the **full** index path. Without
-`--full`, `cortex index` takes the incremental path and neither is applied.
+`--full`, `repocortex index` takes the incremental path and neither is applied.
 
 They *are* validated on both paths, so a typo fails rather than being silently
 discarded:
 
 ```
-$ cortex index --accuracy nonsense
+$ repocortex index --accuracy nonsense
 error: --accuracy "nonsense": want fast, auto or exact          # exit 1
 
-$ cortex index --workers -1
+$ repocortex index --workers -1
 error: --workers -1: must be zero (use the default) or positive
 ```
 
@@ -178,7 +178,7 @@ that a valid-but-inapplicable flag was ignored, which is the remaining gap.
 **Two older symptoms that no longer occur**, noted because earlier revisions of
 these docs described them and a reader may be looking for them:
 
-- `cortex index --accuracy nonsense` on an up-to-date index used to exit 0
+- `repocortex index --accuracy nonsense` on an up-to-date index used to exit 0
   having silently discarded the flag. Validation now runs before the path is
   chosen — `internal/cli/index.go` says why: "a typo in CI would have looked like
   success."
@@ -188,7 +188,7 @@ these docs described them and a reader may be looking for them:
 
 ### Files are missing from the index
 
-Check `cortex status` for the skipped count, then query the `files` table for
+Check `repocortex status` for the skipped count, then query the `files` table for
 per-path reasons. The skip reasons and what each means:
 
 | `skip_reason` | Cause | Fix |
@@ -258,7 +258,7 @@ a binary whose migrations diverge from the one that created this index.
 Silently proceeding would mean two installs of the same version have different
 schemas, and every bug report from that point on becomes unreproducible.
 
-**Fix.** As a user: `cortex init --force` to rebuild from scratch, or go back
+**Fix.** As a user: `repocortex init --force` to rebuild from scratch, or go back
 to the binary that created the index. As a developer: never edit a shipped
 migration — add `NNNN_name.sql` with the next version. See
 [git-workflow.md](git-workflow.md#shipped-migrations-are-immutable).
@@ -270,7 +270,7 @@ document, so RepoCortex checks at startup rather than discovering it as a mangle
 search result later. Seeing this means a replace directive, a vendored fork, or a
 platform the codegen has not covered.
 
-**Fix.** Check `go.mod` for a `replace` on `modernc.org/sqlite`. `cortex doctor`
+**Fix.** Check `go.mod` for a `replace` on `modernc.org/sqlite`. `repocortex doctor`
 reports it as `[FAIL] fts5`; `init` refuses to proceed at all.
 
 ### `error: foreign_keys is off on N of 32 sampled connections; ON DELETE CASCADE would silently not fire and the graph would accumulate dangling rows`
@@ -280,12 +280,12 @@ check that catches the exact bug it was written for — pragmas are per-connecti
 and configuring one connection out of eight leaves cascades silently broken.
 
 **Fix.** Not user-actionable; it indicates a driver or DSN regression. Report it
-with the Go and `modernc.org/sqlite` versions from `cortex doctor`.
+with the Go and `modernc.org/sqlite` versions from `repocortex doctor`.
 
 ### `database is locked` / `database is busy`
 
-**Cause.** Two processes writing at once — most often a `cortex watch` running
-alongside a manual `cortex index`. SQLite is a single-writer store. The busy
+**Cause.** Two processes writing at once — most often a `repocortex watch` running
+alongside a manual `repocortex index`. SQLite is a single-writer store. The busy
 timeout is 5 seconds by default.
 
 There is **no bespoke RepoCortex message for this**; the raw driver text arrives
@@ -301,12 +301,12 @@ which is why the timeout is bounded rather than infinite.
 **Cause.** The index file is corrupt or is not a SQLite database. As above, this
 is raw driver text, not a RepoCortex message.
 
-**Fix.** `cortex init --force` and re-index. The registry is a derived
+**Fix.** `repocortex init --force` and re-index. The registry is a derived
 artefact; there is nothing in it that cannot be rebuilt from the repository.
 
 ### `error: create index directory: permission denied`
 
-**Cause.** `.cortex/` cannot be created — read-only filesystem, or no write
+**Cause.** `.repocortex/` cannot be created — read-only filesystem, or no write
 permission on the repository root.
 
 **Fix.** Fix permissions, or use `--project` against a writable copy.
@@ -315,7 +315,7 @@ permission on the repository root.
 
 ## Graph integrity
 
-### `cortex doctor --verify-index` reports failures
+### `repocortex doctor --verify-index` reports failures
 
 ```
 [FAIL]  dangling edges  12 found — edges pointing at symbols that do not exist
@@ -334,7 +334,7 @@ error: 1 check(s) failed
 first two were produced by foreign keys being off on most pooled connections; a
 30-second soak generated 1,010 dangling symbols that way.
 
-**Fix.** `cortex index --full` rebuilds. If the failure recurs on a fresh index,
+**Fix.** `repocortex index --full` rebuilds. If the failure recurs on a fresh index,
 it is a bug worth reporting with the repository that triggers it — that is a
 reproducer for a class of defect that is otherwise very hard to attribute.
 
@@ -370,9 +370,9 @@ of an opaque kernel one.
 The watcher refuses to start rather than covering part of the tree: a watcher that
 quietly covers 60% of a repository is worse than one that refuses.
 
-**Fix.** Exclude large trees in `.cortex.yml`. Excluding removes them from the
+**Fix.** Exclude large trees in `.repocortex.yml`. Excluding removes them from the
 walk *and* from the watcher's ignore predicate, so it fixes both problems at
-once. `.git`, `node_modules` and `.cortex` are already refused unconditionally,
+once. `.git`, `node_modules` and `.repocortex` are already refused unconditionally,
 so look for build output, caches and vendored SDKs.
 
 ### `watch "some/dir": no space left on device`
@@ -396,14 +396,14 @@ raise the OS limit: `sudo sysctl fs.inotify.max_user_watches=524288` on Linux, o
 **Fix.** Usually self-correcting: the watcher re-diffs the working tree by content
 hash on every batch rather than trusting the event stream, so a dropped event for
 a file that is later touched is caught. If you suspect the index is stale after a
-storm of changes, `cortex index` reconciles everything.
+storm of changes, `repocortex index` reconciles everything.
 
 ### Edits are not picked up
 
 Check in order:
 
 1. Is the file excluded? Config exclusions are applied before anything else.
-2. Is it in `.git`, `node_modules` or `.cortex`? Those are refused
+2. Is it in `.git`, `node_modules` or `.repocortex`? Those are refused
    unconditionally, whatever the configuration says.
 3. Did the content actually change? The watcher re-diffs by hash, so a
    touched-but-identical file produces no update and is logged at **debug** only:
@@ -437,8 +437,8 @@ window is microseconds wide and whether it is hit is decided by the scheduler.
 directory registered while watching is re-watched, and rescanned, one debounce
 period later, which is long after the window has closed. Nothing to configure.
 
-If you see this on a build without that pass, restarting `cortex watch` clears
-it, and `cortex index` reconciles whatever was missed.
+If you see this on a build without that pass, restarting `repocortex watch` clears
+it, and `repocortex index` reconciles whatever was missed.
 
 ### `level=WARN msg="watcher error" error="watch: N filesystem event(s) dropped because the queue was full"`
 
@@ -448,7 +448,7 @@ overflow. The buffer holds 4096 events; a change storm larger than the consumer
 can absorb overflows it.
 
 **Fix.** The message is the recovery instruction: do not trust the last batch as
-a complete picture. `cortex index` reconciles the tree. Dropping here rather
+a complete picture. `repocortex index` reconciles the tree. Dropping here rather
 than blocking is deliberate — it keeps every *later* event flowing, and it is
 reported rather than silent, unlike a kernel-side overflow.
 
@@ -456,9 +456,9 @@ reported rather than silent, unlike a kernel-side overflow.
 
 **Cause.** The startup reconcile pass failed before watching began. Files change
 while the watcher is not running, so `watch` diffs first; a failure here is
-usually the same underlying problem `cortex index` would report.
+usually the same underlying problem `repocortex index` would report.
 
-**Fix.** Run `cortex index` and read its error, which is not wrapped.
+**Fix.** Run `repocortex index` and read its error, which is not wrapped.
 
 ---
 
@@ -469,10 +469,10 @@ usually the same underlying problem `cortex index` would report.
 **Cause.** Invalid flag value.
 
 **Fix.** Use `high`, `medium` or `low`. `exact` is accepted and is meaningful,
-but not for `cortex resolve`: the heuristic resolver never emits `exact`, so
+but not for `repocortex resolve`: the heuristic resolver never emits `exact`, so
 `resolve --min-confidence exact` records nothing. On a *query* —
-`cortex references X --min-confidence exact` — it filters to compiler-proven
-facts only, which is exactly what you want after `cortex scip import`.
+`repocortex references X --min-confidence exact` — it filters to compiler-proven
+facts only, which is exactly what you want after `repocortex scip import`.
 
 ### Resolution rate looks low
 
@@ -495,18 +495,18 @@ facts only, which is exactly what you want after `cortex scip import`.
 in the repository and not excluded. If ambiguous is high, the code uses very
 common method names (`get`, `save`, `handle`) and there is genuinely no evidence
 to disambiguate on. Compiler-backed SCIP resolution is the answer to that, and it
-is built: `cortex indexers list` reports whether an indexer for your language is
-on `PATH`, `cortex indexers install` provisions one, and `cortex scip import`
+is built: `repocortex indexers list` reports whether an indexer for your language is
+on `PATH`, `repocortex indexers install` provisions one, and `repocortex scip import`
 ingests an index you already have.
 
-### `cortex resolve` reports nothing but references are clearly bound
+### `repocortex resolve` reports nothing but references are clearly bound
 
 Not a fault. `resolve` is idempotent, and `AddResolvedEdges` is `INSERT OR
 IGNORE`, so a second run over an unchanged index reports the same reference and
 resolution counts with `Edges: 0` — the edges already exist. Only a full re-index
 or new references make it write again.
 
-### `cortex status` shows `Relationships: 0` after a successful resolve
+### `repocortex status` shows `Relationships: 0` after a successful resolve
 
 **This no longer happens, and the entry is kept only to retire it.** `status`
 used to read `index_runs.edges_found`, a column `CommitRun` writes once and
@@ -518,30 +518,30 @@ database rather than with a snapshot taken before the graph was built.
 Verified on the payment fixture:
 
 ```
-$ cortex status | grep Relationships
+$ repocortex status | grep Relationships
 Relationships:  1                 # after index, before resolve
 
-$ cortex resolve
+$ repocortex resolve
   Edges:       16
   Data access: 7 statement(s), 7 bound to a declared table, 7 edges
 
-$ cortex status | grep Relationships
+$ repocortex status | grep Relationships
 Relationships:  24
 ```
 
 **`Relationships` is every edge in the run, not only `CALLS`,** which is why the
 three numbers above reconcile as 1 + 16 + 7 rather than matching the `Edges:`
 line. The 1 is the endpoint-to-handler edge indexing wrote on its own — both ends
-are in the same file, so it needs no resolution pass. `cortex scip import` adds
+are in the same file, so it needs no resolution pass. `repocortex scip import` adds
 `REFERENCES` edges on top of all of it.
 
 ### Resolved edges disappeared
 
-**Cause.** You ran `cortex index --full`. A full rebuild creates a new revision
+**Cause.** You ran `repocortex index --full`. A full rebuild creates a new revision
 and retires the old one, including its edges. References are re-extracted but
 start unbound.
 
-**Fix.** Run `cortex resolve` again after every `--full` rebuild.
+**Fix.** Run `repocortex resolve` again after every `--full` rebuild.
 
 ---
 
@@ -550,20 +550,20 @@ start unbound.
 These share a property worth stating once: **an empty result is a result, not an
 error, and each one prints its own coverage limits alongside it.** Exit code 0
 with "nothing found" means the analysis ran and found nothing; it does not mean
-the analysis was skipped. If you want a non-zero exit for CI, `cortex arch` has
-`--fail-on`, and `cortex bench` has `--fail-on-regression`. The others do not.
+the analysis was skipped. If you want a non-zero exit for CI, `repocortex arch` has
+`--fail-on`, and `repocortex bench` has `--fail-on-regression`. The others do not.
 
-### `cortex arch` says "No architecture declared" and exits 0
+### `repocortex arch` says "No architecture declared" and exits 0
 
-**Cause.** No `architecture:` block in `.cortex.yml`. This is not an error, and
+**Cause.** No `architecture:` block in `.repocortex.yml`. This is not an error, and
 it deliberately is not reported as zero violations either:
 
 ```
-$ cortex arch
+$ repocortex arch
 No architecture declared.
 
-Add an `architecture:` block to .cortex.yml with the components of your system
-and the rules between them. See 'cortex arch --help'.
+Add an `architecture:` block to .repocortex.yml with the components of your system
+and the rules between them. See 'repocortex arch --help'.
 ```
 
 Reporting "0 violations" here would be a pass mark nobody earned. Components are
@@ -574,12 +574,12 @@ RepoCortex generated from that same code finds nothing by construction.
 too, with an `architecture_declared` field, so a script can branch on a field
 rather than parse English.
 
-### `cortex config` or `cortex deps` finds nothing
+### `repocortex config` or `repocortex deps` finds nothing
 
 **Cause.** Usually coverage, and both commands say which:
 
 ```
-$ cortex config
+$ repocortex config
 No configuration keys found.
 
 Declarations are read from .env, YAML, JSON, TOML and .properties files; usage
@@ -589,7 +589,7 @@ finding about your code.
 ```
 
 ```
-$ cortex deps
+$ repocortex deps
 No dependency manifest found.
 
 Read: go.mod, package.json, pom.xml, build.gradle, requirements.txt,
@@ -598,12 +598,12 @@ pyproject.toml, Cargo.toml.
 
 **Fix.** Check your manifest is one of the listed formats and is not excluded. A
 service configured entirely through Kubernetes manifests reports nothing from
-`cortex config`, and that is the tool's limit rather than a fact about the
+`repocortex config`, and that is the tool's limit rather than a fact about the
 service.
 
 ### `error: parse "x.json": trace: unrecognised export format: expected OTLP/JSON (resourceSpans) or Jaeger UI JSON (data/traceID)`
 
-**Cause.** `cortex trace` reads an exported file in one of exactly two shapes.
+**Cause.** `repocortex trace` reads an exported file in one of exactly two shapes.
 A collector's native format, a protobuf export, or a zipped bundle is not one of
 them.
 
@@ -613,7 +613,7 @@ the correlation reproducible and stops trace data leaving the machine.
 
 ### `error: parse "cases.yml": bench: case file contains no cases`
 
-**Cause.** The YAML parsed but yielded no case list. `cortex bench` expects a
+**Cause.** The YAML parsed but yielded no case list. `repocortex bench` expects a
 top-level sequence, not a mapping — see `fixtures/bench/payment.yml`.
 
 ### `error: scip: index.scip: scip: parse index after 0 byte(s): ... proto: invalid field number`
@@ -621,7 +621,7 @@ top-level sequence, not a mapping — see `fixtures/bench/payment.yml`.
 **Cause.** The file is not a SCIP protobuf index. Truncated downloads and
 HTML error pages saved under a `.scip` name both land here.
 
-### `cortex scip import` matched nothing, or matched a low fraction
+### `repocortex scip import` matched nothing, or matched a low fraction
 
 **Cause.** Path reconciliation. An index built in a container or by a tool that
 records absolute paths does not line up with RepoCortex's repository-relative file
@@ -648,7 +648,7 @@ replacing them. An upgrade happens only where both agree on the relationship kin
 *and* the evidence line.
 
 Measured on RepoCortex's own source with a `scip-go` index: 14,532 new edges, 905
-already known, 0 upgraded. `cortex doctor --verify-index` reported `unproven
+already known, 0 upgraded. `repocortex doctor --verify-index` reported `unproven
 exact edges  none` afterwards, which is the check that matters.
 
 ## Git metadata
@@ -656,7 +656,7 @@ exact edges  none` afterwards, which is the check that matters.
 ### `git: path is not a repository`
 
 **Cause.** A history operation was attempted against a plain directory. Note that
-this is **not** an error for indexing: `cortex index` treats a missing
+this is **not** an error for indexing: `repocortex index` treats a missing
 repository as metadata that is simply absent, records an empty git revision, and
 proceeds. RepoCortex indexes extracted tarballs and vendored trees.
 
@@ -687,9 +687,9 @@ description of what was indexed.
 **Cause.** OTLP selected without an endpoint. There is deliberately no default
 collector address, so a misconfiguration cannot send data somewhere by accident.
 
-### `this cortex build was compiled without OTLP support (-tags cortex_nootlp); use the stdout exporter, or rebuild without the tag`
+### `this repocortex build was compiled without OTLP support (-tags repocortex_nootlp); use the stdout exporter, or rebuild without the tag`
 
-**Cause.** OTLP requested in a build made with `-tags cortex_nootlp`, which
+**Cause.** OTLP requested in a build made with `-tags repocortex_nootlp`, which
 omits the exporter to save about 13 MB of binary.
 
 ### A test panics with `unsafe telemetry attribute "file.path": key contains "path", which names data RepoCortex does not export`

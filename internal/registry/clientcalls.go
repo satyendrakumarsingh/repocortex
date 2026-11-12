@@ -673,7 +673,7 @@ func (r *Registry) ClientCallReport(ctx context.Context, runID int64) ([]ClientC
 // through ReplaceFile rather than a Writer, ON DELETE CASCADE has already taken
 // the file's previous client_calls with its old file row, and without this a
 // re-indexed component would silently lose every outbound call it makes —
-// exactly the erosion that made `cortex api` report zero endpoints during a
+// exactly the erosion that made `repocortex api` report zero endpoints during a
 // watch session.
 func (r *Registry) ReplaceFileCalls(ctx context.Context, runID, fileID int64, calls []ClientCall) error {
 	if len(calls) == 0 {

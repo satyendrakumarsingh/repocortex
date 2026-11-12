@@ -144,7 +144,7 @@ func TestBenchWithoutCasesGuidesRatherThanScoringZero(t *testing.T) {
 	if !strings.Contains(steps, "forbid") {
 		t.Errorf("guidance does not tell the reader to write a forbid list: %q", steps)
 	}
-	if !strings.Contains(steps, "cortex bench") {
+	if !strings.Contains(steps, "repocortex bench") {
 		t.Errorf("guidance names no command: %q", steps)
 	}
 	if got.CaseFile.Path != benchCasesFile || !got.CaseFile.Defaulted {

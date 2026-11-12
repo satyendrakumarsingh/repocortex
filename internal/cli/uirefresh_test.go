@@ -19,7 +19,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Refresh is the one thing `cortex ui` can do that changes the repository's
+// Refresh is the one thing `repocortex ui` can do that changes the repository's
 // index, so the tests here are mostly about it NOT happening: the flag is off,
 // the route is absent, the header is required, a cancelled request stops.
 
@@ -252,7 +252,7 @@ func TestUIReindexerStagesAndCancellation(t *testing.T) {
 		runs:     okRuns,
 		wantErr:  true, wantIs: boom,
 		wantIndex: true,
-		wantMsg:   "cortex index",
+		wantMsg:   "repocortex index",
 	}, {
 		name:    "an unreadable run is reported rather than answered with zeroes",
 		runs:    fakeRuns{err: registry.ErrNoCommittedRun},
@@ -335,7 +335,7 @@ func TestUIReindexerStagesAndCancellation(t *testing.T) {
 func newTestGlobal(t *testing.T, project string) *Global {
 	t.Helper()
 	g := &Global{Project: project}
-	if err := g.setup(&cobra.Command{Use: "cortex-test"}); err != nil {
+	if err := g.setup(&cobra.Command{Use: "repocortex-test"}); err != nil {
 		t.Fatalf("resolve project %s: %v", project, err)
 	}
 	return g

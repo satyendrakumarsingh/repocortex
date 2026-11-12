@@ -58,7 +58,7 @@ func DefaultBudget() Budget { return BudgetFrom(config.Defaults()) }
 
 // BudgetFrom derives a Budget from resolved configuration.
 //
-// The context.* keys in .cortex.yml have been parsed and validated since M0
+// The context.* keys in .repocortex.yml have been parsed and validated since M0
 // but nothing consumed them; this is the consumer. Repository config is
 // untrusted, but these values can only make a response SMALLER or larger within
 // limits the config package already validates (MaxGraphDepth is capped at 10

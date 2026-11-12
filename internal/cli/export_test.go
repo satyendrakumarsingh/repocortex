@@ -46,7 +46,7 @@ func TestExportWritesAtomically(t *testing.T) {
 
 // TestExportLossyNoteGoesToStderrNotStdout pins requirement 4 of the export
 // contract. A lossy format's caveat is for a person, and the person is not the
-// only reader: `cortex export --format csv | column -s, -t` puts a machine on
+// only reader: `repocortex export --format csv | column -s, -t` puts a machine on
 // stdout. A caveat printed there is not a caveat, it is a corrupt first row.
 func TestExportLossyNoteGoesToStderrNotStdout(t *testing.T) {
 	g := metrics.NewGraph(
@@ -515,11 +515,11 @@ func TestExportSuccessLineCountsWhatTheArtifactHolds(t *testing.T) {
 	}
 }
 
-// TestExportStatesItsProvenanceOnStderr is I4: `cortex export` was the only
+// TestExportStatesItsProvenanceOnStderr is I4: `repocortex export` was the only
 // new surface that shipped an artifact with no indication of what it describes.
 //
 // Every MCP response carries index_revision and a provenance caveat, and
-// `cortex impact` refuses outright when the index was built at a commit
+// `repocortex impact` refuses outright when the index was built at a commit
 // outside the analysed range. An export is the artifact most likely to outlive
 // the session that produced it — it gets committed, attached to a ticket,
 // joined against something in a notebook — so it is the one that can least
@@ -543,9 +543,9 @@ func TestExportStatesItsProvenanceOnStderr(t *testing.T) {
 	// than in a third phrasing invented here.
 	errOut.Reset()
 	reportExportProvenance(&errOut, exportProvenance{
-		runID: 7, revision: "abc", stale: "This index was written by cortex 0.1 and you are running 0.2.",
+		runID: 7, revision: "abc", stale: "This index was written by repocortex 0.1 and you are running 0.2.",
 	})
-	if !strings.Contains(errOut.String(), "This index was written by cortex 0.1") {
+	if !strings.Contains(errOut.String(), "This index was written by repocortex 0.1") {
 		t.Errorf("a stale index must be disclosed on the export too; got:\n%s", errOut.String())
 	}
 }

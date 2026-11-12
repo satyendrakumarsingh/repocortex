@@ -59,7 +59,7 @@ CONTRIBUTING.md is explicit about not publishing numbers a run did not produce.
 
 ## What you give up
 
-- **`go install cortex` stops being trivial.** Every user needs a C toolchain.
+- **`go install repocortex` stops being trivial.** Every user needs a C toolchain.
   This is the single biggest cost and the reason the default will not change.
 - **Cross-compilation stops working the easy way.** The release pipeline builds
   five targets from one runner with `CGO_ENABLED=0`. With CGO you need a cross
