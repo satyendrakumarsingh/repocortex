@@ -537,9 +537,9 @@ func (s *Server) openHistory() *gitHistory {
 	if !repo.IsRepo() {
 		return &gitHistory{why: root + " is not a git repository."}
 	}
-	if d := repo.Degraded(); d != "" {
+	if d := repo.Degraded(); d != "" && !repo.HistoryAvailable() {
 		return &gitHistory{why: "this repository opened only in degraded mode (" + d +
-			"), which leaves commit history unavailable."}
+			") and no git executable is on PATH to read its history with."}
 	}
 
 	h := &gitHistory{repo: repo, root: repo.Root()}

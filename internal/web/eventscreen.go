@@ -55,7 +55,7 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 		report = []registry.EventTopology{}
 	}
 
-	guidance := "Discovered message broker topics and queues across Kafka, RabbitMQ, AWS SQS/SNS, and GCP Pub/Sub."
+	guidance := "Discovered message broker topics and queues across Kafka, RabbitMQ, AWS SQS/SNS, GCP Pub/Sub and ActiveMQ (STOMP/JMS)."
 	if len(report) == 0 {
 		guidance = "No message broker publishers or consumers discovered in this repository."
 	}

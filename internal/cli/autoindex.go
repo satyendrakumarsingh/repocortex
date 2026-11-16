@@ -1,8 +1,10 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"time"
@@ -58,17 +60,26 @@ func newAutoIndexCmd(g *Global) *cobra.Command {
 				start := time.Now()
 				logMsg("starting background auto-index pass")
 
-				// Execute incremental index
+				// Execute incremental index. The subcommands are called directly,
+				// not through cobra, so they inherit nothing: without this
+				// context the store opens its database with a nil context
+				// and panics, and a hook's background run dies silently.
+				ctx := cmd.Context()
+				if ctx == nil {
+					ctx = context.Background()
+				}
 				idxCmd := newIndexCmd(g)
-				idxCmd.SetOut(logFile)
-				idxCmd.SetErr(logFile)
+				idxCmd.SetContext(ctx)
+				idxCmd.SetOut(logWriter(logFile))
+				idxCmd.SetErr(logWriter(logFile))
 				idxErr := idxCmd.RunE(idxCmd, nil)
 
 				var resErr error
 				if idxErr == nil {
 					resCmd := newResolveCmd(g)
-					resCmd.SetOut(logFile)
-					resCmd.SetErr(logFile)
+					resCmd.SetContext(ctx)
+					resCmd.SetOut(logWriter(logFile))
+					resCmd.SetErr(logWriter(logFile))
 					resErr = resCmd.RunE(resCmd, nil)
 				}
 
@@ -102,4 +113,14 @@ func newAutoIndexCmd(g *Global) *cobra.Command {
 		},
 	}
 	return cmd
+}
+
+// logWriter is where a subcommand's output goes. When the log file could not
+// be opened, a nil *os.File would make every write fail, so output is
+// discarded instead: the run itself must still happen.
+func logWriter(f *os.File) io.Writer {
+	if f == nil {
+		return io.Discard
+	}
+	return f
 }

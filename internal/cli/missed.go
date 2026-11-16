@@ -99,7 +99,16 @@ Examples:
 
 			// Human readable output
 			fmt.Fprintf(out, "RepoCortex Blindspot Report (Run %d)\n", rep.RunID)
-			fmt.Fprintf(out, "Total Blindspots: %d\n\n", rep.TotalBlindspots)
+			capped := map[missed.BlindspotKind]bool{}
+			for _, k := range rep.Capped {
+				capped[k] = true
+			}
+			if len(rep.Capped) > 0 {
+				fmt.Fprintf(out, "Total Blindspots: at least %d (%d of %d categories stopped at --limit %d)\n\n",
+					rep.TotalBlindspots, len(rep.Capped), len(rep.ByKind), limit)
+			} else {
+				fmt.Fprintf(out, "Total Blindspots: %d\n\n", rep.TotalBlindspots)
+			}
 
 			if rep.TotalBlindspots == 0 {
 				fmt.Fprintln(out, "No code intelligence blindspots detected. Graph and configurations are complete.")
@@ -112,7 +121,12 @@ Examples:
 			}
 			sort.Strings(kinds)
 			for _, kind := range kinds {
-				fmt.Fprintf(out, "• %s: %d\n", kind, rep.ByKind[missed.BlindspotKind(kind)])
+				n := rep.ByKind[missed.BlindspotKind(kind)]
+				if capped[missed.BlindspotKind(kind)] {
+					fmt.Fprintf(out, "• %s: %d+ (stopped at the limit; raise --limit to count more)\n", kind, n)
+				} else {
+					fmt.Fprintf(out, "• %s: %d\n", kind, n)
+				}
 			}
 			fmt.Fprintln(out)
 

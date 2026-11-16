@@ -2566,6 +2566,7 @@ Report.blindspots.remediation
 Report.blindspots.severity
 Report.blindspots.target
 Report.by_kind
+Report.capped_kinds
 Report.completeness
 Report.completeness.ambiguous_references
 Report.completeness.bindable_references

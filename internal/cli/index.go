@@ -288,8 +288,13 @@ func runIndex(cmd *cobra.Command, g *Global, workers int, showDigest bool, accur
 		log.Warn("git unavailable; the index will record no revision", "err", err)
 	} else {
 		if d := repo.Degraded(); d != "" {
-			log.Warn("git support is degraded; revision is read directly from .git and history is unavailable",
-				"reason", d)
+			if repo.HistoryAvailable() {
+				log.Info("go-git declined this repository; revision is read from .git and history through the git binary",
+					"reason", d)
+			} else {
+				log.Warn("git support is degraded; revision is read directly from .git and history is unavailable",
+					"reason", d)
+			}
 		}
 		if info, err := repo.Info(ctx); err != nil {
 			log.Warn("git revision unavailable", "err", err)

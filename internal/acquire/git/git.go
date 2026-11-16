@@ -169,6 +169,11 @@ type Repo struct {
 	// path IS a repository. HEAD is then read from .git directly and history
 	// features are unavailable. Empty means fully open.
 	degraded string
+
+	// probe caches whether the git binary accepts this repository, for
+	// reading history when go-git declined it (see gitcli.go). Set only on a
+	// degraded Repo.
+	probe *binaryProbe
 }
 
 // Degraded reports why full git support is unavailable, or "" when it is not.
@@ -215,7 +220,7 @@ func Open(path string) (*Repo, error) {
 		// describe". It is worth reading from the files directly rather than
 		// discarding because a library declined the container.
 		if gitDir, ok := gitDirFor(abs); ok {
-			return &Repo{root: abs, isRepo: true, degraded: err.Error(), gitDir: gitDir}, nil
+			return &Repo{root: abs, isRepo: true, degraded: err.Error(), gitDir: gitDir, probe: &binaryProbe{}}, nil
 		}
 		return nil, fmt.Errorf("git: open repository at %q: %w", abs, err)
 	}

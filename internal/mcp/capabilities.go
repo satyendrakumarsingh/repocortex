@@ -907,10 +907,15 @@ func (s *Server) detectBlindspots(ctx stdctx.Context, req *sdk.CallToolRequest, 
 		return failFrom(err, "detect blindspots: %v", err)
 	}
 
+	summary := fmt.Sprintf("%d code intelligence blindspots detected across repository.", rep.TotalBlindspots)
+	if len(rep.Capped) > 0 {
+		summary = fmt.Sprintf("At least %d code intelligence blindspots: %d categories stopped at %d findings each, so their counts are lower bounds.",
+			rep.TotalBlindspots, len(rep.Capped), missed.DefaultOptions().MaxItemsPerKind)
+	}
 	resp := &Response{
 		IndexRevision: runID,
 		IndexStatus:   status,
-		Summary:       fmt.Sprintf("%d code intelligence blindspots detected across repository.", rep.TotalBlindspots),
+		Summary:       summary,
 	}
 
 	for _, b := range rep.Blindspots {

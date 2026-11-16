@@ -888,7 +888,7 @@ $ repocortex api
 METHOD & PATH           HANDLER         DECLARED AT
 POST /payment/callback  handleCallback  …/controller/CallbackController.java:21
 
-1 endpoint(s). Discovery covers spring, go-http, go-router, fastapi, flask, django, express, nest.
+1 endpoint(s). Discovery covers spring, go-http, go-router, fastapi, flask, django, express, nest, nextjs.
 5 further route(s) are declared in test files and are not counted above — they
 are fixtures, not this service's API.
 ```
@@ -1229,8 +1229,8 @@ These run against the committed index. Each takes the global `--json`.
 **Answers:** which topics, queues and exchanges exist, and who publishes to or
 consumes from them?
 
-`repocortex events` lists them across Kafka, RabbitMQ/AMQP, SQS, SNS and Google
-Cloud Pub/Sub. `repocortex events topic <name>` lists the functions that publish
+`repocortex events` lists them across Kafka, RabbitMQ/AMQP, SQS, SNS, Google
+Cloud Pub/Sub and ActiveMQ (STOMP/JMS). `repocortex events topic <name>` lists the functions that publish
 to or consume from one. Event topology is not an MCP tool.
 
 ### `missed`

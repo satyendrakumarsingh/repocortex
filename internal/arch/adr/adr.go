@@ -123,7 +123,10 @@ var (
 	// leading four digits are a year, not ADR 2024. A file named this way
 	// INSIDE an ADR directory still qualifies — there the directory is the
 	// evidence and the filename does not have to carry it.
-	datePrefixed = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}[-_.]`)
+	// A year-month prefix (2026-09-release.md) is the same convention one
+	// field shorter, and read as a number it made a runbook "ADR 2026". It is
+	// limited to plausible years and real months so 0001-02-... stays a record.
+	datePrefixed = regexp.MustCompile(`^(?:\d{4}-\d{2}-\d{2}|(?:19|20)\d{2}-(?:0[1-9]|1[0-2]))[-_.]`)
 
 	// bareNumberedFile is the unprefixed convention. Three digits minimum —
 	// see numberedFilename for why one is not enough outside an ADR directory.
@@ -313,7 +316,12 @@ func Parse(path string, src []byte) (Record, bool) {
 	// recognised location or one of the structural markers every ADR template
 	// emits is what keeps an ordinary README from being reported as a decision
 	// the team made.
-	if !IsADRPath(rec.Path) && rec.Status == "" &&
+	//
+	// Outside an ADR directory a status counts only when it is one the ADR
+	// conventions define: runbooks, specs and plans carry "Status:" lines too
+	// ("NOT YET RUN", "In review"), and on a real repository one was listed
+	// as a decision record.
+	if !IsADRPath(rec.Path) && !isKnownStatus(rec.Status) &&
 		findSection(secs, "decision") == nil && findSection(secs, "context") == nil {
 		return Record{}, false
 	}
@@ -569,6 +577,18 @@ func status(front map[string]string, secs []section, lines []string) string {
 // order matters for "Superseded by the decision that was accepted in ADR-9",
 // where scanning the list first would return "accepted" for a record that is
 // superseded.
+// isKnownStatus reports whether a normalised status is one of the states the
+// ADR conventions define. normaliseStatus already reduces any status that
+// names one to exactly that word.
+func isKnownStatus(s string) bool {
+	for _, k := range knownStatuses {
+		if s == k {
+			return true
+		}
+	}
+	return false
+}
+
 func normaliseStatus(raw string) string {
 	s := strings.ToLower(clean(raw, maxStatusChars*4))
 	s = strings.Trim(s, "*_`~ \t")

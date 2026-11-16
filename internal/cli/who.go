@@ -59,10 +59,12 @@ those limits is printed with the answer, because a list of names read without
 them turns into an accusation the first time something breaks.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runWho(cmd, g, args[0])
+			path, _ := cmd.Flags().GetString("path")
+			return runWho(cmd, g, qualifyWithPath(strings.TrimSpace(args[0]), path))
 		},
 	}
 
+	cmd.Flags().String("path", "", "choose a definition by file path, as explore and callers do")
 	cmd.Flags().Int("depth", 0, "hops to follow out from the symbol (0 = default)")
 	cmd.Flags().String("min-confidence", "", "confidence floor for the blast radius (exact|high|medium|low)")
 	cmd.Flags().Int("commits", 0, "how far back from HEAD to read history (0 = default)")
@@ -328,9 +330,9 @@ func openHistory(g *Global) *gitHistory {
 		return &gitHistory{note: "No history was read: " + root +
 			" is not a git repository. The blast radius below is still the index's."}
 	}
-	if d := repo.Degraded(); d != "" {
+	if d := repo.Degraded(); d != "" && !repo.HistoryAvailable() {
 		return &gitHistory{note: "No history was read: this repository opened only in degraded mode (" +
-			d + "), which leaves commit history unavailable."}
+			d + ") and no git executable is on PATH to read it with."}
 	}
 
 	h := &gitHistory{repo: repo}

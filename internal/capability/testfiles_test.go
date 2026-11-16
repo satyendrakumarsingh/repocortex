@@ -185,3 +185,31 @@ func keys(m map[string]bool) []string {
 	}
 	return out
 }
+
+// pytest runs functions named test* (and methods of Test* classes); a helper
+// in the same file (_create, make_task) reaches the code it calls but is
+// never run on its own. find_tests listed 83 such helpers as tests to run on a
+// real repository.
+func TestIsRunnableTestFollowsPytestNaming(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		kind, name, path string
+		want             bool
+	}{
+		{"function", "test_create_task", "tests/integration/test_tasks.py", true},
+		{"method", "test_rejects_duplicate", "tests/unit/test_tasks.py", true},
+		{"class", "TestTaskService", "tests/unit/test_tasks.py", true},
+		{"function", "_create", "tests/integration/test_tasks.py", false},
+		{"function", "_make_task_at", "tests/integration/test_advance.py", false},
+		{"function", "auth_headers", "tests/conftest.py", false},
+		{"test", "anything", "tests/test_x.py", true}, // the parser already said so
+		// Not Python: unchanged rules.
+		{"function", "TestRun", "pkg/run_test.go", true},
+		{"function", "helper", "pkg/run_test.go", false},
+	}
+	for _, c := range cases {
+		if got := IsRunnableTest(c.kind, c.name, c.path); got != c.want {
+			t.Errorf("IsRunnableTest(%q, %q, %q) = %v, want %v", c.kind, c.name, c.path, got, c.want)
+		}
+	}
+}

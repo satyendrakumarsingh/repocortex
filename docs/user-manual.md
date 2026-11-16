@@ -1011,7 +1011,7 @@ repocortex api --json
 METHOD & PATH           HANDLER         DECLARED AT
 POST /payment/callback  handleCallback  src/main/java/com/pay/controller/CallbackController.java:21
 
-1 endpoint(s). Discovery covers spring, go-http, go-router, fastapi, flask, django, express, nest.
+1 endpoint(s). Discovery covers spring, go-http, go-router, fastapi, flask, django, express, nest, nextjs.
 ```
 
 Routes come from the framework's own spelling — a Spring annotation, a Go router

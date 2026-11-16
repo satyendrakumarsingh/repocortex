@@ -112,6 +112,9 @@ func (r *Repo) recentCommits(ctx context.Context, limit int, withPaths bool) (ou
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	if r.historyViaBinary() {
+		return r.recentCommitsCLI(ctx, limit, withPaths) // see gitcli.go
+	}
 
 	// The whole walk reads from one pooled view, so the packfile is opened once
 	// rather than once per object. See objectview.go for the measurement.
@@ -250,6 +253,9 @@ func (r *Repo) FileLastModified(ctx context.Context, path string) (rev FileRevis
 	path = normPath(path)
 	if path == "" {
 		return FileRevision{}, fmt.Errorf("git: FileLastModified: empty path")
+	}
+	if r.historyViaBinary() {
+		return r.fileLastModifiedCLI(ctx, path) // see gitcli.go
 	}
 
 	// Up to MaxHistoryScan commits, two tree lookups each. Pooled for the same

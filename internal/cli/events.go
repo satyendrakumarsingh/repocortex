@@ -45,7 +45,7 @@ Supported brokers:
 			}
 
 			out := cmd.OutOrStdout()
-			fmt.Fprintln(out, "Supported event brokers: Kafka, RabbitMQ, AWS SQS/SNS, GCP Pub/Sub")
+			fmt.Fprintln(out, "Supported event brokers: Kafka, RabbitMQ, AWS SQS/SNS, GCP Pub/Sub, ActiveMQ (STOMP/JMS)")
 			fmt.Fprintln(out)
 
 			if len(report) == 0 {

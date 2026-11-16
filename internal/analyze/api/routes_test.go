@@ -783,3 +783,50 @@ app.use('/api/v2', userRouter);
 	assertRoute(t, routes, "GET /api/v2/profile", "getProfile")
 	assertRoute(t, routes, "POST /api/v2/settings", "updateSettings")
 }
+
+// Next.js declares a route by where the file sits, not by a call: the App
+// Router's app/**/route.ts exports one function per verb, and the Pages
+// Router's pages/api/** default-exports a handler for every verb. None of it
+// matched the call-shaped extractors, so a Next.js API surface was invisible.
+func TestExtractNextJSAppRouter(t *testing.T) {
+	src := "import { NextResponse } from 'next/server'\n\n" +
+		"export async function GET(req: Request) { return NextResponse.json([]) }\n" +
+		"export const POST = async (req: Request) => NextResponse.json({})\n" +
+		"export function helper() {}\n"
+	cases := map[string]string{
+		"web/app/api/orders/route.ts":                 "/api/orders",
+		"app/api/orders/[id]/route.ts":                "/api/orders/{id}",
+		"src/app/(shop)/api/cart/[...items]/route.js": "/api/cart/{items*}",
+		"app/route.ts":                                "/",
+	}
+	for path, want := range cases {
+		routes := Extract(path, []byte(src))
+		assertRoute(t, routes, "GET "+want, "GET")
+		assertRoute(t, routes, "POST "+want, "POST")
+		if len(routes) != 2 {
+			t.Errorf("%s: %d routes, want 2 (helper is not a verb)", path, len(routes))
+		}
+		for _, r := range routes {
+			if r.Framework != FrameworkNext {
+				t.Errorf("%s: framework %q, want %q", path, r.Framework, FrameworkNext)
+			}
+		}
+	}
+	// A route.ts outside an app directory is not a Next.js route file.
+	if routes := Extract("lib/route.ts", []byte(src)); len(routes) != 0 {
+		t.Errorf("lib/route.ts produced %v", routes)
+	}
+}
+
+func TestExtractNextJSPagesAPI(t *testing.T) {
+	src := "export default function handler(req, res) { res.status(200).json({}) }\n"
+	routes := Extract("pages/api/users/[id].ts", []byte(src))
+	assertRoute(t, routes, "ANY /api/users/{id}", "handler")
+	if routes := Extract("src/pages/api/index.js", []byte(src)); len(routes) != 1 || routes[0].Path != "/api" {
+		t.Errorf("pages/api/index.js = %v, want ANY /api", routes)
+	}
+	// A page that is not under api/ renders HTML; it is not an endpoint.
+	if routes := Extract("pages/users/[id].tsx", []byte(src)); len(routes) != 0 {
+		t.Errorf("a page was reported as an endpoint: %v", routes)
+	}
+}

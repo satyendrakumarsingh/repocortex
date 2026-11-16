@@ -541,7 +541,7 @@ RepoCortex delivers an end-to-end change-safety and code intelligence architectu
 ### 9.5. Cross-Stack Distributed Topology (`repocortex api`, `repocortex db`, `repocortex events`)
 - **HTTP / REST Endpoints**: Statically discovers route handlers across Express, Spring Boot, Gin, FastAPI, NestJS, and ASP.NET.
 - **Database Access Maps**: Maps database tables, ORM models (Prisma, GORM, Hibernate, SQLAlchemy), and raw SQL queries to identifying calling methods.
-- **Distributed Event Topologies**: Extracts producer and consumer queues across Apache Kafka, RabbitMQ, AWS SQS/SNS, and Google Cloud Pub/Sub.
+- **Distributed Event Topologies**: Extracts producer and consumer queues across Apache Kafka, RabbitMQ, AWS SQS/SNS, Google Cloud Pub/Sub and ActiveMQ (STOMP/JMS).
 
 ### 9.6. AI Coding Agent MCP Server (`repocortex serve`, `repocortex install`)
 - **Compact Subgraph Extraction**: Delivers targeted subgraphs and pruned signatures instead of raw file dumps. How much context that saves depends on the task: the one agent benchmark run so far found no token advantage on simple lookups (`docs/BENCHMARKING.md`).

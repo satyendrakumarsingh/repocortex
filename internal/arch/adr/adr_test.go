@@ -305,6 +305,11 @@ func TestParseRejectsNonRecords(t *testing.T) {
 		{"prose elsewhere", "docs/guide.md", "# Getting Started\n\nInstall the CLI.\n"},
 		{"no heading", "docs/notes.md", "just some text with no structure at all\n"},
 		{"binary", "docs/adr/0001-x.md", "# T\x00\x01\x02 binary"},
+		// A runbook carries a "Status:" field too, but its value is not an ADR
+		// state, and outside an ADR directory that is all it had. It was listed
+		// as "ADR 2026" on a real repository, the year read off its filename.
+		{"runbook with a status line", "docs/infra/runbooks/2026-09-fast-search-release.md",
+			"# Runbook: Release the search index\n\n**Status:** NOT YET RUN. Nothing here has been executed.\n\n## Steps\n\n1. Do it.\n"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -312,6 +317,12 @@ func TestParseRejectsNonRecords(t *testing.T) {
 				t.Errorf("accepted a non-record: %+v", rec)
 			}
 		})
+	}
+
+	// A year-month filename is a date, not record number 2026, even where the
+	// file does qualify as a record.
+	if rec, ok := Parse("docs/adr/2026-09-use-postgres.md", []byte("# Use Postgres\n\n## Status\n\nAccepted\n\n## Context\n\nx\n")); !ok || rec.Number != 0 {
+		t.Errorf("year-month filename: ok=%v Number=%d, want ok and 0", ok, rec.Number)
 	}
 
 	// Over the size bound. A decision record is prose a human wrote and read.

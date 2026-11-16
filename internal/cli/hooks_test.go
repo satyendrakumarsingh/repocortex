@@ -317,6 +317,43 @@ func TestHookInstallationSafetyNonShell(t *testing.T) {
 	}
 }
 
+// Git never runs post-checkout-repocortex on its own: an auxiliary script is
+// only active once the user's own hook calls it. Until then status must not
+// claim branch switches are covered, and install must say what to add.
+func TestAuxiliaryHookIsInactiveUntilTheUserHookCallsIt(t *testing.T) {
+	t.Parallel()
+	root := newRepo(t)
+	postCheckout := filepath.Join(root, ".git", "hooks", "post-checkout")
+	pyContent := "#!/usr/bin/env python3\nprint('running python checkout hook')\n"
+	if err := os.WriteFile(postCheckout, []byte(pyContent), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := InstallCommitHook(root, "repocortex"); err != nil {
+		t.Fatal(err)
+	}
+
+	rep := AllHooksStatus(root)
+	if rep.PostCheckout.Installed {
+		t.Fatal("post-checkout reported installed although the Python hook never calls the auxiliary script")
+	}
+	if !rep.PostCheckout.NeedsWiring || rep.PostCheckout.AuxiliaryPath == "" {
+		t.Fatalf("post-checkout state = %+v, want NeedsWiring with the auxiliary path", rep.PostCheckout)
+	}
+	if got := formatHookState(rep.PostCheckout); !strings.Contains(got, "not active") {
+		t.Errorf("status line = %q, want it to say the hook is not active", got)
+	}
+
+	// Once the user's hook calls the script, it counts.
+	wired := pyContent + "import subprocess, sys, os\nsubprocess.run([os.path.join(os.path.dirname(__file__), 'post-checkout-repocortex')] + sys.argv[1:])\n"
+	if err := os.WriteFile(postCheckout, []byte(wired), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	rep = AllHooksStatus(root)
+	if !rep.PostCheckout.Installed || rep.PostCheckout.NeedsWiring {
+		t.Fatalf("post-checkout state after wiring = %+v, want installed", rep.PostCheckout)
+	}
+}
+
 func TestHookInstallationSafetyTerminalExit(t *testing.T) {
 	t.Parallel()
 	root := newRepo(t)

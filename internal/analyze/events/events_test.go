@@ -163,3 +163,71 @@ func ListenEvent() {
 		t.Errorf("unexpected gcp 1: %+v", gcpBindings[1])
 	}
 }
+
+// find returns the binding for a topic and direction, or nil.
+func find(bs []EventBinding, topic string, dir Direction) *EventBinding {
+	for i := range bs {
+		if bs[i].Topic == topic && bs[i].Direction == dir {
+			return &bs[i]
+		}
+	}
+	return nil
+}
+
+// A queue producer that talks STOMP to ActiveMQ was reported as a Kafka topic
+// with no consumers: the generic producer.send("X") rule assumed Kafka. On a
+// real repository all three "Kafka topics" were ActiveMQ queue keys.
+func TestPythonProducerIsAttributedToTheBrokerTheFileUses(t *testing.T) {
+	stompSrc := []byte("from shared_service.queue.activemq import QueueProducer\n\n" +
+		"_producer = QueueProducer()\n\n" +
+		"def notify(payload):\n    _producer.send(\"GRN_COMPLETED\", payload)\n")
+	b := find(Extract("app/queue/producer.py", stompSrc), "GRN_COMPLETED", DirectionPublish)
+	if b == nil || b.Broker != BrokerActiveMQ {
+		t.Fatalf("ActiveMQ producer binding = %+v, want broker activemq", b)
+	}
+
+	kafkaSrc := []byte("from kafka import KafkaProducer\n\nproducer = KafkaProducer()\n\n" +
+		"def emit(v):\n    producer.send(\"orders.created\", v)\n")
+	if b := find(Extract("emit.py", kafkaSrc), "orders.created", DirectionPublish); b == nil || b.Broker != BrokerKafka {
+		t.Fatalf("Kafka producer binding = %+v, want broker kafka", b)
+	}
+}
+
+func TestExtractActiveMQStompAndJMS(t *testing.T) {
+	goSrc := []byte("package q\n\nimport \"github.com/go-stomp/stomp/v3\"\n\n" +
+		"func Pub(conn *stomp.Conn) { _ = conn.Send(\"/queue/pulse.grn.bulk\", \"application/json\", nil) }\n" +
+		"func Sub(conn *stomp.Conn) { _, _ = conn.Subscribe(\"/queue/pulse.grn.bulk\", stomp.AckClient) }\n")
+	bs := Extract("q.go", goSrc)
+	if b := find(bs, "/queue/pulse.grn.bulk", DirectionPublish); b == nil || b.Broker != BrokerActiveMQ {
+		t.Errorf("go-stomp Send = %+v", b)
+	}
+	if b := find(bs, "/queue/pulse.grn.bulk", DirectionConsume); b == nil || b.Broker != BrokerActiveMQ {
+		t.Errorf("go-stomp Subscribe = %+v", b)
+	}
+
+	pySrc := []byte("import stomp\n\nconn = stomp.Connection()\n" +
+		"conn.send(body='x', destination='/queue/orders')\n" +
+		"conn.subscribe(destination='/queue/orders', id=1, ack='auto')\n")
+	bs = Extract("w.py", pySrc)
+	if find(bs, "/queue/orders", DirectionPublish) == nil || find(bs, "/queue/orders", DirectionConsume) == nil {
+		t.Errorf("stomp.py bindings = %+v", bs)
+	}
+
+	javaSrc := []byte("public class Billing {\n" +
+		"    @JmsListener(destination = \"billing.invoices\")\n    public void on(String m) {}\n" +
+		"    public void send() { jmsTemplate.convertAndSend(\"billing.invoices\", \"x\"); }\n}\n")
+	bs = Extract("Billing.java", javaSrc)
+	if b := find(bs, "billing.invoices", DirectionConsume); b == nil || b.Broker != BrokerActiveMQ {
+		t.Errorf("JmsListener = %+v", b)
+	}
+	if b := find(bs, "billing.invoices", DirectionPublish); b == nil || b.Broker != BrokerActiveMQ {
+		t.Errorf("jmsTemplate = %+v", b)
+	}
+
+	jsSrc := []byte("client.publish({ destination: '/topic/prices', body: '1' });\n" +
+		"client.subscribe('/topic/prices', onMessage);\n")
+	bs = Extract("feed.js", jsSrc)
+	if find(bs, "/topic/prices", DirectionPublish) == nil || find(bs, "/topic/prices", DirectionConsume) == nil {
+		t.Errorf("stompjs bindings = %+v", bs)
+	}
+}

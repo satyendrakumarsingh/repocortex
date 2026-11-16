@@ -3,11 +3,30 @@ package cli
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
 	"github.com/satyendrakumarsingh/repocortex/internal/prune"
 )
+
+// resolveUserPath reads a relative path the way every other command does: from
+// the project root that --project names, falling back to the current directory
+// when the file is not there (a path typed relative to the shell).
+func resolveUserPath(root, p string) string {
+	if p == "" || filepath.IsAbs(p) || root == "" {
+		return p
+	}
+	if inRoot := filepath.Join(root, filepath.FromSlash(p)); fileExists(inRoot) {
+		return inRoot
+	}
+	return p
+}
+
+func fileExists(p string) bool {
+	info, err := os.Stat(p) //nolint:gosec // G703: a path the local user typed, joined to their own project root
+	return err == nil && !info.IsDir()
+}
 
 func newPruneCmd(g *Global) *cobra.Command {
 	var (
@@ -26,7 +45,7 @@ architectural interface context without wasting token budgets on function implem
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			filePath := args[0]
-			src, err := os.ReadFile(filePath) //nolint:gosec // the file argument is typed by the local user running the CLI
+			src, err := os.ReadFile(resolveUserPath(g.Config().RepoRoot, filePath)) //nolint:gosec // the file argument is typed by the local user running the CLI
 			if err != nil {
 				return fmt.Errorf("read file: %w", err)
 			}

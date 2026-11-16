@@ -9,13 +9,23 @@ Entries explain *why* a change was made and what failure mode it addressed,
 matching the standard the commit history sets. Every measurement quoted here came
 from an actual run.
 
+## [Unreleased]
+
+- **`auto-index` no longer crashes.** It ran `index` and `resolve` by calling them directly, which gave them no context; the store then opened its database with a nil context and panicked. Every managed git hook runs `auto-index`, so the index silently stopped refreshing. Measured: 2 of 4 concurrent runs panicked before, 0 after.
+- **History on repositories with linked worktrees.** go-git refuses `extensions.worktreeConfig`, which git turns on for worktrees, and such a repository returned no history at all: hotspots, bus factor, owners, blame and co-change were empty (on a 25,946-file monorepo with seven worktrees). History is now read with the git binary in that case, read-only and with every option that could run a repository-configured program turned off.
+- **A non-shell hook is no longer reported as covered.** When `post-checkout` is a Python (or other) script, RepoCortex leaves it alone and writes `post-checkout-repocortex`, which git never runs by itself. `hooks status` now says the hook is not active until your hook calls that script, and `hooks install` prints the line to add.
+- **Event brokers.** ActiveMQ over STOMP or JMS is recognised (go-stomp, stomp.py, stompjs, Spring JMS), and a generic `producer.send("X")` is attributed to the broker the file actually imports. ActiveMQ queue keys were being reported as Kafka topics with no consumers.
+- **Next.js routes.** App Router `app/**/route.ts` exports and Pages Router `pages/api/**` handlers are reported as endpoints, with route groups, parameters and catch-alls mapped to the path.
+- **`find_tests` / `repocortex tests` separate helpers from tests.** In Python test files only `test*` functions and `Test*` classes are runnable, as pytest collects them; helpers such as `_create` were listed as tests to run (83 of 803 on one symbol).
+- **Smaller fixes.** `arch adr` no longer reads a runbook with a "Status:" line or a `YYYY-MM-` filename as a decision record; `outline` reads relative paths from `--project`; `tests` and `owners` accept `--path` like `explore` and `callers`; `indexers list` names go/types for Go instead of scip-go, which never runs; blind-spot totals say when a category stopped at `--limit` ("50+", "at least 235") instead of presenting the cap as the count.
+
 ## [1.3.1] - 2026-11-16
 
 - **Candidate Cap Rescues & Precision Disambiguation:** Rescued lexical same-file definitions, explicit imports, and ancestor fixtures from candidate caps before abandonment in `pickCapped`, raising TypeScript resolution recall to 95.8%, JavaScript to 96.8%, Vue to 87.6%, Go to 83.6%, and Python to 78.9% at 100.0% precision across 254,000+ call sites.
 - **Pytest Ancestor Fixture Resolution:** Automatically resolve test fixture calls without explicit imports (`auth_headers`, `db_session`) to the nearest enclosing ancestor `conftest.py`.
 - **Monorepo Service Boundary Scoping:** Isolate candidate search across distinct microservice roots (`backend/python/auth` vs `backend/python/billing`) to eliminate cross-service name collisions.
 - **FastAPI Multiline Decorator Extraction:** Support multiline route declarations and parameters in FastAPI route extractors with balanced parenthesis parsing.
-- **High-Performance Memory & SQLite Buffer Tuning:** Added `sync.Pool` reuse for JSON/pack byte buffers and enabled SQLite 64MB memory-mapped I/O (`mmap_size`) and 10,000-page caching.
+- **High-Performance Memory & SQLite Buffer Tuning:** Added `sync.Pool` reuse for JSON/pack byte buffers and enabled SQLite 256 MiB memory-mapped I/O (`mmap_size`) and a 64 MB page cache (`cache_size=-64000`).
 
 ## [1.3.0] - 2026-11-15
 

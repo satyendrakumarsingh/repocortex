@@ -58,6 +58,7 @@ const (
 	FrameworkDjango  Framework = "django"
 	FrameworkExpress Framework = "express"
 	FrameworkNest    Framework = "nest"
+	FrameworkNext    Framework = "nextjs"
 )
 
 // Route is one discovered HTTP endpoint.
@@ -103,7 +104,7 @@ func SupportedFrameworks() []Framework {
 	return []Framework{
 		FrameworkSpring, FrameworkGoHTTP, FrameworkGoChi,
 		FrameworkFastAPI, FrameworkFlask, FrameworkDjango, FrameworkExpress,
-		FrameworkNest,
+		FrameworkNest, FrameworkNext,
 	}
 }
 
@@ -142,9 +143,108 @@ func Extract(path string, src []byte) []Route {
 		}
 		return withPath(routes)
 	case "js":
-		return withPath(append(extractExpress(lines), extractNest(lines)...))
+		routes := append(extractExpress(lines), extractNest(lines)...)
+		return withPath(append(routes, extractNext(path, lines)...))
 	}
 	return nil
+}
+
+// ---------------------------------------------------------------- Next.js
+
+var (
+	// nextVerbFunc and nextVerbConst read the App Router's exports: one
+	// function per HTTP verb, named exactly as the verb.
+	nextVerbFunc  = regexp.MustCompile(`^export\s+(?:async\s+)?function\s+(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\b`)
+	nextVerbConst = regexp.MustCompile(`^export\s+(?:const|let)\s+(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\s*=`)
+	// nextDefault is the Pages Router's handler: a default export, named or not.
+	nextDefault   = regexp.MustCompile(`^export\s+default\s+(?:async\s+)?(?:function\s*(\w*)|(\w+))`)
+	nextRouteFile = regexp.MustCompile(`^route\.(?:ts|tsx|js|jsx|mjs)$`)
+	nextPagesFile = regexp.MustCompile(`\.(?:ts|tsx|js|jsx|mjs)$`)
+)
+
+// extractNext reads routes Next.js declares by file location rather than by a
+// call: app/**/route.ts (App Router) and pages/api/** (Pages Router). The path
+// comes from the directories, so a file outside those trees yields nothing.
+func extractNext(path string, lines []string) []Route {
+	segs := strings.Split(strings.ReplaceAll(path, `\`, "/"), "/")
+	base := segs[len(segs)-1]
+
+	if nextRouteFile.MatchString(base) {
+		app := lastIndexOf(segs[:len(segs)-1], "app")
+		if app < 0 {
+			return nil
+		}
+		urlPath := nextURL(segs[app+1 : len(segs)-1])
+		var out []Route
+		for i, l := range lines {
+			t := strings.TrimSpace(l)
+			m := nextVerbFunc.FindStringSubmatch(t)
+			if m == nil {
+				m = nextVerbConst.FindStringSubmatch(t)
+			}
+			if m == nil {
+				continue
+			}
+			out = append(out, Route{Method: m[1], Path: urlPath, Handler: m[1],
+				Framework: FrameworkNext, Line: i + 1, Confidence: model.ConfidenceHigh})
+		}
+		return out
+	}
+
+	pages := lastIndexOf(segs[:len(segs)-1], "pages")
+	if pages < 0 || pages+1 >= len(segs)-1 || segs[pages+1] != "api" || !nextPagesFile.MatchString(base) {
+		return nil
+	}
+	name := nextPagesFile.ReplaceAllString(base, "")
+	dirs := append([]string{}, segs[pages+1:len(segs)-1]...)
+	if name != "index" {
+		dirs = append(dirs, name)
+	}
+	urlPath := nextURL(dirs)
+	for i, l := range lines {
+		if m := nextDefault.FindStringSubmatch(strings.TrimSpace(l)); m != nil {
+			handler := m[1] + m[2]
+			if handler == "" {
+				handler = "default"
+			}
+			// The Pages Router hands every verb to the one handler, which
+			// branches on req.method itself: ANY is the fact, as for Django.
+			return []Route{{Method: "", Path: urlPath, Handler: handler,
+				Framework: FrameworkNext, Line: i + 1, Confidence: model.ConfidenceHigh}}
+		}
+	}
+	return nil
+}
+
+// nextURL turns Next.js directory segments into a route path: route groups
+// "(shop)" and parallel slots "@modal" add nothing, "[id]" is a parameter and
+// "[...slug]" / "[[...slug]]" a catch-all.
+func nextURL(dirs []string) string {
+	var parts []string
+	for _, d := range dirs {
+		switch {
+		case d == "" || strings.HasPrefix(d, "(") && strings.HasSuffix(d, ")") || strings.HasPrefix(d, "@"):
+			continue
+		case strings.HasPrefix(d, "[[...") && strings.HasSuffix(d, "]]"):
+			parts = append(parts, "{"+strings.TrimSuffix(strings.TrimPrefix(d, "[[..."), "]]")+"*}")
+		case strings.HasPrefix(d, "[...") && strings.HasSuffix(d, "]"):
+			parts = append(parts, "{"+strings.TrimSuffix(strings.TrimPrefix(d, "[..."), "]")+"*}")
+		case strings.HasPrefix(d, "[") && strings.HasSuffix(d, "]"):
+			parts = append(parts, "{"+strings.TrimSuffix(strings.TrimPrefix(d, "["), "]")+"}")
+		default:
+			parts = append(parts, d)
+		}
+	}
+	return "/" + strings.Join(parts, "/")
+}
+
+func lastIndexOf(segs []string, want string) int {
+	for i := len(segs) - 1; i >= 0; i-- {
+		if segs[i] == want {
+			return i
+		}
+	}
+	return -1
 }
 
 // withPath is the single exit filter: a route with no path is dropped.

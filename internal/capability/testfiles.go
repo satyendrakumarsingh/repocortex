@@ -3,6 +3,8 @@ package capability
 import (
 	"path"
 	"strings"
+
+	"github.com/satyendrakumarsingh/repocortex/internal/registry"
 )
 
 // Test classification lives in the shared package rather than in
@@ -335,6 +337,12 @@ func IsRunnableTest(kind, name, filePath string) bool {
 			}
 		}
 		return false
+	}
+	// pytest collects functions named test* and classes named Test*; a helper
+	// beside them (_create, make_task, a fixture) is run only by being called.
+	// Module-level code of a test file is still the file's own test code.
+	if strings.HasSuffix(filePath, ".py") && IsTestPath(filePath) && kind != registry.FileCallerKind {
+		return strings.HasPrefix(name, "test") || strings.HasPrefix(name, "Test")
 	}
 	return IsTestSymbol(kind, name, filePath)
 }

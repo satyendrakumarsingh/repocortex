@@ -670,7 +670,7 @@ exist.`,
 // ---------------------------------------------------------------- tests
 
 func newTestsCmd(g *Global) *cobra.Command {
-	var minConfidence string
+	var minConfidence, path string
 	cmd := &cobra.Command{
 		Use:   "tests <symbol>",
 		Short: "Find the tests that reach a symbol",
@@ -694,6 +694,7 @@ To find the tests for everything a change touches, use 'repocortex impact'.`,
 			if name == "" {
 				return errors.New("symbol must not be empty")
 			}
+			name = qualifyWithPath(name, path)
 			var opts tests.Options
 			if minConfidence != "" {
 				opts.MinConfidence = model.Confidence(minConfidence)
@@ -740,14 +741,30 @@ To find the tests for everything a change touches, use 'repocortex impact'.`,
 				fmt.Fprintf(out, "No tests found for %s.\n\n%s\n", rep.Target.Name, emptyCaveat(ctx, s))
 				return nil
 			}
+			// Helpers in test files (_create, _make_task_at) reach the symbol
+			// too, but a runner never runs them, so they are not tests to
+			// run: listed apart, as find_tests does, rather than under TEST.
+			runnable, helpers := splitRunnableCLI(rep.Tests)
 			tw := tabwriter.NewWriter(out, 0, 8, 2, ' ', 0)
 			fmt.Fprintln(tw, "TEST\tFILE\tKIND\tSIGNAL\tCONFIDENCE")
-			for _, t := range rep.Tests {
+			for _, t := range runnable {
 				fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", t.Name, t.FilePath, t.Kind, t.Strongest, t.Confidence)
 			}
 			_ = tw.Flush()
-			fmt.Fprintf(out, "\n%d test(s); %d reached through a recorded call edge, the rest by convention.\n",
-				len(rep.Tests), rep.ProvenByGraph)
+			fmt.Fprintf(out, "\n%d test(s) to run; %d reached through a recorded call edge, the rest by convention.\n",
+				len(runnable), countProven(runnable))
+			if len(helpers) > 0 {
+				names := make([]string, 0, len(helpers))
+				for _, h := range helpers {
+					if len(names) == 8 {
+						names = append(names, fmt.Sprintf("… %d more", len(helpers)-8))
+						break
+					}
+					names = append(names, h.Name)
+				}
+				fmt.Fprintf(out, "%d helper(s) in test files also reach it and are not run on their own: %s.\n",
+					len(helpers), strings.Join(names, ", "))
+			}
 			if rep.Truncated {
 				fmt.Fprintf(out, "TRUNCATED: %s.\n", rep.TruncatedReason)
 			}
@@ -756,5 +773,39 @@ To find the tests for everything a change touches, use 'repocortex impact'.`,
 	}
 	cmd.Flags().StringVar(&minConfidence, "min-confidence", "",
 		"only follow edges at or above this confidence (exact, high, medium, low)")
+	cmd.Flags().StringVar(&path, "path", "", "choose a definition by file path, as explore and callers do")
 	return cmd
+}
+
+// splitRunnableCLI separates the tests a runner runs from helpers in test files.
+func splitRunnableCLI(all []tests.TestHit) (runnable, helpers []tests.TestHit) {
+	for _, t := range all {
+		if t.Runnable {
+			runnable = append(runnable, t)
+		} else {
+			helpers = append(helpers, t)
+		}
+	}
+	return runnable, helpers
+}
+
+func countProven(hits []tests.TestHit) int {
+	n := 0
+	for _, t := range hits {
+		if t.Strongest == tests.SignalGraph {
+			n++
+		}
+	}
+	return n
+}
+
+// qualifyWithPath turns a name and a --path into the file:name form the
+// symbol lookups accept, so every command picks a definition the same way.
+// A name that is already qualified is left as it is.
+func qualifyWithPath(name, path string) string {
+	path = strings.TrimPrefix(strings.TrimSpace(strings.ReplaceAll(path, `\`, "/")), "./")
+	if path == "" || strings.Contains(name, ":") {
+		return name
+	}
+	return path + ":" + name
 }

@@ -13,6 +13,7 @@
 //   - RabbitMQ / AMQP (streadway/amqp, pika, Spring-AMQP)
 //   - AWS SQS & SNS (boto3, aws-sdk-go, Spring Cloud AWS)
 //   - Google Cloud Pub/Sub (cloud.google.com/go/pubsub, google-cloud-pubsub)
+//   - ActiveMQ over STOMP or JMS (go-stomp, stomp.py, @stomp/stompjs, Spring JMS)
 package events
 
 import (
@@ -32,6 +33,7 @@ const (
 	BrokerSQS      Broker = "sqs"
 	BrokerSNS      Broker = "sns"
 	BrokerPubSub   Broker = "pubsub"
+	BrokerActiveMQ Broker = "activemq"
 )
 
 // Direction distinguishes publishing from consuming.
@@ -62,6 +64,7 @@ func SupportedBrokers() []Broker {
 		BrokerSQS,
 		BrokerSNS,
 		BrokerPubSub,
+		BrokerActiveMQ,
 	}
 }
 
@@ -97,6 +100,19 @@ var (
 	rePubSubConsume = regexp.MustCompile(`(?:\.Subscription\s*\(\s*["']([^"']+)["']\s*\)\.Receive|subscriber\.subscribe\s*\(\s*["']([^"']+)["'])`)
 
 	// Enclosing function helper
+	// ActiveMQ over STOMP (go-stomp, stomp.py, stompjs) and JMS (Spring).
+	// STOMP call sites are recognised only with a literal /queue/ or /topic/
+	// destination, or a destination= keyword: Send and Subscribe are names too
+	// common to claim on their own.
+	reStompGoSend      = regexp.MustCompile(`\.Send\s*\(\s*"(/(?:queue|topic)/[^"]+)"`)
+	reStompGoSubscribe = regexp.MustCompile(`\.Subscribe\s*\(\s*"(/(?:queue|topic)/[^"]+)"`)
+	reStompPySend      = regexp.MustCompile(`\.send\s*\([^)]*destination\s*=\s*["']([^"']+)["']`)
+	reStompPySubscribe = regexp.MustCompile(`\.subscribe\s*\([^)]*destination\s*=\s*["']([^"']+)["']`)
+	reStompJSPublish   = regexp.MustCompile(`\.publish\s*\(\s*\{[^}]*destination\s*:\s*["']([^"']+)["']`)
+	reStompSubscribe   = regexp.MustCompile(`\.subscribe\s*\(\s*["'](/(?:queue|topic)/[^"']+)["']`)
+	reJmsListener      = regexp.MustCompile(`@JmsListener\s*\(\s*destination\s*=\s*"([^"]+)"`)
+	reJmsTemplateSend  = regexp.MustCompile(`jmsTemplate\.(?:convertAndSend|send)\s*\(\s*"([^"]+)"`)
+
 	reEnclosingFunc = regexp.MustCompile(`(?:func\s+(?:\([^)]+\)\s+)?([A-Za-z0-9_]+)|def\s+([A-Za-z0-9_]+)|public\s+[^\(]+\s+([A-Za-z0-9_]+)\s*\()`)
 )
 
@@ -117,6 +133,19 @@ func Extract(filePath string, src []byte) []EventBinding {
 	lines := strings.Split(string(src), "\n")
 	var bindings []EventBinding
 	currentFunc := ""
+
+	// Which broker a generic producer.send("X") call talks to is a property
+	// of the file, not of the call: a file that imports a STOMP or ActiveMQ
+	// client and no Kafka one is sending to ActiveMQ. Without this every such
+	// call was filed under Kafka, and on a real repository all three "Kafka
+	// topics" were ActiveMQ queue keys with no consumers.
+	lowerSrc := strings.ToLower(string(src))
+	usesKafka := strings.Contains(lowerSrc, "kafka")
+	usesActiveMQ := strings.Contains(lowerSrc, "activemq") || strings.Contains(lowerSrc, "stomp")
+	genericBroker := BrokerKafka
+	if usesActiveMQ && !usesKafka {
+		genericBroker = BrokerActiveMQ
+	}
 	currentCtx := ""
 
 	for i, line := range lines {
@@ -240,9 +269,9 @@ func Extract(filePath string, src []byte) []EventBinding {
 				EdgeKind:   model.EdgeConsumes,
 			})
 		}
-		if m := rePythonKafkaSend.FindStringSubmatch(trimmed); len(m) > 1 {
+		if m := rePythonKafkaSend.FindStringSubmatch(trimmed); len(m) > 1 && !reStompPySend.MatchString(trimmed) {
 			bindings = append(bindings, EventBinding{
-				Broker:     BrokerKafka,
+				Broker:     genericBroker,
 				Direction:  DirectionPublish,
 				Topic:      m[1],
 				Function:   currentFunc,
@@ -390,6 +419,26 @@ func Extract(filePath string, src []byte) []EventBinding {
 				EdgeKind:   model.EdgeConsumes,
 			})
 		}
+
+		// 5. ActiveMQ: STOMP and JMS
+		amq := func(re *regexp.Regexp, dir Direction, kind model.EdgeKind) {
+			if m := re.FindStringSubmatch(trimmed); len(m) > 1 {
+				bindings = append(bindings, EventBinding{
+					Broker: BrokerActiveMQ, Direction: dir, Topic: m[1], Function: currentFunc,
+					Line: lineNum, Confidence: model.ConfidenceHigh, EdgeKind: kind,
+				})
+			}
+		}
+		amq(reStompGoSend, DirectionPublish, model.EdgePublishes)
+		amq(reStompGoSubscribe, DirectionConsume, model.EdgeConsumes)
+		amq(reStompPySend, DirectionPublish, model.EdgePublishes)
+		amq(reStompPySubscribe, DirectionConsume, model.EdgeConsumes)
+		amq(reStompJSPublish, DirectionPublish, model.EdgePublishes)
+		if !reStompPySubscribe.MatchString(trimmed) {
+			amq(reStompSubscribe, DirectionConsume, model.EdgeConsumes)
+		}
+		amq(reJmsListener, DirectionConsume, model.EdgeConsumes)
+		amq(reJmsTemplateSend, DirectionPublish, model.EdgePublishes)
 	}
 
 	return bindings

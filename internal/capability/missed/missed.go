@@ -48,11 +48,16 @@ func DefaultOptions() Options {
 
 // Report aggregates all detected blindspots across the repository.
 type Report struct {
-	RunID           int64                   `json:"run_id"`
-	TotalBlindspots int                     `json:"total_blindspots"`
-	ByKind          map[BlindspotKind]int   `json:"by_kind"`
-	Blindspots      []Blindspot             `json:"blindspots"`
-	Completeness    capability.Completeness `json:"completeness"`
+	RunID           int64                 `json:"run_id"`
+	TotalBlindspots int                   `json:"total_blindspots"`
+	ByKind          map[BlindspotKind]int `json:"by_kind"`
+	// Capped lists the kinds whose search stopped at MaxItemsPerKind. Their
+	// counts, and so TotalBlindspots, are lower bounds: "50" there means
+	// "at least 50", and reporting it as the number found misled a reader of
+	// a real 26,000-file repository into a total of 235.
+	Capped       []BlindspotKind         `json:"capped_kinds,omitempty"`
+	Blindspots   []Blindspot             `json:"blindspots"`
+	Completeness capability.Completeness `json:"completeness"`
 }
 
 // unparsedBlindspots turns the files a run could not fully read into findings,
@@ -313,6 +318,12 @@ func (d *Detector) Detect(ctx context.Context, runID int64, opts Options) (*Repo
 	}
 
 	rep.TotalBlindspots = len(rep.Blindspots)
+	for kind, n := range rep.ByKind {
+		if n >= opts.MaxItemsPerKind {
+			rep.Capped = append(rep.Capped, kind)
+		}
+	}
+	sort.Slice(rep.Capped, func(i, j int) bool { return rep.Capped[i] < rep.Capped[j] })
 	return rep, nil
 }
 

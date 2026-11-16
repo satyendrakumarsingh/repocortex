@@ -188,6 +188,19 @@ func TestDetectorFindsBlindspotsPositive(t *testing.T) {
 	if rep.TotalBlindspots == 0 {
 		t.Fatal("expected blindspots to be detected, got 0")
 	}
+	if len(rep.Capped) != 0 {
+		t.Errorf("Capped = %v with the default limit and one finding per kind; want none", rep.Capped)
+	}
+
+	// At a limit of one, every kind that found something stopped there, and
+	// its count is a lower bound the report has to say is one.
+	tight, err := det.Detect(ctx, run.ID, Options{MaxItemsPerKind: 1})
+	if err != nil {
+		t.Fatalf("detect with limit 1: %v", err)
+	}
+	if len(tight.Capped) != len(tight.ByKind) || len(tight.Capped) == 0 {
+		t.Errorf("Capped = %v, ByKind = %v; want every kind with a finding marked capped", tight.Capped, tight.ByKind)
+	}
 
 	var foundUnparsed, foundConfig, foundUnresolved bool
 	for _, b := range rep.Blindspots {

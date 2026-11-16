@@ -116,7 +116,17 @@ This is pure inspection: it changes nothing and installs nothing.`,
 						status += ", degraded"
 					}
 				}
-				fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", s.Project.Language, s.Indexer, status, s.Project.Dir)
+				name := string(s.Indexer)
+				if s.Project.Language == indexer.LangGo {
+					// resolve never runs scip-go: the type checker built into
+					// this binary proves Go (see pipeline.RunCompilerIndexers),
+					// so naming scip-go here described a tool that does not run.
+					name, status = "go/types", "built in"
+					if plan.Accuracy == config.AccuracyFast {
+						status = "skipped (accuracy fast)"
+					}
+				}
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", s.Project.Language, name, status, s.Project.Dir)
 			}
 			if err := w.Flush(); err != nil {
 				return err

@@ -11143,17 +11143,23 @@ async function drawMissed() {
   const total = Number(d.total_blindspots || 0);
   const byKind = d.by_kind || {};
   const list = d.blindspots || [];
+  // A category whose search stopped at the per-kind limit reports a lower
+  // bound: "50" there means "at least 50", and is shown as 50+.
+  const capped = new Set(d.capped_kinds || []);
+  const count = (k) => num(byKind[k] || 0) + (capped.has(k) ? '+' : '');
 
   setAnswer(host, answer([
-    B(num(total) + ' ' + plural('blindspot', total)),
+    B((capped.size ? 'At least ' : '') + num(total) + ' ' + plural('blindspot', total)),
     ' identified across unresolved calls, untested symbols, unmapped endpoints, and orphan tables.'
-  ], { support: 'A blindspot is code that static analysis sees but cannot prove or that has no covering test.' }));
+  ], { support: capped.size
+    ? capped.size + ' ' + plural('category', capped.size) + ' stopped at the listing limit, so ' + (capped.size === 1 ? 'its count is' : 'their counts are') + ' a lower bound (shown with +).'
+    : 'A blindspot is code that static analysis sees but cannot prove or that has no covering test.' }));
 
   const kpis = el('div', { class: 'kpis' },
-    kpi('Unresolved Calls', num(byKind['unresolved_call'] || 0), 'calls that could not be statically bound', (byKind['unresolved_call'] > 0 ? 'warn' : 'ok')),
-    kpi('Untested Critical', num(byKind['untested_critical'] || 0), 'exported symbols without covering tests', (byKind['untested_critical'] > 0 ? 'bad' : 'ok')),
-    kpi('Unmapped Endpoints', num(byKind['unmapped_endpoint'] || 0), 'HTTP endpoints without handler binding', (byKind['unmapped_endpoint'] > 0 ? 'warn' : 'ok')),
-    kpi('Orphan Tables', num(byKind['orphan_table'] || 0), 'database tables with no detected read/write', (byKind['orphan_table'] > 0 ? 'warn' : 'ok'))
+    kpi('Unresolved Calls', count('unresolved_call'), 'calls that could not be statically bound', (byKind['unresolved_call'] > 0 ? 'warn' : 'ok')),
+    kpi('Untested Critical', count('untested_critical'), 'exported symbols without covering tests', (byKind['untested_critical'] > 0 ? 'bad' : 'ok')),
+    kpi('Unmapped Endpoints', count('unmapped_endpoint'), 'HTTP endpoints without handler binding', (byKind['unmapped_endpoint'] > 0 ? 'warn' : 'ok')),
+    kpi('Orphan Tables', count('orphan_table'), 'database tables with no detected read/write', (byKind['orphan_table'] > 0 ? 'warn' : 'ok'))
   );
   body.appendChild(kpis);
 

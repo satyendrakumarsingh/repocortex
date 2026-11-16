@@ -106,10 +106,17 @@ func newHooksInstallCmd(g *Global) *cobra.Command {
 			default:
 				fmt.Fprintf(out, "Installed managed hooks (post-commit, post-merge, post-checkout)\n  %s\n", filepath.Dir(st.Path))
 			}
-			if st.AuxiliaryPath != "" {
-				fmt.Fprintf(out, "  Notice: Non-shell hook detected; created auxiliary script: %s\n", st.AuxiliaryPath)
-			}
 			fmt.Fprintf(out, "  Runs: %s auto-index (serialized background pass, logs to .repocortex/logs/auto-index.log)\n", binary)
+			// A hook that is not a shell script is left untouched; its block
+			// went to an auxiliary script that git will not run by itself.
+			rep := AllHooksStatus(root)
+			for _, h := range []HookState{rep.PostCommit, rep.PostMerge, rep.PostCheckout} {
+				if h.NeedsWiring {
+					fmt.Fprintf(out, "\n  ACTION NEEDED: %s is not a shell script, so RepoCortex did not edit it.\n"+
+						"  Its block is in %s, which git will not run on its own.\n  %s\n",
+						filepath.Base(h.Path), h.AuxiliaryPath, wiringHint(h))
+				}
+			}
 			return nil
 		},
 	}
@@ -158,11 +165,13 @@ func newHooksStatusCmd(g *Global) *cobra.Command {
 }
 
 func formatHookState(st HookState) string {
-	if st.Installed {
-		if st.AuxiliaryPath != "" {
-			return fmt.Sprintf("installed auxiliary (%s)", st.AuxiliaryPath)
-		}
+	switch {
+	case st.Installed && st.AuxiliaryPath != "":
+		return fmt.Sprintf("installed, via %s called from your hook", filepath.Base(st.AuxiliaryPath))
+	case st.Installed:
 		return fmt.Sprintf("installed (%s)", st.Path)
+	case st.NeedsWiring:
+		return fmt.Sprintf("not active: %s was written, but your hook does not call it and git never runs it on its own", st.AuxiliaryPath)
 	}
 	return "not installed"
 }
@@ -170,11 +179,16 @@ func formatHookState(st HookState) string {
 // HookState reports what an install actually did. Callers print it; the portal
 // renders it.
 type HookState struct {
-	Path           string `json:"path"`
-	AuxiliaryPath  string `json:"auxiliary_path,omitempty"`
-	Installed      bool   `json:"installed"`
-	Appended       bool   `json:"appended,omitempty"`
-	AlreadyCurrent bool   `json:"already_current,omitempty"`
+	Path          string `json:"path"`
+	AuxiliaryPath string `json:"auxiliary_path,omitempty"`
+	// NeedsWiring is true when RepoCortex wrote an auxiliary script beside a
+	// hook it would not edit (not a shell script) and that hook does not call
+	// it yet. Git never runs the auxiliary script by itself, so such a hook is
+	// not Installed.
+	NeedsWiring    bool `json:"needs_wiring,omitempty"`
+	Installed      bool `json:"installed"`
+	Appended       bool `json:"appended,omitempty"`
+	AlreadyCurrent bool `json:"already_current,omitempty"`
 }
 
 // HooksReport reports status across all managed hooks.
@@ -312,7 +326,8 @@ func installSingleHook(path, name, block string) (HookState, error) {
 		if err := os.WriteFile(auxPath, []byte(auxContent), 0o755); err != nil {
 			return HookState{}, fmt.Errorf("hooks: write auxiliary %s: %w", auxPath, err)
 		}
-		return HookState{Path: path, AuxiliaryPath: auxPath, Installed: true}, nil
+		wired := strings.Contains(text, filepath.Base(auxPath))
+		return HookState{Path: path, AuxiliaryPath: auxPath, Installed: wired, NeedsWiring: !wired}, nil
 	}
 
 	if stripped, had := stripBlock(text); had {
@@ -446,23 +461,39 @@ func checkHook(root, name string) HookState {
 		return HookState{}
 	}
 	path := filepath.Join(dir, name)
-	data, err := os.ReadFile(path)
+	auxPath := path + "-repocortex"
+	hasAux := false
+	if auxData, errAux := os.ReadFile(auxPath); errAux == nil && strings.Contains(string(auxData), "# >>> repocortex") { //nolint:gosec // G304: a hook path this package derives
+		hasAux = true
+	}
+	data, err := os.ReadFile(path) //nolint:gosec // G304: a hook path this package derives
 	if err != nil {
-		auxPath := path + "-repocortex"
-		if auxData, errAux := os.ReadFile(auxPath); errAux == nil && strings.Contains(string(auxData), "# >>> repocortex") {
-			return HookState{Path: path, AuxiliaryPath: auxPath, Installed: true}
+		if hasAux {
+			// The user's hook is gone, so nothing calls the auxiliary script.
+			return HookState{Path: path, AuxiliaryPath: auxPath, NeedsWiring: true}
 		}
 		return HookState{Path: path}
 	}
 	str := string(data)
-	installed := strings.Contains(str, "# >>> repocortex")
-	auxPath := path + "-repocortex"
-	if !installed {
-		if auxData, errAux := os.ReadFile(auxPath); errAux == nil && strings.Contains(string(auxData), "# >>> repocortex") {
-			return HookState{Path: path, AuxiliaryPath: auxPath, Installed: true}
-		}
+	if strings.Contains(str, "# >>> repocortex") {
+		return HookState{Path: path, Installed: true}
 	}
-	return HookState{Path: path, Installed: installed}
+	if hasAux {
+		// Git runs only the hook named after the event. The auxiliary script
+		// counts once the user's hook calls it, and not before.
+		wired := strings.Contains(str, filepath.Base(auxPath))
+		return HookState{Path: path, AuxiliaryPath: auxPath, Installed: wired, NeedsWiring: !wired}
+	}
+	return HookState{Path: path}
+}
+
+// wiringHint is the line a user adds to a hook RepoCortex would not edit, so
+// that the hook calls the auxiliary script.
+func wiringHint(st HookState) string {
+	return fmt.Sprintf("Add a call to it at the end of %s, passing the hook's arguments through, e.g.\n"+
+		"      shell:  %s \"$@\"\n"+
+		"      python: subprocess.run([os.path.join(os.path.dirname(__file__), %q)] + sys.argv[1:])",
+		st.Path, shellQuote(st.AuxiliaryPath), filepath.Base(st.AuxiliaryPath))
 }
 
 // resolveOwnBinary names the executable to call from the hook.
