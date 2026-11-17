@@ -26,6 +26,7 @@ func newServeCmd(g *Global) *cobra.Command {
 		auditLog     string
 		tokensFile   string
 		watchTree    bool
+		checkEdits   bool
 	)
 
 	cmd := &cobra.Command{
@@ -71,10 +72,18 @@ that build the index and the directory to run them in, then answers from the
 index once it exists, without a restart. It never starts indexing itself. Run
 from a terminal, or with --http, it exits with that message instead.
 
-With --watch the server also keeps the index current while it runs, as
-'repocortex watch' does, so an agent that edits a file sees the change in its
-next answer instead of after the next commit. Nothing is printed: stdout is
-the MCP transport.
+Before every answer the server checks the working tree and re-indexes the
+files changed since the last check, so an agent that edits a file sees the
+change in its next answer instead of after the next commit, and the answer
+names the files it re-indexed. A check costs about half a second on a
+25,000-file repository and runs at most every few seconds, less often the
+longer it takes. The index is written through its own handle and under the
+same lock git hooks and --watch use; the agent's connection stays read-only.
+--check-edits=false turns it off, and answers then say working-tree edits
+are not reflected.
+
+With --watch the server also keeps the index current between questions, as
+'repocortex watch' does. Nothing is printed: stdout is the MCP transport.
 
 The exposed tool set is governed by mcp.profile in .repocortex.yml
 (minimal | standard | full). The default is deliberately small: every tool's
@@ -95,7 +104,7 @@ someone other than you.`,
 			}
 
 			dbPath := g.DBPath()
-			serverOpts := agentServerOptions{AuditPath: auditLog}
+			serverOpts := agentServerOptions{AuditPath: auditLog, CheckEdits: checkEdits}
 			open := openAgentServer
 			// A client that launched this over a pipe cannot show the user an
 			// exit message, so on a project with no index it gets a running
@@ -235,6 +244,8 @@ someone other than you.`,
 	}
 	cmd.Flags().BoolVar(&listTools, "list-tools", false, "print the exposed tools and exit")
 	cmd.Flags().BoolVar(&watchTree, "watch", false, "keep the index current while serving, as 'repocortex watch' does")
+	cmd.Flags().BoolVar(&checkEdits, "check-edits", true,
+		"before every answer, re-index files changed in the working tree since the last check (at most every few seconds)")
 	cmd.Flags().StringVar(&httpAddr, "http", "", "serve MCP over Streamable HTTP on host:port instead of stdio (e.g. 127.0.0.1:7788)")
 	cmd.Flags().BoolVar(&allowRemote, "allow-remote", false, "with --http, allow listening on a non-loopback address")
 	cmd.Flags().StringSliceVar(&allowedHosts, "allowed-host", nil, "with --http, also accept this Host/Origin hostname (repeatable), e.g. a tunnel's hostname")

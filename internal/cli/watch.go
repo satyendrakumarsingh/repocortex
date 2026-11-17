@@ -6,11 +6,14 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/satyendrakumarsingh/repocortex/internal/acquire/fs"
+	"github.com/satyendrakumarsingh/repocortex/internal/pipeline"
 	"github.com/satyendrakumarsingh/repocortex/internal/registry"
 	"github.com/satyendrakumarsingh/repocortex/internal/watch"
+	"github.com/satyendrakumarsingh/repocortex/pkg/model"
 
 	"github.com/spf13/cobra"
 )
@@ -126,7 +129,8 @@ func watchLoop(ctx context.Context, g *Global, debounce time.Duration, out, errO
 	// an editor save between sessions) and while it was starting. Starting
 	// from a stale index would leave those edits invisible until the affected
 	// file happened to be touched again.
-	if stats, err := refreshIndex(ctx, reg, current, walker, cfg.RepoRoot, false); err != nil {
+	lockPath := filepath.Join(filepath.Dir(dbPath), "reindex.lock")
+	if stats, err := lockedRefresh(ctx, lockPath, reg, current, walker, cfg.RepoRoot); err != nil {
 		if ctx.Err() != nil {
 			if !g.JSON {
 				_, _ = fmt.Fprintln(out, "\nStopped before watching began.")
@@ -196,7 +200,14 @@ func watchLoop(ctx context.Context, g *Global, debounce time.Duration, out, errO
 			// was touched, not that its content differs — editors rewrite
 			// files unchanged, and formatters run on save. Hashing keeps the
 			// no-op case cheap and, more importantly, correct.
-			stats, err := refreshIndex(ctx, reg, current, walker, cfg.RepoRoot, false)
+			stats, err := lockedRefresh(ctx, lockPath, reg, current, walker, cfg.RepoRoot)
+			if errors.Is(err, fs.ErrLocked) {
+				// A hook's pass held the index for longer than the wait. The
+				// next batch, or the server's own check, picks these edits up:
+				// both compare the whole tree, not this batch.
+				log.Warn("another index update held the lock; these edits will be picked up next", "events", len(batch))
+				continue
+			}
 			if err != nil {
 				if ctx.Err() != nil {
 					printStopped()
@@ -221,4 +232,20 @@ func watchLoop(ctx context.Context, g *Global, debounce time.Duration, out, errO
 				"took", time.Since(start).Round(time.Millisecond))
 		}
 	}
+}
+
+// watchLockWait is how long a watcher pass waits for another writer (a git
+// hook's background pass, a server's edit check) to finish with the index.
+const watchLockWait = 2 * time.Minute
+
+// lockedRefresh is refreshIndex under the index's write lock, the one git
+// hooks and the server's edit check take, so the three never write at once.
+func lockedRefresh(ctx context.Context, lockPath string, reg *registry.Registry, current *model.IndexRun,
+	walker *fs.Walker, root string) (pipeline.IncrementalStats, error) {
+	lock, err := lockWithin(ctx, lockPath, watchLockWait)
+	if err != nil {
+		return pipeline.IncrementalStats{}, err
+	}
+	defer func() { _ = lock.Unlock() }()
+	return refreshIndex(ctx, reg, current, walker, root, false)
 }

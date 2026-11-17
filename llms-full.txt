@@ -6014,6 +6014,29 @@ log; that is why the stdio case differs.
 | `--allowed-host name` | with `--http`, also accept this `Host`/`Origin` hostname, such as a tunnel's (repeatable) |
 | `--tokens-file FILE` | with `--http`, accept the named, scoped tokens in this file instead of one token; see [`serve create-token`](#serve-create-token) |
 | `--audit-log FILE` | append one JSON line per tool call (default: `$REPOCORTEX_AUDIT_LOG`); records the call, never the answer |
+| `--check-edits` | on by default: before every answer, re-index the files changed in the working tree since the last check; `--check-edits=false` turns it off |
+| `--watch` | also keep the index current between questions, as `repocortex watch` does |
+
+**Edits are in the next answer.** An agent works by asking, editing and asking
+again. Before every answer the server compares the working tree with the index
+and re-indexes the files changed since the last check, so the next answer
+describes the code as it is now. The answer says so: its provenance carries
+`edits_checked_at` and `refreshed_files`, and its text has a line such as
+`refreshed before answering: internal/a.go`.
+
+- A check costs about 0.2 s on a 2,000-file repository and 0.5 s on a
+  25,000-file one. It runs at most every 2 seconds, and less often the longer
+  it takes (ten times its own duration, up to 30 seconds), so it uses at most
+  about a tenth of the server's time.
+- Nothing is written when nothing changed.
+- The index is written through its own handle and under `.repocortex/reindex.lock`,
+  the lock git hooks and `--watch` take. When another update holds it for more
+  than 2 seconds, the answer is given from the index as it stands and says so
+  (`index_busy`).
+- It never upgrades the schema. An index older than the build is reported once
+  and left for `repocortex migrate`.
+- A file saved after the check, or an editor buffer that is not saved, is not
+  in the answer.
 
 ```bash
 claude mcp add repocortex -- repocortex --project /path/to/repo serve

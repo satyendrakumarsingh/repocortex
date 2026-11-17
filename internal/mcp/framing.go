@@ -874,6 +874,21 @@ func (r *Response) metadataExtras() string {
 	if r.Provenance != nil && r.Provenance.Caveat != "" {
 		b.WriteString("provenance: " + r.Provenance.Caveat + "\n")
 	}
+	if p := r.Provenance; p != nil {
+		if len(p.RefreshedFiles) > 0 {
+			line := "refreshed before answering: " + strings.Join(p.RefreshedFiles, ", ")
+			if p.RefreshedMore > 0 {
+				line += fmt.Sprintf(" and %d more", p.RefreshedMore)
+			}
+			b.WriteString(line + "\n")
+		}
+		// A failed background update is the one way the index falls behind
+		// while the commit comparison above still matches.
+		if a := p.LastAutoIndex; a != nil && !a.OK {
+			b.WriteString("auto-index: the last background update, at " + a.At + ", FAILED (" + a.Error +
+				"); the index may be behind the code until 'repocortex index' runs\n")
+		}
+	}
 
 	// The label alone ("estimated") says nothing without naming what it
 	// qualifies, so the line states the standing rather than the word.

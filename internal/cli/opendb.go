@@ -78,3 +78,23 @@ func openPlaceholder(ctx stdctx.Context, path string) (*store.DB, error) {
 // parameter without importing database/sql themselves: this file is the one
 // door to the store in this package.
 func stdSQLNamed(name string, value any) any { return sql.Named(name, value) }
+
+// openWritableCurrent opens the index for writing WITHOUT migrating it, and
+// refuses one whose schema is not this build's.
+//
+// For a long-running process that writes on the user's behalf in the
+// background (serve's edit check): upgrading the schema there would change
+// the user's index in the middle of an agent's request, unannounced. The
+// mismatch is returned for the caller to report, and 'repocortex migrate'
+// stays the one place an upgrade happens.
+func openWritableCurrent(ctx stdctx.Context, path string) (*store.DB, error) {
+	db, err := store.Open(ctx, store.Options{Path: path})
+	if err != nil {
+		return nil, err
+	}
+	if err := store.CheckVersion(ctx, db.DB); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+	return db, nil
+}

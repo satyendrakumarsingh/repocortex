@@ -28,6 +28,11 @@ type agentServerOptions struct {
 	// AuditPath is where tool calls are recorded. Empty falls back to
 	// REPOCORTEX_AUDIT_LOG; empty there too means no log.
 	AuditPath string
+	// CheckEdits re-indexes files changed in the working tree before every
+	// tool call (editRefresher). `serve` sets it; the portal and
+	// `repocortex tool` do not, the portal because it promises never to
+	// cause a write.
+	CheckEdits bool
 }
 
 // openAgentServer opens the committed index read-only and builds the tool
@@ -73,6 +78,11 @@ func openAgentServer(ctx context.Context, g *Global, opts agentServerOptions) (*
 		Config:    cfg,
 		Judgeable: bindsReferences,
 		MetaDir:   filepath.Dir(dbPath),
+	}
+	if opts.CheckEdits {
+		r := newEditRefresher(g, dbPath)
+		deps.Refresher = r
+		closers = append(closers, r.Close)
 	}
 	if h := openHistory(g); h.repo != nil {
 		deps.History = hotspotHistory{h}

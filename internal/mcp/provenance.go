@@ -46,6 +46,22 @@ type Provenance struct {
 	// did not land.
 	LastAutoIndex *autorun.Run `json:"last_auto_index,omitempty"`
 
+	// EditsCheckedAt is when the working tree was last compared with the
+	// index, RFC3339, when the server checks edits before answering (serve's
+	// default). Absent when it does not, and then Caveat says edits are
+	// invisible.
+	EditsCheckedAt string `json:"edits_checked_at,omitempty"`
+
+	// RefreshedFiles are files re-indexed just before this answer because
+	// they changed since the previous check; RefreshedMore counts any beyond
+	// the ones named.
+	RefreshedFiles []string `json:"refreshed_files,omitempty"`
+	RefreshedMore  int      `json:"refreshed_more,omitempty"`
+
+	// IndexBusy is true when another process was updating the index, so the
+	// check was skipped and the latest edits may be missing.
+	IndexBusy bool `json:"index_busy,omitempty"`
+
 	// Caveat is always set. It states what the comparison above does not cover.
 	Caveat string `json:"caveat"`
 }

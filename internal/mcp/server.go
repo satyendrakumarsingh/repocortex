@@ -72,6 +72,11 @@ type Deps struct {
 	// the last automatic re-index is read from it into every answer's
 	// provenance; empty leaves that field out.
 	MetaDir string
+
+	// Refresher, when set, brings the index up to date with the working tree
+	// before every tool call (see refresh.go). `serve` sets it; the portal,
+	// which promises never to cause a write, does not.
+	Refresher Refresher
 }
 
 // Server wraps the SDK server with RepoCortex's tool set.
@@ -400,6 +405,16 @@ func addTool[In, Out any](s *Server, allowed map[string]bool, t *sdk.Tool, h sdk
 	if t.OutputSchema == nil {
 		t.OutputSchema = compactOutputSchema()
 	}
+	// Every tool answers from an index that has caught up with the agent's
+	// edits, when the server is set up to check them. Done here so no tool
+	// can forget it; what the check found travels in the context to reply(),
+	// which writes it into the provenance block.
+	if s.deps.Refresher != nil {
+		inner := h
+		h = func(ctx context.Context, req *sdk.CallToolRequest, in In) (*sdk.CallToolResult, Out, error) {
+			return inner(withRefresh(ctx, s.deps.Refresher.Refresh(ctx)), req, in)
+		}
+	}
 	sdk.AddTool(s.sdk, t, h)
 	s.tools = append(s.tools, t.Name)
 }
@@ -656,6 +671,9 @@ func (s *Server) provenanceFor(ctx context.Context, runID int64) *Provenance {
 	p.ExactShare = exactShare
 	if s.deps.MetaDir != "" {
 		p.LastAutoIndex = autorun.Read(s.deps.MetaDir)
+	}
+	if o, ok := refreshFrom(ctx); ok {
+		applyRefresh(p, o)
 	}
 	return p
 }
