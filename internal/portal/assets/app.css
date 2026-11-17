@@ -136,6 +136,18 @@ main:focus { outline: none; }
 
 /* ---------------------------------------------------------------- tables */
 .table-wrap { overflow-x: auto; margin-top: 14px; }
+/* A table wider than its frame scrolls, and macOS hides the scrollbar until
+   then, so the cut-off columns looked like the end of the table. A shadow
+   now sits on each edge that has more beyond it: the two "local" layers move
+   with the content and cover the shadows at the ends it has reached, the two
+   "scroll" layers stay on the frame's edges. A table that fits shows none. */
+.table-wrap {
+  background:
+    linear-gradient(to right, var(--ground) 40%, transparent) left center / 48px 100% no-repeat local,
+    linear-gradient(to left, var(--ground) 40%, transparent) right center / 48px 100% no-repeat local,
+    radial-gradient(farthest-side at 0 50%, color-mix(in srgb, var(--ink) 28%, transparent), transparent) left center / 16px 100% no-repeat scroll,
+    radial-gradient(farthest-side at 100% 50%, color-mix(in srgb, var(--ink) 28%, transparent), transparent) right center / 16px 100% no-repeat scroll;
+}
 table { border-collapse: collapse; width: 100%; font-size: 14px; }
 th { text-align: left; font-size: 12.5px; font-weight: 650; color: var(--ink-2); padding: 8px 14px 8px 0; border-bottom: 1px solid var(--line-strong); white-space: nowrap; }
 td { padding: 10px 14px 10px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
@@ -143,15 +155,20 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .name { font-family: var(--mono); font-size: 13.5px; overflow-wrap: anywhere; }
 .where { font: 12.5px var(--mono); color: var(--ink-3); overflow-wrap: anywhere; }
 /* In a table a name or a place is not broken mid-word: a column three letters
-   wide is unreadable. The column takes the room its longest word needs, and
-   the table scrolls inside its own frame when that is more than the page has. */
+   wide is unreadable. A place breaks only after a '/', a name only after a
+   '.', '#' or '::' (breakablePath, breakableName in app.js), so a column takes
+   the room of its longest part and the table fits its frame; it scrolls inside
+   the frame only when even that is more than the page has. */
 td .name, td .where { overflow-wrap: normal; }
-td .name { white-space: nowrap; }
 /* A place is a link to its file's page. It stays as quiet as the text it
    replaced; the underline, not the colour, says it can be followed. */
 a.where { text-decoration-color: var(--line-strong); }
 a.where:hover { color: var(--accent); text-decoration-color: currentColor; }
 .why { font-size: 13px; color: var(--ink-2); max-width: 56ch; }
+/* The explanation column is prose that can quote a whole path, one long word
+   that would set the column's width and push it past the frame. Prose may
+   break inside such a word; a name or a place in its own column may not. */
+td .why { display: block; overflow-wrap: anywhere; }
 .kindtag { font-size: 12.5px; color: var(--ink-2); white-space: nowrap; }
 
 /* ---------------------------------------------------------------- symbol page */
@@ -164,6 +181,12 @@ a.tag:hover { background: var(--accent-soft); border-color: var(--accent); }
 .tags { display: contents; }
 .verdict { margin-top: 16px; font: 700 22px/1.3 var(--display); max-width: 48ch; text-wrap: balance; }
 .verdict b { color: var(--accent); font-weight: 700; }
+.verdict-note { margin-top: 8px; max-width: 72ch; font-size: 14px; color: var(--ink-2); }
+.verdict-note:empty { display: none; }
+.verdict-note p { margin: 0; }
+.verdict-note details { margin-top: 4px; }
+.verdict-note summary { cursor: pointer; color: var(--accent); width: max-content; }
+.verdict-note details p { margin-top: 6px; overflow-wrap: anywhere; }
 /* A name inside the sentence is read at the sentence's size, in the code face. */
 .verdict .name { font-size: .86em; font-weight: 600; }
 .tabs { display: flex; gap: 2px; margin-top: 26px; border-bottom: 1px solid var(--line-strong); overflow-x: auto; }
@@ -214,6 +237,13 @@ a.tag:hover { background: var(--accent-soft); border-color: var(--accent); }
 .bar { display: inline-block; height: 8px; border-radius: 2px; background: var(--accent); vertical-align: middle; margin-right: 8px; }
 .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--sheet); padding: 8px 16px; border-radius: 6px; font-size: 14px; opacity: 0; pointer-events: none; }
 .toast.on { opacity: 1; }
+
+/* Between a phone and a wide screen the side notes would leave the answer a
+   sliver: at 1024px wide, 350px for a table that needs 950. They move under
+   the answer instead, and the answer gets the page's full width. */
+@media (max-width: 1280px) {
+  .with-aside { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+}
 
 @media (max-width: 900px) {
   /* Search is what a reader came for, so on a phone it has a row to itself. */

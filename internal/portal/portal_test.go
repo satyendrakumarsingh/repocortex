@@ -465,3 +465,87 @@ func TestRefusesAWriteToAPage(t *testing.T) {
 		t.Errorf("Allow = %q, want the methods a page accepts", got)
 	}
 }
+
+// ---------------------------------------------------------------- symbol verdict and tables
+
+// The symbol page reads the counts and the risk out of analyze_impact's
+// summary. When the pattern missed, the page printed the tool's whole first
+// line as its heading: on a real repository, eighty words where one sentence
+// belongs, because an incomplete answer puts a clause between the counts and
+// the risk. The pattern is taken from the page itself and run against every
+// shape the tool writes.
+func TestTheReachSentenceReadsEveryShapeTheToolWrites(t *testing.T) {
+	js := asset(t, "app.js")
+	m := regexp.MustCompile(`const REACH_SENTENCE = /(.+)/;`).FindStringSubmatch(js)
+	if m == nil {
+		t.Fatal("app.js no longer defines REACH_SENTENCE")
+	}
+	re, err := regexp.Compile(m[1])
+	if err != nil {
+		t.Fatalf("REACH_SENTENCE must stay in the syntax Go shares, so this test can run it: %v", err)
+	}
+	cases := []struct {
+		summary                string
+		direct, indirect, risk string
+		orHigher               bool
+	}{
+		{"updateStatus (a/T.java:18): 2 direct, 2 indirect. Risk low (score 0).", "2", "2", "low", false},
+		{"INCOMPLETE — f: its name appears in at least 1 other place(s) that are not recorded as calls. " +
+			"f (a.py:140): 45 direct, 535 indirect; at least 6 more symbol(s) at low confidence are excluded; " +
+			"pass min_confidence=low. Risk moderate or higher (score 45; the analysis was cut at depth 3).",
+			"45", "535", "moderate", true},
+		{"Run (x.go:9): 3 direct, 1 indirect, 2 reached by interface dispatch. Risk high (score 70).", "3", "1", "high", false},
+		{"g (y.ts:4): 0 direct, 0 indirect. Risk unknown.", "0", "0", "unknown", false},
+	}
+	for _, c := range cases {
+		got := re.FindStringSubmatch(c.summary)
+		if got == nil {
+			t.Errorf("no match for %q", c.summary)
+			continue
+		}
+		if got[1] != c.direct || got[2] != c.indirect || got[3] != c.risk || (got[4] != "") != c.orHigher {
+			t.Errorf("%q read as %q direct, %q indirect, risk %q, or-higher %q", c.summary, got[1], got[2], got[3], got[4])
+		}
+	}
+}
+
+// Whatever the index can vouch for, the heading is a sentence the page builds;
+// the tool's own explanation goes in the fold under it.
+func TestTheSymbolHeadingIsNeverTheToolsFirstLine(t *testing.T) {
+	js := asset(t, "app.js")
+	start := strings.Index(js, "// The one-sentence answer")
+	end := strings.Index(js, "const tabs = h('div', { class: 'tabs'")
+	if start < 0 || end < start {
+		t.Fatal("cannot find the symbol verdict in app.js")
+	}
+	block := js[start:end]
+	for _, bad := range []string{"textContent = r.summary", "textContent = reach.value.summary", "textContent = a.summary"} {
+		if strings.Contains(block, bad) {
+			t.Errorf("the symbol heading is set from the tool's summary again (%s)", bad)
+		}
+	}
+	if !strings.Contains(block, "caveatFor(") {
+		t.Error("an answer the index cannot vouch for no longer says why under the heading")
+	}
+}
+
+// A table must fit the frame it is drawn in. A path that could not wrap, or a
+// qualified name kept on one line, pushed the last columns past the edge,
+// where a scrollbar macOS hides made them look cut off.
+func TestTablesBreakNamesAndPathsAtTheirSeparators(t *testing.T) {
+	js, css := asset(t, "app.js"), asset(t, "app.css")
+	for _, want := range []string{
+		"href: fileHref(path) }, breakablePath(",
+		"h('a', { class: 'name', href }, breakableName(name))",
+	} {
+		if !strings.Contains(js, want) {
+			t.Errorf("app.js: %q is missing", want)
+		}
+	}
+	if regexp.MustCompile(`td \.name\s*\{[^}]*white-space:\s*nowrap`).MatchString(css) {
+		t.Error("app.css keeps a name in a table on one line again")
+	}
+	if !regexp.MustCompile(`td \.why\s*\{[^}]*overflow-wrap:\s*anywhere`).MatchString(css) {
+		t.Error("app.css: the explanation column may no longer break a quoted path")
+	}
+}

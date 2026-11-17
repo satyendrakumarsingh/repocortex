@@ -163,7 +163,28 @@ function symbolLink(name, path, line) {
   return h('a', { class: 'name', href: symbolHref(name, path, { line: line ? String(line) : '' }), text: name });
 }
 function fileLink(path, line) {
-  return h('a', { class: 'where', href: fileHref(path), text: line ? `${path}:${line}` : path });
+  return h('a', { class: 'where', href: fileHref(path) }, breakablePath(line ? `${path}:${line}` : path));
+}
+
+/* A path may break after each '/' or '_' and nowhere else. A table column then
+   takes the room of its longest word rather than of the whole path, and the
+   last column stays on screen; a path is never split inside a word. */
+function breakablePath(text) {
+  return breakAfter(text, /(?<=[\/_])/);
+}
+
+/* A qualified name may break after each '.', '#', '::' or '_' and nowhere
+   else, so Class.method wraps between the two and a snake_case name between
+   its words, never inside a word. */
+function breakableName(text) {
+  return breakAfter(text, /(?<=\.|#|::|_)/);
+}
+
+function breakAfter(text, at) {
+  const out = [];
+  for (const part of String(text).split(at)) out.push(part, h('wbr'));
+  out.pop();
+  return out;
 }
 
 /* The page a row's name leads to, or nothing when the name is not one thing:
@@ -184,7 +205,7 @@ function nameCell(item, path) {
   const href = item.kind === 'candidate' && item.path
     ? symbolHref(name, item.path, { line: item.line ? String(item.line) : '' })
     : hrefFor(item, path);
-  return href ? h('a', { class: 'name', href, text: name }) : h('span', { class: 'name', text: name });
+  return href ? h('a', { class: 'name', href }, breakableName(name)) : h('span', { class: 'name' }, breakableName(name));
 }
 
 /* itemsTable draws rows of one answer. `relationship` and `why` are column
@@ -205,6 +226,24 @@ function itemsTable(items, { showWhy = true, relationship = 'Relationship', why 
       graded && h('td', null, i.confidence ? tierMark(i.confidence) : ''),
       h('td', null, lineOnly ? h('span', { class: 'where', text: i.line || '' }) : (i.path ? fileLink(i.path, i.line) : '')),
       showWhy && h('td', null, h('span', { class: 'why', text: i.why || '' })))))));
+}
+
+/* REACH_SENTENCE reads the counts and the risk out of analyze_impact's
+   summary. Written in the syntax JavaScript and Go share, so the Go tests can
+   run it against the summaries the tool really writes. */
+const REACH_SENTENCE = /(\d+) direct, (\d+) indirect\b[\s\S]*?\bRisk (\w+)( or higher)?(?: \(([^)]*)\))?/;
+
+/* caveatFor says in one plain line why a symbol's figures are not the whole
+   story, with the tool's own explanation folded beneath it. */
+const CAVEATS = {
+  incomplete: 'Not every use is recorded, so these are the least the numbers could be.',
+  unverified: 'Some of these uses may be bound to the wrong definition. Check them before relying on them.',
+  low: 'Most uses in this language could not be connected, so this is a small part of them.',
+  none: 'Nothing in this language could be connected, so the index cannot say what uses it.',
+};
+function caveatFor(level, why) {
+  const line = CAVEATS[level] || 'The index cannot stand behind these numbers.';
+  return [h('p', { text: line }), why && h('details', null, h('summary', { text: 'Why' }), h('p', { text: why }))];
 }
 
 /* Notes that say what an answer cannot see come first: they change how far
@@ -272,13 +311,27 @@ function nothing(title, ...lines) {
   return h('div', { class: 'state' }, h('h2', { text: title }), lines.filter(Boolean).map((l) => (l.nodeType ? l : h('p', { text: l }))));
 }
 
+/* What an answer found, without the caveat the tool puts in front of it.
+   For an agent the summary opens "INCOMPLETE — <why>. <what was found>", so
+   the warning cannot be missed. On a page the aside beside the rows states
+   the same warning in full, and printing it above the rows as well buried the
+   sentence that introduces them. The caveat is removed only when it is the
+   reliability lead verbatim, so nothing the aside does not say is dropped. */
+function foundLine(answer) {
+  const summary = answer.summary || '';
+  const lead = (answer.reliability || {}).lead || '';
+  const m = /^[A-Z]+ — /.exec(summary);
+  if (!m || !lead || !summary.startsWith(m[0] + lead)) return summary;
+  return summary.slice(m[0].length + lead.length).trim() || summary;
+}
+
 /* answerBlock draws one tool's answer: its sentence, its rows, its limits. */
 function answerBlock(answer, opts = {}) {
   const items = answer.items || [];
   // With rows, the summary introduces them. Without, the summary IS the
   // answer and is shown once, as the heading of the empty state.
   const main = items.length
-    ? h('div', null, h('p', { class: 'sub', text: answer.summary || '' }), itemsTable(items, opts))
+    ? h('div', null, h('p', { class: 'sub', text: foundLine(answer) }), itemsTable(items, opts))
     : h('div', null, emptyState(answer));
   return h('div', { class: 'with-aside' }, main, h('aside', null, limitsNote(answer), askNote(answer), opts.aside));
 }
@@ -441,6 +494,7 @@ function symbolView({ name, path, line, tab = 'callers', floor = '' }) {
   remember(name, symbolHref(name, path, { line }));
   const header = h('div', null, h('p', { class: 'crumb busy', text: 'Looking it up' }));
   const verdict = h('p', { class: 'verdict' });
+  const caveat = h('div', { class: 'verdict-note' });
   const panel = h('div', { role: 'tabpanel', id: 'tabpanel' });
   const cache = new Map();
 
@@ -456,7 +510,7 @@ function symbolView({ name, path, line, tab = 'callers', floor = '' }) {
       h('p', { class: 'crumb' }, def ? fileLink(def.path, def.line) : 'Not found in the index'),
       h('div', { class: 'entity' }, h('h1', { text: name }), def && def.kind && h('span', { class: 'tag', text: kindWord(def.kind) }),
         (a.items || []).length > 1 && h('span', { class: 'tag', text: `${a.items.length} definitions share this name` }), own, serves));
-    if (!def) verdict.textContent = a.summary || '';
+    if (!def) verdict.textContent = 'Not found in the index.';
     // A function that answers a route says so, and leads to the route's page.
     if (def) {
       ask('list_api_endpoints').then((eps) => {
@@ -482,24 +536,36 @@ function symbolView({ name, path, line, tab = 'callers', floor = '' }) {
   for (const t of SYMBOL_TABS) cache.set(t.id, preload(t));
 
   // The one-sentence answer: the judgement from analyze_impact, and how many
-  // tests reach the symbol.
+  // tests reach the symbol. It stays one sentence whatever the index can vouch
+  // for. When it cannot vouch for the numbers, the sentence says how (at
+  // least, or recorded), a line under it says why in plain words, and the
+  // tool's own explanation is one click away; the reach tab's "What this
+  // answer cannot see" lists every reason. Printing the tool's whole first
+  // line as the heading put eighty words where one sentence belongs.
   Promise.allSettled([cache.get('reach'), cache.get('tests')]).then(([reach, tests]) => {
     if (reach.status !== 'fulfilled') return;
-    const m = /(\d+) direct, (\d+) indirect\. Risk (\w+)( or higher)?/.exec(reach.value.summary || '');
-    if (!m) { if (!verdict.textContent) verdict.textContent = reach.value.summary || ''; return; }
-    const [, direct, indirect, risk, orHigher] = m;
-    // The tool's own first line when the index cannot stand behind the
-    // numbers: it says which, and a tidy sentence built from them would not.
-    const level = (reach.value.reliability || {}).level || 'good';
-    // "Risk low or higher (...)" says why the level is a floor; a tidy "Risk is
-    // low." would drop it.
-    if (risk === 'unknown' || orHigher || level !== 'good') { verdict.textContent = reach.value.summary || ''; return; }
-    const parts = ['Used directly in ', h('b', { text: `${direct} place${direct === '1' ? '' : 's'}` }),
-      '. A change can reach ', h('b', { text: `${Number(direct) + Number(indirect)} symbols` })];
+    const r = reach.value;
+    const rel = r.reliability || {};
+    const level = rel.level || 'good';
+    // "45 direct, 535 indirect; at least 6 more ... Risk moderate or higher (...)":
+    // the counts and the risk can have a clause between them.
+    const m = REACH_SENTENCE.exec(r.summary || '');
+    if (!m || level === 'none') {
+      if (!verdict.textContent) verdict.textContent = 'The index cannot say what a change to it would reach.';
+      caveat.replaceChildren(...caveatFor(level, rel.lead || r.summary || ''));
+      return;
+    }
+    const [, direct, indirect, risk, orHigher, riskWhy] = m;
+    const floor = level === 'incomplete' || level === 'low';
+    const atLeast = floor ? 'at least ' : '';
+    const parts = ['Used directly in ', h('b', { text: `${atLeast}${direct} place${direct === '1' ? '' : 's'}` }),
+      '. A change can reach ', h('b', { text: `${atLeast}${Number(direct) + Number(indirect)} symbols` })];
     const n = tests.status === 'fulfilled' ? ((tests.value.page || {}).total ?? (tests.value.items || []).length) : 0;
     if (n) parts.push(', and ', h('b', { text: `${n}${tests.value.truncated ? '+' : ''} test${n === 1 ? '' : 's'}` }), ' reach it');
-    parts.push(`. Risk is ${risk}.`);
+    parts.push(risk === 'unknown' ? '. Its risk could not be judged.' : `. Risk is ${risk}${orHigher ? ' or higher' : ''}.`);
     verdict.replaceChildren(...parts);
+    if (level !== 'good') caveat.replaceChildren(...caveatFor(level, rel.lead || ''));
+    else if (orHigher && riskWhy) caveat.replaceChildren(h('p', { text: `The risk is a floor: ${riskWhy}.` }));
   });
 
   const tabs = h('div', { class: 'tabs', role: 'tablist', 'aria-label': `Views of ${name}` },
@@ -561,7 +627,7 @@ function symbolView({ name, path, line, tab = 'callers', floor = '' }) {
     const want = sessionStorage.getItem('repocortex.focusTab');
     if (want) { sessionStorage.removeItem('repocortex.focusTab'); const b = $(`#tab-${want}`); if (b) b.focus(); }
   });
-  return [header, verdict, tabs, panel];
+  return [header, verdict, caveat, tabs, panel];
 }
 
 // ---------------------------------------------------------------- a file, a route, a table

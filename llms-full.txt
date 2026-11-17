@@ -3094,7 +3094,16 @@ appear. It is not a relationship.
 
 One page per function, method or type. It opens with a sentence that sums up
 the symbol: how many places use it directly, what a change can reach, and the
-risk. The tabs, with their counts:
+risk.
+
+When the index cannot vouch for those numbers, the sentence says so in its
+wording ("at least 45 places", "Risk is moderate or higher") and one line under
+it says why in plain words, for example "Not every use is recorded, so these
+are the least the numbers could be." **Why** unfolds the index's own
+explanation, and each tab's "What this answer cannot see" box lists every
+reason in full.
+
+The tabs, with their counts:
 
 - **Callers.** What calls it. Each row is a call site.
 - **Calls.** What it calls, inside this repository.
