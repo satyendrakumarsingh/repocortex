@@ -2,6 +2,7 @@ package parse
 
 import (
 	"context"
+	"strings"
 	"testing"
 )
 
@@ -332,5 +333,130 @@ func TestLocalReExportProducesNoImportEdge(t *testing.T) {
 	paths := importPathsFor(t, "typescript", "const x = 1\nexport { x }\n")
 	if len(paths) != 0 {
 		t.Errorf("export without a from clause must produce no import edge; got %v", paths)
+	}
+}
+
+// parseAs parses source as a named grammar, for the files whose extension does
+// not say it (an Objective-C .m is also a MATLAB one).
+func parseAs(t *testing.T, language, path, src string) *Result {
+	t.Helper()
+	res, err := NewRegistry().ForLanguage(language).Parse(context.Background(), path, []byte(src))
+	if err != nil {
+		t.Fatalf("parse %s: %v", path, err)
+	}
+	return res
+}
+
+func importAlias(res *Result, path string) (string, bool) {
+	for _, i := range res.Imports {
+		if i.Path == path {
+			return i.Alias, true
+		}
+	}
+	return "", false
+}
+
+// A Swift import names a module and no file. Every form reduces to the module,
+// and a framework is recorded like any other: it is the resolver, which knows
+// the repository's directories, that finds no module of that name.
+func TestSwiftImports(t *testing.T) {
+	res := parse(t, "Sources/App/Cart.swift", `import Foundation
+import UIKit
+@testable import Core
+import struct Billing.Money
+import Shop.Models
+
+final class Cart {}
+`)
+	for _, want := range []string{"Foundation", "UIKit", "Core", "Billing", "Shop"} {
+		if !hasImport(res, want) {
+			t.Errorf("missing import %q; got %v", want, importPaths(res))
+		}
+	}
+	if hasImport(res, "Billing.Money") || hasImport(res, "Shop.Models") {
+		t.Errorf("a declaration or a submodule was recorded as the module: %v", importPaths(res))
+	}
+}
+
+// A Dart URI names a file. The parser rewrites it to the file's repository
+// path without the extension, resolving a relative one against the importing
+// file and a package: one against lib/, and drops the SDK.
+func TestDartImports(t *testing.T) {
+	res := parse(t, "lib/src/cart.dart", `import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:shop/src/util.dart' as u;
+import '../pricing.dart' show discount, Tax;
+import 'models/item.dart';
+export 'api.dart';
+part 'cart.g.dart';
+
+class Cart {}
+`)
+	for _, want := range []string{"lib/material", "lib/src/util", "lib/pricing", "lib/src/models/item", "lib/src/api", "lib/src/cart.g"} {
+		if !hasImport(res, want) {
+			t.Errorf("missing import %q; got %v", want, importPaths(res))
+		}
+	}
+	for _, p := range importPaths(res) {
+		if p == "dart:io" || p == "io" || strings.HasSuffix(p, ".dart") {
+			t.Errorf("import %q was not rewritten", p)
+		}
+	}
+	if alias, ok := importAlias(res, "lib/src/util"); !ok || alias != "u" {
+		t.Errorf("`as u` alias = %q, want u", alias)
+	}
+}
+
+// A quoted include names a header of the repository; a framework header and an
+// `@import` module are not repository code and are not recorded. The path is
+// kept as written and also joined to the importing file's directory, because a
+// quoted include is looked for there first.
+func TestObjCImports(t *testing.T) {
+	res := parseAs(t, "objc", "Shop/Cart.m", `#import <Foundation/Foundation.h>
+#import "Models/Item.h"
+#include "util.h"
+@import UIKit;
+
+@implementation Cart
+@end
+`)
+	for _, want := range []string{"Models/Item", "Shop/Models/Item", "util", "Shop/util"} {
+		if !hasImport(res, want) {
+			t.Errorf("missing import %q; got %v", want, importPaths(res))
+		}
+	}
+	for _, p := range importPaths(res) {
+		if strings.Contains(p, "Foundation") || strings.Contains(p, "UIKit") || strings.HasSuffix(p, ".h") {
+			t.Errorf("unexpected import %q", p)
+		}
+	}
+}
+
+// `require` is a function call, so the path is the string argument, and the
+// alias is the local the module is bound to.
+func TestLuaImports(t *testing.T) {
+	res := parse(t, "src/app/cart.lua", `local json = require("cjson")
+local util = require "app.util"
+local Order = require('app.models.order')
+require("app.boot")
+Shared = require("app.shared")
+
+local function f()
+  return require(name)
+end
+`)
+	cases := map[string]string{
+		"cjson": "json", "app.util": "util", "app.models.order": "Order", "app.boot": "", "app.shared": "Shared",
+	}
+	for path, alias := range cases {
+		got, ok := importAlias(res, path)
+		if !ok {
+			t.Errorf("missing import %q; got %v", path, importPaths(res))
+		} else if got != alias {
+			t.Errorf("import %q has alias %q, want %q", path, got, alias)
+		}
+	}
+	if len(res.Imports) != len(cases) {
+		t.Errorf("imports = %v, want exactly %d (a computed require names no module)", importPaths(res), len(cases))
 	}
 }

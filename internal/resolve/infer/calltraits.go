@@ -371,6 +371,27 @@ var (
 		"Activator", "Environment", "GC", "Nullable", "Tuple", "Task", "Interlocked",
 		"string", "int", "long", "double", "decimal", "bool", "char", "object", "byte", "float",
 	}
+	swiftBuiltins = []string{
+		"String", "Int", "Double", "Float", "Bool", "Array", "Dictionary", "Set", "Character",
+		"Optional", "Result", "Date", "Data", "URL", "UUID", "Error", "Substring", "Range",
+		"JSONEncoder", "JSONDecoder", "NotificationCenter", "UserDefaults", "FileManager",
+		"DispatchQueue", "Bundle", "Task", "Thread", "Timer", "ProcessInfo",
+	}
+	dartBuiltins = []string{
+		"String", "int", "double", "num", "bool", "List", "Map", "Set", "Object", "Duration",
+		"DateTime", "Future", "Stream", "Iterable", "Exception", "Error", "StateError",
+		"ArgumentError", "Uri", "RegExp", "Runes", "Symbol", "Type", "Function", "Null",
+		"Completer", "Timer", "Random", "Stopwatch", "StringBuffer", "BigInt", "Directory", "File",
+	}
+	objcBuiltins = []string{
+		"NSObject", "NSString", "NSMutableString", "NSArray", "NSMutableArray", "NSDictionary",
+		"NSMutableDictionary", "NSSet", "NSMutableSet", "NSNumber", "NSDate", "NSData", "NSURL",
+		"NSError", "NSException", "NSFileManager", "NSUserDefaults", "NSBundle", "NSThread",
+		"NSNotificationCenter", "NSProcessInfo", "NSJSONSerialization", "NSTimer", "NSRunLoop",
+	}
+	luaBuiltins = []string{
+		"string", "table", "math", "os", "io", "coroutine", "debug", "utf8", "package", "_G", "_ENV",
+	}
 	goBuiltins = []string{
 		"string", "error", "int", "int8", "int16", "int32", "int64", "uint", "uint8", "uint16",
 		"uint32", "uint64", "uintptr", "byte", "rune", "float32", "float64", "bool", "any",
@@ -399,8 +420,10 @@ var callTraitsByLanguage = map[string]CallTraits{
 	"cpp":        {Measured: ruleTiers{NamedAfterType: model.ConfidenceHigh, Neighbour: model.ConfidenceLow}, CallConstructs: true, ImplicitSelf: true, Overloads: true, OpenTypes: true, ScopeNamesModule: true, ExternalRoots: []string{"std"}},
 	"c":          {OpenTypes: true},
 	"php":        {Measured: ruleTiers{NamedAfterType: model.ConfidenceHigh, UniqueTypeName: model.ConfidenceHigh}, NewConstructs: true, TypesAreCapitalised: true, Imports: ImportsNameClasses},
-	"swift":      {CallConstructs: true, ImplicitSelf: true, Overloads: true, OpenTypes: true, TypesAreCapitalised: true},
-	"dart":       {CallConstructs: true, ImplicitSelf: true, TypesAreCapitalised: true},
+	"swift":      {CallConstructs: true, ImplicitSelf: true, Overloads: true, OpenTypes: true, TypesAreCapitalised: true, Builtins: swiftBuiltins},
+	"dart":       {CallConstructs: true, ImplicitSelf: true, TypesAreCapitalised: true, Imports: ImportsNameModules, Builtins: dartBuiltins},
+	"objc":       {OpenTypes: true, TypesAreCapitalised: true, Builtins: objcBuiltins},
+	"lua":        {Imports: ImportsNameModules, Builtins: luaBuiltins},
 	"groovy":     {ImplicitSelf: true, Overloads: true, TypesAreCapitalised: true, Imports: ImportsNameClasses, ExternalRoots: []string{"java", "javax", "groovy"}, Builtins: javaBuiltins},
 }
 

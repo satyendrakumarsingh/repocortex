@@ -82,6 +82,25 @@ func buildCoreFunctions() map[string]map[string]struct{} {
 		block_given? binding freeze at_exit gets sleep rand srand exit abort warn fail
 		open system exec fork trap Integer Float String Array Hash Rational Complex`)
 
+	// Swift: the standard library's free functions. A call of one with no
+	// receiver is the library's unless the file or an import names a definition,
+	// and a repository's own `max` or `print` helper in some other module says
+	// nothing about it.
+	out["swift"] = words(`
+		print debugPrint dump assert assertionFailure precondition preconditionFailure
+		fatalError min max abs zip stride swap readLine repeatElement numericCast
+		withUnsafePointer withUnsafeMutablePointer withExtendedLifetime type`)
+
+	// Lua: the base library, which is global and which a module of the
+	// repository cannot hide from a file that does not require it.
+	out["lua"] = words(`
+		print require pairs ipairs tostring tonumber type assert error pcall xpcall
+		select setmetatable getmetatable rawget rawset rawequal rawlen next unpack
+		load loadstring loadfile dofile collectgarbage`)
+
+	// Dart: the dart:core functions a file can call with no import.
+	out["dart"] = words(`print identical identityHashCode`)
+
 	// C and C++: the C library, which a repository may wrap or interpose (jq's
 	// fault-injection `fgets`) and a test calls through to.
 	libc := words(`
@@ -104,6 +123,12 @@ func buildCoreFunctions() map[string]map[string]struct{} {
 		vfscanf vscanf vsscanf`)
 	out["c"] = libc
 	out["cpp"] = libc
+	// Objective-C includes the C library, and Foundation adds NSLog.
+	objc := words("NSLog")
+	for name := range libc {
+		objc[name] = struct{}{}
+	}
+	out["objc"] = objc
 
 	// ECMAScript: the platform's own constructors and namespaces, which a bare
 	// `new URL(...)` or `Response(...)` names whether or not the repository

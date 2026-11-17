@@ -321,6 +321,32 @@ type LanguageSpec struct {
 	// reference only it could bind is recorded ambiguous, which is what it is.
 	ProximityIsEvidence bool
 
+	// ModuleDirs names the directories whose CHILDREN are modules: SwiftPM's
+	// `Sources` and `Tests`, where `Sources/Core/Models/Order.swift` is a file
+	// of the target `Core` and sees every other file of `Sources/Core/**`
+	// without an import. Empty for every other language, whose package is the
+	// directory a file is in.
+	//
+	// A Swift import names a module and no file, and a module is a TREE of
+	// directories, so the directory test everywhere else would call the one
+	// file beside a call its package and the one a folder down a stranger.
+	// packageOf is the one place that says which: with it a module's files
+	// are neighbours (High, as in Go and Java), an `import Core` covers every
+	// file under Sources/Core, and a name defined in a module that was not
+	// imported is not mistaken for one that was. Outside a Sources/ or Tests/
+	// tree (an Xcode project lays targets out as it likes) the package is the
+	// directory, which is what the language does with no better evidence.
+	ModuleDirs []string
+
+	// TypesNeedImport reports that a type declared in a neighbouring file is in
+	// scope only when the file imports it: a Dart library is one file, and
+	// `Item` in lib/models/item.dart is invisible to lib/models/cart.dart
+	// until `import 'item.dart'` says so. Where it is set, the type lookup does
+	// not take a same-directory type on adjacency alone but asks the imports,
+	// so two directories' `Item` are told apart by which one the file imports.
+	// Unset everywhere else, whose measured behaviour it would change.
+	TypesNeedImport bool
+
 	// MemberSeparators is what the language writes between a type and one of its
 	// members, MOST SPECIFIC FIRST.
 	//
@@ -397,6 +423,25 @@ func (s LanguageSpec) namesAType(receiver string) bool {
 func (s LanguageSpec) usableReceiver(receiver string) bool {
 	r := strings.TrimPrefix(receiver, "*")
 	return r != "" && r != opaqueReceiver && !s.isSelfName(r)
+}
+
+// packageOf is the directory that is the package of a file: the file's own
+// directory, or for a language with ModuleDirs the module directory that
+// holds it. See LanguageSpec.ModuleDirs.
+func (s LanguageSpec) packageOf(filePath string) string {
+	dir := path.Dir(filePath)
+	if len(s.ModuleDirs) == 0 {
+		return dir
+	}
+	segs := strings.Split(dir, "/")
+	for i, seg := range segs {
+		for _, m := range s.ModuleDirs {
+			if seg == m && i+1 < len(segs) {
+				return strings.Join(segs[:i+2], "/")
+			}
+		}
+	}
+	return dir
 }
 
 func (s LanguageSpec) isSelfName(r string) bool {
@@ -904,6 +949,59 @@ func NewSpecs() *Specs {
 	}))
 	// C and C++ have no test convention worth claiming; they keep the directory
 	// rule. Interop nil: unclassified, pending the header-sharing decision above.
+	// Swift. A module is the unit: `Sources/<Target>/**` is one package whose
+	// files see each other with no import, and `import Core` names the target
+	// whose directory is Core. So a directory tree is the package
+	// (ModuleDirs), proximity is evidence at the strength Go's and Java's is,
+	// and an import names a directory, never a file.
+	swift := scopeSpec("swift", []string{"swift", "objc"}, TestFiles{
+		Suffixes: []string{"tests.swift", "test.swift"},
+		Dirs:     []string{"tests"},
+	})
+	swift.PackageIsDirectory = true
+	swift.ImportPathNamesFile = false
+	swift.ModuleDirs = []string{"Sources", "Tests"}
+	swift.MemberSeparators = sepDefault
+	add(swift)
+	// Lua. A file is a module (`require("a.b")` is a/b.lua or a/b/init.lua) and
+	// loads nothing it does not require, so a neighbour in the directory is no
+	// more in scope than any other file: ProximityIsEvidence is off, as for
+	// Ruby, which has the same rule.
+	lua := scopeSpec("lua", []string{"lua"}, TestFiles{
+		Suffixes: []string{"_spec.lua", "_test.lua"},
+		Dirs:     []string{"spec", "test", "tests"},
+	})
+	lua.ProximityIsEvidence = false
+	lua.PackageInitStem = "init"
+	lua.MemberSeparators = sepDefault
+	add(lua)
+	// Dart. A file is a library and sees nothing of its directory: what it
+	// uses it imports, by a path relative to itself or `package:` (rewritten by
+	// the parser to the file's repository path, so an import names one file and
+	// not whichever file has that ending). Proximity is therefore no evidence,
+	// as in Python and Ruby, and a type next door is not in scope until
+	// imported.
+	dart := scopeSpec("dart", []string{"dart"}, TestFiles{
+		Suffixes: []string{"_test.dart"},
+		Dirs:     []string{"test", "tests", "integration_test"},
+	})
+	dart.ProximityIsEvidence = false
+	dart.TypesNeedImport = true
+	dart.MemberSeparators = sepDefault
+	add(dart)
+	// Objective-C. A quoted #import names a header, and the header's methods are
+	// defined in the .m of the same stem, so an import names a file stem (the
+	// parser drops the extension) and covers both. Messages and C calls share one
+	// linker with C and C++ (calltraits.go), and with Swift on Apple platforms.
+	objc := scopeSpec("objc", []string{"objc", "swift"}, TestFiles{
+		Suffixes: []string{"tests.m", "test.m", "tests.mm", "test.mm"},
+		Dirs:     []string{"tests", "test"},
+	})
+	objc.MemberSeparators = sepDefault
+	// A type in a neighbouring file is in scope only through an #import, as in C:
+	// without one the compiler does not know it.
+	objc.TypesNeedImport = true
+	add(objc)
 	add(scopeSpec("cpp", nil, TestFiles{Dirs: []string{"test", "tests"}}))
 	add(scopeSpec("c", nil, TestFiles{Dirs: []string{"test", "tests"}}))
 
@@ -1073,6 +1171,8 @@ func languageOfPath(p string) string {
 		return "cpp"
 	case "swift":
 		return "swift"
+	case "lua":
+		return "lua"
 	case "dart":
 		return "dart"
 	case "groovy":

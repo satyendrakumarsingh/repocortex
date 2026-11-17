@@ -27,6 +27,12 @@ func init() {
 }
 
 const luaDefinitions = `
+; Calls. f(x), a.b.f(x) and o:m(x); the call node begins at the receiver, so the
+; text before the name is how shape.go reads what the call was made on.
+(function_call . (identifier) @name (#not-eq? @name "require")) @reference.call
+(function_call . (dot_index_expression (identifier) @name .)) @reference.call
+(function_call . (method_index_expression (identifier) @name .)) @reference.call
+
 (function_declaration . (identifier) @name) @definition.function
 (function_declaration . (dot_index_expression (identifier) @name .)) @definition.function
 (function_declaration . (method_index_expression (identifier) @name .)) @definition.method

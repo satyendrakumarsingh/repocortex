@@ -337,6 +337,12 @@ func (w *shWalker) textualShape(tag ts.Tag) callShape {
 	if nameStart < start || nameEnd > end || int(end) > len(w.src) || nameEnd < nameStart {
 		return callShape{kind: model.ReceiverExpr, receiver: model.OpaqueReceiver}
 	}
+	if w.language == "dart" && start == nameStart && end == nameEnd {
+		// Dart's calls are tagged by name alone, because the grammar spreads one
+		// call over sibling nodes with none that holds the receiver. See
+		// dartCallShape.
+		return dartCallShape(w.src, int(nameStart))
+	}
 	pre := strings.TrimSpace(string(w.src[start:nameStart]))
 	post := w.src[nameEnd:end]
 
@@ -358,6 +364,18 @@ func (w *shWalker) textualShape(tag ts.Tag) callShape {
 			op = candidate
 			break
 		}
+	}
+	if w.language == "objc" && strings.HasPrefix(pre, "[") && !strings.Contains(pre, "(") {
+		// A message send: the call node starts at the bracket and the receiver is
+		// everything up to the selector. `[[Item alloc] init]` is the construction
+		// of an Item, which states the receiver's type.
+		return objcReceiver(strings.TrimSpace(pre[1:]))
+	}
+	if op == "" && w.language == "lua" && strings.HasSuffix(pre, ":") {
+		// `obj:method(x)` passes obj as self. A lone colon is not in
+		// memberOperators because in every other language it is a type
+		// annotation or a label, not a way to reach a member.
+		op = ":"
 	}
 	if op == "" || len(pre) > shapeMaxReceiver {
 		return callShape{kind: model.ReceiverExpr, receiver: model.OpaqueReceiver}
@@ -730,6 +748,13 @@ func classifyNodeType(language, typ string) shFlags {
 		return false
 	}
 	var f shFlags
+	if language == "dart" && (typ == "declaration" || typ == "formal_parameter" || typ == "initialized_variable_definition") {
+		return shMaybeDecl
+	}
+	if language == "objc" && typ == "method_parameter" {
+		// Its name says "method", which reads as a function; it is a declaration.
+		return shMaybeDecl
+	}
 	switch {
 	case has("identifier", "expression", "literal", "_body", "heritage", "clause",
 		"modifier", "variant", "argument", "statement", "comment", "string"):
@@ -839,8 +864,22 @@ func (w *shWalker) push(s shScope) int {
 }
 
 func (w *shWalker) field(n *ts.Node, name string) *ts.Node {
-	if c := n.ChildByFieldName(name, w.lang); c != nil || w.language != "kotlin" {
+	if c := n.ChildByFieldName(name, w.lang); c != nil || (w.language != "kotlin" && w.language != "objc") {
 		return c
+	}
+	if w.language == "objc" {
+		// An Objective-C method has no `body` field: the braces are a
+		// compound_statement child. Without it a method was no scope, and a local
+		// declared in it (`Store *store = ...`) was bound in the class's, where a
+		// call in another method could not see it and this one could not use it.
+		if name == "body" && n.Type(w.lang) == "method_definition" {
+			for i := 0; i < n.ChildCount(); i++ {
+				if c := n.Child(i); c != nil && c.Type(w.lang) == "compound_statement" {
+					return c
+				}
+			}
+		}
+		return nil
 	}
 	return w.kotlinField(n, name)
 }
@@ -852,6 +891,21 @@ func (w *shWalker) text(n *ts.Node) string { return n.Text(w.src) }
 // and is a use of the type, not its declaration.
 func (w *shWalker) classNameOf(n *ts.Node) (string, uint32, bool) {
 	typ := n.Type(w.lang)
+	if w.language == "objc" {
+		// An @interface, an @implementation and an @protocol have no `name` or
+		// `body` field: the first identifier is the type, and for a category
+		// (`@implementation Cart (Printing)`) it is the class the category extends,
+		// whose members they are.
+		switch typ {
+		case "class_interface", "class_implementation", "protocol_declaration":
+			for i := 0; i < n.ChildCount(); i++ {
+				if c := n.Child(i); c != nil && c.IsNamed() && c.Type(w.lang) == "identifier" {
+					return w.text(c), c.StartByte(), true
+				}
+			}
+		}
+		return "", 0, false
+	}
 	nameNode := w.field(n, "name")
 	switch typ {
 	case "impl_item":
@@ -915,6 +969,14 @@ type shName struct {
 
 // declare records what a declaration states about the names it binds.
 func (w *shWalker) declare(n *ts.Node, scope int, isField bool) {
+	if w.language == "objc" && n.Type(w.lang) == "method_parameter" {
+		w.declareObjcParameter(n, scope)
+		return
+	}
+	if w.language == "dart" {
+		w.declareDart(n, scope)
+		return
+	}
 	if w.field(n, "parameters") != nil || w.field(n, "body") != nil {
 		// A function prototype or a nested definition, not a variable.
 		return
@@ -927,6 +989,14 @@ func (w *shWalker) declare(n *ts.Node, scope int, isField bool) {
 		}
 		switch n.FieldNameForChild(i, w.lang) {
 		case "name", "pattern", "declarator", "left":
+			// The Swift grammar gives a parameter's TYPE the field `name` as well as
+			// its name: `item: Item` declares `item` and, read by field alone, `Item`.
+			// A local called `Item` made every `Item(...)` in the function an
+			// indirect call of a value and bound it to nothing, which is the
+			// initialiser of the type.
+			if w.language == "swift" && strings.HasSuffix(c.Type(w.lang), "_type") {
+				continue
+			}
 			names = w.declaredNames(c, names, 0)
 		}
 	}
@@ -1079,6 +1149,14 @@ func (w *shWalker) constructedType(value *ts.Node) string {
 		// A composite or struct literal: `Client{...}`, `Config { .. }`.
 		return normalizeType(name)
 	case strings.HasPrefix(rest, "(") && callConstructsLanguages[w.language] && name[0] >= 'A' && name[0] <= 'Z':
+		// In Swift and Dart `Money.zero()` is a static function or a named
+		// constructor, and the value is not a `Money.zero`; only a call that ends
+		// in a capitalised name (`Money(...)`, `Outer.Inner(...)`) states the type.
+		// It typed `sum` in `var sum = Money.zero()` as a type that does not
+		// exist, so `sum.adding(x)` named a type nothing declares and was dropped.
+		if (w.language == "swift" || w.language == "dart") && !isCapitalised(name[strings.LastIndexByte(name, '.')+1:]) {
+			return ""
+		}
 		return normalizeType(name)
 	}
 	return ""
@@ -1394,4 +1472,118 @@ func normalizeType(text string) string {
 		}
 	}
 	return t
+}
+
+func isCapitalised(s string) bool { return s != "" && s[0] >= 'A' && s[0] <= 'Z' }
+
+// objcReceiver classifies the receiver of a message send, written between the
+// opening bracket and the first selector part.
+func objcReceiver(text string) callShape {
+	if inner, ok := strings.CutPrefix(text, "["); ok && strings.HasSuffix(inner, "]") {
+		// [Item alloc] and [Item new] state that the value is an Item.
+		fields := strings.Fields(strings.TrimSuffix(inner, "]"))
+		if len(fields) == 2 && (fields[1] == "alloc" || fields[1] == "new") && isCapitalised(fields[0]) && isIdentifier(fields[0]) {
+			return callShape{kind: model.ReceiverType, receiver: fields[0]}
+		}
+		return callShape{kind: model.ReceiverExpr, receiver: model.OpaqueReceiver}
+	}
+	return classifyReceiver("objc", text, ".")
+}
+
+// declareObjcParameter records a method parameter, `:(Item *)item`. The grammar
+// gives it no fields: the type is the type_identifier inside its method_type
+// and the name is the identifier after it. `id`, a primitive and a block type
+// state no class and leave the name an untyped local.
+func (w *shWalker) declareObjcParameter(n *ts.Node, scope int) {
+	var name *ts.Node
+	typ := ""
+	for i := 0; i < n.ChildCount(); i++ {
+		c := n.Child(i)
+		if c == nil || !c.IsNamed() {
+			continue
+		}
+		switch c.Type(w.lang) {
+		case "identifier":
+			name = c
+		case "method_type":
+			for j := 0; j < c.ChildCount(); j++ {
+				tn := c.Child(j)
+				if tn == nil || tn.Type(w.lang) != "type_name" {
+					continue
+				}
+				for k := 0; k < tn.ChildCount(); k++ {
+					if id := tn.Child(k); id != nil && id.Type(w.lang) == "type_identifier" {
+						typ = w.text(id)
+					}
+				}
+			}
+		}
+	}
+	if name == nil {
+		return
+	}
+	if _, done := w.declared[name.StartByte()]; done {
+		return
+	}
+	w.declared[name.StartByte()] = struct{}{}
+	w.bind(scope, w.text(name), typ)
+}
+
+// declareDart records what a Dart declaration states: a field or a top-level
+// variable (`final Store store;`), a parameter (`Item item`) and a local
+// (`Item y = ...`). The grammar gives none of them a `type` field: the type is
+// the type_identifier written before the name, and `var` and `final` with no
+// type state none.
+func (w *shWalker) declareDart(n *ts.Node, scope int) {
+	var names []*ts.Node
+	typ, constructed := "", ""
+	for i := 0; i < n.ChildCount(); i++ {
+		c := n.Child(i)
+		if c == nil || !c.IsNamed() {
+			continue
+		}
+		switch c.Type(w.lang) {
+		case "type_identifier":
+			typ = w.text(c)
+		case "identifier":
+			switch n.FieldNameForChild(i, w.lang) {
+			case "name":
+				names = append(names, c)
+			case "value":
+				// `var cart = Cart(store)`: a capitalised name called at once, with
+				// nothing chained after the argument list, constructs that type. The
+				// grammar spreads the call over siblings (the name, then a selector
+				// holding the arguments), so it is read from them.
+				if sel := c.NextSibling(); sel != nil && sel.Type(w.lang) == "selector" && sel.NextSibling() == nil &&
+					isCapitalised(w.text(c)) && sel.NamedChildCount() > 0 && sel.NamedChild(0).Type(w.lang) == "argument_part" {
+					constructed = w.text(c)
+				}
+			}
+		case "initialized_identifier_list":
+			for j := 0; j < c.ChildCount(); j++ {
+				if ii := c.Child(j); ii != nil && ii.Type(w.lang) == "initialized_identifier" {
+					for k := 0; k < ii.ChildCount(); k++ {
+						if id := ii.Child(k); id != nil && id.Type(w.lang) == "identifier" {
+							names = append(names, id)
+							break
+						}
+					}
+				}
+			}
+		}
+	}
+	if typ == "" {
+		typ = constructed
+	}
+	target := w.bindingScope(scope, w.scopes[scope].kind == shClass)
+	for _, name := range names {
+		if _, done := w.declared[name.StartByte()]; done {
+			continue
+		}
+		w.declared[name.StartByte()] = struct{}{}
+		w.bind(target, w.text(name), typ)
+		if w.scopes[target].kind == shClass {
+			w.bindField(w.scopes[target].name, w.text(name), typ)
+		}
+	}
 }

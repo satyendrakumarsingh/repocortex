@@ -268,13 +268,60 @@ func (r *Resolver) scriptModule(fromPath, specifier string) module {
 func (r *Resolver) scriptQualifier(fr registry.FileRefs, imports importSet, name string) (m module, member, ok bool) {
 	for _, e := range imports.imports {
 		if e.alias == name {
-			return r.scriptModule(fr.Path, e.raw), false, true
+			return r.moduleOf(imports.spec, fr.Path, e.raw), false, true
 		}
 	}
 	if idx := imports.members[name]; len(idx) > 0 {
-		return r.scriptModule(fr.Path, imports.imports[idx[0]].raw), true, true
+		return r.moduleOf(imports.spec, fr.Path, imports.imports[idx[0]].raw), true, true
 	}
 	return module{}, false, false
+}
+
+// moduleOf traces an import's path to a module in the language's own terms.
+// ECMAScript's rules (extensions, `./`, `index`, bare packages) are the
+// default; a language whose specifier means something else says so here
+// rather than being read as if it were a JavaScript one.
+func (r *Resolver) moduleOf(spec LanguageSpec, fromPath, specifier string) module {
+	switch spec.Name {
+	case "lua":
+		return r.luaModule(spec, specifier)
+	case "dart":
+		return r.dartModule(specifier)
+	}
+	return r.scriptModule(fromPath, specifier)
+}
+
+// luaModule traces a `require` name to a module.
+//
+// `require("a.b")` names a.b by its dots, a/b.lua or a/b/init.lua beneath a
+// source root the code does not state (the working directory, a `lua/`
+// directory, the package path), so the module is the file whose path ENDS with
+// every segment of the name: a longer prefix is the unknown root. Anything
+// less than the whole name matching is some other module with a similar
+// ending, which is what the trailing-segment import tier (which asks only for
+// one segment) cannot tell apart.
+//
+// A name no file's stem or directory carries (`cjson`, `lpeg`, `socket.http`)
+// is a rock or the standard library, and a call qualified by it leaves the
+// repository: asking the layout is the only way to say so, since the module
+// itself has no file to point at. Where the layout is not known nothing is
+// claimed.
+func (r *Resolver) luaModule(spec LanguageSpec, specifier string) module {
+	m := module{what: "the required module " + specifier}
+	segs := pathSegments(specifier)
+	if len(segs) == 0 {
+		return m
+	}
+	last := segs[len(segs)-1]
+	if r.layout.Known() && !r.layout.HasStem(last) && !r.layout.HasDirNamed(last) {
+		m.where = presenceExternal
+		return m
+	}
+	m.where = presenceInRepo
+	m.contains = func(c registry.SymbolIndexEntry) bool {
+		return commonSuffixLen(segs, fileSegments(spec, c.FilePath)) == len(segs)
+	}
+	return m
 }
 
 // classImport traces a class name to the Java-style import that brought it
@@ -358,4 +405,31 @@ func (s LanguageSpec) hasExternalRoot(segments []string) bool {
 		}
 	}
 	return false
+}
+
+// dartModule traces a Dart import to the one file it names.
+//
+// The parser has already turned the URI into the file's repository path
+// without its extension (`lib/src/pricing`; see dartImport), so the module is
+// the file whose path IS that, or ends with it where a monorepo keeps the
+// package under a directory (`packages/shop/lib/src/pricing`). Asking for the
+// whole path is the point: the import tier asks for one trailing segment, and
+// two `util.dart` under different directories are two modules.
+//
+// A path no file's stem carries is somebody else's package (`lib/material`
+// from `package:flutter/material.dart`) and a call qualified by it is external.
+func (r *Resolver) dartModule(rooted string) module {
+	m := module{what: "the imported library " + rooted}
+	want := strings.ToLower(rooted)
+	last := want[strings.LastIndexByte(want, '/')+1:]
+	if r.layout.Known() && !r.layout.HasStem(last) {
+		m.where = presenceExternal
+		return m
+	}
+	m.where = presenceInRepo
+	m.contains = func(c registry.SymbolIndexEntry) bool {
+		p := strings.ToLower(strings.TrimSuffix(c.FilePath, path.Ext(c.FilePath)))
+		return p == want || strings.HasSuffix(p, "/"+want)
+	}
+	return m
 }

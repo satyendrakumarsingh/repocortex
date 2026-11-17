@@ -660,8 +660,8 @@ survive. The numbers this project publishes, and how they were produced, are in
 $ repocortex languages
 TIER              COUNT  WHAT YOU GET
 typed             8      definitions, imports, receiver discrimination by arity or class — references can reach 'high'
-resolved          6      definitions and imports — references bind across files
-parsed            94     definitions and search only — no cross-file references claimed
+resolved          10     definitions and imports — references bind across files
+parsed            90     definitions and search only — no cross-file references claimed
 with definitions  108
 text only         98     no definition query: full-text search only, no symbols
 ```

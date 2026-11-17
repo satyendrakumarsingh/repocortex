@@ -1,5 +1,10 @@
 package parse
 
+import (
+	"path"
+	"strings"
+)
+
 // Objective-C: the C declarations (functions, typedefs, file-level
 // variables) and the Objective-C ones (@interface, @implementation,
 // @protocol, categories, methods, properties, instance variables).
@@ -11,6 +16,10 @@ package parse
 // A method is named by its first selector part: `scaleBy:animated:` is
 // recorded as `scaleBy`, the only part that is a node of its own.
 //
+// A message send is a call, named by the same first selector part: [view scaleBy:2
+// animated:YES] is a reference to `scaleBy`. A selector's later parts are not part
+// of the name on either side, so `add:` and `add:to:` of one class are one name.
+//
 // A category (`@interface Shape (Printing)`) and a class extension
 // (`@interface Shape ()`) have the same tree as a class with a superclass:
 // two identifiers, no field to tell them apart, and the parentheses are not
@@ -21,6 +30,12 @@ func init() {
 	registerDefinitions("objc", `
 (call_expression (identifier) @name) @reference.call
 (call_expression (field_identifier) @name) @reference.call
+
+; A message send [receiver doThing:x with:y] is a call of doThing:with:, named here by its
+; FIRST selector part, which is how the method is named where it is declared and defined (see
+; below), so that a send and the method it reaches carry one name. The call node begins at the
+; bracket, and the text from there to the name is the receiver (see objcReceiver in shape.go).
+(message_expression receiver: (_) . method: (identifier) @name (#not-eq? @name "alloc")) @reference.call
 
 ; C functions
 (function_definition (function_declarator . (identifier) @name)) @definition.function
@@ -71,4 +86,39 @@ func init() {
 (translation_unit (declaration . (type_qualifier) [(primitive_type) (sized_type_specifier)] [(identifier) @name (pointer_declarator (identifier) @name)] .) @definition.variable
   (#not-match? @definition.variable "^extern\\b"))
 `, true)
+}
+
+func init() {
+	registerImportFix("objc", objcImport)
+}
+
+// objcImport names the file a quoted #import or #include reaches without its
+// extension, so that `#import "Cart.h"` covers Cart.h and the Cart.m beside it,
+// which is where the methods it declares are defined. A framework header
+// (`<Foundation/Foundation.h>`) is not captured at all.
+//
+// A quoted include is looked for beside the including file first and then on
+// the header search paths, which the source does not state. Both readings are
+// recorded: the path as written, which the resolver matches against the end of
+// any header's path, and the path joined to the importing file's directory,
+// which is the longer and so the better match when such a header exists. A
+// repository with two Pricing.h under different directories is told apart by
+// the one that sits where the include says.
+func objcImport(filePath string, imp Import) []Import {
+	p := path.Clean(imp.Path)
+	if ext := path.Ext(p); ext == ".h" || ext == ".hpp" || ext == ".m" || ext == ".mm" {
+		p = p[:len(p)-len(ext)]
+	}
+	if p == "" || p == "." || strings.HasPrefix(p, "..") || p[0] == '/' {
+		return nil
+	}
+	written := imp
+	written.Path = p
+	out := []Import{written}
+	if dir := path.Dir(filePath); dir != "." {
+		rooted := imp
+		rooted.Path = path.Join(dir, p)
+		out = append(out, rooted)
+	}
+	return out
 }

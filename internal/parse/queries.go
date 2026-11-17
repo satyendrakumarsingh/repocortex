@@ -776,6 +776,48 @@ var importQueries = map[string]string{
 (import_declaration) @import
 `,
 
+	// Swift imports a MODULE, not a file: `import Core`, `@testable import Core`,
+	// `import struct Core.Money`. swiftImport (lang_swift.go) reduces each to its
+	// first word, the module.
+	"swift": `
+(import_declaration (identifier) @path)
+`,
+
+	// Dart: import, export and part directives all name a file. The captured
+	// path is rewritten by dartImport (lang_dart.go), which has the importing
+	// file's directory to resolve a relative URI against.
+	"dart": `
+(import_specification (configurable_uri (uri (string_literal) @path)) (identifier) @alias)
+(import_specification (configurable_uri (uri (string_literal) @path)))
+(library_export (configurable_uri (uri (string_literal) @path)))
+(part_directive (uri (string_literal) @path))
+(part_of_directive (uri (string_literal) @path))
+`,
+
+	// Objective-C: a quoted #import or #include names a header of the repository.
+	// A <Framework/Header.h> is a system or framework header and an `@import
+	// Module;` names a module: neither is repository code, and neither is
+	// captured. objcImport (lang_objc.go) drops the extension.
+	"objc": `
+(preproc_include path: (string_literal) @path)
+`,
+
+	// Lua: `require("a.b")`, `require "a.b"` and `local m = require("a.b")`. The
+	// path is the dotted name as written, which the resolver reads as the
+	// segments of a file (a/b.lua or a/b/init.lua) under some source root; the
+	// alias is the local the module is bound to, which is what `m.f()` is
+	// qualified by.
+	"lua": `
+(function_call . (identifier) @_f (arguments . (string (string_content) @path) .)
+  (#eq? @_f "require")) @import
+(variable_declaration (assignment_statement (variable_list . (identifier) @alias .)
+  (expression_list . (function_call . (identifier) @_f (arguments . (string (string_content) @path) .))))
+  (#eq? @_f "require")) @import
+(chunk (assignment_statement (variable_list . (identifier) @alias .)
+  (expression_list . (function_call . (identifier) @_f (arguments . (string (string_content) @path) .))))
+  (#eq? @_f "require")) @import
+`,
+
 	"c": `
 (preproc_include path: (system_lib_string) @path)
 (preproc_include path: (string_literal) @path)

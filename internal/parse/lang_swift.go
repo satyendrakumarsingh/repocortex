@@ -35,6 +35,13 @@ import "strings"
 // declaration; that is the line recorded.
 func init() {
 	registerDefinitions("swift", `
+; Calls. A call is the callee name and everything written before it: Pricing.discount(for: x)
+; is the name discount in a call that begins at Pricing, which is how shape.go reads the
+; receiver. An initialiser call Item(name: "a") is a bare call of the type's name, and the
+; resolver binds a call to a class as an instantiation.
+(call_expression . (simple_identifier) @name) @reference.call
+(call_expression . (navigation_expression (navigation_suffix (simple_identifier) @name) .)) @reference.call
+
 (protocol_declaration (type_identifier) @name) @definition.interface
 (class_declaration "class" (type_identifier) @name) @definition.class
 (class_declaration "struct" (type_identifier) @name) @definition.class
@@ -114,6 +121,20 @@ func init() {
   (#match? @name "^([@A-Za-z_][A-Za-z0-9_]*(\\([^)]*\\))?\\s+)*func\\s+[A-Za-z_][A-Za-z0-9_]*$"))
 `, true)
 	registerNameFix("swift", swiftName)
+	registerImportFix("swift", swiftImport)
+}
+
+// swiftImport reduces an import to the module it names. Swift imports modules,
+// never files: `import Core` and `@testable import Core` are the module Core,
+// and `import struct Core.Money` or `import Core.Models` is still Core, the
+// first word, because a submodule or a declaration is reached through it.
+func swiftImport(_ string, imp Import) []Import {
+	module, _, _ := strings.Cut(imp.Path, ".")
+	if module == "" {
+		return nil
+	}
+	imp.Path = module
+	return []Import{imp}
 }
 
 // swiftName cleans up three names that come from text the grammar did not

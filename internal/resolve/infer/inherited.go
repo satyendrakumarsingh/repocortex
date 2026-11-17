@@ -388,10 +388,20 @@ func (r *Resolver) drainChunk(
 			// symbol has no meaningful source to hang an edge on.
 			continue
 		}
+		kind := edgeKindFor(d.kind)
+		if kind == model.EdgeCalls && isConstructibleKind(best.entry.Kind) {
+			// The rule ResolveFile applies to a call bound to a type. A bare
+			// `Item(...)` written in a class is parked here whenever the
+			// repository declares a member named Item (a Dart or Kotlin
+			// constructor is indexed under its class's name), and without this
+			// it came out as a CALL of the class.
+			kind = model.EdgeInstantiates
+			stats.Instantiations++
+		}
 		*edges = append(*edges, model.Edge{
 			SrcID:      d.srcID,
 			DstID:      best.entry.ID,
-			Kind:       edgeKindFor(d.kind),
+			Kind:       kind,
 			Confidence: best.confidence,
 			Evidence: model.Evidence{
 				FilePath: d.filePath,

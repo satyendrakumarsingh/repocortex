@@ -447,8 +447,8 @@ flowchart LR
 | Tier | Languages | What you get |
 |---|---|---|
 | typed (8) | C#, C++, Go, Java, Kotlin, Python, Scala, TypeScript | Definitions, imports and receiver matching by argument count or class; references can reach `high` |
-| resolved (6) | C, JavaScript, PHP, Ruby, Rust, TSX | Definitions and imports; references bind across files |
-| parsed (94) | Ada, Apex, Bash, Clojure, Dart, Elixir, Erlang, Haskell, OCaml, Perl, Prolog, Solidity, Swift, Tcl, Zig and 79 more | Definitions and search only. Quality varies: of 36 of them checked by hand on 13 November, 27 found at least 90% of the definitions sampled with at least 90% precision, and F#, Make and Groovy were far lower before later fixes |
+| resolved (10) | C, Dart, JavaScript, Lua, Objective-C, PHP, Ruby, Rust, Swift, TSX | Definitions and imports; references bind across files |
+| parsed (90) | Ada, Apex, Bash, Clojure, Elixir, Erlang, Haskell, OCaml, Perl, Prolog, Solidity, Tcl, Zig and 77 more | Definitions and search only. Quality varies: of 36 of them checked by hand on 13 November, 27 found at least 90% of the definitions sampled with at least 90% precision, and F#, Make and Groovy were far lower before later fixes |
 | text only (98) | Mostly data and configuration formats (CSV, INI, Nginx, XML) and rarely used languages | The grammar is bundled but has no definition query: files are searchable by text and yield no symbols |
 
 Run `repocortex languages` for your build. A compiler index raises any of these to `exact`.

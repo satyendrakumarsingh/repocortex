@@ -1513,7 +1513,7 @@ func pathSegments(p string) []string {
 //
 // Which of the two applies is LanguageSpec.ImportPathNamesFile.
 func fileSegments(spec LanguageSpec, filePath string) []string {
-	dir := pathSegments(path.Dir(filePath))
+	dir := pathSegments(spec.packageOf(filePath))
 	if !spec.ImportPathNamesFile {
 		return dir
 	}
@@ -1751,10 +1751,10 @@ func (r *Resolver) pickSameDir(
 		// five times in a sample of thirty.
 		return candidate{}, false
 	}
-	dir := path.Dir(fr.Path)
+	dir := spec.packageOf(fr.Path)
 	var sameDir []registry.SymbolIndexEntry
 	for _, c := range cands {
-		if path.Dir(c.FilePath) == dir {
+		if spec.packageOf(c.FilePath) == dir {
 			sameDir = append(sameDir, c)
 		}
 	}

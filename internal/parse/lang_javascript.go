@@ -156,6 +156,10 @@ type definitionFix struct {
 	// owner is the type or object the definition is a member of; the symbol's
 	// qualified name becomes owner.name.
 	owner string
+	// endLine and endCol, when endLine is set, replace the end of the symbol's
+	// range. For a declaration the grammar writes as a signature and a sibling
+	// body (Dart), where the query can capture only the signature.
+	endLine, endCol int
 }
 
 // definitionRefiner reads facts about a file's definitions that no query can

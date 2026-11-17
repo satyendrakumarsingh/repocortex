@@ -297,12 +297,12 @@ func (r *Resolver) typeNamed(c call, name string) (t typeRef, found, known bool)
 	}
 
 	var local, sameDir []registry.SymbolIndexEntry
-	dir := path.Dir(c.fr.Path)
+	dir := c.spec.packageOf(c.fr.Path)
 	for _, s := range types {
 		switch {
 		case s.FileID == c.fr.FileID && visibleFrom(c.scope, s):
 			local = append(local, s)
-		case path.Dir(s.FilePath) == dir:
+		case c.spec.packageOf(s.FilePath) == dir && (!c.spec.TypesNeedImport || importsFile(c.imports, s.FilePath)):
 			sameDir = append(sameDir, s)
 		}
 	}
@@ -333,7 +333,7 @@ func (r *Resolver) typeNamed(c call, name string) (t typeRef, found, known bool)
 				samePackage = append(samePackage, s)
 			}
 		}
-		if sameDirectory(samePackage) {
+		if sameDirectory(c.spec, samePackage) {
 			if t, ok := pick(samePackage, true); ok {
 				return t, true, true
 			}
@@ -349,7 +349,7 @@ func (r *Resolver) typeNamed(c call, name string) (t typeRef, found, known bool)
 					imported = append(imported, s)
 				}
 			}
-			if sameDirectory(imported) {
+			if sameDirectory(c.spec, imported) {
 				if t, ok := pick(imported, true); ok {
 					return t, true, true
 				}
@@ -370,7 +370,32 @@ func (r *Resolver) typeNamed(c call, name string) (t typeRef, found, known bool)
 	// One type of the name in the whole repository — or one directory's worth,
 	// which is one type declared in parts (a header and its source, a partial
 	// class).
-	if sameDirectory(types) {
+	if len(c.spec.ModuleDirs) > 0 || c.spec.TypesNeedImport {
+		// A module imported whole brings its types into scope with no name to
+		// say which file they are in (`import Core` and `Money.zero()`), and a
+		// type of the same name in a module that was not imported is not in
+		// scope at all. Asked after the file's own module, before the
+		// repository-wide fallback below, which would call two modules' Money
+		// ambiguous and leave the call unbound.
+		var imported []registry.SymbolIndexEntry
+		best := 0
+		for _, s := range types {
+			if d, ok := c.imports.covers(s.FilePath); ok && d > best {
+				best = d
+			}
+		}
+		for _, s := range types {
+			if d, ok := c.imports.covers(s.FilePath); ok && d == best && best > 0 {
+				imported = append(imported, s)
+			}
+		}
+		if sameDirectory(c.spec, imported) {
+			if t, ok := pick(imported, true); ok {
+				return t, true, true
+			}
+		}
+	}
+	if sameDirectory(c.spec, types) {
 		t, _ := pick(types, false)
 		return t, true, true
 	}
@@ -483,15 +508,21 @@ func importsFromPackage(e importEntry, name string) bool {
 	return len(parts) >= 2 && !capitalised(parts[len(parts)-2])
 }
 
+// importsFile reports whether one of the file's imports covers the file.
+func importsFile(imports importSet, filePath string) bool {
+	_, ok := imports.covers(filePath)
+	return ok
+}
+
 // sameDirectory reports whether every entry is defined in one directory.
 // False for none.
-func sameDirectory(cs []registry.SymbolIndexEntry) bool {
+func sameDirectory(spec LanguageSpec, cs []registry.SymbolIndexEntry) bool {
 	if len(cs) == 0 {
 		return false
 	}
-	dir := path.Dir(cs[0].FilePath)
+	dir := spec.packageOf(cs[0].FilePath)
 	for _, c := range cs[1:] {
-		if path.Dir(c.FilePath) != dir {
+		if spec.packageOf(c.FilePath) != dir {
 			return false
 		}
 	}
@@ -934,12 +965,12 @@ func (r *Resolver) bareByName(c call, reach []registry.SymbolIndexEntry, stats *
 		return unresolvedCall
 	}
 	if c.spec.PackageIsDirectory {
-		dir := path.Dir(c.fr.Path)
+		dir := c.spec.packageOf(c.fr.Path)
 		var pkg []registry.SymbolIndexEntry
 		for _, s := range reach {
 			// The same directory, or — on the JVM — the same package under
 			// another source root (`src/test/kotlin/a/b` beside `src/main/java/a/b`).
-			d := path.Dir(s.FilePath)
+			d := c.spec.packageOf(s.FilePath)
 			if d == dir || (c.spec.Calls.Imports == ImportsNameClasses && sharesPackageTail(dir, d) && !r.callsTestHelper(c, s)) {
 				pkg = append(pkg, s)
 			}

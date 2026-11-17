@@ -118,3 +118,42 @@ func cleanName(language, name string) string {
 	}
 	return name
 }
+
+// importFixes holds, per language, a rewrite of each import the import query
+// captured, made with the importing file's own path in hand.
+//
+// A query sees text, and for some languages the text of an import does not
+// name what the resolver compares it with. Swift's `import Core.Models` names
+// the module `Core`; Dart's `import '../util.dart'` names a file relative to
+// the one that wrote it, and `package:shop/a.dart` names lib/a.dart. Neither
+// can be said in a pattern, and the resolver (which matches the trailing
+// segments of an import against a file's) cannot do it either, because it is
+// handed the path alone. A rewrite may return no import (the import names
+// nothing in the repository) or several (an include that is relative to the
+// file AND to a search path names two files, and the resolver prefers the
+// longer match).
+var importFixes = map[string]func(filePath string, imp Import) []Import{}
+
+// registerImportFix registers the rewrite for a language's imports. Call it
+// from init in the language's lang_<language>.go.
+func registerImportFix(language string, fix func(filePath string, imp Import) []Import) {
+	if _, dup := importFixes[language]; dup {
+		duplicateRegistrations = append(duplicateRegistrations, language+" (import fix)")
+	}
+	importFixes[language] = fix
+}
+
+// fixImports applies a language's import rewrite, if it has one, and returns
+// the imports in the order and without the repeats extractImports gives.
+func fixImports(language, filePath string, in []Import) []Import {
+	fix := importFixes[language]
+	if fix == nil || len(in) == 0 {
+		return in
+	}
+	out := make([]Import, 0, len(in))
+	for _, imp := range in {
+		out = append(out, fix(filePath, imp)...)
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].Path < out[j].Path })
+	return dedupeImports(out)
+}

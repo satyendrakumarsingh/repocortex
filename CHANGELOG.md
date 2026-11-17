@@ -11,6 +11,14 @@ from an actual run.
 
 ## [Unreleased]
 
+- **Swift, Dart, Objective-C and Lua bind calls across files.** They were `parsed`: definitions were found, but no call reached another file. Each now reads its imports and has a resolver spec:
+  - **Swift:** a SwiftPM module is the tree `Sources/<Target>/**`, whose files see each other without an import. `import Core` covers the module.
+  - **Dart:** relative and `package:` imports name a library, and `import … as u` qualifies calls.
+  - **Objective-C:** quoted `#import` names a header and its implementation file.
+  - **Lua:** `require("a.b")` names `a/b.lua` or `a/b/init.lua`, and `local m = require(...)` qualifies `m.f()`.
+
+  Framework and standard-library calls are kept off same-named repository functions. On multi-file fixtures, precision was 100% for Swift (21 of 21 edges) and Lua (10 of 10), 94% for Dart (15 of 16) and 90% for Objective-C (9 of 10). Every wrong edge was `low`. Main gaps: Dart barrel re-exports and generated `*.g.dart` parts, Swift extensions and protocol dispatch, and Lua method calls on untyped values, which stay `low`. A call bound to a type through the deferred inherited-member pass is now `INSTANTIATES`, as a direct one already was.
+
 - **Nine more languages have symbols: Ada, Agda, PureScript, Racket, Emacs Lisp, Fennel, Janet, Prolog and Tcl.** Each has a definition query and a conformance fixture that states what counts as a definition. For example, Ada takes packages, subprograms, protected operations and types; Prolog merges a predicate's clauses into one definition; the Lisps take top-level definition forms only, never ones inside a function body; and Tcl takes procs, namespaces and TclOO classes and methods. Agda's grammar breaks on common forms (an indexed `data` declaration, a `where` block with a signature), which can lose the rest of the file; that and the other languages' gaps are in their `KNOWN_GAPS.md`. 108 of the 206 grammars now have a definition query, and 98 are text only.
 
 - **Eight more languages have symbols: Perl, Haskell, Pascal, COBOL, Elm, Nix, Verilog and Assembly.** They were text only: their files were searchable, but `symbol`, `outline` and every graph answer found nothing in them. Each now has a definition query and a hand-written conformance fixture under `fixtures/langs/` that states what counts as a definition. Examples: Haskell merges a function's equations into one definition, Pascal takes methods declared in a class and their bodies, COBOL takes paragraphs, sections and level-01 data items, and Nix takes top-level bindings only. Forms the grammar mis-parses are listed in each language's `KNOWN_GAPS.md` (Pascal subrange and generic types, Elm operator definitions, Verilog class constructors, Assembly data labels). `.vh` is now read as Verilog. 99 of the 206 grammars now have a definition query, and 107 are text only.

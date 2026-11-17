@@ -544,7 +544,7 @@ func (p *genericParser) Parse(ctx context.Context, path string, src []byte) (*Re
 		return nil, cerr
 	}
 	hosted := unmarkHostedTags(tags)
-	res.Imports = by.extractImports(tree, src)
+	res.Imports = fixImports(by.entry.Name, path, by.extractImports(tree, src))
 
 	// Python's scope-dependent facts: what each call was made on, each nested
 	// definition's qualified name, and the names its imports bring in. Nil for
@@ -648,6 +648,9 @@ func (p *genericParser) Parse(ctx context.Context, path string, src []byte) (*Re
 			}
 			if fixed && fix.owner != "" {
 				sym.FQN = model.DefaultFQN(path, fix.owner+"."+sym.Name)
+			}
+			if fixed && !hosted[i] && fix.endLine > 0 {
+				sym.Range.End = model.Position{Line: fix.endLine, Col: fix.endCol}
 			}
 			if tag.Kind == macroDefinitionTag {
 				// A macro_rules! is a function by kind and a macro by name:
