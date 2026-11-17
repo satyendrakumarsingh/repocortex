@@ -1,0 +1,32 @@
+# Perl definitions. Rule:
+#  - sub NAME is a function wherever it is written: at file level, after a `package` statement, inside a `package NAME { }` block. Perl has no methods as a syntax form; a sub called through `$self->` is still a sub. A prototype or attribute list changes nothing;
+#  - package NAME (statement or block form) is a package;
+#  - `use constant NAME => value` and every key of `use constant { A => 1, B => 2 }` are constants. Constant values must not be bare words (a bare-word value is read as a key);
+#  - `our $x`, `our @x`, `our %x` and `our ($a, $b)` at file level or directly inside a package block are variables;
+#  - `my` variables, anonymous subs, `local`, calls and `use`/`require` of modules are not definitions.
+Shape.pm	1	package	Shape
+Shape.pm	4	constant	PI
+Shape.pm	6	constant	SIDES
+Shape.pm	7	constant	COLOUR
+Shape.pm	8	constant	EDGES
+Shape.pm	9	constant	NAME
+Shape.pm	11	constant	DEBUG
+Shape.pm	13	variable	VERSION
+Shape.pm	14	variable	ISA
+Shape.pm	17	function	new
+Shape.pm	23	function	area
+Shape.pm	29	function	_internal
+Shape.pm	31	package	Shape::Circle
+Shape.pm	32	variable	COUNT
+Shape.pm	33	constant	RADIUS
+Shape.pm	35	function	new
+Shape.pm	40	function	circumference
+Shape.pm	43	package	Shape::Square
+Shape.pm	45	function	area
+Shape.pm	47	function	describe
+script.pl	4	variable	Global
+script.pl	5	variable	A
+script.pl	5	variable	B
+script.pl	7	function	main
+script.pl	13	function	process
+script.pl	18	function	with_attr

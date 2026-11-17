@@ -1,0 +1,49 @@
+# Pascal definitions. Rule:
+#  - program and unit are packages;
+#  - procedure and function are functions at any depth (a nested procedure is a named function); a routine written twice, as a header in the interface section and again with its body in the implementation, is two definitions, as in C;
+#  - constructor, destructor, procedure and function inside a class, record, object or interface body are methods; a body written `procedure TShape.Draw` is a method named by its last part;
+#  - class, record and object types are classes; interface types are interfaces; every other type (enumeration, alias, pointer, string, array) is a type alias;
+#  - const and var at the top of a program, a unit's interface or its implementation are constants and variables, one per name; a routine's own const and var are not definitions, nor are enumeration members, parameters and calls;
+#  - class, record and object fields, and properties, are fields.
+shapes.pas	1	package	Shapes
+shapes.pas	8	constant	MaxShapes
+shapes.pas	9	constant	Pi2
+shapes.pas	12	type_alias	TColour
+shapes.pas	13	type_alias	TName
+shapes.pas	14	class	TPoint
+shapes.pas	15	field	X
+shapes.pas	15	field	Y
+shapes.pas	17	type_alias	PPoint
+shapes.pas	19	interface	IDrawable
+shapes.pas	20	method	Draw
+shapes.pas	21	method	Area
+shapes.pas	24	class	TShape
+shapes.pas	26	field	FName
+shapes.pas	28	method	Create
+shapes.pas	29	method	Destroy
+shapes.pas	30	method	Draw
+shapes.pas	31	method	Area
+shapes.pas	32	field	Name
+shapes.pas	35	class	TCircle
+shapes.pas	36	field	FRadius
+shapes.pas	37	method	Area
+shapes.pas	41	variable	Count
+shapes.pas	42	variable	Names
+shapes.pas	44	function	Reset
+shapes.pas	45	function	Total
+shapes.pas	50	constant	Hidden
+shapes.pas	53	variable	Cache
+shapes.pas	55	method	Create
+shapes.pas	61	method	Destroy
+shapes.pas	66	method	Draw
+shapes.pas	74	method	Area
+shapes.pas	79	function	Reset
+shapes.pas	80	function	Inner
+shapes.pas	88	function	Total
+app.dpr	1	package	App
+app.dpr	8	class	TApp
+app.dpr	9	field	Value
+app.dpr	10	method	Run
+app.dpr	14	variable	Main
+app.dpr	16	method	Run
+app.dpr	21	function	Twice

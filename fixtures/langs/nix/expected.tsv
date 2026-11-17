@@ -1,0 +1,18 @@
+# Nix definitions. Rule (narrow: an attribute set declares nothing as such, so only what a file binds at its top level counts):
+#  - the top level is the expression the file evaluates to, looking through `{ args }:` and `x:` function layers, then either the bindings of a top-level `let .. in`, or the attributes of the `{ }` / `rec { }` that is the file's body (or the body of that let);
+#  - a binding with a single-name path is a function when its value is a function (double = x: x * 2) and a variable otherwise;
+#  - not definitions: dotted paths (options.a.b = ..), quoted names, inherit, anything nested inside a value (the keys of an inner set, a nested let), function parameters, and files whose body is not a set or a let (default.nix here).
+lib.nix	2	variable	version
+lib.nix	3	function	double
+lib.nix	4	function	add
+lib.nix	9	variable	name
+lib.nix	11	function	build
+lib.nix	15	function	helper
+lib.nix	16	variable	counter
+lib.nix	17	variable	settings
+module.nix	4	variable	cfg
+module.nix	5	function	mkThing
+module.nix	10	variable	config
+func.nix	3	variable	one
+func.nix	4	variable	two
+func.nix	5	function	half

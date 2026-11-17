@@ -497,8 +497,8 @@ func TestStatusDescribesTheParse(t *testing.T) {
 
 	t.Run("a grammar with no definition query is text only", func(t *testing.T) {
 		for path, src := range map[string]string{
-			"script.pl":  "sub compute_total {\n    my ($x) = @_;\n    return $x + 1;\n}\n",
-			"Main.hs":    "module Main where\n\ncomputeTotal :: Int -> Int\ncomputeTotal x = x + 1\n",
+			"script.fth": ": compute_total ( n -- n )\n    1 + ;\n",
+			"main.tal":   "|0100 @on-reset ( -> )\n    #01 #02 ADD POP\n    BRK\n",
 			"Dockerfile": "FROM alpine\nRUN true\n",
 			"table.csv":  "a,b\n1,2\n",
 		} {

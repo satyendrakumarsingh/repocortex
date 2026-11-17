@@ -1,0 +1,18 @@
+# COBOL definitions. Rule:
+#  - PROGRAM-ID is a package (the unit other programs CALL; it owns its paragraphs);
+#  - every paragraph and section header in the PROCEDURE DIVISION is a function (a PERFORM target); a section header's name is the word before SECTION;
+#  - level 01 and level 77 data items are variables (a group item counts once); subordinate items (05, 10 ..), 88-level condition names, FD file names, SELECT names, PERFORM, CALL and MOVE are not definitions.
+payroll.cob	1	package	PAYROLL
+payroll.cob	13	variable	EMP-RECORD
+payroll.cob	18	variable	WS-COUNT
+payroll.cob	19	variable	WS-TOTAL
+payroll.cob	20	variable	WS-FLAGS
+payroll.cob	26	variable	LS-PARM
+payroll.cob	29	function	MAIN-PARA
+payroll.cob	35	function	INIT-PARA
+payroll.cob	39	function	READ-LOOP
+payroll.cob	45	function	REPORT-SECTION
+payroll.cob	46	function	PRINT-PARA
+audit.cbl	1	package	AUDITLOG
+audit.cbl	5	variable	LK-VALUE
+audit.cbl	7	function	LOG-IT

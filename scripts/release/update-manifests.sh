@@ -12,6 +12,8 @@
 #                                             InstallerSha256, ReleaseDate,
 #                                             ReleaseNotesUrl
 #   packaging/mcpb/manifest.json              version
+#   packaging/homebrew/repocortex.rb          the whole formula, rendered by
+#                                             render-homebrew-formula.sh
 #   server.json                               version, image tag, bundle URLs
 #                                             and fileSha256
 #
@@ -145,6 +147,13 @@ set_yaml "$winget/$id.installer.yaml" InstallerSha256 "$(printf '%s' "$win_hash"
 set_yaml "$winget/$id.installer.yaml" ReleaseDate "$date"
 set_yaml "$winget/$id.locale.en-US.yaml" ReleaseNotesUrl "https://github.com/${REPO}/releases/tag/${tag}"
 echo "updated ${winget#"$root"/}/$id.*.yaml"
+
+# --- Homebrew ----------------------------------------------------------------
+# The release job copies this file into satyendrakumarsingh/homebrew-tap.
+brew="$root/packaging/homebrew/repocortex.rb"
+"$(dirname "$0")/render-homebrew-formula.sh" "$tag" "$sums" > "$tmp/formula"
+cat "$tmp/formula" > "$brew"
+echo "updated ${brew#"$root"/}"
 
 # --- MCP bundle manifest -----------------------------------------------------
 mcpb="$root/packaging/mcpb/manifest.json"

@@ -8,7 +8,7 @@ date; items move to the [CHANGELOG](../CHANGELOG.md) when they ship.
 | Item | Status | Why it matters |
 |---|---|---|
 | Tagged releases with binaries | **Shipped in v1.0.1** | `install.sh`, `install.ps1` and the offline archives resolve a published release. |
-| Homebrew formula updated by the release job | **Needed now** | The formula in `satyendrakumarsingh/homebrew-tap` pins version and checksums by hand, and still names the old `cortex` binary. It must be renamed to `repocortex` and bumped to v1.0.1; the release job should open the bump. |
+| Homebrew formula updated by the release job | **Ready; publishes with the next release** | The release job renders `repocortex.rb` from the release's `SHA256SUMS` (`scripts/release/render-homebrew-formula.sh`) and opens a pull request on `satyendrakumarsingh/homebrew-tap` that replaces the old `cortex` formula, with a rename entry so existing installs follow. It needs a `HOMEBREW_TAP_TOKEN` secret. `packaging/homebrew/repocortex.rb` is the rendered v1.0.1 formula. |
 | Container image on GHCR | **Shipped** | Published at `ghcr.io/satyendrakumarsingh/repocortex` on release. CI users pull a pinned multi-arch container image. |
 | Windows package (winget / Scoop) | **Shipped** | Package manifests published in `manifests/` for Scoop and Windows Package Manager. |
 | Signed releases, SBOM and provenance | **Shipped** | Release artifacts signed via Cosign keyless OIDC with Syft SPDX SBOMs and GitHub in-toto provenance attestations. |
@@ -35,7 +35,7 @@ date; items move to the [CHANGELOG](../CHANGELOG.md) when they ship.
 | Declarative graph query (`search_graph`) | **Shipped** | Guarded read-only SQL graph query tool via MCP (`search_graph`), CLI (`repocortex query`) and compact frontdoor (`action: query`), matching GitNexus and codebase-memory-mcp. |
 | Call binding by column and name | **Shipped** | `PromoteCalls` pairs compiler occurrences with parser call columns via `pairsOneToOne` and `(line, name)` grouping. |
 | Incremental re-binding of cross-file handlers | **Shipped** | An incremental update runs the same resolve pass as `index --full`, so a route handler declared in another file is bound again after either file changes. |
-| Deeper resolution for more languages | Exploring | Eight languages are `typed` (C#, C++, Go, Java, Kotlin, Python, Scala, TypeScript), six are `resolved` (C, JavaScript, PHP, Ruby, Rust, TSX), 77 are `parsed` (definitions and search only) and 115 are text only. Python was promoted on a measurement against `scip-python` over four repositories ([accuracy.md](accuracy.md)); the others are typed by an arity query and were read by hand on one project each ([verification](verification/2026-11-13/README.md)), where their `low` tier measured poorly. Rust is next and its tier has no compiler-index measurement. See `repocortex languages`. |
+| Deeper resolution for more languages | Exploring | Eight languages are `typed` (C#, C++, Go, Java, Kotlin, Python, Scala, TypeScript), six are `resolved` (C, JavaScript, PHP, Ruby, Rust, TSX), 85 are `parsed` (definitions and search only) and 107 are text only. Python was promoted on a measurement against `scip-python` over four repositories ([accuracy.md](accuracy.md)); the others are typed by an arity query and were read by hand on one project each ([verification](verification/2026-11-13/README.md)), where their `low` tier measured poorly. Rust is next and its tier has no compiler-index measurement. See `repocortex languages`. |
 
 ## Known issues
 

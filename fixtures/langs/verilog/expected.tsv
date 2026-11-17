@@ -1,0 +1,31 @@
+# Verilog / SystemVerilog definitions. Rule:
+#  - module is a class (the unit that is instantiated, with parameters and members); interface is an interface; package is a package; class is a class;
+#  - function and task are functions, and methods when declared inside a class; `function new()` has no name of its own and is not a definition;
+#  - parameter and localparam are constants wherever declared (module parameter port list, module body, package, interface), one per name; type parameters are not definitions;
+#  - typedef is a type_alias (enumeration members are not definitions); class properties are fields;
+#  - ports, nets, registers, module variables, instances (alu a0 (..)) and calls are not definitions.
+alu.v	3	class	alu
+alu.v	4	constant	WIDTH
+alu.v	5	constant	DEPTH
+alu.v	11	constant	IDLE
+alu.v	11	constant	BUSY
+alu.v	12	constant	MODE
+alu.v	17	function	add
+alu.v	25	function	clog2
+alu.v	33	function	reset_all
+alu.v	39	function	bump
+alu.v	53	class	sub_unit
+alu.v	53	constant	W
+top.sv	1	package	defs_pkg
+top.sv	2	constant	DATA_W
+top.sv	3	constant	ADDR_W
+top.sv	4	type_alias	state_t
+top.sv	5	function	twice
+top.sv	10	interface	bus_if
+top.sv	10	constant	W
+top.sv	15	class	Packet
+top.sv	16	field	len
+top.sv	20	method	size
+top.sv	23	method	send
+top.sv	27	class	top
+top.sv	29	constant	LIMIT

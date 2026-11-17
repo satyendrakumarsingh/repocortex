@@ -43,7 +43,7 @@ func seedMixedRepo(t *testing.T) string {
 	write("pkg/clean.go", "package pkg\n\nfunc Clean() {}\n")
 	write("pkg/doc.go", "// Package pkg declares nothing in this file.\npackage pkg\n")
 	write("pkg/broken.go", "package pkg\n\nfunc Broken() {\n\tx := \n}\n\nfunc After() {}\n")
-	write("scripts/report.pl", "sub compute_quarterly_total { return 1; }\n")
+	write("scripts/report.fth", ": compute_quarterly_total 1 ;\n")
 	write("docs/guide.rst", "Guide\n=====\n\nSome prose.\n")
 	write("gen/medium.go", filler(6000))
 	write("gen/largest.go", filler(20000))
@@ -81,7 +81,7 @@ func TestIndexAndStatusNameWhatWasLeftOut(t *testing.T) {
 			"gen/large.go",
 			"gen/medium.go",
 			"Text only: 2 files searchable by text, no definitions",
-			"perl 1",
+			"forth 1",
 			"rst 1",
 			"no_grammar",
 		} {
@@ -147,8 +147,8 @@ func TestIndexAndStatusNameWhatWasLeftOut(t *testing.T) {
 	if err != nil {
 		t.Fatalf("search: %v\n%s", err, searchOut)
 	}
-	if !strings.Contains(searchOut, "scripts/report.pl") {
-		t.Errorf("search did not find a name that appears only in a Perl file:\n%s", searchOut)
+	if !strings.Contains(searchOut, "scripts/report.fth") {
+		t.Errorf("search did not find a name that appears only in a Forth file:\n%s", searchOut)
 	}
 
 	// A second `index` changes nothing and must still name what is left out.
@@ -248,7 +248,7 @@ func TestLanguagesSaysWhichAreTextOnly(t *testing.T) {
 		}
 		return false
 	}
-	for _, lang := range []string{"perl", "haskell", "dockerfile", "xml"} {
+	for _, lang := range []string{"forth", "uxntal", "dockerfile", "xml"} {
 		if !in(rep.TextOnly, lang) {
 			t.Errorf("%s is not listed as text only", lang)
 		}
@@ -265,7 +265,7 @@ func TestLanguagesSaysWhichAreTextOnly(t *testing.T) {
 	}
 	// The list and the parsers must agree, language by language.
 	reg := parse.NewRegistry()
-	for _, probe := range []struct{ lang, file string }{{"perl", "x.pl"}, {"haskell", "x.hs"}, {"go", "x.go"}, {"c", "x.c"}} {
+	for _, probe := range []struct{ lang, file string }{{"forth", "x.fth"}, {"uxntal", "x.tal"}, {"go", "x.go"}, {"c", "x.c"}} {
 		res, err := reg.ForFile(probe.file).Parse(t.Context(), probe.file, []byte("x\n"))
 		if err != nil {
 			t.Fatal(err)

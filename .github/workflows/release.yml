@@ -32,8 +32,9 @@ env:
 #   provenance   signs SHA256SUMS, attests the archives and attaches SBOMs.
 #   bundle       builds the MCP bundles (.mcpb) and attaches them.
 #   image        builds, pushes, signs and attests the container image.
+#   homebrew     opens the formula bump on the tap (releases only).
 #
-# The last three all `need` release, so they start only once the release
+# The last four all `need` release, so they start only once the release
 # exists. If Sigstore, GHCR or the Go module proxy is down, the release is
 # still out with its checksums; what is missing is the signature, the image or
 # the bundle, the failed job is red, and re-running that job alone adds it.
@@ -349,6 +350,78 @@ jobs:
         uses: actions/attest-build-provenance@v4
         with:
           subject-path: mcpb/*.mcpb
+
+  # The Homebrew formula lives in satyendrakumarsingh/homebrew-tap. It used to
+  # be edited by hand, and after v1.0.1 it still installed v1.0.0 under the
+  # old `cortex` name. This job renders it from the release's SHA256SUMS and
+  # opens a pull request on the tap; merging that PR is what publishes it.
+  # It needs HOMEBREW_TAP_TOKEN, a token that may push branches to the tap
+  # and open pull requests there. Without it the job says so and succeeds:
+  # the release is out either way.
+  homebrew:
+    name: Homebrew Formula
+    needs: release
+    if: ${{ needs.release.outputs.is_prerelease == 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions: {}
+    env:
+      TAG_NAME: ${{ needs.release.outputs.tag_name }}
+      TAP: satyendrakumarsingh/homebrew-tap
+      GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+
+      - name: Download Release Artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: repocortex-release-${{ needs.release.outputs.version }}
+          path: dist
+
+      - name: Render the Formula
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd dist && sha256sum -c SHA256SUMS)
+          ./scripts/release/render-homebrew-formula.sh "$TAG_NAME" dist/SHA256SUMS > repocortex.rb
+          ruby -c repocortex.rb
+
+      - name: Open the Bump on the Tap
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::notice::HOMEBREW_TAP_TOKEN is not set; the formula was rendered and not published. Copy packaging/homebrew/repocortex.rb to the tap by hand."
+            exit 0
+          fi
+          branch="repocortex-${TAG_NAME}"
+          git clone --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/${TAP}.git" tap
+          cd tap
+          git checkout -b "$branch"
+          mkdir -p Formula
+          cp ../repocortex.rb Formula/repocortex.rb
+          # The formula was called cortex before v1.0.1; the rename file makes
+          # `brew upgrade` move existing installs to the new name.
+          if [ -f Formula/cortex.rb ]; then
+            git rm -q Formula/cortex.rb
+          fi
+          echo '{ "cortex": "repocortex" }' > formula_renames.json
+          git add Formula/repocortex.rb formula_renames.json
+          if git diff --cached --quiet; then
+            echo "The tap already has this formula."
+            exit 0
+          fi
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -q -m "repocortex ${TAG_NAME}"
+          git push -q --force origin "$branch"
+          if gh pr view "$branch" --repo "$TAP" >/dev/null 2>&1; then
+            echo "The pull request for ${branch} is already open; its branch was updated."
+          else
+            gh pr create --repo "$TAP" --head "$branch" --base main \
+              --title "repocortex ${TAG_NAME}" \
+              --body "Formula rendered from the ${TAG_NAME} SHA256SUMS by the release workflow."
+          fi
 
   # The container image. Pushed for a tag and nothing else: a canary image
   # would be one more thing called "latest" that is not a release.

@@ -54,16 +54,16 @@ func determinismCorpus() map[string]string {
 			"                case 0:\n                    return 1;\n#if HAVE_EXTRA\n                case 1:\n" +
 			"                    return 2;\n#endif\n                default:\n                    return 0;\n" +
 			"            }\n        }\n\n        public int After(int x) { return x + 1; }\n    }\n}\n",
-		"pkg/clean.go":      "package pkg\n\ntype Service struct{}\n\nfunc (s *Service) Run() error { return nil }\n",
-		"pkg/big.go":        goFuncs.String(),
-		"pkg/doc.go":        "// Package pkg is documented and declares nothing here.\npackage pkg\n",
-		"pkg/broken.go":     "package pkg\n\nfunc Before() {}\n\nfunc Broken() {\n\tx := \n}\n\nfunc After() {}\n",
-		"scripts/report.pl": "sub compute_total {\n    my ($x) = @_;\n    return $x + 1;\n}\n",
-		"lib/Main.hs":       "module Main where\n\ncomputeTotal :: Int -> Int\ncomputeTotal x = x + 1\n",
-		"Makefile":          "build:\n\tgo build ./...\n",
-		"notes.unknownext":  "free text that no grammar claims\n",
-		"web/app.ts":        "export class Widget {\n  render(): string { return 'x' }\n}\n",
-		"web/Panel.vue":     "<template><div/></template>\n<script lang=\"ts\">\nexport function panel(): number { return 1 }\n</script>\n",
+		"pkg/clean.go":       "package pkg\n\ntype Service struct{}\n\nfunc (s *Service) Run() error { return nil }\n",
+		"pkg/big.go":         goFuncs.String(),
+		"pkg/doc.go":         "// Package pkg is documented and declares nothing here.\npackage pkg\n",
+		"pkg/broken.go":      "package pkg\n\nfunc Before() {}\n\nfunc Broken() {\n\tx := \n}\n\nfunc After() {}\n",
+		"scripts/report.fth": ": compute_total ( n -- n )\n    1 + ;\n",
+		"lib/main.tal":       "|0100 @on-reset ( -> )\n    #01 #02 ADD POP\n    BRK\n",
+		"Makefile":           "build:\n\tgo build ./...\n",
+		"notes.unknownext":   "free text that no grammar claims\n",
+		"web/app.ts":         "export class Widget {\n  render(): string { return 'x' }\n}\n",
+		"web/Panel.vue":      "<template><div/></template>\n<script lang=\"ts\">\nexport function panel(): number { return 1 }\n</script>\n",
 	}
 }
 
@@ -171,8 +171,8 @@ func TestIndexDoesNotDependOnMachineLoad(t *testing.T) {
 		// as errors, the C mask overwrites it and the table parses, so the
 		// file is read clean. It was partial before the mask learned the shape.
 		"F src/bitops.c | c | ok | ",
-		"F scripts/report.pl | perl | skipped | text_only: ",
-		"F lib/Main.hs | haskell | skipped | text_only: ",
+		"F scripts/report.fth | forth | skipped | text_only: ",
+		"F lib/main.tal | uxntal | skipped | text_only: ",
 		"F notes.unknownext |  | skipped | no grammar",
 		"S drivers/table.c | function after_table",
 		"S deps/lobject.c | function luaO_ceillog2",
@@ -218,21 +218,21 @@ func linesContaining(s, sub string) string {
 }
 
 // TestTextOnlyFilesAreSearchableAndHaveNoSymbols is defect 6 end to end: a
-// function name that appears only in a Perl or a Haskell file must be found by
+// function name that appears only in a Forth or a Uxntal file must be found by
 // search, the file must say why it has no symbols, and none may be invented.
 func TestTextOnlyFilesAreSearchableAndHaveNoSymbols(t *testing.T) {
 	h := newHarness(t, map[string]string{
-		"scripts/report.pl": "sub compute_quarterly_total {\n    my ($x) = @_;\n    return $x + 1;\n}\n",
-		"lib/Main.hs":       "module Main where\n\nsummariseLedgerEntries :: Int -> Int\nsummariseLedgerEntries x = x + 1\n",
-		"pkg/a.go":          "package pkg\n\nfunc InGo() {}\n",
-		"notes.unknownext":  "wordThatNoGrammarClaims\n",
+		"scripts/report.fth": ": compute_quarterly_total ( n -- n )\n    1 + ;\n",
+		"lib/main.tal":       "|0100 @summariseLedgerEntries ( -> )\n    #01 #02 ADD POP\n    BRK\n",
+		"pkg/a.go":           "package pkg\n\nfunc InGo() {}\n",
+		"notes.unknownext":   "wordThatNoGrammarClaims\n",
 	})
 	ctx := context.Background()
 
 	for query, wantPath := range map[string]string{
-		"compute_quarterly_total": "scripts/report.pl",
-		"summariseLedgerEntries":  "lib/Main.hs",
-		"quarterly":               "scripts/report.pl", // identifier parts are searchable too
+		"compute_quarterly_total": "scripts/report.fth",
+		"summariseLedgerEntries":  "lib/main.tal",
+		"quarterly":               "scripts/report.fth", // identifier parts are searchable too
 	} {
 		hits, err := h.reg.SearchFiles(ctx, query, 10)
 		if err != nil {
@@ -265,7 +265,7 @@ func TestTextOnlyFilesAreSearchableAndHaveNoSymbols(t *testing.T) {
 	for _, f := range files {
 		byPath[f.Path] = f
 	}
-	for _, p := range []string{"scripts/report.pl", "lib/Main.hs"} {
+	for _, p := range []string{"scripts/report.fth", "lib/main.tal"} {
 		f := byPath[p]
 		if f.ParseStatus != model.ParseStatusSkipped || f.ParseReason() != model.ParseReasonTextOnly {
 			t.Errorf("%s: status=%q reason=%q, want skipped / text_only", p, f.ParseStatus, f.ParseReason())
@@ -275,7 +275,7 @@ func TestTextOnlyFilesAreSearchableAndHaveNoSymbols(t *testing.T) {
 		}
 	}
 	for path := range h.symbolNames() {
-		if strings.HasSuffix(path, ".pl") || strings.HasSuffix(path, ".hs") {
+		if strings.HasSuffix(path, ".fth") || strings.HasSuffix(path, ".tal") {
 			t.Errorf("a symbol was recorded for text-only file key %q", path)
 		}
 	}
@@ -291,7 +291,7 @@ func TestTextOnlyFilesAreSearchableAndHaveNoSymbols(t *testing.T) {
 	}
 
 	// An edit to a text-only file keeps it searchable on the incremental path.
-	h.write("scripts/report.pl", "sub renamed_after_edit { return 2; }\n")
+	h.write("scripts/report.fth", ": renamed_after_edit 2 ;\n")
 	h.sync()
 	hits, err := h.reg.SearchFiles(ctx, "renamed_after_edit", 10)
 	if err != nil {

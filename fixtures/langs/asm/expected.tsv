@@ -1,0 +1,10 @@
+# Assembly definitions. Rule:
+#  - every label is a function (a named address that is called or jumped to), whether or not a .globl names it;
+#  - assembler-local labels are not definitions: any label starting with a dot (.Ldone), numeric labels (1:, used as 1b / 1f) and the compiler's block labels (LBB0_1, Lfunc_begin0, Ltmp0, Lcfi0);
+#  - directives (.globl, .type, .size) and instructions are not definitions.
+start.s	6	function	_start
+start.s	11	function	main
+start.s	23	function	helper
+start.s	30	function	util
+arm.S	4	function	entry
+arm.S	9	function	compute

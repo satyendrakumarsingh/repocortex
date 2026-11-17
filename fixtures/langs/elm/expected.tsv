@@ -1,0 +1,21 @@
+# Elm definitions. Rule:
+#  - module (also port module) is a package;
+#  - a top-level value or function is a function, once: its type annotation is not a definition of its own, and a constant (limit = 10) is a function too, since Elm treats a zero-argument function and a value as one thing; names bound by let are local and are not definitions;
+#  - type is a class (variants are not definitions), type alias is a type_alias;
+#  - port name : .. is a function;
+#  - record fields, union variants, imports and calls are not definitions.
+Main.elm	1	package	Main
+Main.elm	7	type_alias	Model
+Main.elm	13	type_alias	Pair
+Main.elm	17	class	Msg
+Main.elm	23	class	Shape
+Main.elm	29	function	limit
+Main.elm	34	function	init
+Main.elm	39	function	update
+Main.elm	59	function	view
+Main.elm	63	function	noAnnotation
+Main.elm	68	function	pipeTo
+Main.elm	72	function	sendMessage
+Main.elm	75	function	receive
+Main.elm	79	function	area
+Main.elm	88	function	main

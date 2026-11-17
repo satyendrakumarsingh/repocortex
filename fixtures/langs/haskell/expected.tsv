@@ -1,0 +1,40 @@
+# Haskell definitions. Rule:
+#  - module is a package;
+#  - a top-level equation is a function, once however many equations it has: f x = .., f = .., an operator (a |+| b = ..) and a back-quoted one (x `plus` y = ..). The type signature is not a definition of its own, and a point-free value (total = sum . map area) is a function too, because without type inference it cannot be told from one;
+#  - foreign import names a function;
+#  - data, newtype and data family are classes; type synonyms and type families are type aliases; class is an interface and the signatures in its body are methods; record fields are fields;
+#  - instance bodies, where/let bindings, data constructors, pattern synonyms and `type instance` are not definitions.
+Shapes.hs	2	package	Shapes
+Shapes.hs	12	class	Shape
+Shapes.hs	17	class	Point
+Shapes.hs	17	field	px
+Shapes.hs	17	field	py
+Shapes.hs	19	class	Wrapper
+Shapes.hs	19	field	unwrap
+Shapes.hs	21	type_alias	Name
+Shapes.hs	22	type_alias	Pair
+Shapes.hs	24	interface	Container
+Shapes.hs	25	method	empty
+Shapes.hs	26	method	insert
+Shapes.hs	27	method	toL
+Shapes.hs	28	method	size
+Shapes.hs	31	interface	Pretty
+Shapes.hs	32	method	pretty
+Shapes.hs	44	function	area
+Shapes.hs	48	function	perimeter
+Shapes.hs	54	function	scale
+Shapes.hs	57	function	unsignedHelper
+Shapes.hs	60	function	|+|
+Shapes.hs	65	function	total
+Shapes.hs	67	function	origin
+Shapes.hs	70	function	main
+Shapes.hs	76	function	pair
+Shapes.hs	77	function	other
+Shapes.hs	83	function	safeDiv
+Shapes.hs	86	class	Expr
+Shapes.hs	90	type_alias	Elem
+Shapes.hs	93	class	Vec
+Shapes.hs	95	class	Age
+Shapes.hs	97	class	Tree
+Shapes.hs	99	function	plus
+Shapes.hs	101	function	c_sin

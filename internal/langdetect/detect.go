@@ -399,6 +399,7 @@ var extraExtensions = map[string]string{
 	".pks":   "sql",
 	".plsql": "sql",
 	".pgsql": "sql",
+	".vh":    "verilog",
 }
 
 // extDefaults caches what the library says for a bare extension, so that the
