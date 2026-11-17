@@ -236,3 +236,120 @@ module.exports = router;
 		t.Fatalf("did not find GET /api/v1/users/:id in %v", sigs)
 	}
 }
+
+func expressSignatures(t *testing.T, tree map[string]string) []string {
+	t.Helper()
+	ctx := context.Background()
+	root := t.TempDir()
+	writeTree(t, root, tree)
+	reg, runID, _ := indexTree(t, root, filepath.Join(t.TempDir(), "index.db"))
+	endpoints, err := reg.EndpointReport(ctx, runID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, e := range endpoints {
+		got = append(got, e.Signature)
+	}
+	sort.Strings(got)
+	return got
+}
+
+const expressUsersJS = `const express = require('express');
+const router = express.Router();
+router.get('/:id', getUser);
+module.exports = router;
+`
+
+// Each case is one way an Express service is laid out, and the URL its route
+// is served at.
+func TestExpressMountShapes(t *testing.T) {
+	cases := []struct {
+		name string
+		tree map[string]string
+		want string
+	}{
+		{"middleware between the path and the router", map[string]string{
+			"app.js":          "const users = require('./routes/users');\nconst app = express();\napp.use('/api/users', requireAuth, users);\n",
+			"routes/users.js": expressUsersJS,
+		}, "GET /api/users/:id"},
+		{"a router mounted on a mounted router", map[string]string{
+			"app.js":          "const api = require('./routes/index');\nconst app = express();\napp.use('/api', api);\n",
+			"routes/index.js": "const express = require('express');\nconst router = express.Router();\nconst users = require('./users');\nrouter.use('/users', users);\nmodule.exports = router;\n",
+			"routes/users.js": expressUsersJS,
+		}, "GET /api/users/:id"},
+		{"a TypeScript source imported as .js", map[string]string{
+			"src/app.ts":          "import express from 'express';\nimport users from './routes/users.js';\nconst app = express();\napp.use('/users', users);\n",
+			"src/routes/users.ts": "import { Router } from 'express';\nconst router = Router();\nrouter.get('/:id', getUser);\nexport default router;\n",
+		}, "GET /users/:id"},
+		{"a router required inline", map[string]string{
+			"app.js":          "const app = express();\napp.use('/users', require('./routes/users'));\n",
+			"routes/users.js": expressUsersJS,
+		}, "GET /users/:id"},
+		{"a named export", map[string]string{
+			"app.js":          "const { usersRouter } = require('./routes/users');\nconst app = express();\napp.use('/users', usersRouter);\n",
+			"routes/users.js": "const express = require('express');\nconst usersRouter = express.Router();\nusersRouter.get('/:id', getUser);\nmodule.exports = { usersRouter };\n",
+		}, "GET /users/:id"},
+		{"served under two prefixes: left as declared", map[string]string{
+			"app.js":          "const users = require('./routes/users');\nconst app = express();\napp.use('/v1', users);\napp.use('/v2', users);\n",
+			"routes/users.js": expressUsersJS,
+		}, "GET /:id"},
+		{"a test's own mount does not count", map[string]string{
+			"app.js":             "const users = require('./routes/users');\nconst app = express();\napp.use('/users', users);\n",
+			"test/users.test.js": "const users = require('../routes/users');\nconst app = express();\napp.use('/', users);\n",
+			"routes/users.js":    expressUsersJS,
+			"__tests__/users.js": "const users = require('../routes/users');\nconst app = express();\napp.use('/t', users);\n",
+		}, "GET /users/:id"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := expressSignatures(t, c.tree)
+			found := false
+			for _, g := range got {
+				if g == c.want {
+					found = true
+				}
+			}
+			if !found {
+				t.Errorf("want %q; got %v", c.want, got)
+			}
+		})
+	}
+}
+
+// A mount that is gone takes its prefix with it, and a second pass changes
+// nothing.
+func TestExpressMountNamesAreRecomputed(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	writeTree(t, root, map[string]string{
+		"app.js":          "const users = require('./routes/users');\nconst app = express();\napp.use('/users', users);\n",
+		"routes/users.js": expressUsersJS,
+		"routes/other.js": "const express = require('express');\nconst router = express.Router();\nrouter.get('/other', other);\nmodule.exports = router;\n",
+	})
+	reg, runID, _ := indexTree(t, root, filepath.Join(t.TempDir(), "index.db"))
+	st, err := MountExpressRouters(ctx, reg, runID)
+	if err != nil || st.Renamed != 0 {
+		t.Fatalf("second pass renamed %d, err %v; want 0", st.Renamed, err)
+	}
+	endpoints, err := reg.EndpointReport(ctx, runID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var otherID int64
+	for _, e := range endpoints {
+		if e.Signature == "GET /other" {
+			otherID = e.SymbolID
+		}
+	}
+	if otherID == 0 {
+		t.Fatal("no GET /other endpoint")
+	}
+	// As an earlier run that mounted other.js under /old would have left it.
+	if err := reg.RenameEndpoints(ctx, map[int64]string{otherID: "GET /old/other"}); err != nil {
+		t.Fatal(err)
+	}
+	if st, err = MountExpressRouters(ctx, reg, runID); err != nil || st.Renamed != 1 {
+		t.Fatalf("restore pass renamed %d, err %v; want 1", st.Renamed, err)
+	}
+}

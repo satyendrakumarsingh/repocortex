@@ -120,29 +120,56 @@ var (
 	reJmsTemplateSend  = regexp.MustCompile(`jmsTemplate\.(?:convertAndSend|send)\s*\(\s*"([^"]+)"`)
 
 	// Celery patterns (Python async task queue)
-	reCeleryTaskDec  = regexp.MustCompile(`^@(app\.task|celery\.task|shared_task)\b(?:\((.*)\))?`)
+	// @shared_task, and @<app>.task on any Celery app variable: app,
+	// celery, celery_app.
+	reCeleryTaskDec  = regexp.MustCompile(`^@((?:[A-Za-z_]\w*\.)+task|shared_task)\b(?:\((.*)\))?`)
 	reCeleryTaskName = regexp.MustCompile(`\bname\s*=\s*["']([^"']+)["']`)
 	reCeleryDelay    = regexp.MustCompile(`\b([A-Za-z0-9_]+)\.(?:delay|apply_async)\s*\(`)
 	reCelerySendTask = regexp.MustCompile(`\b(?:app|celery)\.send_task\s*\(\s*["']([^"']+)["']`)
 
 	// BullMQ patterns (Node / TS redis task queue)
 	reBullWorker  = regexp.MustCompile(`new\s+Worker\s*(?:<[^>]+>)?\s*\(\s*['"]([^'"]+)['"]`)
-	reBullProcess = regexp.MustCompile(`\.process\s*\(\s*['"]([^'"]+)['"]`)
-	reBullAdd     = regexp.MustCompile(`\b([a-zA-Z_$][\w$]*)\.add(?:Bulk)?\s*\(\s*['"]([^'"]+)['"]`)
+	reBullProcess = regexp.MustCompile(`\b([a-zA-Z_$][\w$]*)\.process\s*\(\s*['"]([^'"]+)['"]`)
+	// A file uses Bull when it imports it; the word "bull" alone is in
+	// "bullet" and "bulletin".
+	reBullImport = regexp.MustCompile(`(?:from\s+|require\s*\(\s*)['"](?:bullmq|bull|@nestjs/bull|@nestjs/bullmq)['"]`)
+	// The variables a file holds queues in: `const emails = new Queue(...)`,
+	// `this.emails = new Queue(...)`, `@InjectQueue('x') private emails`.
+	reBullQueueVar    = regexp.MustCompile(`\b([a-zA-Z_$][\w$]*)\s*(?::\s*[\w$<>, ]+)?=\s*new\s+Queue\b`)
+	reBullInjectQueue = regexp.MustCompile(`@InjectQueue\s*\([^)]*\)\s*(?:(?:private|public|protected|readonly)\s+)*([a-zA-Z_$][\w$]*)`)
+	reBullAdd         = regexp.MustCompile(`\b([a-zA-Z_$][\w$]*)\.add(?:Bulk)?\s*\(\s*['"]([^'"]+)['"]`)
 
 	// Temporal patterns (Go / TS / Python workflow engine)
 	reTemporalGoRegister = regexp.MustCompile(`\b(?:w|worker)\.Register(?:Workflow|Activity)(?:WithOptions)?\s*\(\s*([A-Za-z0-9_]+)`)
 	reTemporalGoExecute  = regexp.MustCompile(`\bworkflow\.(?:ExecuteActivity|ExecuteChildWorkflow)\s*\([^,]+,\s*([A-Za-z0-9_]+)`)
-	reTemporalPyDefn     = regexp.MustCompile(`^@(workflow|activity)\.defn\b`)
-	reTemporalPyExecute  = regexp.MustCompile(`\bworkflow\.execute_(?:activity|child_workflow)\s*\(\s*([A-Za-z0-9_]+)`)
-	reTemporalTSExecute  = regexp.MustCompile(`(?:workflowClient\.start|client\.workflow\.start)\s*\(\s*([A-Za-z0-9_]+)`)
+	reTemporalPyDefn     = regexp.MustCompile(`^@(workflow|activity)\.defn\b(?:\((.*)\))?`)
+	reTemporalPyName     = regexp.MustCompile(`\bname\s*=\s*["']([^"']+)["']`)
+	rePyClass            = regexp.MustCompile(`^class\s+([A-Za-z_]\w*)`)
+	// client.execute_workflow(GreetingWorkflow.run, ...) and start_workflow,
+	// by the class or by its registered name.
+	reTemporalPyClient  = regexp.MustCompile(`\.(?:execute|start)_workflow\s*\(\s*(?:["']([^"']+)["']|([A-Za-z0-9_]+))`)
+	reTemporalPyExecute = regexp.MustCompile(`\bworkflow\.execute_(?:activity|child_workflow)\s*\(\s*([A-Za-z0-9_]+)`)
+	reTemporalTSExecute = regexp.MustCompile(`(?:workflowClient\.start|client\.workflow\.start)\s*\(\s*([A-Za-z0-9_]+)`)
 
 	reEnclosingFunc = regexp.MustCompile(`(?:func\s+(?:\([^)]+\)\s+)?([A-Za-z0-9_]+)|def\s+([A-Za-z0-9_]+)|public\s+[^\(]+\s+([A-Za-z0-9_]+)\s*\()`)
 )
 
-var bullNoiseReceivers = map[string]bool{
-	"set": true, "map": true, "list": true, "arr": true, "items": true,
-	"styles": true, "classList": true, "dom": true, "element": true,
+// bullQueueVars is every variable the file holds a Bull queue in.
+func bullQueueVars(src string) map[string]bool {
+	out := map[string]bool{}
+	for _, re := range []*regexp.Regexp{reBullQueueVar, reBullInjectQueue} {
+		for _, m := range re.FindAllStringSubmatch(src, -1) {
+			out[m[1]] = true
+		}
+	}
+	return out
+}
+
+// isBullQueue reports whether a receiver is a queue: one the file assigns a
+// Queue to, or one named as a queue. A set, a form or URLSearchParams also
+// has add("x"), and none of them is a job.
+func isBullQueue(receiver string, vars map[string]bool) bool {
+	return vars[receiver] || strings.Contains(strings.ToLower(receiver), "queue")
 }
 
 // Extract finds all event bus publications and subscriptions in a source file.
@@ -172,15 +199,21 @@ func Extract(filePath string, src []byte) []EventBinding {
 	usesKafka := strings.Contains(lowerSrc, "kafka")
 	usesActiveMQ := strings.Contains(lowerSrc, "activemq") || strings.Contains(lowerSrc, "stomp")
 	usesCelery := strings.Contains(lowerSrc, "celery") || strings.Contains(lowerSrc, "shared_task")
-	usesBull := strings.Contains(lowerSrc, "bullmq") || strings.Contains(lowerSrc, "bull")
+	usesBull := reBullImport.MatchString(string(src))
+	var queueVars map[string]bool
+	if usesBull {
+		queueVars = bullQueueVars(string(src))
+	}
 	usesTemporal := strings.Contains(lowerSrc, "temporal") || strings.Contains(lowerSrc, "cadence")
 	genericBroker := BrokerKafka
 	if usesActiveMQ && !usesKafka {
 		genericBroker = BrokerActiveMQ
 	}
 	currentCtx := ""
-	pendingCeleryLine := 0
-	pendingTemporalLine := 0
+	// A task or workflow decorator names the definition that follows it, so
+	// the binding waits for that definition's line and name.
+	pendingCelery, pendingCeleryName := false, ""
+	pendingTemporal, pendingTemporalName := false, ""
 
 	for i, line := range lines {
 		trimmed := strings.TrimSpace(line)
@@ -194,29 +227,25 @@ func Extract(filePath string, src []byte) []EventBinding {
 					break
 				}
 			}
-			if pendingCeleryLine > 0 && currentFunc != "" {
-				bindings = append(bindings, EventBinding{
-					Broker:     BrokerCelery,
-					Direction:  DirectionConsume,
-					Topic:      currentFunc,
-					Function:   currentFunc,
-					Line:       pendingCeleryLine,
-					Confidence: model.ConfidenceHigh,
-					EdgeKind:   model.EdgeConsumes,
-				})
-				pendingCeleryLine = 0
+			if pendingCelery && currentFunc != "" {
+				// task.delay() names the function and send_task("x") the
+				// registered name; the task consumes both.
+				bindings = append(bindings, celeryConsume(currentFunc, currentFunc, lineNum))
+				if pendingCeleryName != "" && pendingCeleryName != currentFunc {
+					bindings = append(bindings, celeryConsume(pendingCeleryName, currentFunc, lineNum))
+				}
+				pendingCelery, pendingCeleryName = false, ""
 			}
-			if pendingTemporalLine > 0 && currentFunc != "" {
-				bindings = append(bindings, EventBinding{
-					Broker:     BrokerTemporal,
-					Direction:  DirectionConsume,
-					Topic:      currentFunc,
-					Function:   currentFunc,
-					Line:       pendingTemporalLine,
-					Confidence: model.ConfidenceHigh,
-					EdgeKind:   model.EdgeConsumes,
-				})
-				pendingTemporalLine = 0
+			if pendingTemporal && currentFunc != "" {
+				bindings = append(bindings, temporalConsume(pendingTemporalName, currentFunc, lineNum))
+				pendingTemporal, pendingTemporalName = false, ""
+			}
+		} else if pendingTemporal && ext == ".py" {
+			// @workflow.defn decorates a class; the workflow is the class.
+			if m := rePyClass.FindStringSubmatch(trimmed); m != nil {
+				currentFunc = m[1]
+				bindings = append(bindings, temporalConsume(pendingTemporalName, m[1], lineNum))
+				pendingTemporal, pendingTemporalName = false, ""
 			}
 		}
 
@@ -501,24 +530,11 @@ func Extract(filePath string, src []byte) []EventBinding {
 		// 6. Celery task queues (Python)
 		if usesCelery && ext == ".py" {
 			if m := reCeleryTaskDec.FindStringSubmatch(trimmed); len(m) > 0 {
-				taskName := ""
+				pendingCelery, pendingCeleryName = true, ""
 				if len(m) > 2 && m[2] != "" {
 					if nm := reCeleryTaskName.FindStringSubmatch(m[2]); len(nm) > 1 {
-						taskName = nm[1]
+						pendingCeleryName = nm[1]
 					}
-				}
-				if taskName != "" {
-					bindings = append(bindings, EventBinding{
-						Broker:     BrokerCelery,
-						Direction:  DirectionConsume,
-						Topic:      taskName,
-						Function:   currentFunc,
-						Line:       lineNum,
-						Confidence: model.ConfidenceHigh,
-						EdgeKind:   model.EdgeConsumes,
-					})
-				} else {
-					pendingCeleryLine = lineNum
 				}
 			}
 			if m := reCeleryDelay.FindStringSubmatch(trimmed); len(m) > 1 {
@@ -561,11 +577,11 @@ func Extract(filePath string, src []byte) []EventBinding {
 					EdgeKind:   model.EdgeConsumes,
 				})
 			}
-			if m := reBullProcess.FindStringSubmatch(trimmed); len(m) > 1 {
+			if m := reBullProcess.FindStringSubmatch(trimmed); len(m) > 2 && isBullQueue(m[1], queueVars) {
 				bindings = append(bindings, EventBinding{
 					Broker:     BrokerBullMQ,
 					Direction:  DirectionConsume,
-					Topic:      m[1],
+					Topic:      m[2],
 					Function:   currentFunc,
 					Line:       lineNum,
 					Confidence: model.ConfidenceHigh,
@@ -575,7 +591,7 @@ func Extract(filePath string, src []byte) []EventBinding {
 			if m := reBullAdd.FindStringSubmatch(trimmed); len(m) > 2 {
 				receiver := m[1]
 				job := m[2]
-				if !bullNoiseReceivers[receiver] {
+				if isBullQueue(receiver, queueVars) {
 					bindings = append(bindings, EventBinding{
 						Broker:     BrokerBullMQ,
 						Direction:  DirectionPublish,
@@ -613,8 +629,22 @@ func Extract(filePath string, src []byte) []EventBinding {
 					EdgeKind:   model.EdgePublishes,
 				})
 			}
-			if reTemporalPyDefn.MatchString(trimmed) {
-				pendingTemporalLine = lineNum
+			if m := reTemporalPyDefn.FindStringSubmatch(trimmed); m != nil && ext == ".py" {
+				pendingTemporal, pendingTemporalName = true, ""
+				if nm := reTemporalPyName.FindStringSubmatch(m[2]); nm != nil {
+					pendingTemporalName = nm[1]
+				}
+			}
+			if m := reTemporalPyClient.FindStringSubmatch(trimmed); m != nil && ext == ".py" {
+				bindings = append(bindings, EventBinding{
+					Broker:     BrokerTemporal,
+					Direction:  DirectionPublish,
+					Topic:      m[1] + m[2],
+					Function:   currentFunc,
+					Line:       lineNum,
+					Confidence: model.ConfidenceHigh,
+					EdgeKind:   model.EdgePublishes,
+				})
 			}
 			if m := reTemporalPyExecute.FindStringSubmatch(trimmed); len(m) > 1 {
 				bindings = append(bindings, EventBinding{
@@ -652,4 +682,24 @@ func cleanQueueName(urlOrName string) string {
 func cleanTopicArn(arn string) string {
 	parts := strings.Split(arn, ":")
 	return parts[len(parts)-1]
+}
+
+func celeryConsume(topic, fn string, line int) EventBinding {
+	return EventBinding{
+		Broker: BrokerCelery, Direction: DirectionConsume, Topic: topic, Function: fn,
+		Line: line, Confidence: model.ConfidenceHigh, EdgeKind: model.EdgeConsumes,
+	}
+}
+
+// temporalConsume is a workflow or activity definition, under its registered
+// name when the decorator gives one.
+func temporalConsume(name, fn string, line int) EventBinding {
+	topic := fn
+	if name != "" {
+		topic = name
+	}
+	return EventBinding{
+		Broker: BrokerTemporal, Direction: DirectionConsume, Topic: topic, Function: fn,
+		Line: line, Confidence: model.ConfidenceHigh, EdgeKind: model.EdgeConsumes,
+	}
 }

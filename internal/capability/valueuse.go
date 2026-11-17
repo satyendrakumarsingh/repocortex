@@ -58,11 +58,11 @@ const (
 	// TextBudget is the time the whole check may take. Each name costs a read of
 	// up to a dozen files from the full-text index, which measured about 90ms a
 	// name when those files are 2,000 lines long (tests/scale), so five names are
-	// near half a second. Under parallel test runs or race instrumentation it can
-	// take up to 800-900ms. The bound is kept within the every-tool 1.5s fixed budget.
-	// A check that has used its budget stops and says how many names it reached:
-	// an answer that is late is worth less than one that says it looked at fewer.
-	TextBudget = 1200 * time.Millisecond
+	// near half a second. A check that has used its budget stops and says how
+	// many names it reached: an answer that is late is worth less than one that
+	// says it looked at fewer. It is the user's latency, so a slow test machine
+	// is answered in the test, which accepts a check that stopped on time.
+	TextBudget = 600 * time.Millisecond
 )
 
 // NameUse is the finding for one symbol.

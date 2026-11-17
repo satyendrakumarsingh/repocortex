@@ -629,6 +629,31 @@ func TestFindCallersInterfaceDispatchNotes(t *testing.T) {
 	}
 }
 
+// A parser-only language records only that the class implements the
+// interface. The interface's method is found in the interface's own file,
+// however many other methods share its name.
+func typeLevelDispatchFixture(b *indexBuilder) {
+	for i := 0; i < 15; i++ {
+		f := fmt.Sprintf("a/other%02d.java", i)
+		b.file(f, "java", 40, typ(fmt.Sprintf("Other%02d", i), model.KindClass, 1, 30), method("Save", 5, 10, 1))
+	}
+	b.file("repo/UserRepo.java", "java", 40, typ("UserRepo", model.KindInterface, 1, 20), method("Save", 5, 6, 1))
+	b.file("repo/UserRepoImpl.java", "java", 40, typ("UserRepoImpl", model.KindClass, 1, 30), method("Save", 8, 20, 1))
+	b.file("svc/Main.java", "java", 40, fn("main", 5, 20))
+	b.edge(symKey("repo/UserRepoImpl.java", "UserRepoImpl", 1), symKey("repo/UserRepo.java", "UserRepo", 1),
+		model.EdgeImplements, model.ConfidenceHigh, "repo/UserRepoImpl.java", 1)
+	b.call(symKey("svc/Main.java", "main", 5), symKey("repo/UserRepo.java", "Save", 5), "Save", "repo", "svc/Main.java", 9, model.ConfidenceHigh)
+	b.wellBound("java", ".java")
+}
+
+func TestFindCallersTypeLevelDispatchPastTheFirstCandidates(t *testing.T) {
+	fs := serverFor(t, typeLevelDispatchFixture)
+	text, _ := answer(t, fs.sess, "find_callers", map[string]any{"name": "Save", "path": "repo/UserRepoImpl.java"})
+	if !strings.Contains(text, "UserRepo.Save (repo/UserRepo.java:5) has 1 recorded caller(s)") {
+		t.Errorf("expected the interface method's callers, got:\n%s", text)
+	}
+}
+
 // ---------------------------------------------------------------- item 5
 
 // manyCallers gives one function 180 callers, and one interface 36 subtypes.

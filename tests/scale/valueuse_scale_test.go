@@ -95,9 +95,17 @@ func TestTheUsedAsAValueCheckCostsAFixedAmount(t *testing.T) {
 		})
 		samples = append(samples, m.elapsed)
 	}
-	if vu.Checked != 1+capability.MaxPathChecks {
-		t.Fatalf("checked %d names; the bound is %d, and the fixture's hub has far more callers than that",
+	// Every name up to the bound, or fewer when the check stopped at its own
+	// budget: on a loaded machine (every package's tests at once, -race) the
+	// budget is reached first, and stopping is the behaviour under test.
+	switch {
+	case vu.Checked > 1+capability.MaxPathChecks:
+		t.Fatalf("checked %d names; the bound is %d", vu.Checked, 1+capability.MaxPathChecks)
+	case vu.Checked < 1+capability.MaxPathChecks && !vu.OutOfTime:
+		t.Fatalf("checked %d names and did not run out of time; the bound is %d, and the fixture's hub has far more callers than that",
 			vu.Checked, 1+capability.MaxPathChecks)
+	case vu.OutOfTime:
+		t.Logf("the check stopped at its %s budget after %d names", capability.TextBudget, vu.Checked)
 	}
 	// The check stops itself at capability.TextBudget, so it cannot take much
 	// longer than that: the limit is the every-tool budget's fixed term, 1.5s,

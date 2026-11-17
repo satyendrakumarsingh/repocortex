@@ -286,38 +286,48 @@ func (s *Server) interfaceDispatchNotes(ctx context.Context, runID int64, target
 		return nil
 	}
 
-	// 1. Direct method-level hierarchy: does target implement or extend a supertype method?
+	calls := registry.EdgeFilter{Kinds: []string{string(model.EdgeCalls)}}
+	noted := map[int64]bool{target.ID: true}
+
+	// 1. Method-level hierarchy, which the Go type checker and SCIP record:
+	// does the target implement or override a supertype's method?
 	upEdges, _, err := s.deps.Registry.EdgePage(ctx, runID, target.ID, false, 5, 0, registry.EdgeFilter{Kinds: hierarchyKinds})
-	if err == nil && len(upEdges) > 0 {
+	if err == nil {
 		for _, e := range upEdges {
-			if e.DstID > 0 {
-				callers, _ := s.deps.Registry.IncomingEdgeCount(ctx, runID, e.DstID, registry.EdgeFilter{Kinds: []string{"CALLS"}}, nil)
-				if dstSym, ok, _ := s.deps.Registry.SymbolByID(ctx, runID, e.DstID); ok {
-					notes = append(notes, fmt.Sprintf(
-						"Interface dispatch: %s implements %s (%s:%d), which has %d recorded caller(s). Upstream callers invoke the contract.",
-						target.Name, dstSym.Name, dstSym.FilePath, dstSym.StartLine, callers))
-				}
+			if e.DstID <= 0 || noted[e.DstID] {
+				continue
 			}
+			dstSym, ok, _ := s.deps.Registry.SymbolByID(ctx, runID, e.DstID)
+			if !ok {
+				continue
+			}
+			noted[e.DstID] = true
+			callers, _ := s.deps.Registry.IncomingEdgeCount(ctx, runID, e.DstID, calls, nil)
+			notes = append(notes, fmt.Sprintf(
+				"Interface dispatch: %s implements %s (%s:%d), which has %d recorded caller(s). Upstream callers invoke the contract.",
+				target.Name, dstSym.Name, dstSym.FilePath, dstSym.StartLine, callers))
 		}
 	}
 
-	// 2. Class/Struct owner-level hierarchy: if target has an owner (e.g. class UserRepoImpl),
-	// check if Owner implements an interface that defines target.Name.
+	// 2. Type-level hierarchy, which is all a parser-only language has: the
+	// target's class implements an interface that declares a method of the
+	// same name. The method is looked for in the supertype's own file, so a
+	// name shared by hundreds of methods (save, get) does not hide it.
 	if target.Owner != "" {
-		if supertypes, serr := s.deps.Registry.Supertypes(ctx, runID, []string{target.Owner}); serr == nil {
-			for _, st := range supertypes[target.Owner] {
-				cands, _, cerr := s.deps.Registry.SymbolCandidates(ctx, runID, target.Name, 10)
-				if cerr != nil {
-					continue
-				}
-				for _, c := range cands {
-					if c.Owner == st && c.ID != target.ID {
-						callers, _ := s.deps.Registry.IncomingEdgeCount(ctx, runID, c.ID, registry.EdgeFilter{Kinds: []string{"CALLS"}}, nil)
-						notes = append(notes, fmt.Sprintf(
-							"Interface dispatch: %s is declared on %s (which implements %s). %s.%s (%s:%d) has %d recorded caller(s) through interface/dependency injection dispatch.",
-							target.Name, target.Owner, st, st, target.Name, c.FilePath, c.StartLine, callers))
-						break
-					}
+		supertypes, serr := s.deps.Registry.Supertypes(ctx, runID, []string{target.Owner})
+		if serr == nil {
+			sts := supertypes[target.Owner]
+			if len(sts) > 5 {
+				sts = sts[:5]
+			}
+			for _, st := range sts {
+				stName, _, _ := strings.Cut(st, "<")
+				if c, ok := s.methodOf(ctx, runID, stName, target.Name, noted); ok {
+					noted[c.ID] = true
+					callers, _ := s.deps.Registry.IncomingEdgeCount(ctx, runID, c.ID, calls, nil)
+					notes = append(notes, fmt.Sprintf(
+						"Interface dispatch: %s is declared on %s (which implements %s). %s.%s (%s:%d) has %d recorded caller(s) through interface/dependency injection dispatch.",
+						target.Name, target.Owner, stName, stName, target.Name, c.FilePath, c.StartLine, callers))
 				}
 			}
 		}
@@ -338,6 +348,32 @@ func (s *Server) interfaceDispatchNotes(ctx context.Context, runID int64, target
 	}
 
 	return notes
+}
+
+// methodOf finds the method called name that the type typeName declares,
+// looking only in the files that declare a type of that name.
+func (s *Server) methodOf(ctx context.Context, runID int64, typeName, name string, skip map[int64]bool) (registry.SymbolCandidate, bool) {
+	types, _, err := s.deps.Registry.SymbolCandidates(ctx, runID, typeName, 5)
+	if err != nil {
+		return registry.SymbolCandidate{}, false
+	}
+	seen := map[string]bool{}
+	for _, t := range types {
+		if seen[t.FilePath] {
+			continue
+		}
+		seen[t.FilePath] = true
+		methods, _, err := s.deps.Registry.SymbolCandidatesIn(ctx, runID, name, t.FilePath, 50)
+		if err != nil {
+			continue
+		}
+		for _, m := range methods {
+			if m.Owner == typeName && !skip[m.ID] {
+				return m, true
+			}
+		}
+	}
+	return registry.SymbolCandidate{}, false
 }
 
 // bindingNote states, in one sentence, what the index did with every reference

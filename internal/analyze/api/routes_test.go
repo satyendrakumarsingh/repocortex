@@ -924,17 +924,17 @@ app.use('/api/v1/orders', ordersRouter);
 	if len(info.Mounts) != 2 {
 		t.Fatalf("got %d mounts, want 2: %+v", len(info.Mounts), info.Mounts)
 	}
-	if info.Imports["usersRouter"] != "./routes/users" {
-		t.Errorf("expected usersRouter import, got %q", info.Imports["usersRouter"])
+	if got := info.Imports["usersRouter"]; got != (JSImport{Module: "./routes/users"}) {
+		t.Errorf("expected usersRouter import, got %+v", got)
 	}
-	if info.Imports["ordersRouter"] != "./routes/orders" {
-		t.Errorf("expected ordersRouter import, got %q", info.Imports["ordersRouter"])
+	if got := info.Imports["ordersRouter"]; got != (JSImport{Module: "./routes/orders"}) {
+		t.Errorf("expected ordersRouter import, got %+v", got)
 	}
 
-	allFiles := []string{
+	allFiles := []string{ // sorted, as ResolveJSModulePath requires
 		"server/app.js",
-		"server/routes/users.js",
 		"server/routes/orders.ts",
+		"server/routes/users.js",
 	}
 	uPath := ResolveJSModulePath("server/app.js", "./routes/users", allFiles)
 	if uPath != "server/routes/users.js" {
@@ -943,5 +943,86 @@ app.use('/api/v1/orders', ordersRouter);
 	oPath := ResolveJSModulePath("server/app.js", "./routes/orders", allFiles)
 	if oPath != "server/routes/orders.ts" {
 		t.Errorf("ResolveJSModulePath = %q, want 'server/routes/orders.ts'", oPath)
+	}
+}
+
+func TestExpressRoutersReadsEveryMountAndExportShape(t *testing.T) {
+	src := `import express from 'express';
+import { adminRouter as admin } from './routes/admin.js';
+import * as routes from './routes/index.js';
+const { billing: billingRouter } = require('./routes/billing');
+const app = express();
+const api = express.Router();
+app.use('/api', api);
+api.use('/admin', requireAuth, rateLimit({ max: 5 }), admin);
+app.use(
+  '/billing',
+  billingRouter,
+);
+app.use('/health', require('./routes/health'));
+app.use('/docs', routes.docs);
+app.use('/static', express.static('public'));
+api.get('/ping', ping);
+export default app;
+export { api as apiRouter };
+`
+	info := ExpressRouters([]byte(src))
+	want := map[string]struct{ module, export, prefix string }{
+		"admin":         {"./routes/admin.js", "adminRouter", "/api/admin"},
+		"billingRouter": {"./routes/billing", "billing", "/billing"},
+		"":              {"./routes/health", "", "/health"},
+		"routes.docs":   {"./routes/index.js", "docs", "/docs"},
+	}
+	got := 0
+	for _, m := range info.Mounts {
+		w, ok := want[m.Child]
+		if !ok {
+			continue
+		}
+		got++
+		mod, export, ok := info.ResolveMountTarget(m)
+		if !ok || mod != w.module || export != w.export {
+			t.Errorf("mount %q resolved to %q, %q, %v; want %q, %q", m.Child, mod, export, ok, w.module, w.export)
+		}
+		if p := joinRoutePath(info.Prefixes[m.Parent], m.Prefix); p != w.prefix {
+			t.Errorf("mount %q: prefix %q, want %q", m.Child, p, w.prefix)
+		}
+	}
+	if got != len(want) {
+		t.Errorf("found %d of %d mounts: %+v", got, len(want), info.Mounts)
+	}
+	for _, m := range info.Mounts {
+		if m.Prefix == "/static" {
+			t.Errorf("express.static(...) read as a router: %+v", m)
+		}
+	}
+	if info.Default != "app" || info.Exports["apiRouter"] != "api" {
+		t.Errorf("exports: default %q, named %v", info.Default, info.Exports)
+	}
+	if info.Receivers[16] != "api" {
+		t.Errorf("receiver of line 16 = %q, want api", info.Receivers[16])
+	}
+
+	files := []string{"src/app.ts", "src/routes/admin.ts", "src/routes/health/index.js"}
+	if p := ResolveJSModulePath("src/app.ts", "./routes/admin.js", files); p != "src/routes/admin.ts" {
+		t.Errorf("a .js specifier for a .ts source resolved to %q", p)
+	}
+	if p := ResolveJSModulePath("src/app.ts", "./routes/health", files); p != "src/routes/health/index.js" {
+		t.Errorf("a directory import resolved to %q", p)
+	}
+	if p := ResolveJSModulePath("src/app.ts", "@/routes/admin", files); p != "" {
+		t.Errorf("an alias resolved to %q", p)
+	}
+}
+
+func TestExpressInFileMountWithMiddleware(t *testing.T) {
+	src := `const app = express();
+const api = express.Router();
+app.use('/api', authenticate, api);
+api.get('/users', listUsers);
+`
+	routes := Extract("app.js", []byte(src))
+	if len(routes) != 1 || routes[0].Path != "/api/users" {
+		t.Fatalf("routes = %+v, want GET /api/users", routes)
 	}
 }

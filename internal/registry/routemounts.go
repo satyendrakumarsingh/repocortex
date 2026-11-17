@@ -81,7 +81,10 @@ func (r *Registry) PythonEndpoints(ctx context.Context, runID int64) ([]Endpoint
 	return out, rows.Err()
 }
 
-// ExpressMountFiles returns indexed JS/TS files that may contain Express router mounts (app.use).
+// ExpressMountFiles returns the indexed JS/TS files that may mount an Express
+// router: those that call use() and import something. "use" is a common word,
+// so the extension is filtered in SQL rather than after every matching file's
+// text has been read.
 func (r *Registry) ExpressMountFiles(ctx context.Context, runID int64) ([]FileText, error) {
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT f.path, files_fts.content
@@ -90,8 +93,9 @@ func (r *Registry) ExpressMountFiles(ctx context.Context, runID int64) ([]FileTe
 		  JOIN files f         ON f.id = m.file_id
 		 WHERE files_fts MATCH ?
 		   AND f.index_run_id = ?
+		   AND `+jsPathSQL+`
 		 ORDER BY f.path`,
-		`content : "use"`, runID)
+		`content : "use" AND (content : "require" OR content : "import")`, runID)
 	if err != nil {
 		return nil, fmt.Errorf("registry: express mount files: %w", err)
 	}
@@ -102,7 +106,7 @@ func (r *Registry) ExpressMountFiles(ctx context.Context, runID int64) ([]FileTe
 		if err := rows.Scan(&ft.Path, &ft.Content); err != nil {
 			return nil, err
 		}
-		if isJSExt(ft.Path) {
+		if IsJSPath(ft.Path) {
 			out = append(out, ft)
 		}
 	}
@@ -115,8 +119,8 @@ func (r *Registry) ExpressEndpoints(ctx context.Context, runID int64) ([]Endpoin
 		SELECT s.id, s.name, s.fqn, f.path, s.start_line
 		  FROM symbols s
 		  JOIN files f ON f.id = s.file_id
-		 WHERE s.index_run_id = ? AND s.kind = ? 
-		   AND (f.path LIKE '%.js' OR f.path LIKE '%.ts' OR f.path LIKE '%.mjs' OR f.path LIKE '%.cjs')
+		 WHERE s.index_run_id = ? AND s.kind = ?
+		   AND `+jsPathSQL+`
 		 ORDER BY f.path, s.start_line, s.id`,
 		runID, string(model.KindEndpoint))
 	if err != nil {
@@ -134,9 +138,26 @@ func (r *Registry) ExpressEndpoints(ctx context.Context, runID int64) ([]Endpoin
 	return out, rows.Err()
 }
 
-func isJSExt(p string) bool {
-	return strings.HasSuffix(p, ".js") || strings.HasSuffix(p, ".ts") ||
-		strings.HasSuffix(p, ".mjs") || strings.HasSuffix(p, ".cjs")
+// jsExts are the JavaScript and TypeScript source extensions.
+var jsExts = []string{".js", ".ts", ".mjs", ".cjs", ".jsx", ".tsx", ".mts", ".cts"}
+
+// jsPathSQL restricts f.path to jsExts.
+var jsPathSQL = func() string {
+	parts := make([]string, len(jsExts))
+	for i, e := range jsExts {
+		parts[i] = "f.path LIKE '%" + e + "'"
+	}
+	return "(" + strings.Join(parts, " OR ") + ")"
+}()
+
+// IsJSPath reports whether a path is a JavaScript or TypeScript source.
+func IsJSPath(p string) bool {
+	for _, e := range jsExts {
+		if strings.HasSuffix(p, e) {
+			return true
+		}
+	}
+	return false
 }
 
 // RenameEndpoints sets the display name of endpoint symbols, by id. The FQN,

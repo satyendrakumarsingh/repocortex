@@ -1,6 +1,7 @@
 package events
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/satyendrakumarsingh/repocortex/pkg/model"
@@ -367,5 +368,124 @@ class MyWorkflow:
 	}
 	if b := find(pyBs, "send_notification", DirectionPublish); b == nil || b.Broker != BrokerTemporal {
 		t.Errorf("expected send_notification publish, got: %+v", b)
+	}
+}
+
+func bindingSet(bs []EventBinding) map[string]bool {
+	out := map[string]bool{}
+	for _, b := range bs {
+		out[string(b.Broker)+" "+string(b.Direction)+" "+b.Topic+" @"+b.Function] = true
+	}
+	return out
+}
+
+func TestCeleryTasksBindToTheDecoratedFunction(t *testing.T) {
+	src := `from celery import shared_task
+from proj.celery import celery_app
+
+def helper():
+    pass
+
+@shared_task(name='billing.charge')
+def charge(order_id):
+    pass
+
+@celery_app.task
+def send_email(to):
+    pass
+
+def checkout():
+    charge.delay(1)
+    celery_app.send_task('billing.charge', args=[1])
+`
+	got := bindingSet(Extract("tasks.py", []byte(src)))
+	for _, want := range []string{
+		"celery consume charge @charge",         // what charge.delay() names
+		"celery consume billing.charge @charge", // what send_task names
+		"celery consume send_email @send_email", // @celery_app.task
+		"celery publish charge @checkout",
+	} {
+		if !got[want] {
+			t.Errorf("missing %q; got %v", want, got)
+		}
+	}
+	for b := range got {
+		if strings.HasSuffix(b, "@helper") {
+			t.Errorf("a task was credited to the function above it: %q", b)
+		}
+	}
+}
+
+func TestTemporalPythonWorkflowIsTheClass(t *testing.T) {
+	src := `from temporalio import workflow, activity
+
+@activity.defn
+async def compose(name):
+    return name
+
+@workflow.defn(name="Greeting")
+class GreetingWorkflow:
+    @workflow.run
+    async def run(self, name):
+        return await workflow.execute_activity(compose, name)
+
+async def main(client):
+    await client.execute_workflow(GreetingWorkflow.run, "x", id="1")
+    await client.start_workflow("Greeting", "y", id="2")
+`
+	got := bindingSet(Extract("wf.py", []byte(src)))
+	for _, want := range []string{
+		"temporal consume compose @compose",
+		"temporal consume Greeting @GreetingWorkflow",
+		"temporal publish compose @run",
+		"temporal publish GreetingWorkflow @main",
+		"temporal publish Greeting @main",
+	} {
+		if !got[want] {
+			t.Errorf("missing %q; got %v", want, got)
+		}
+	}
+	for b := range got {
+		if strings.Contains(b, "consume run") {
+			t.Errorf("the workflow was named after its method: %q", b)
+		}
+	}
+}
+
+func TestBullNeedsAnImportAndAQueue(t *testing.T) {
+	notBull := `// bullet list helper
+export function f(params, form) {
+  params.add('page', 1);
+  form.add('name');
+}
+`
+	if got := Extract("ui.ts", []byte(notBull)); len(got) != 0 {
+		t.Errorf("a file that only says \"bullet\" gave %+v", got)
+	}
+	src := `import { Queue, Worker } from 'bullmq';
+const emails = new Queue('emails');
+const seen = new Set();
+export async function signup(user) {
+  seen.add('x');
+  await emails.add('welcome', { user });
+  await this.reportQueue.add('daily', {});
+}
+new Worker('emails', async job => {});
+`
+	got := bindingSet(Extract("jobs.ts", []byte(src)))
+	if !got["bullmq publish welcome @"] && !got["bullmq publish welcome @signup"] {
+		t.Errorf("emails.add('welcome') not read as a job; got %v", got)
+	}
+	found := false
+	for b := range got {
+		if strings.Contains(b, "publish daily") {
+			found = true
+		}
+		if strings.Contains(b, "publish x") {
+			t.Errorf("a Set's add read as a job: %q", b)
+		}
+	}
+	if !found {
+		t.Errorf("reportQueue.add('daily') not read as a job; got %v", got)
 	}
 }

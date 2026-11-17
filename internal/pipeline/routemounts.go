@@ -150,6 +150,24 @@ func pythonMountPrefixes(mountFiles []registry.FileText, pyFiles []string) (map[
 		}
 	}
 
+	return resolveMountChains(incoming, st)
+}
+
+// anyRouter stands for every router of a file, when a mount names a module
+// whose exported router the file does not say.
+const anyRouter = "*"
+
+// resolveMountChains composes each mounted router's prefix from the chain of
+// mounts above it. A router reached under two different full prefixes, or
+// through a cycle, is counted as ambiguous and left out.
+func resolveMountChains(incoming map[mountNode][]mountEdge, st RouteMountStats) (map[mountNode]string, RouteMountStats) {
+	edgesOf := func(n mountNode) []mountEdge {
+		edges := incoming[n]
+		if n.variable != anyRouter {
+			edges = append(edges[:len(edges):len(edges)], incoming[mountNode{n.file, anyRouter}]...)
+		}
+		return edges
+	}
 	memo := map[mountNode]string{}
 	bad := map[mountNode]bool{}
 	visiting := map[mountNode]bool{}
@@ -161,7 +179,7 @@ func pythonMountPrefixes(mountFiles []registry.FileText, pyFiles []string) (map[
 		if bad[n] || visiting[n] {
 			return "", false // ambiguous, or a cycle
 		}
-		edges := incoming[n]
+		edges := edgesOf(n)
 		if len(edges) == 0 {
 			return "", true
 		}
@@ -293,7 +311,12 @@ func sharedDirs(a, b string) int {
 }
 
 // MountExpressRouters gives each Express route the prefix of the router mount
-// that serves it from another file.
+// that serves it from another file: `app.use('/api/users', auth, users)` with
+// users required from ./routes/users. It works as MountPythonRouters does:
+// mounts compose through routers mounted on mounted routers, a router served
+// under two prefixes keeps its own path and is counted, mounts made by tests
+// are ignored, and every name is recomputed from the route's own path so a
+// removed mount moves the name back.
 func MountExpressRouters(ctx context.Context, reg *registry.Registry, runID int64) (RouteMountStats, error) {
 	var st RouteMountStats
 	endpoints, err := reg.ExpressEndpoints(ctx, runID)
@@ -301,69 +324,110 @@ func MountExpressRouters(ctx context.Context, reg *registry.Registry, runID int6
 		return st, err
 	}
 	mountFiles, err := reg.ExpressMountFiles(ctx, runID)
-	if err != nil || len(mountFiles) == 0 {
-		return st, err
-	}
-
-	paths, err := reg.FilePaths(ctx, runID)
 	if err != nil {
 		return st, err
 	}
-	allFiles := make([]string, 0, len(paths))
-	for _, p := range paths {
-		allFiles = append(allFiles, p)
-	}
-	sort.Strings(allFiles)
 
-	filePrefixes := map[string]string{}
-	for _, mf := range mountFiles {
-		routers := api.ExpressRouters([]byte(mf.Content))
-		for _, m := range routers.Mounts {
-			if m.Prefix == "" || m.Child == "" {
-				continue
-			}
-			modPath, ok := routers.Imports[m.Child]
-			if !ok {
-				continue
-			}
-			resolvedFile := api.ResolveJSModulePath(mf.Path, modPath, allFiles)
-			if resolvedFile == "" {
-				continue
-			}
-			st.Mounts++
-			existing := filePrefixes[resolvedFile]
-			if existing != "" && existing != m.Prefix {
-				st.Ambiguous++
-				continue
-			}
-			filePrefixes[resolvedFile] = m.Prefix
+	parsed := map[string]api.JSRouters{}
+	read := func(file string) api.JSRouters {
+		if r, ok := parsed[file]; ok {
+			return r
 		}
+		content, err := reg.FileContent(ctx, runID, file)
+		r := api.JSRouters{}
+		if err == nil {
+			r = api.ExpressRouters([]byte(content))
+		}
+		parsed[file] = r
+		return r
+	}
+	for _, mf := range mountFiles {
+		parsed[mf.Path] = api.ExpressRouters([]byte(mf.Content))
 	}
 
-	if len(filePrefixes) == 0 {
-		return st, nil
+	mounted := map[mountNode]string{}
+	if len(mountFiles) > 0 {
+		paths, err := reg.FilePaths(ctx, runID)
+		if err != nil {
+			return st, err
+		}
+		jsFiles := make([]string, 0, len(paths))
+		for _, p := range paths {
+			if registry.IsJSPath(p) {
+				jsFiles = append(jsFiles, p)
+			}
+		}
+		sort.Strings(jsFiles)
+
+		incoming := map[mountNode][]mountEdge{}
+		for _, mf := range mountFiles {
+			if capability.IsTestPath(mf.Path) {
+				continue // a test's own app, not where the service serves the router
+			}
+			info := parsed[mf.Path]
+			for _, m := range info.Mounts {
+				mod, export, ok := info.ResolveMountTarget(m)
+				if !ok {
+					continue
+				}
+				target := api.ResolveJSModulePath(mf.Path, mod, jsFiles)
+				if target == "" || target == mf.Path {
+					continue
+				}
+				variable := read(target).RouterFor(export)
+				if variable == "" {
+					variable = anyRouter
+				}
+				child := mountNode{target, variable}
+				incoming[child] = append(incoming[child], mountEdge{
+					parent: mountNode{mf.Path, m.Parent},
+					prefix: joinPrefix(info.Prefixes[m.Parent], m.Prefix),
+				})
+			}
+		}
+		mounted, st = resolveMountChains(incoming, st)
 	}
 
 	renames := map[int64]string{}
 	for _, e := range endpoints {
-		pfx, ok := filePrefixes[e.Path]
-		if !ok || pfx == "" {
-			continue
-		}
 		raw, ok := strings.CutPrefix(e.FQN, e.Path+"#")
 		if !ok {
 			continue
 		}
-		method, routePath, ok := strings.Cut(raw, " ")
-		if !ok {
-			continue
+		want := raw
+		if prefix, ok := expressPrefixFor(mounted, read, e); ok {
+			if method, p, ok := strings.Cut(raw, " "); ok {
+				want = method + " " + api.JoinRoutePath(prefix, p)
+			}
 		}
-		want := method + " " + api.JoinRoutePath(pfx, routePath)
 		if want != e.Name {
 			renames[e.ID] = want
 		}
 	}
-
 	st.Renamed = len(renames)
 	return st, reg.RenameEndpoints(ctx, renames)
+}
+
+// expressPrefixFor is the mount prefix of the router an endpoint's route is
+// declared on, falling back to a mount of the whole file.
+func expressPrefixFor(mounted map[mountNode]string, read func(string) api.JSRouters, e registry.EndpointRow) (string, bool) {
+	if !mountedFile(mounted, e.Path) {
+		return "", false
+	}
+	if recv := read(e.Path).Receivers[e.Line]; recv != "" {
+		if p, ok := mounted[mountNode{e.Path, recv}]; ok {
+			return p, true
+		}
+	}
+	p, ok := mounted[mountNode{e.Path, anyRouter}]
+	return p, ok
+}
+
+func mountedFile(mounted map[mountNode]string, file string) bool {
+	for n := range mounted {
+		if n.file == file {
+			return true
+		}
+	}
+	return false
 }

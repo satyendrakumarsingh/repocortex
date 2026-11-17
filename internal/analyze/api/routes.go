@@ -730,7 +730,6 @@ func extractDjango(lines []string) []Route {
 var (
 	expressRouteStart = regexp.MustCompile(`\b([a-zA-Z_$][\w$]*)\s*\.\s*(get|post|put|patch|delete|all)\s*\(`)
 	expressPath       = regexp.MustCompile(`\b[a-zA-Z_$][\w$]*\s*\.\s*(?:get|post|put|patch|delete|all)\s*\(\s*['"` + "`" + `]([^'"` + "`" + `]*)['"` + "`" + `]\s*,`)
-	expressMount      = regexp.MustCompile(`\b([a-zA-Z_$][\w$]*)\s*\.\s*use\s*\(\s*['"` + "`" + `]([^'"` + "`" + `]*)['"` + "`" + `]\s*,\s*([a-zA-Z_$][\w$]*)\s*\)`)
 	expressIdent      = regexp.MustCompile(`^[a-zA-Z_$][\w.$]*$`)
 )
 
@@ -742,19 +741,9 @@ var expressNoiseReceivers = map[string]bool{
 
 func extractExpress(lines []string) []Route {
 	var out []Route
-	mountPrefixes := make(map[string]string)
-	for _, l := range lines {
-		t := strings.TrimSpace(l)
-		if strings.HasPrefix(t, "//") || strings.HasPrefix(t, "*") {
-			continue
-		}
-		if mm := expressMount.FindStringSubmatch(t); mm != nil {
-			parent := mm[1]
-			pfx := mm[2]
-			child := mm[3]
-			mountPrefixes[child] = joinRoutePath(mountPrefixes[parent], pfx)
-		}
-	}
+	// Mounts within the file, with any middleware between the path and the
+	// router: app.use('/api', auth, api).
+	mountPrefixes := ExpressRouters([]byte(strings.Join(lines, "\n"))).Prefixes
 
 	for i, line := range lines {
 		trimmed := strings.TrimSpace(line)
