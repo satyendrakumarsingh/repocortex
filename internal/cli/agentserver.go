@@ -72,6 +72,7 @@ func openAgentServer(ctx context.Context, g *Global, opts agentServerOptions) (*
 		Graph:     graph.New(db, graph.WithCSR()),
 		Config:    cfg,
 		Judgeable: bindsReferences,
+		MetaDir:   filepath.Dir(dbPath),
 	}
 	if h := openHistory(g); h.repo != nil {
 		deps.History = hotspotHistory{h}

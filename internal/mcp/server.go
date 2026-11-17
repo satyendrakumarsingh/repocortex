@@ -9,6 +9,7 @@ import (
 	"time"
 
 	acquiregit "github.com/satyendrakumarsingh/repocortex/internal/acquire/git"
+	"github.com/satyendrakumarsingh/repocortex/internal/autorun"
 	"github.com/satyendrakumarsingh/repocortex/internal/capability"
 	"github.com/satyendrakumarsingh/repocortex/internal/capability/hotspots"
 	"github.com/satyendrakumarsingh/repocortex/internal/capability/ownership"
@@ -66,6 +67,11 @@ type Deps struct {
 	// It can only remove tools, never add one the profile lacks. This is how a
 	// shared server gives one token fewer tools than another; see scope.go.
 	AllowTools []string
+
+	// MetaDir is the directory holding the index (.repocortex). The record of
+	// the last automatic re-index is read from it into every answer's
+	// provenance; empty leaves that field out.
+	MetaDir string
 }
 
 // Server wraps the SDK server with RepoCortex's tool set.
@@ -154,9 +160,10 @@ type Server struct {
 
 // runMeta is the slice of a committed run's data Provenance needs.
 type runMeta struct {
-	gitRevision string
-	startedUnix int64
-	exactShare  float64
+	gitRevision  string
+	startedUnix  int64
+	finishedUnix int64
+	exactShare   float64
 }
 
 // New builds an MCP server exposing the tools allowed by the configured
@@ -471,7 +478,7 @@ func (s *Server) currentRun(ctx context.Context) (int64, string, error) {
 	// keyed by ID, so without this a session kept answering from the symbol
 	// index it loaded first, however the code changed underneath it.
 	s.capDeps.Freshen(stamp)
-	s.rememberRunMeta(run.ID, run.GitRevision, run.StartedUnix, exactShare)
+	s.rememberRunMeta(run.ID, run.GitRevision, run.StartedUnix, run.FinishedUnix, exactShare)
 	return run.ID, string(run.Status), nil
 }
 
@@ -482,13 +489,13 @@ func (s *Server) currentRun(ctx context.Context) (int64, string, error) {
 // Bounded to the current run plus the previous one: a long-lived server
 // across many reindexes must not grow this map without bound (CLAUDE.md
 // §4.4), and nothing past the current run is ever looked up again.
-func (s *Server) rememberRunMeta(runID int64, gitRevision string, startedUnix int64, exactShare float64) {
+func (s *Server) rememberRunMeta(runID int64, gitRevision string, startedUnix, finishedUnix int64, exactShare float64) {
 	s.runMetaMu.Lock()
 	defer s.runMetaMu.Unlock()
 	if _, exists := s.runMeta[runID]; !exists {
 		s.runMetaOrder = append(s.runMetaOrder, runID)
 	}
-	s.runMeta[runID] = runMeta{gitRevision: gitRevision, startedUnix: startedUnix, exactShare: exactShare}
+	s.runMeta[runID] = runMeta{gitRevision: gitRevision, startedUnix: startedUnix, finishedUnix: finishedUnix, exactShare: exactShare}
 	for len(s.runMetaOrder) > 2 {
 		oldest := s.runMetaOrder[0]
 		s.runMetaOrder = s.runMetaOrder[1:]
@@ -633,7 +640,13 @@ func (s *Server) provenanceFor(ctx context.Context, runID int64) *Provenance {
 				if ageSeconds < 0 {
 					ageSeconds = 0
 				}
-				resolvedAt = time.Unix(meta.startedUnix, 0).UTC().Format(time.RFC3339)
+			}
+			// References are resolved at the END of a pass (a full index's
+			// resolve, or the resolve inside an incremental refresh), and
+			// every pass re-stamps finished_unix. The start time named the
+			// moment the pass began, which is earlier than any resolve in it.
+			if meta.finishedUnix > 0 {
+				resolvedAt = time.Unix(meta.finishedUnix, 0).UTC().Format(time.RFC3339)
 			}
 			exactShare = meta.exactShare
 		}
@@ -641,6 +654,9 @@ func (s *Server) provenanceFor(ctx context.Context, runID int64) *Provenance {
 	p := ProvenanceFor(builtAtSHA, s.headSHA(ctx), ageSeconds)
 	p.LastResolvedAt = resolvedAt
 	p.ExactShare = exactShare
+	if s.deps.MetaDir != "" {
+		p.LastAutoIndex = autorun.Read(s.deps.MetaDir)
+	}
 	return p
 }
 

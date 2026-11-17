@@ -185,8 +185,23 @@ func TestIndexingScalesLinearly(t *testing.T) {
 	}
 	// 4s fixed, 25ms per file: a floor of 40 files a second, several times
 	// below what a laptop measures.
-	requireWithin(t, "init + index + resolve", measurement{elapsed: full.elapsed},
-		budget{fixed: 4 * time.Second, perUnit: 25 * time.Millisecond}, n)
+	//
+	// An absolute floor measures the machine as much as the code. Under
+	// `go test ./...` every package's tests run at once, and the half-size run
+	// was measured at 8.2s against a budget of 5.9s, with no code changed. So
+	// the half-size run calibrates the full one: when it is over its own
+	// budget the machine is that much slower right now, and the full run is
+	// given the same factor. A change in the cost's shape is still caught, by
+	// the doubling ratio above, which load cannot hide.
+	b := budget{fixed: 4 * time.Second, perUnit: 25 * time.Millisecond}
+	if hl := b.at(n / 2); half.elapsed > hl {
+		load := float64(half.elapsed) / float64(hl)
+		t.Logf("the half-size run took %s against its %s budget: this machine is %.1fx slower right now, and the full run's budget is scaled to match",
+			half.elapsed.Round(time.Millisecond), hl.Round(time.Millisecond), load)
+		b.fixed = time.Duration(float64(b.fixed) * load)
+		b.perUnit = time.Duration(float64(b.perUnit) * load)
+	}
+	requireWithin(t, "init + index + resolve", measurement{elapsed: full.elapsed}, b, n)
 
 	t.Run("queries on the indexed tree", func(t *testing.T) { queriesOnIndexedTree(t, root, n) })
 }

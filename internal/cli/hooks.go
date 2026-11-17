@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -59,6 +60,21 @@ func hookBody(binary string, hookName ...string) string {
 	b.WriteString("fi\n")
 	b.WriteString(hookEnd + "\n")
 	return b.String()
+}
+
+// hooksInWorkTree reports whether the hook directory is part of the work tree,
+// where it is committed, rather than inside .git or outside the repository.
+func hooksInWorkTree(root string) bool {
+	dir, err := hooksDir(root)
+	if err != nil {
+		return false
+	}
+	rel, err := filepath.Rel(root, dir)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return false
+	}
+	first := strings.SplitN(filepath.ToSlash(rel), "/", 2)[0]
+	return first != ".git"
 }
 
 // shellQuote renders s safe to paste into a POSIX shell script. Paths with
@@ -203,6 +219,7 @@ type HooksReport struct {
 // otherwise get a file Git never runs — installed, reported as working, and
 // silently inert.
 func hooksDir(root string) (string, error) {
+	//nolint:gosec // G702: an argument vector, not a shell line; root is the project directory, passed as one argument
 	if out, err := exec.Command("git", "-C", root, "config", "--get", "core.hooksPath").Output(); err == nil {
 		if p := strings.TrimSpace(string(out)); p != "" {
 			if filepath.IsAbs(p) {
@@ -235,14 +252,37 @@ func hooksDir(root string) (string, error) {
 	return filepath.Join(gitDir, "hooks"), nil
 }
 
+// posixShells are the interpreters the managed block runs under: it is POSIX
+// sh (`if [ ... ]; then`, `command -v`, `&`).
+var posixShells = map[string]bool{"sh": true, "bash": true, "zsh": true, "dash": true, "ksh": true, "mksh": true, "ash": true}
+
 // isShellShebang reports whether the first line names a POSIX-compatible shell.
+//
+// By the interpreter's name, not by whether the line contains "sh": fish,
+// pwsh, csh and tcsh all contain it and none of them runs the block, so a
+// hook in one of them got a block it could not execute instead of the
+// separate script it needs.
 func isShellShebang(firstLine string) bool {
 	firstLine = strings.TrimSpace(firstLine)
 	if !strings.HasPrefix(firstLine, "#!") {
-		return true // default to shell when shebang is omitted
+		return true // git runs a hook with no shebang through sh
 	}
-	lower := strings.ToLower(firstLine)
-	return strings.Contains(lower, "sh") || strings.Contains(lower, "bash") || strings.Contains(lower, "zsh")
+	fields := strings.Fields(strings.TrimPrefix(firstLine, "#!"))
+	if len(fields) == 0 {
+		return true
+	}
+	interp := path.Base(fields[0])
+	if interp == "env" {
+		interp = ""
+		for _, f := range fields[1:] {
+			if strings.HasPrefix(f, "-") || strings.Contains(f, "=") {
+				continue // env -S, env VAR=value
+			}
+			interp = path.Base(f)
+			break
+		}
+	}
+	return posixShells[strings.ToLower(interp)]
 }
 
 // hasTerminalExit reports whether the script ends in a top-level exit statement.
@@ -497,14 +537,16 @@ func wiringHint(st HookState) string {
 }
 
 // resolveOwnBinary names the executable to call from the hook.
-// If the hook directory is inside the workspace work tree (e.g. .husky),
-// we return "repocortex" so that committed hooks do not leak absolute machine paths.
+//
+// A hook directory in the work tree (core.hooksPath = .husky, .githooks) is
+// committed and shared, so it gets the bare name "repocortex": an absolute path
+// would leak this machine's layout and point nowhere on anyone else's. Every
+// other hook directory, .git/hooks above all, is this machine's own and gets
+// the absolute path, so a git client that runs hooks with a minimal PATH (a GUI
+// client, a cron job) still finds the binary.
 func resolveOwnBinary(root string) string {
-	dir, err := hooksDir(root)
-	if err == nil {
-		if rel, err := filepath.Rel(root, dir); err == nil && !strings.HasPrefix(rel, "..") {
-			return "repocortex"
-		}
+	if hooksInWorkTree(root) {
+		return "repocortex"
 	}
 	if exe, err := os.Executable(); err == nil {
 		if resolved, err := filepath.EvalSymlinks(exe); err == nil {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -430,5 +431,34 @@ func TestSystemContractsIsDocumented(t *testing.T) {
 				t.Errorf("docs/%s does not mention %q", doc, want)
 			}
 		}
+	}
+}
+
+// docs/reference/cli.md is docs/CLI.md one directory deeper, so the same text
+// with every relative link given a "../" (scripts/sync-cli-reference.sh). The
+// two were edited by hand and drifted: the copy had lost Next.js routes and
+// ActiveMQ events. Edit docs/CLI.md and run the script.
+func TestTheCLIReferenceCopyMatches(t *testing.T) {
+	src, err := os.ReadFile(filepath.Join("..", "..", "docs", "CLI.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	copyText, err := os.ReadFile(filepath.Join("..", "..", "docs", "reference", "cli.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	link := regexp.MustCompile(`\]\(([^)\s]+)\)`)
+	want := link.ReplaceAllStringFunc(string(src), func(m string) string {
+		target := link.FindStringSubmatch(m)[1]
+		for _, keep := range []string{"http:", "https:", "mailto:", "#", "/"} {
+			if strings.HasPrefix(target, keep) {
+				return m
+			}
+		}
+		return "](../" + target + ")"
+	})
+	if string(copyText) != want {
+		t.Error("docs/reference/cli.md is not docs/CLI.md with its links moved a directory down; " +
+			"edit docs/CLI.md and run scripts/sync-cli-reference.sh")
 	}
 }

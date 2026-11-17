@@ -888,7 +888,7 @@ $ repocortex api
 METHOD & PATH           HANDLER         DECLARED AT
 POST /payment/callback  handleCallback  …/controller/CallbackController.java:21
 
-1 endpoint(s). Discovery covers spring, go-http, go-router, fastapi, flask, django, express, nest.
+1 endpoint(s). Discovery covers spring, go-http, go-router, fastapi, flask, django, express, nest, nextjs.
 5 further route(s) are declared in test files and are not counted above — they
 are fixtures, not this service's API.
 ```
@@ -1229,8 +1229,8 @@ These run against the committed index. Each takes the global `--json`.
 **Answers:** which topics, queues and exchanges exist, and who publishes to or
 consumes from them?
 
-`repocortex events` lists them across Kafka, RabbitMQ/AMQP, SQS, SNS and Google
-Cloud Pub/Sub. `repocortex events topic <name>` lists the functions that publish
+`repocortex events` lists them across Kafka, RabbitMQ/AMQP, SQS, SNS, Google
+Cloud Pub/Sub and ActiveMQ (STOMP/JMS). `repocortex events topic <name>` lists the functions that publish
 to or consume from one. Event topology is not an MCP tool.
 
 ### `missed`
@@ -2365,7 +2365,7 @@ by several definitions is not a failure: the answer lists them with the `path`
 and `line` that select each, and the exit status is 0. Flags: `--profile`
 (default `full`), `--args JSON`, `--args-file FILE`, `--audit-log FILE`. Full
 description: [protocols](../guides/protocols.md#command-line). What the first line
-of an answer means: [reading an answer](mcp-tools.md#reading-an-answer).
+of an answer means: [reading an answer](../reference/mcp-tools.md#reading-an-answer).
 
 ### `stats`
 
@@ -2459,7 +2459,7 @@ transports, days, slowest, cited_files, ...}` with `token_basis: "estimated"`.
 `cited_files` carries a `meaning` string that says what the figure is, so the
 number does not travel without its label.
 Agent tool: `get_session_stats`, which gives the same accounting for one live
-session; see [MCP tools](mcp-tools.md#get_session_stats).
+session; see [MCP tools](../reference/mcp-tools.md#get_session_stats).
 
 ## Serving
 

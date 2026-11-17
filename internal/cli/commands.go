@@ -15,6 +15,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/satyendrakumarsingh/repocortex/internal/autorun"
 	"github.com/satyendrakumarsingh/repocortex/internal/config"
 	"github.com/satyendrakumarsingh/repocortex/internal/indexer"
 	"github.com/satyendrakumarsingh/repocortex/internal/registry"
@@ -265,6 +266,7 @@ All figures are read from the registry. Nothing is estimated.`,
 			if finished > 0 {
 				st.LastIndexed = time.Unix(finished, 0).Format(time.RFC3339)
 			}
+			st.LastAutoIndex = autorun.Read(filepath.Dir(g.DBPath()))
 			return renderStatus(cmd, g, st, strings.TrimPrefix(deferredHint(st), "\n"))
 		},
 	}
@@ -318,8 +320,12 @@ type statusReport struct {
 	// 'repocortex index' restores them.
 	DeferredSchema []string `json:"deferred_schema,omitempty"`
 	LastIndexed    string   `json:"last_indexed,omitempty"`
-	IndexSizeBytes int64    `json:"index_size_bytes"`
-	AccuracyMode   string   `json:"accuracy_mode"`
+	// LastAutoIndex is the last background pass a git hook started, and how
+	// it ended. A hook's run has no terminal, so a failure is reported here or
+	// nowhere. Absent when no automatic pass has run.
+	LastAutoIndex  *autorun.Run `json:"last_auto_index,omitempty"`
+	IndexSizeBytes int64        `json:"index_size_bytes"`
+	AccuracyMode   string       `json:"accuracy_mode"`
 	// GoTypes says whether the Go graph has been type-checked. Nil when the
 	// index holds no Go.
 	GoTypes *goTypesStatus `json:"go_types,omitempty"`
@@ -396,6 +402,14 @@ func renderStatus(cmd *cobra.Command, g *Global, st statusReport, hint string) e
 		}
 		if st.LastIndexed != "" {
 			_, _ = fmt.Fprintf(w, "Last indexed:\t%s\n", st.LastIndexed)
+		}
+		if a := st.LastAutoIndex; a != nil {
+			took := (time.Duration(a.DurationMS) * time.Millisecond).Round(100 * time.Millisecond)
+			if a.OK {
+				_, _ = fmt.Fprintf(w, "Last auto-index:\t%s, ok in %s\n", a.At, took)
+			} else {
+				_, _ = fmt.Fprintf(w, "Last auto-index:\t%s, FAILED: %s (the index may be behind; see .repocortex/logs/auto-index.log, then run 'repocortex index')\n", a.At, a.Error)
+			}
 		}
 	}
 	if st.IndexSizeBytes > 0 {

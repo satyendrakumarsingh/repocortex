@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/satyendrakumarsingh/repocortex/internal/acquire/fs"
+	"github.com/satyendrakumarsingh/repocortex/internal/autorun"
 	"github.com/spf13/cobra"
 )
 
@@ -41,22 +42,9 @@ func newAutoIndexCmd(g *Global) *cobra.Command {
 				}
 			}
 
-			lock, err := fs.TryLock(lockPath)
-			if err != nil {
-				if errors.Is(err, fs.ErrLocked) {
-					// Another indexer holds the lock. Set pending flag so it folds our trigger.
-					logMsg("another auto-index holds lock; set reindex.pending and folded")
-					_ = os.WriteFile(pendingPath, []byte(fmt.Sprintf("%d\n", time.Now().Unix())), 0o600)
-					return nil
-				}
-				logMsg("failed to acquire lock: %v", err)
-				return err
-			}
-			defer func() { _ = lock.Unlock() }()
-
-			// Loop while pending triggers exist to fold all overlapping requests
-			for {
-				_ = os.Remove(pendingPath)
+			// pass runs index and resolve once, under the lock, and records how
+			// it went where `status` and the MCP provenance read it.
+			pass := func() {
 				start := time.Now()
 				logMsg("starting background auto-index pass")
 
@@ -72,44 +60,60 @@ func newAutoIndexCmd(g *Global) *cobra.Command {
 				idxCmd.SetContext(ctx)
 				idxCmd.SetOut(logWriter(logFile))
 				idxCmd.SetErr(logWriter(logFile))
-				idxErr := idxCmd.RunE(idxCmd, nil)
-
-				var resErr error
-				if idxErr == nil {
+				var failure error
+				if err := idxCmd.RunE(idxCmd, nil); err != nil {
+					failure = fmt.Errorf("index: %w", err)
+				} else {
 					resCmd := newResolveCmd(g)
 					resCmd.SetContext(ctx)
 					resCmd.SetOut(logWriter(logFile))
 					resCmd.SetErr(logWriter(logFile))
-					resErr = resCmd.RunE(resCmd, nil)
+					if err := resCmd.RunE(resCmd, nil); err != nil {
+						failure = fmt.Errorf("resolve: %w", err)
+					}
 				}
-
-				duration := time.Since(start)
-				finalStatus := "ok"
-				if idxErr != nil {
-					finalStatus = fmt.Sprintf("index_error: %v", idxErr)
-					logMsg("auto-index failed at index: %v", idxErr)
-				} else if resErr != nil {
-					finalStatus = fmt.Sprintf("resolve_error: %v", resErr)
-					logMsg("auto-index failed at resolve: %v", resErr)
+				took := time.Since(start)
+				if failure != nil {
+					logMsg("auto-index failed at %v", failure)
 				} else {
-					logMsg("auto-index completed successfully in %v", duration)
+					logMsg("auto-index completed successfully in %v", took)
 				}
-
-				statusFile := filepath.Join(metaDir, "reindex.status")
-				statusContent := fmt.Sprintf("timestamp=%s\nduration_ms=%d\nstatus=%s\n",
-					start.Format(time.RFC3339),
-					duration.Milliseconds(),
-					finalStatus,
-				)
-				_ = os.WriteFile(statusFile, []byte(statusContent), 0o600)
-
-				// Check if another trigger arrived while we were indexing
-				if _, err := os.Stat(pendingPath); os.IsNotExist(err) {
-					break
-				}
-				logMsg("pending triggers detected; repeating auto-index pass")
+				_ = autorun.Write(metaDir, start, took, failure)
 			}
-			return nil
+
+			// A trigger that arrives while a pass runs is folded into the next
+			// pass by the reindex.pending flag. One that arrives after the last
+			// check of that flag but before the lock is released finds the lock
+			// held, sets the flag and leaves, and nobody would act on it. So
+			// the flag is checked again once the lock is let go, and a pass is
+			// started for it if no other hook has taken the lock meanwhile.
+			for {
+				lock, err := fs.TryLock(lockPath)
+				if err != nil {
+					if errors.Is(err, fs.ErrLocked) {
+						// Another indexer holds the lock. Set pending flag so it folds our trigger.
+						logMsg("another auto-index holds lock; set reindex.pending and folded")
+						_ = os.WriteFile(pendingPath, []byte(fmt.Sprintf("%d\n", time.Now().Unix())), 0o600)
+						return nil
+					}
+					logMsg("failed to acquire lock: %v", err)
+					return err
+				}
+				// Loop while pending triggers exist to fold all overlapping requests.
+				for {
+					_ = os.Remove(pendingPath)
+					pass()
+					if _, err := os.Stat(pendingPath); os.IsNotExist(err) {
+						break
+					}
+					logMsg("pending triggers detected; repeating auto-index pass")
+				}
+				_ = lock.Unlock()
+				if _, err := os.Stat(pendingPath); os.IsNotExist(err) {
+					return nil
+				}
+				logMsg("a trigger arrived as the lock was released; taking it")
+			}
 		},
 	}
 	return cmd

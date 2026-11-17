@@ -12,7 +12,11 @@ package mcp
 // comparison and nothing more — and Caveat is ALWAYS populated, including on
 // the happy path, because the happy path is where the overclaim happens.
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/satyendrakumarsingh/repocortex/internal/autorun"
+)
 
 // Provenance describes the index behind an answer.
 type Provenance struct {
@@ -35,6 +39,12 @@ type Provenance struct {
 
 	// ExactShare is the fraction of resolved references proven by a compiler (0.0 to 1.0).
 	ExactShare float64 `json:"exact_share,omitempty"`
+
+	// LastAutoIndex is the last background re-index a git hook started, and
+	// whether it succeeded. A failed one means the index may be behind the
+	// code even when HeadMatchesBuild is true: the hook ran and the update
+	// did not land.
+	LastAutoIndex *autorun.Run `json:"last_auto_index,omitempty"`
 
 	// Caveat is always set. It states what the comparison above does not cover.
 	Caveat string `json:"caveat"`

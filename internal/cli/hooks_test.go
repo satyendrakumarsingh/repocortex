@@ -2,6 +2,7 @@ package cli
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -411,5 +412,48 @@ func TestAllHooksStatus(t *testing.T) {
 	rep = AllHooksStatus(root)
 	if !rep.PostCommit.Installed || !rep.PostMerge.Installed || !rep.PostCheckout.Installed {
 		t.Fatalf("expected all hooks installed, got %+v", rep)
+	}
+}
+
+// The managed block is POSIX sh. A shebang is judged by its interpreter's
+// name: fish, pwsh, csh and tcsh contain "sh" and run none of it.
+func TestShebangsAreJudgedByTheInterpreter(t *testing.T) {
+	cases := map[string]bool{
+		"":                          true, // git runs it through sh
+		"#!/bin/sh":                 true,
+		"#!/usr/bin/env bash":       true,
+		"#!/usr/bin/env -S zsh -e":  true,
+		"#!/bin/dash":               true,
+		"#!/usr/bin/env fish":       false,
+		"#!/usr/bin/env pwsh":       false,
+		"#!/bin/csh":                false,
+		"#!/bin/tcsh -f":            false,
+		"#!/usr/bin/env python3":    false,
+		"#!/usr/bin/env node":       false,
+		"#!/usr/bin/env FOO=1 bash": true,
+	}
+	for line, want := range cases {
+		if got := isShellShebang(line); got != want {
+			t.Errorf("isShellShebang(%q) = %v, want %v", line, got, want)
+		}
+	}
+}
+
+// A hook in .git/hooks is this machine's own and names the binary by its
+// absolute path, so a git client with a minimal PATH still finds it; a hook
+// directory in the work tree is committed and shared, and gets the bare name.
+func TestHookBinaryIsAbsoluteUnlessTheHooksAreCommitted(t *testing.T) {
+	root := t.TempDir()
+	if out, err := exec.Command("git", "-C", root, "init", "-q").CombinedOutput(); err != nil {
+		t.Skipf("git init: %v %s", err, out)
+	}
+	if b := resolveOwnBinary(root); !filepath.IsAbs(b) {
+		t.Errorf(".git/hooks: binary %q, want an absolute path", b)
+	}
+	if out, err := exec.Command("git", "-C", root, "config", "core.hooksPath", ".husky").CombinedOutput(); err != nil {
+		t.Fatalf("set hooksPath: %v %s", err, out)
+	}
+	if b := resolveOwnBinary(root); b != "repocortex" {
+		t.Errorf(".husky: binary %q, want the bare name", b)
 	}
 }
