@@ -43,6 +43,11 @@ type catalogue struct {
 	unitsByFile map[int64][]int64
 	byName      map[string][]int64
 
+	// testFiles holds the files whose path marks them as tests, decided once
+	// per file. isTestUnit asked it of the path once per symbol, which was a
+	// lowercase copy of the path for each of 337,000 symbols.
+	testFiles map[int64]bool
+
 	// nameTokens and stemTokens are the inverted index seed retrieval uses.
 	//
 	// WHY. findSeeds used to score EVERY symbol in the run against the task's
@@ -125,8 +130,12 @@ func loadCatalogue(ctx context.Context, reg Registry, runID int64) (*catalogue, 
 		testsBySubject: make(map[string][]int64),
 	}
 
+	c.testFiles = make(map[int64]bool)
 	for _, f := range files {
 		c.files[f.ID] = f
+		if isTestFilePath(f.Path) {
+			c.testFiles[f.ID] = true
+		}
 		if c.minMod == 0 || f.ModTimeUnix < c.minMod {
 			c.minMod = f.ModTimeUnix
 		}
@@ -332,15 +341,40 @@ func (c *catalogue) path(symbolID int64) string {
 // marks a file as a test, because no language backend has claimed that
 // capability yet.
 func (c *catalogue) isTestUnit(symbolID int64) bool {
-	p := strings.ToLower(c.path(symbolID))
-	if strings.Contains(p, "/test/") || strings.Contains(p, "/tests/") ||
-		strings.HasPrefix(p, "test/") || strings.HasPrefix(p, "tests/") ||
-		strings.Contains(p, "_test.") || strings.Contains(p, ".test.") ||
-		strings.Contains(p, ".spec.") {
+	s := c.symbols[symbolID]
+	if c.testFiles != nil {
+		if c.testFiles[s.FileID] {
+			return true
+		}
+	} else if isTestFilePath(c.path(symbolID)) {
 		return true
 	}
-	name := c.symbols[symbolID].Name
-	return isTestName(name)
+	return isTestName(s.Name)
+}
+
+// isTestFilePath is the path half of isTestUnit.
+func isTestFilePath(path string) bool {
+	p := strings.ToLower(path)
+	return strings.Contains(p, "/test/") || strings.Contains(p, "/tests/") ||
+		strings.HasPrefix(p, "test/") || strings.HasPrefix(p, "tests/") ||
+		strings.Contains(p, "_test.") || strings.Contains(p, ".test.") ||
+		strings.Contains(p, ".spec.")
+}
+
+// isDocUnit reports whether a symbol sits in a documentation tree.
+//
+// A JSON file of captured evidence under docs/ declares keys called "status"
+// and "changes", and on a large repository those keys took anchor slots from
+// the code a task is about. Documentation is still reachable through the text
+// search; it just does not decide where the graph walk starts.
+func (c *catalogue) isDocUnit(symbolID int64) bool {
+	p := "/" + strings.ToLower(c.path(symbolID))
+	for _, seg := range []string{"/docs/", "/doc/", "/documentation/"} {
+		if strings.Contains(p, seg) {
+			return true
+		}
+	}
+	return false
 }
 
 // isTestName recognises the near-universal naming conventions for a test type.

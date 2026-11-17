@@ -14,7 +14,7 @@ func newCoverageCmd(g *Global) *cobra.Command {
 		Use:   "coverage",
 		Short: "Import and analyze test coverage reports",
 		Long: `Imports and analyzes test coverage reports across Go coverprofile, LCOV,
-and Cobertura XML formats, correlating test coverage with indexed code entities.`,
+Cobertura XML and JaCoCo XML formats, correlating test coverage with indexed code entities.`,
 	}
 	cmd.AddCommand(newCoverageImportCmd(g))
 	return cmd
@@ -23,7 +23,7 @@ and Cobertura XML formats, correlating test coverage with indexed code entities.
 func newCoverageImportCmd(g *Global) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "import <coverage-file>",
-		Short: "Import a coverage file (Go coverprofile, LCOV, Cobertura XML)",
+		Short: "Import a coverage file (Go coverprofile, LCOV, Cobertura XML, JaCoCo XML)",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			filePath := args[0]

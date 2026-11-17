@@ -30,6 +30,9 @@ type seed struct {
 func findSeeds(c *catalogue, in Intent, th Thresholds) []seed {
 	var seeds []seed
 	for _, id := range c.seedCandidates(in.Terms) {
+		if c.isDocUnit(id) {
+			continue
+		}
 		score, matched := nameSignal(c.symbols[id].Name, in.Terms)
 		if score < th.SeedName {
 			continue
@@ -262,7 +265,10 @@ func addLexicalSeeds(c *catalogue, in Intent, seeds []seed, hits map[int64]*lexi
 		var best int64
 		var bestScore float64
 		for _, id := range c.unitsByFile[h.fileID] {
-			if _, dup := seen[id]; dup {
+			// Tests and documentation never root the walk (see
+			// expansionRoots), so a slot spent on one is a slot wasted: the
+			// file's real code, or the next file, gets it instead.
+			if _, dup := seen[id]; dup || c.isDocUnit(id) || c.isTestUnit(id) {
 				continue
 			}
 			score, _ := nameSignal(c.symbols[id].Name, in.Terms)

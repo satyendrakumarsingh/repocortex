@@ -2,7 +2,9 @@ package coverage
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -50,7 +52,7 @@ func ParseCoverageFile(filePath string) (*Report, error) {
 	ext := strings.ToLower(filepath.Ext(filePath))
 	switch ext {
 	case ".xml":
-		return ParseCobertura(f)
+		return parseXMLReport(f)
 	case ".info", ".lcov":
 		return ParseLCOV(f)
 	default:
@@ -63,8 +65,10 @@ func ParseCoverageFile(filePath string) (*Report, error) {
 		if err == nil && (strings.HasPrefix(string(header), "SF:") || strings.HasPrefix(string(header), "TN:")) {
 			return ParseLCOV(r)
 		}
-		if err == nil && (strings.HasPrefix(strings.TrimSpace(string(header)), "<?xml") || strings.HasPrefix(strings.TrimSpace(string(header)), "<coverage")) {
-			return ParseCobertura(r)
+		trimmed := strings.TrimSpace(string(header))
+		if err == nil && (strings.HasPrefix(trimmed, "<?xml") || strings.HasPrefix(trimmed, "<coverage") ||
+			strings.HasPrefix(trimmed, "<report") || strings.HasPrefix(trimmed, "<!DOCTYPE")) {
+			return parseXMLReport(r)
 		}
 		// Fallback to Go coverprofile
 		return ParseGoCover(r)
@@ -204,6 +208,125 @@ func ParseCobertura(r io.Reader) (*Report, error) {
 		}
 	}
 	return finalizeReport("cobertura", files), nil
+}
+
+// xmlRootName returns the local name of the first element in data. Both
+// Cobertura (<coverage>) and JaCoCo (<report>) are .xml files, so the root
+// element is the only reliable discriminator. Leading declarations, comments
+// and a DOCTYPE are skipped: encoding/xml surfaces the DOCTYPE as a Directive
+// token and never fetches the DTD it names, so nothing is loaded from disk or
+// the network.
+func xmlRootName(data []byte) (string, error) {
+	dec := xml.NewDecoder(bytes.NewReader(data))
+	for {
+		tok, err := dec.Token()
+		if err != nil {
+			return "", fmt.Errorf("find xml root element: %w", err)
+		}
+		if se, ok := tok.(xml.StartElement); ok {
+			return se.Name.Local, nil
+		}
+	}
+}
+
+// parseXMLReport routes an XML coverage report to the Cobertura or JaCoCo
+// parser by root element. Anything else is reported as unsupported rather than
+// silently parsed as an empty Cobertura report.
+func parseXMLReport(r io.Reader) (*Report, error) {
+	data, err := io.ReadAll(r)
+	if err != nil {
+		return nil, fmt.Errorf("read coverage xml: %w", err)
+	}
+	root, err := xmlRootName(data)
+	if err != nil {
+		return nil, err
+	}
+	switch root {
+	case "report":
+		return ParseJaCoCo(bytes.NewReader(data))
+	case "coverage":
+		return ParseCobertura(bytes.NewReader(data))
+	default:
+		return nil, fmt.Errorf("unsupported coverage xml root element <%s> (want <coverage> for Cobertura or <report> for JaCoCo)", root)
+	}
+}
+
+// ParseJaCoCo parses the jacoco.xml written by the Maven and Gradle JaCoCo
+// plugins. A file is keyed as "<package>/<sourcefile>", for example
+// "com/acme/x/Foo.java": JaCoCo records no source root, so the key is relative
+// to it. IsSymbolCovered already suffix-matches report paths against indexed
+// paths, which resolves it to src/main/java/com/acme/x/Foo.java (or a Gradle
+// module's src/main/kotlin) without a separate mapping.
+//
+// A line counts as covered when any of its instructions ran (ci > 0), and as
+// uncovered when none did but some exist (mi > 0). Lines with neither carry no
+// executable code and are skipped, so they cannot dilute the rate. A partially
+// covered line (mi > 0 and ci > 0) is covered: the line ran, which is the
+// signal a line-level test-coverage map needs.
+func ParseJaCoCo(r io.Reader) (*Report, error) {
+	// Read as a stream rather than into a fixed struct: a multi-module
+	// aggregate report (Maven's report-aggregate) nests packages inside
+	// <group> elements, to any depth, and a fixed report>package path read
+	// such a report as empty.
+	dec := xml.NewDecoder(r)
+	files := make(map[string]*FileCoverage)
+	var pkg string
+	var fc *FileCoverage
+	for {
+		tok, err := dec.Token()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("decode jacoco xml: %w", err)
+		}
+		switch t := tok.(type) {
+		case xml.StartElement:
+			switch t.Name.Local {
+			case "package":
+				pkg = xmlAttr(t, "name")
+			case "sourcefile":
+				name := xmlAttr(t, "name")
+				p := name
+				if pkg != "" {
+					p = pkg + "/" + name // the default package has no directory
+				}
+				p = normalizePath(p)
+				if fc = files[p]; fc == nil {
+					fc = &FileCoverage{Path: p, Lines: make(map[int]int)}
+					files[p] = fc
+				}
+			case "line":
+				if fc == nil {
+					continue
+				}
+				nr, _ := strconv.Atoi(xmlAttr(t, "nr"))
+				mi, _ := strconv.Atoi(xmlAttr(t, "mi"))
+				ci, _ := strconv.Atoi(xmlAttr(t, "ci"))
+				if nr <= 0 || (ci == 0 && mi == 0) {
+					continue
+				}
+				fc.Lines[nr] += ci
+			}
+		case xml.EndElement:
+			switch t.Name.Local {
+			case "package":
+				pkg = ""
+			case "sourcefile":
+				fc = nil
+			}
+		}
+	}
+	return finalizeReport("jacoco", files), nil
+}
+
+func xmlAttr(e xml.StartElement, name string) string {
+	for _, a := range e.Attr {
+		if a.Name.Local == name {
+			return a.Value
+		}
+	}
+	return ""
 }
 
 func finalizeReport(format string, files map[string]*FileCoverage) *Report {

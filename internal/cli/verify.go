@@ -339,7 +339,9 @@ func compilePorts(s *session, g *Global) compile.Ports {
 	return compile.Ports{
 		Architecture: archView{resolver: arch.NewResolver(m), model: m},
 		Impact: impactView{
-			deps:  capability.Deps{Registry: s.reg, Graph: graph.NewForRun(s.db, s.runID)},
+			// Cached: a contract asks for the reach of up to three targets,
+			// and each one used to load the run's whole symbol table again.
+			deps:  capability.NewDeps(s.reg, graph.NewForRun(s.db, s.runID)),
 			runID: s.runID,
 		},
 	}

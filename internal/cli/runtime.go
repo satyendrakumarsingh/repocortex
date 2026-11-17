@@ -175,6 +175,21 @@ Example:
 			defer s.close()
 
 			cfg := g.Config()
+			ports := compilePorts(s, g)
+			// The impact pass below needs the run's symbol index and the
+			// context pack builds its own catalogue: two full reads of the
+			// symbol table that do not depend on each other. Loading the first
+			// while the second is assembled takes the shorter one off the
+			// critical path. An error here is not reported; the impact pass
+			// asks again and reports it then.
+			if iv, ok := ports.Impact.(impactView); ok {
+				warmed := make(chan struct{})
+				go func() {
+					defer close(warmed)
+					_, _ = iv.deps.SymbolIndex(ctx, s.runID)
+				}()
+				defer func() { <-warmed }() // before the session closes the database
+			}
 			gr := graph.NewForRun(s.db, s.runID)
 			pack, err := devctx.NewAssembler().Assemble(ctx, s.reg, gr, s.runID, devctx.Request{
 				Task:   intent,
@@ -190,7 +205,7 @@ Example:
 			// scope statement rather than a brief — and it is what `repocortex
 			// verify` later checks the change against.
 			contract, err := compile.CompileWith(ctx, intent, pack,
-				compile.Options{MaxScope: maxScope}, compilePorts(s, g))
+				compile.Options{MaxScope: maxScope}, ports)
 			if err != nil {
 				return err
 			}

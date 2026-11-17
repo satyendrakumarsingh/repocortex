@@ -109,7 +109,7 @@ func assemble(ctx context.Context, cache *catalogueCache, reg Registry, g Graph,
 	// than the code's — see addLexicalSeeds.
 	seeds = addLexicalSeeds(cat, intent, seeds, lexical, tuning.Thresholds)
 
-	reached, notes, err := expand(ctx, g, seeds, budget, tuning.Thresholds)
+	reached, notes, err := expand(ctx, g, expansionRoots(cat, seeds), budget, tuning.Thresholds)
 	if err != nil {
 		return Pack{}, err
 	}
@@ -169,6 +169,32 @@ type builder struct {
 	keyMember map[int64]int64
 	keyDepth  map[int64]int
 }
+
+// expansionRoots are the seeds the graph walk starts from: every seed except
+// tests, unless tests are all there is.
+//
+// A test the task names stays in the pack, but its neighbourhood is its
+// fixtures, its helpers and the other tests in its file. On a large monorepo a
+// handful of test names matching task words spent the walk's node budget there,
+// and the code the task changes was never reached.
+func expansionRoots(cat *catalogue, seeds []seed) []seed {
+	roots := make([]seed, 0, len(seeds))
+	for _, s := range seeds {
+		if !cat.isTestUnit(cat.unit(s.symbolID)) {
+			roots = append(roots, s)
+		}
+	}
+	if len(roots) == 0 {
+		return seeds
+	}
+	return roots
+}
+
+// maxTestsPerFile bounds how many units one test file contributes. A test file
+// matching the task contributes every one of its tests at the same score, and
+// thirteen of them is not thirteen times the evidence: the first few name the
+// file, and the agent runs the rest from there.
+const maxTestsPerFile = 3
 
 func newBuilder(cat *catalogue, in Intent, t Tuning, b Budget, reg Registry, runID int64) *builder {
 	return &builder{
@@ -603,7 +629,18 @@ func (b *builder) choose(ctx context.Context) ([]Item, []Exclusion, []string) {
 	}
 	kept := make([]*candidate, 0, len(admitted))
 	thin := 0
+	testsIn := map[string]int{}
 	for _, c := range admitted {
+		if c.kind == string(model.KindTest) {
+			testsIn[c.path]++
+			if testsIn[c.path] > maxTestsPerFile {
+				excluded = append(excluded, Exclusion{
+					Name: c.name, Path: c.path,
+					Reason: fmt.Sprintf("the pack already names %d tests from this file; run the file for the rest", maxTestsPerFile),
+				})
+				continue
+			}
+		}
 		if c.score < floor {
 			thin++
 			excluded = append(excluded, Exclusion{

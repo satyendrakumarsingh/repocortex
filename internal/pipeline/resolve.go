@@ -55,6 +55,10 @@ type ResolveOptions struct {
 	// if set. A callback for the same reason OnClientCalls is one.
 	OnHandlers func(registry.HandlerBindStats)
 
+	// OnRouteMounts reports the Python router-mount pass: routes renamed to
+	// the prefix another file mounts them under.
+	OnRouteMounts func(RouteMountStats)
+
 	// OnEventsMerged reports how many duplicate event-topic symbols were
 	// folded into one node each. `index` counts them one per declaring file;
 	// the merge is why the symbol count can be lower after `resolve`.
@@ -263,6 +267,16 @@ func Resolve(
 	// Endpoint handlers declared in another file bind here for the same reason.
 	// Without this pass the route is reported with no handler at all, and a
 	// blindspot gate counts every such route as an unmapped endpoint.
+	// Routes mounted from another file take their prefix first, so client
+	// calls below bind against the URL the service actually answers.
+	mounts, err := MountPythonRouters(ctx, reg, runID)
+	if err != nil {
+		return stats, fmt.Errorf("mount python routers: %w", err)
+	}
+	if opts.OnRouteMounts != nil {
+		opts.OnRouteMounts(mounts)
+	}
+
 	handlers, err := reg.BindEndpointHandlers(ctx, runID)
 	if err != nil {
 		return stats, fmt.Errorf("bind endpoint handlers: %w", err)

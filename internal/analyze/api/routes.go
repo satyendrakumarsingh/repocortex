@@ -519,18 +519,39 @@ func extractGo(lines []string) []Route {
 var (
 	// @app.get("/path"), @router.post("/path"), @app.route("/path", methods=["POST"])
 	pyDecoratorStart = regexp.MustCompile(`^@\s*([\w.]+)\.\s*(get|post|put|patch|delete|route)\s*\(`)
-	pyRouterDecl     = regexp.MustCompile(`\b(\w+)\s*=\s*(?:fastapi\.)?APIRouter\([^)]*prefix\s*=\s*['"]([^'"]*)['"]`)
-	pyIncludeRouter  = regexp.MustCompile(`\b(\w+)\.include_router\(\s*(\w+)[^)]*prefix\s*=\s*['"]([^'"]*)['"]`)
+	pyRouterDecl     = regexp.MustCompile(`\b(\w+)\s*=\s*(?:fastapi\.)?APIRouter\([^)]*\bprefix\s*=\s*['"]([^'"]*)['"]`)
+	pyBlueprintDecl  = regexp.MustCompile(`\b(\w+)\s*=\s*(?:flask\.)?Blueprint\([^)]*\burl_prefix\s*=\s*['"]([^'"]*)['"]`)
+	pyIncludeRouter  = regexp.MustCompile(`\b(\w+)\.(?:include_router|register_blueprint)\(\s*(\w+)[^)]*\b(?:url_)?prefix\s*=\s*['"]([^'"]*)['"]`)
 	pyMethodsArg     = regexp.MustCompile(`methods\s*=\s*\[([^\]]*)\]`)
 	pyFuncDecl       = regexp.MustCompile(`^\s*(?:async\s+)?def\s+(\w+)\s*\(`)
+	// Python spells a string with either quote, and Flask code commonly uses
+	// single ones: @app.route('/x') was read as having no path at all.
+	pyQuoted = regexp.MustCompile(`"([^"]*)"|'([^']*)'`)
 )
 
-func extractPython(lines []string) []Route {
-	var out []Route
+// pyFirstQuoted returns the first string literal in s, in either quote.
+func pyFirstQuoted(s string) (string, bool) {
+	m := pyQuoted.FindStringSubmatch(s)
+	if m == nil {
+		return "", false
+	}
+	if strings.HasPrefix(m[0], `"`) {
+		return m[1], true
+	}
+	return m[2], true
+}
+
+// pyRouterPrefixes is the prefix every router variable in one file carries:
+// its own APIRouter(prefix=) or Blueprint(url_prefix=), and the prefix of any
+// include_router or register_blueprint in the same file that mounts it.
+func pyRouterPrefixes(lines []string) map[string]string {
 	routerPrefixes := make(map[string]string)
 	for _, l := range lines {
 		t := strings.TrimSpace(l)
 		if rm := pyRouterDecl.FindStringSubmatch(t); rm != nil {
+			routerPrefixes[rm[1]] = joinRoutePath(routerPrefixes[rm[1]], rm[2])
+		}
+		if rm := pyBlueprintDecl.FindStringSubmatch(t); rm != nil {
 			routerPrefixes[rm[1]] = joinRoutePath(routerPrefixes[rm[1]], rm[2])
 		}
 		if im := pyIncludeRouter.FindStringSubmatch(t); im != nil {
@@ -540,6 +561,12 @@ func extractPython(lines []string) []Route {
 			routerPrefixes[child] = joinRoutePath(joinRoutePath(routerPrefixes[parent], pfx), routerPrefixes[child])
 		}
 	}
+	return routerPrefixes
+}
+
+func extractPython(lines []string) []Route {
+	var out []Route
+	routerPrefixes := pyRouterPrefixes(lines)
 
 	for i := 0; i < len(lines); i++ {
 		trimmed := strings.TrimSpace(lines[i])
@@ -553,8 +580,7 @@ func extractPython(lines []string) []Route {
 
 		fullDec, endLine := readBalancedParen(lines, i, 25)
 
-		hasQuoted := quotedString.MatchString(fullDec)
-		routePath := firstQuoted(fullDec)
+		routePath, hasQuoted := pyFirstQuoted(fullDec)
 		if pfx, ok := routerPrefixes[receiver]; ok && pfx != "" {
 			routePath = joinRoutePath(pfx, routePath)
 		} else if routePath == "" && !hasQuoted {

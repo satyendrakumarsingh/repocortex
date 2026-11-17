@@ -830,3 +830,84 @@ func TestExtractNextJSPagesAPI(t *testing.T) {
 		t.Errorf("a page was reported as an endpoint: %v", routes)
 	}
 }
+
+// Flask code commonly writes paths in single quotes, and a Blueprint carries
+// its url_prefix the way an APIRouter carries prefix. Both were dropped.
+func TestExtractPythonSingleQuotesAndBlueprints(t *testing.T) {
+	src := `from flask import Flask, Blueprint
+
+app = Flask(__name__)
+bp = Blueprint('orders', __name__, url_prefix='/orders')
+admin = Blueprint("admin", __name__)
+app.register_blueprint(admin, url_prefix="/admin")
+
+@bp.route('/<int:id>', methods=['GET', 'DELETE'])
+def order(id):
+    return ''
+
+@admin.route('/stats')
+def stats():
+    return ''
+
+@app.route('/health')
+def health():
+    return 'ok'
+`
+	routes := Extract("app.py", []byte(src))
+	assertRoute(t, routes, "GET /orders/<int:id>", "order")
+	assertRoute(t, routes, "DELETE /orders/<int:id>", "order")
+	assertRoute(t, routes, "GET /admin/stats", "stats")
+	assertRoute(t, routes, "GET /health", "health")
+}
+
+func TestPythonRoutersReadsMountsAndImports(t *testing.T) {
+	src := `from fastapi import FastAPI
+from app.api import users, orders as ord
+from app.api.items import (
+    router as items_router,  # the catalogue
+)
+import app.api.legacy
+import app.api.v2 as v2
+
+app = FastAPI()
+app.include_router(users.router, prefix="/users")
+app.include_router(
+    items_router,
+    prefix='/items',
+)
+app.include_router(ord.router)
+app.include_router(app.api.legacy.router, prefix="/old")
+app.include_router(v2.public.router, prefix="/v2")
+
+@app.get("/health")
+def health():
+    return {}
+`
+	info := PythonRouters([]byte(src))
+	if len(info.Mounts) != 5 {
+		t.Fatalf("got %d mounts, want 5: %+v", len(info.Mounts), info.Mounts)
+	}
+	if info.Receivers[19] != "app" {
+		t.Errorf("receiver of the health route = %q, want app (%v)", info.Receivers[19], info.Receivers)
+	}
+	want := []struct{ child, module, variable, prefix string }{
+		{"users.router", "app.api.users", "router", "/users"},
+		{"items_router", "app.api.items", "router", "/items"},
+		{"ord.router", "app.api.orders", "router", ""},
+		{"app.api.legacy.router", "app.api.legacy", "router", "/old"},
+		{"v2.public.router", "app.api.v2.public", "router", "/v2"},
+	}
+	for i, w := range want {
+		m := info.Mounts[i]
+		if m.Child != w.child || m.Prefix != w.prefix || m.Parent != "app" {
+			t.Errorf("mount %d = %+v, want child %q prefix %q", i, m, w.child, w.prefix)
+		}
+		mod, v, ok := info.ResolveMountTarget(m.Child)
+		if !ok || mod != w.module || v != w.variable {
+			t.Errorf("ResolveMountTarget(%q) = %q, %q, %v; want %q, %q", m.Child, mod, v, ok, w.module, w.variable)
+		}
+	}
+	if _, _, ok := info.ResolveMountTarget("local_router"); ok {
+		t.Error("a name no import binds resolved to a module")
+	}
+}
