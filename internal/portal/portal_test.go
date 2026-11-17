@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/satyendrakumarsingh/repocortex/internal/registry"
 )
 
 func serve(t *testing.T) *httptest.Server {
@@ -547,5 +549,40 @@ func TestTablesBreakNamesAndPathsAtTheirSeparators(t *testing.T) {
 	}
 	if !regexp.MustCompile(`td \.why\s*\{[^}]*overflow-wrap:\s*anywhere`).MatchString(css) {
 		t.Error("app.css: the explanation column may no longer break a quoted path")
+	}
+}
+
+// A caller can be the top level of a file: a script's statements, a module's
+// import-time calls. The index names it registry.FileCallerName(path), which
+// is no symbol's name, so the page links it to the file instead of to a symbol
+// page that would find nothing.
+func TestATopLevelCallerLinksToItsFile(t *testing.T) {
+	js := asset(t, "app.js")
+	m := regexp.MustCompile(`const TOP_LEVEL = /(.+)/;`).FindStringSubmatch(js)
+	if m == nil {
+		t.Fatal("app.js no longer defines TOP_LEVEL")
+	}
+	re, err := regexp.Compile(m[1])
+	if err != nil {
+		t.Fatalf("TOP_LEVEL must stay in the syntax Go shares, so this test can run it: %v", err)
+	}
+	for _, p := range []string{"scripts/deploy.py", "web/app (old).js", "main.go"} {
+		got := re.FindStringSubmatch(registry.FileCallerName(p))
+		if got == nil || got[1] != p {
+			t.Errorf("TOP_LEVEL read %q as %q, want the path %q", registry.FileCallerName(p), got, p)
+		}
+	}
+	if re.MatchString("deploy_release") {
+		t.Error("TOP_LEVEL matches an ordinary name")
+	}
+	for _, fn := range []string{"function symbolLink(", "function hrefFor("} {
+		i := strings.Index(js, fn)
+		if i < 0 {
+			t.Fatalf("app.js no longer defines %s", fn)
+		}
+		body := js[i : i+strings.Index(js[i:], "\n}")]
+		if !strings.Contains(body, "TOP_LEVEL.exec(name)") || !strings.Contains(body, "fileHref(top[1])") {
+			t.Errorf("%s no longer links a top-level caller to its file", fn)
+		}
 	}
 }

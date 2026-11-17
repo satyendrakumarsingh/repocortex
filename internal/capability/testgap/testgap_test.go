@@ -7,6 +7,7 @@ import (
 	"github.com/satyendrakumarsingh/repocortex/internal/capability"
 	"github.com/satyendrakumarsingh/repocortex/internal/capability/captest"
 	"github.com/satyendrakumarsingh/repocortex/internal/capability/impact"
+	"github.com/satyendrakumarsingh/repocortex/internal/registry"
 	"github.com/satyendrakumarsingh/repocortex/pkg/model"
 )
 
@@ -258,5 +259,34 @@ func TestConventionOnlyCoverageIsNotCountedAsProven(t *testing.T) {
 		if f.Name == "observed_tests" && f.Points <= 0 {
 			t.Fatalf("a name-matched test discharged the risk (%d points) as if it were a proven one", f.Points)
 		}
+	}
+}
+
+// TestTopLevelCallerIsNotACoverageGap: the top level of a script that calls
+// the target is in the blast radius, and it is not a gap. It is not a
+// definition a test could be written for, so it is neither examined nor listed
+// as uncovered; it is counted in Reached so the denominator stays honest.
+func TestTopLevelCallerIsNotACoverageGap(t *testing.T) {
+	t.Parallel()
+	top := registry.FileCallerName("scripts/deploy.py")
+	deps, runID := captest.Build(t,
+		[]captest.Sym{
+			captest.S(1, "deploy", "lib/ops.py"),
+			captest.S(2, top, "scripts/deploy.py").
+				WithKind(registry.FileCallerKind).WithFQN(registry.FileCallerFQN("scripts/deploy.py")),
+		},
+		[]captest.Edge{captest.E(2, 1)},
+		realisticRefs)
+
+	rep, err := Analyze(context.Background(), deps, runID, "deploy")
+	if err != nil {
+		t.Fatalf("Analyze: %v", err)
+	}
+	if rep.Reached != 1 {
+		t.Fatalf("Reached = %d, want the one top-level caller", rep.Reached)
+	}
+	if rep.Examined != 0 || len(rep.Uncovered) != 0 || len(rep.Covered) != 0 {
+		t.Fatalf("the top level was examined (%d) or graded: uncovered %+v, covered %+v",
+			rep.Examined, rep.Uncovered, rep.Covered)
 	}
 }

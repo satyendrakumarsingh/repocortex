@@ -40,6 +40,14 @@ type Registry interface {
 	FileExcerpt(ctx context.Context, runID int64, path string, startLine, lines int) (string, error)
 }
 
+// topLevelSource is the optional read of the synthetic callers that stand for
+// each file's top-level code (registry.FileCallerKind), keyed by file path. It
+// is optional so that a fake Registry need not grow a method: one without it
+// yields packs in which a top-level caller is not represented, as before.
+type topLevelSource interface {
+	FileCallerIDs(ctx context.Context, runID int64) (map[string]int64, error)
+}
+
 // Graph is the traversal surface. One method: expansion is bounded and
 // confidence-aware inside internal/graph, and this package uses that rather
 // than reimplementing it.
@@ -53,4 +61,6 @@ type Graph interface {
 var (
 	_ Registry = (*registry.Registry)(nil)
 	_ Graph    = (*graph.Graph)(nil)
+
+	_ topLevelSource = (*registry.Registry)(nil)
 )

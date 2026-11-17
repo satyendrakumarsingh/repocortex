@@ -132,6 +132,49 @@ func (r *Registry) FileCallerIDs(ctx context.Context, runID int64) (map[string]i
 	return out, rows.Err()
 }
 
+// TopLevelEdge is an edge that starts at a file's synthetic caller, with the
+// path of the file whose top level it stands for.
+type TopLevelEdge struct {
+	model.Edge
+	CallerPath string
+}
+
+// TopLevelEdges returns the edges that Edges leaves out: those that start at a
+// file's synthetic caller. A whole-graph reader that attributes an edge by the
+// FILE its source sits in (an architecture boundary, a component) can use them,
+// where one that draws a node per definition cannot. Ordered like Edges.
+func (r *Registry) TopLevelEdges(ctx context.Context, runID int64) ([]TopLevelEdge, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT e.id, e.src_id, e.dst_id, e.kind, e.confidence,
+		       e.evidence_file, e.evidence_line, e.evidence_col, e.source, COALESCE(e.detail,''), f.path
+		  FROM symbols s
+		  JOIN files f ON f.id = s.file_id
+		  CROSS JOIN edges e INDEXED BY idx_edges_src
+		          ON e.index_run_id = s.index_run_id AND e.src_id = s.id
+		 WHERE s.index_run_id = ? AND s.kind = 'file'
+		 ORDER BY e.src_id, e.dst_id, e.kind, e.evidence_file, e.evidence_line`, runID)
+	if err != nil {
+		return nil, fmt.Errorf("registry: top-level edges: %w", err)
+	}
+	defer rows.Close()
+	var out []TopLevelEdge
+	for rows.Next() {
+		var t TopLevelEdge
+		var kind, conf, src string
+		if err := rows.Scan(&t.ID, &t.SrcID, &t.DstID, &kind, &conf,
+			&t.Evidence.FilePath, &t.Evidence.Range.Start.Line, &t.Evidence.Range.Start.Col,
+			&src, &t.Evidence.Detail, &t.CallerPath); err != nil {
+			return nil, fmt.Errorf("registry: top-level edges: scan: %w", err)
+		}
+		t.Kind = model.EdgeKind(kind)
+		t.Confidence = model.Confidence(conf)
+		t.Evidence.Source = model.SourceType(src)
+		t.IndexRunID = runID
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
 // ReferenceLines returns the lines of a file on which the parser recorded a
 // reference: a call, a construction or a mention of a name. An import or an
 // export-from statement is not one of them.

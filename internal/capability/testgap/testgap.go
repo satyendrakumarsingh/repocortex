@@ -42,6 +42,7 @@ import (
 	"github.com/satyendrakumarsingh/repocortex/internal/capability"
 	"github.com/satyendrakumarsingh/repocortex/internal/capability/impact"
 	"github.com/satyendrakumarsingh/repocortex/internal/capability/tests"
+	"github.com/satyendrakumarsingh/repocortex/internal/registry"
 	"github.com/satyendrakumarsingh/repocortex/pkg/model"
 )
 
@@ -133,7 +134,8 @@ type Report struct {
 	// Examined is how many of them got a coverage lookup.
 	Examined int `json:"examined"`
 
-	// NotExamined is Reached - Examined: symbols in the radius whose coverage is
+	// NotExamined is Reached - Examined, less the top levels of files that
+	// reach the target (never examined, see AnalyzeWith): symbols in the radius whose coverage is
 	// unknown because the budget ran out. Listed in NotExaminedSymbols up to the
 	// same budget so the reader can re-ask about them.
 	NotExamined        int       `json:"not_examined"`
@@ -222,10 +224,21 @@ func AnalyzeWith(ctx context.Context, deps capability.Deps, runID int64, target 
 	// change rather than on an arbitrary slice.
 	candidates := flatten(imp)
 
-	for i, cand := range candidates {
+	examined := 0
+	for _, cand := range candidates {
 		if cand.IsTest {
 			rep.TestSymbolsReached++
 		}
+		// The top level of a file (registry.FileCallerKind) calls the target
+		// from a script, an import-time statement or an initialiser. It is in
+		// the radius, and counted in Reached, but it is not a definition a
+		// test is written for and no lookup can name it, so it is neither
+		// examined nor graded: the radius's real gaps are its definitions.
+		if cand.Kind == registry.FileCallerKind {
+			continue
+		}
+		i := examined
+		examined++
 		if i >= opts.MaxExamine {
 			cand.Coverage = impact.CoverageNotExamined
 			rep.NotExamined++

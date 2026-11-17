@@ -48,6 +48,13 @@ type catalogue struct {
 	// lowercase copy of the path for each of 337,000 symbols.
 	testFiles map[int64]bool
 
+	// topLevel maps the synthetic caller of a file's top-level code
+	// (registry.FileCallerKind) to that file. It is not a symbol of the
+	// catalogue (Symbols leaves it out, being no definition), but the call
+	// graph reaches it: a script that calls what the task names is a caller
+	// the change must update. Expansion admits the FILE for it.
+	topLevel map[int64]int64
+
 	// nameTokens and stemTokens are the inverted index seed retrieval uses.
 	//
 	// WHY. findSeeds used to score EVERY symbol in the run against the task's
@@ -141,6 +148,23 @@ func loadCatalogue(ctx context.Context, reg Registry, runID int64) (*catalogue, 
 		}
 		if f.ModTimeUnix > c.maxMod {
 			c.maxMod = f.ModTimeUnix
+		}
+	}
+
+	if src, ok := reg.(topLevelSource); ok {
+		byPath := make(map[string]int64, len(files))
+		for _, f := range files {
+			byPath[f.Path] = f.ID
+		}
+		callers, err := src.FileCallerIDs(ctx, runID)
+		if err != nil {
+			return nil, err
+		}
+		c.topLevel = make(map[int64]int64, len(callers))
+		for p, id := range callers {
+			if fileID, ok := byPath[p]; ok && !proseLanguages[c.files[fileID].Language] {
+				c.topLevel[id] = fileID
+			}
 		}
 	}
 

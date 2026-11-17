@@ -176,6 +176,15 @@ func TestFileCallerEdgesStayOutOfTheWholeGraphReaders(t *testing.T) {
 	if err := reg.db.QueryRowContext(ctx, `SELECT count(*) FROM edges WHERE dst_id = ?`, ids["target"]).Scan(&n); err != nil || n != 2 {
 		t.Fatalf("edges into target = %d (%v), want 2", n, err)
 	}
+	// TopLevelEdges is exactly what Edges left out, with the file it stands for.
+	top, err := reg.TopLevelEdges(ctx, runID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(top) != 1 || top[0].SrcID != fc["a.test.ts"] || top[0].CallerPath != "a.test.ts" ||
+		top[0].Evidence.Range.Start.Line != 30 || top[0].Confidence != model.ConfidenceHigh {
+		t.Fatalf("TopLevelEdges = %+v, want the one edge from the top level of a.test.ts at line 30", top)
+	}
 }
 
 // TestPruneFileCallersKeepsOnlyTheOnesWithEdges.

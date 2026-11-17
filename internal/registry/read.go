@@ -180,7 +180,8 @@ func (r *Registry) Symbols(ctx context.Context, runID int64) ([]model.Symbol, er
 // Edges that start at a file's synthetic top-level caller (FileCallerKind) are
 // left out: the consumers of this list build their nodes from Symbols, which
 // does not hold that symbol, so the edge would have no source to draw. The
-// caller queries read the edges table by destination and do return them.
+// caller queries read the edges table by destination and do return them, and
+// TopLevelEdges returns them to a reader that attributes an edge by its file.
 func (r *Registry) Edges(ctx context.Context, runID int64) ([]model.Edge, error) {
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, src_id, dst_id, kind, confidence,

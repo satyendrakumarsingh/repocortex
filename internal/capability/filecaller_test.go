@@ -59,3 +59,26 @@ func TestFileCallerOfATestFileIsATest(t *testing.T) {
 		}
 	}
 }
+
+// TestFileCallerIsTestCodeExactlyWhenItsFileIs: the top level of a file is
+// test code by its path and never by its name, which is built from the path
+// and so cannot carry a test marker of its own. "(top level of
+// scripts/test_data.sh)" is not a test because a word in it looks like one.
+func TestFileCallerIsTestCodeExactlyWhenItsFileIs(t *testing.T) {
+	t.Parallel()
+	for _, c := range []struct {
+		path string
+		want bool
+	}{
+		{"tests/test_ops.py", true},
+		{"src/app.test.ts", true},
+		{"pkg/model/model_test.go", true},
+		{"scripts/deploy.py", false},
+		{"scripts/run_Test.sh", false},
+		{"web/app.js", false},
+	} {
+		if got := IsTestSymbol(registry.FileCallerKind, registry.FileCallerName(c.path), c.path); got != c.want {
+			t.Errorf("IsTestSymbol(top level of %s) = %v, want %v", c.path, got, c.want)
+		}
+	}
+}

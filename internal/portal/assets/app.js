@@ -159,7 +159,16 @@ const fileHref = (path) => `#/f/${String(path).split('/').map(enc).join('/')}`;
 const routeHref = (signature, at, more = {}) => withQuery(`#/r/${enc(signature)}`, { at, ...more });
 const tableHref = (name, more = {}) => withQuery(`#/t/${enc(name)}`, more);
 
+/* TOP_LEVEL reads the name the index gives the code of a file that sits
+   outside every definition: a script's statements, a module's import-time
+   calls, a package initialiser. It is a caller like any function, and its page
+   is the file's own. Written in the syntax JavaScript and Go share, so the Go
+   tests can run it against the name the index really writes. */
+const TOP_LEVEL = /^\(top level of (.+)\)$/;
+
 function symbolLink(name, path, line) {
+  const top = TOP_LEVEL.exec(name);
+  if (top) return h('a', { class: 'name', href: fileHref(top[1]), text: name });
   return h('a', { class: 'name', href: symbolHref(name, path, { line: line ? String(line) : '' }), text: name });
 }
 function fileLink(path, line) {
@@ -191,6 +200,8 @@ function breakAfter(text, at) {
    "A -> B" (a hop on a route), a person, a call the index could not connect. */
 function hrefFor(item, path) {
   const name = item.name || '';
+  const top = TOP_LEVEL.exec(name);
+  if (top) return fileHref(top[1]);
   if ((item.kind === 'file' || item.kind === 'changes_with') && item.path) return fileHref(item.path);
   if (item.kind === 'endpoint') return routeHref(name, item.path);
   if (item.kind === 'table') return tableHref(name);

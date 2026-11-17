@@ -282,13 +282,17 @@ func (b *builder) fromGraph(reached map[int64]reach) {
 	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
 
 	for _, id := range ids {
+		r := reached[id]
+		if fileID, ok := b.cat.topLevel[id]; ok {
+			b.fromTopLevel(fileID, r)
+			continue
+		}
 		if _, known := b.cat.symbols[id]; !known {
 			// A traversal only returns symbols from its run, so this happens
 			// only when runID and the graph's run disagree. Skipping beats
 			// emitting an item with an empty name.
 			continue
 		}
-		r := reached[id]
 		c := b.unitFor(id)
 		if p := proximity(r.depth); p > c.proximity {
 			c.proximity, c.depth = p, r.depth
@@ -306,6 +310,25 @@ func (b *builder) fromGraph(reached map[int64]reach) {
 			b.keyMember[c.unitID], b.keyDepth[c.unitID] = id, r.depth
 		}
 		b.noteMember(c, id, int64(r.depth))
+	}
+}
+
+// fromTopLevel admits the file whose top-level code the walk reached: a script
+// that calls what the task names, a module that calls it on import. That code
+// belongs to no definition, so the unit is the file, as for a lexical match,
+// and it is ranked by the path that reached it like any graph unit. Its source
+// is not shown (a file unit has no span to cut); the item names the file.
+func (b *builder) fromTopLevel(fileID int64, r reach) {
+	b.addFileCandidate(fileID, 0, nil)
+	c := b.units[syntheticFileBase-fileID]
+	if c == nil {
+		return
+	}
+	if p := proximity(r.depth); p > c.proximity {
+		c.proximity, c.depth = p, r.depth
+		if r.depth > 0 {
+			c.pathConf = r.conf
+		}
 	}
 }
 
@@ -402,7 +425,12 @@ func (b *builder) addFileCandidate(fileID int64, lexical float64, terms []string
 		return
 	}
 	id := syntheticFileBase - fileID
-	if _, ok := b.units[id]; ok {
+	if c, ok := b.units[id]; ok {
+		// Already a unit because the call graph reached its top level
+		// (fromTopLevel): the text evidence still counts.
+		if lexical > c.lexical {
+			c.lexical, c.lexTerms = lexical, terms
+		}
 		return
 	}
 	b.units[id] = &candidate{

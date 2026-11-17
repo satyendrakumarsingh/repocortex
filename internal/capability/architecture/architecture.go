@@ -138,6 +138,19 @@ type Registry interface {
 
 var _ Registry = (*registry.Registry)(nil)
 
+// TopLevelSource is the optional read of the edges that start at a file's own
+// top-level code (registry.FileCallerKind): a script's calls, a module's
+// import-time calls, a package initialiser. Registry.Edges leaves them out,
+// because their source is not a definition; here a source only needs a
+// component, and a file has one. Without them, a forbidden call made at the top
+// level of a file was invisible to every rule. A registry that does not offer
+// it is checked on definitions alone, as before.
+type TopLevelSource interface {
+	TopLevelEdges(ctx context.Context, runID int64) ([]registry.TopLevelEdge, error)
+}
+
+var _ TopLevelSource = (*registry.Registry)(nil)
+
 // Check evaluates a declared architecture against the indexed graph.
 //
 // minConfidence drops relationships weaker than the caller is willing to act
@@ -197,6 +210,26 @@ func Check(
 			continue
 		}
 		symCount[c]++
+	}
+
+	// The top level of a file is a source like any definition, in the file's
+	// component. It is not counted among the component's symbols: it is not a
+	// definition anyone wrote.
+	if tl, ok := reg.(TopLevelSource); ok {
+		top, err := tl.TopLevelEdges(ctx, runID)
+		if err != nil {
+			return rep, fmt.Errorf("architecture: read top-level edges: %w", err)
+		}
+		for _, t := range top {
+			if _, seen := symbolInfo[t.SrcID]; !seen {
+				symbolInfo[t.SrcID] = symInfo{
+					name:      registry.FileCallerName(t.CallerPath),
+					kind:      model.KindFile,
+					component: m.ComponentOf(t.CallerPath),
+				}
+			}
+			edges = append(edges, t.Edge)
+		}
 	}
 
 	crossings := map[string]*Crossing{}

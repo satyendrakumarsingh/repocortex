@@ -11,6 +11,14 @@ from an actual run.
 
 ## [Unreleased]
 
+- **A file's top-level caller is handled everywhere it can appear.** Calls made outside every definition have had a caller since 14 November: a synthetic `(top level of <path>)` symbol, created only for files that need one (10 of this repository's 13,391 symbols). Four consumers still mishandled it, and each is fixed with a test:
+  - **Test-gap analysis** failed with "target symbol not found in index" whenever one was in the blast radius.
+  - **Architecture checks** could not see a forbidden call made at the top level of a file. A new registry reader returns those edges with the caller's file, and the report names the caller `(top level of …)`.
+  - **Context packs** dropped the script that holds such a call, even when the call graph reached it.
+  - **The portal** showed the caller as plain text; it now links to the file's page.
+
+  Graph export, `docs`, `diff` and the runtime and dry-run readers still leave these edges out.
+
 - **Fewer definitions lost to grammar errors in F#, Make, PowerShell, Groovy, Swift and Haxe.** Each fix is checked by a new hand-written fixture that reproduces a failure the 13 November verification recorded.
   - **Swift:** `@Sendable` and `@MainActor` before a function type no longer make the grammar give up on the enclosing class.
   - **Make:** `$(X:pat=)` no longer derails the rest of the file.

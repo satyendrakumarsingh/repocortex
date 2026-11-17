@@ -434,3 +434,41 @@ func candidateNames(rep *Report) []string {
 	}
 	return out
 }
+
+// TestTopLevelCallerKeepsItsCalleeAlive: a function called only from the top
+// level of a script has a caller, and the top level itself (which nothing
+// calls, by construction) is never "unused": it is not a definition.
+func TestTopLevelCallerKeepsItsCalleeAlive(t *testing.T) {
+	top := registry.FileCallerName("scripts/deploy.go")
+	d, runID := captest.Build(t,
+		[]captest.Sym{
+			captest.S(1, "deploy", "pkg/a.go"),
+			captest.S(2, top, "scripts/deploy.go").
+				WithKind(registry.FileCallerKind).WithFQN(registry.FileCallerFQN("scripts/deploy.go")),
+			captest.S(3, "orphan", "pkg/b.go"),
+		},
+		[]captest.Edge{captest.E(2, 1)},
+		captest.Refs{},
+	)
+	src, ok := d.Registry.(Source)
+	if !ok {
+		t.Fatal("the registry does not satisfy deadcode.Source")
+	}
+	rep, err := Find(context.Background(), d, src, runID, Options{MinCertainty: CertaintyPossible})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]bool{}
+	for _, c := range rep.Candidates {
+		got[c.Name] = true
+	}
+	if got["deploy"] {
+		t.Error("deploy is called at the top level of scripts/deploy.go and must not be a candidate")
+	}
+	if got[top] {
+		t.Error("the top level of a file is listed as unused code")
+	}
+	if !got["orphan"] {
+		t.Errorf("orphan has no caller; candidates = %v", candidateNames(rep))
+	}
+}

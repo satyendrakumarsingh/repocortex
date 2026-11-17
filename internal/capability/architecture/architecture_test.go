@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/satyendrakumarsingh/repocortex/internal/arch"
+	"github.com/satyendrakumarsingh/repocortex/internal/registry"
 	"github.com/satyendrakumarsingh/repocortex/pkg/model"
 )
 
@@ -246,5 +247,57 @@ func TestOutputIsDeterministic(t *testing.T) {
 		if got != first {
 			t.Fatalf("report order varies between runs:\n%s\n%s", first, got)
 		}
+	}
+}
+
+// topLevelRegistry is fakeRegistry that also offers the edges which start at a
+// file's own top-level code.
+type topLevelRegistry struct {
+	*fakeRegistry
+	top []registry.TopLevelEdge
+}
+
+func (f *topLevelRegistry) TopLevelEdges(context.Context, int64) ([]registry.TopLevelEdge, error) {
+	return f.top, nil
+}
+
+// TestTopLevelCallIsACrossing: a call written at the top level of a file in
+// one component, outside every definition, crosses into another component
+// like a call from a function does. It is named as the file's top level, and
+// it adds nothing to the component's definition count.
+func TestTopLevelCallIsACrossing(t *testing.T) {
+	base, m := layered()
+	const caller = int64(99)
+	e := edge(caller, 30, model.ConfidenceHigh, 3)
+	reg := &topLevelRegistry{fakeRegistry: base,
+		top: []registry.TopLevelEdge{{Edge: e, CallerPath: "src/controller/C.java"}}}
+
+	rep, err := Check(context.Background(), reg, 1, m, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rep.Violations) != 1 {
+		t.Fatalf("got %d violations, want the top-level call: %+v", len(rep.Violations), rep.Violations)
+	}
+	v := rep.Violations[0]
+	if v.From != "controller" || v.To != "repository" || v.Line != 3 {
+		t.Errorf("violation misattributed: %+v", v)
+	}
+	if want := registry.FileCallerName("src/controller/C.java"); v.FromName != want {
+		t.Errorf("FromName = %q, want %q", v.FromName, want)
+	}
+	for _, c := range rep.Components {
+		if c.Name == "controller" && c.Symbols != 1 {
+			t.Errorf("controller counts %d symbols, want 1: the top level is not a definition", c.Symbols)
+		}
+	}
+
+	// Without the optional read the check is what it was: definitions only.
+	rep, err = Check(context.Background(), base, 1, m, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rep.Violations) != 0 {
+		t.Errorf("a registry without top-level edges reported %+v", rep.Violations)
 	}
 }
