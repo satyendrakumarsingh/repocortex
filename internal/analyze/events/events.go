@@ -34,6 +34,9 @@ const (
 	BrokerSNS      Broker = "sns"
 	BrokerPubSub   Broker = "pubsub"
 	BrokerActiveMQ Broker = "activemq"
+	BrokerCelery   Broker = "celery"
+	BrokerBullMQ   Broker = "bullmq"
+	BrokerTemporal Broker = "temporal"
 )
 
 // Direction distinguishes publishing from consuming.
@@ -65,6 +68,9 @@ func SupportedBrokers() []Broker {
 		BrokerSNS,
 		BrokerPubSub,
 		BrokerActiveMQ,
+		BrokerCelery,
+		BrokerBullMQ,
+		BrokerTemporal,
 	}
 }
 
@@ -113,8 +119,31 @@ var (
 	reJmsListener      = regexp.MustCompile(`@JmsListener\s*\(\s*destination\s*=\s*"([^"]+)"`)
 	reJmsTemplateSend  = regexp.MustCompile(`jmsTemplate\.(?:convertAndSend|send)\s*\(\s*"([^"]+)"`)
 
+	// Celery patterns (Python async task queue)
+	reCeleryTaskDec  = regexp.MustCompile(`^@(app\.task|celery\.task|shared_task)\b(?:\((.*)\))?`)
+	reCeleryTaskName = regexp.MustCompile(`\bname\s*=\s*["']([^"']+)["']`)
+	reCeleryDelay    = regexp.MustCompile(`\b([A-Za-z0-9_]+)\.(?:delay|apply_async)\s*\(`)
+	reCelerySendTask = regexp.MustCompile(`\b(?:app|celery)\.send_task\s*\(\s*["']([^"']+)["']`)
+
+	// BullMQ patterns (Node / TS redis task queue)
+	reBullWorker  = regexp.MustCompile(`new\s+Worker\s*(?:<[^>]+>)?\s*\(\s*['"]([^'"]+)['"]`)
+	reBullProcess = regexp.MustCompile(`\.process\s*\(\s*['"]([^'"]+)['"]`)
+	reBullAdd     = regexp.MustCompile(`\b([a-zA-Z_$][\w$]*)\.add(?:Bulk)?\s*\(\s*['"]([^'"]+)['"]`)
+
+	// Temporal patterns (Go / TS / Python workflow engine)
+	reTemporalGoRegister = regexp.MustCompile(`\b(?:w|worker)\.Register(?:Workflow|Activity)(?:WithOptions)?\s*\(\s*([A-Za-z0-9_]+)`)
+	reTemporalGoExecute  = regexp.MustCompile(`\bworkflow\.(?:ExecuteActivity|ExecuteChildWorkflow)\s*\([^,]+,\s*([A-Za-z0-9_]+)`)
+	reTemporalPyDefn     = regexp.MustCompile(`^@(workflow|activity)\.defn\b`)
+	reTemporalPyExecute  = regexp.MustCompile(`\bworkflow\.execute_(?:activity|child_workflow)\s*\(\s*([A-Za-z0-9_]+)`)
+	reTemporalTSExecute  = regexp.MustCompile(`(?:workflowClient\.start|client\.workflow\.start)\s*\(\s*([A-Za-z0-9_]+)`)
+
 	reEnclosingFunc = regexp.MustCompile(`(?:func\s+(?:\([^)]+\)\s+)?([A-Za-z0-9_]+)|def\s+([A-Za-z0-9_]+)|public\s+[^\(]+\s+([A-Za-z0-9_]+)\s*\()`)
 )
+
+var bullNoiseReceivers = map[string]bool{
+	"set": true, "map": true, "list": true, "arr": true, "items": true,
+	"styles": true, "classList": true, "dom": true, "element": true,
+}
 
 // Extract finds all event bus publications and subscriptions in a source file.
 func Extract(filePath string, src []byte) []EventBinding {
@@ -142,11 +171,16 @@ func Extract(filePath string, src []byte) []EventBinding {
 	lowerSrc := strings.ToLower(string(src))
 	usesKafka := strings.Contains(lowerSrc, "kafka")
 	usesActiveMQ := strings.Contains(lowerSrc, "activemq") || strings.Contains(lowerSrc, "stomp")
+	usesCelery := strings.Contains(lowerSrc, "celery") || strings.Contains(lowerSrc, "shared_task")
+	usesBull := strings.Contains(lowerSrc, "bullmq") || strings.Contains(lowerSrc, "bull")
+	usesTemporal := strings.Contains(lowerSrc, "temporal") || strings.Contains(lowerSrc, "cadence")
 	genericBroker := BrokerKafka
 	if usesActiveMQ && !usesKafka {
 		genericBroker = BrokerActiveMQ
 	}
 	currentCtx := ""
+	pendingCeleryLine := 0
+	pendingTemporalLine := 0
 
 	for i, line := range lines {
 		trimmed := strings.TrimSpace(line)
@@ -159,6 +193,30 @@ func Extract(filePath string, src []byte) []EventBinding {
 					currentFunc = m[j]
 					break
 				}
+			}
+			if pendingCeleryLine > 0 && currentFunc != "" {
+				bindings = append(bindings, EventBinding{
+					Broker:     BrokerCelery,
+					Direction:  DirectionConsume,
+					Topic:      currentFunc,
+					Function:   currentFunc,
+					Line:       pendingCeleryLine,
+					Confidence: model.ConfidenceHigh,
+					EdgeKind:   model.EdgeConsumes,
+				})
+				pendingCeleryLine = 0
+			}
+			if pendingTemporalLine > 0 && currentFunc != "" {
+				bindings = append(bindings, EventBinding{
+					Broker:     BrokerTemporal,
+					Direction:  DirectionConsume,
+					Topic:      currentFunc,
+					Function:   currentFunc,
+					Line:       pendingTemporalLine,
+					Confidence: model.ConfidenceHigh,
+					EdgeKind:   model.EdgeConsumes,
+				})
+				pendingTemporalLine = 0
 			}
 		}
 
@@ -439,6 +497,148 @@ func Extract(filePath string, src []byte) []EventBinding {
 		}
 		amq(reJmsListener, DirectionConsume, model.EdgeConsumes)
 		amq(reJmsTemplateSend, DirectionPublish, model.EdgePublishes)
+
+		// 6. Celery task queues (Python)
+		if usesCelery && ext == ".py" {
+			if m := reCeleryTaskDec.FindStringSubmatch(trimmed); len(m) > 0 {
+				taskName := ""
+				if len(m) > 2 && m[2] != "" {
+					if nm := reCeleryTaskName.FindStringSubmatch(m[2]); len(nm) > 1 {
+						taskName = nm[1]
+					}
+				}
+				if taskName != "" {
+					bindings = append(bindings, EventBinding{
+						Broker:     BrokerCelery,
+						Direction:  DirectionConsume,
+						Topic:      taskName,
+						Function:   currentFunc,
+						Line:       lineNum,
+						Confidence: model.ConfidenceHigh,
+						EdgeKind:   model.EdgeConsumes,
+					})
+				} else {
+					pendingCeleryLine = lineNum
+				}
+			}
+			if m := reCeleryDelay.FindStringSubmatch(trimmed); len(m) > 1 {
+				task := m[1]
+				if task != "time" && task != "asyncio" && task != "sleep" {
+					bindings = append(bindings, EventBinding{
+						Broker:     BrokerCelery,
+						Direction:  DirectionPublish,
+						Topic:      task,
+						Function:   currentFunc,
+						Line:       lineNum,
+						Confidence: model.ConfidenceHigh,
+						EdgeKind:   model.EdgePublishes,
+					})
+				}
+			}
+			if m := reCelerySendTask.FindStringSubmatch(trimmed); len(m) > 1 {
+				bindings = append(bindings, EventBinding{
+					Broker:     BrokerCelery,
+					Direction:  DirectionPublish,
+					Topic:      m[1],
+					Function:   currentFunc,
+					Line:       lineNum,
+					Confidence: model.ConfidenceHigh,
+					EdgeKind:   model.EdgePublishes,
+				})
+			}
+		}
+
+		// 7. BullMQ task queues (JS/TS)
+		if usesBull && (ext == ".ts" || ext == ".js") {
+			if m := reBullWorker.FindStringSubmatch(trimmed); len(m) > 1 {
+				bindings = append(bindings, EventBinding{
+					Broker:     BrokerBullMQ,
+					Direction:  DirectionConsume,
+					Topic:      m[1],
+					Function:   currentFunc,
+					Line:       lineNum,
+					Confidence: model.ConfidenceHigh,
+					EdgeKind:   model.EdgeConsumes,
+				})
+			}
+			if m := reBullProcess.FindStringSubmatch(trimmed); len(m) > 1 {
+				bindings = append(bindings, EventBinding{
+					Broker:     BrokerBullMQ,
+					Direction:  DirectionConsume,
+					Topic:      m[1],
+					Function:   currentFunc,
+					Line:       lineNum,
+					Confidence: model.ConfidenceHigh,
+					EdgeKind:   model.EdgeConsumes,
+				})
+			}
+			if m := reBullAdd.FindStringSubmatch(trimmed); len(m) > 2 {
+				receiver := m[1]
+				job := m[2]
+				if !bullNoiseReceivers[receiver] {
+					bindings = append(bindings, EventBinding{
+						Broker:     BrokerBullMQ,
+						Direction:  DirectionPublish,
+						Topic:      job,
+						Function:   currentFunc,
+						Line:       lineNum,
+						Confidence: model.ConfidenceHigh,
+						EdgeKind:   model.EdgePublishes,
+					})
+				}
+			}
+		}
+
+		// 8. Temporal workflows and activities
+		if usesTemporal {
+			if m := reTemporalGoRegister.FindStringSubmatch(trimmed); len(m) > 1 {
+				bindings = append(bindings, EventBinding{
+					Broker:     BrokerTemporal,
+					Direction:  DirectionConsume,
+					Topic:      m[1],
+					Function:   currentFunc,
+					Line:       lineNum,
+					Confidence: model.ConfidenceHigh,
+					EdgeKind:   model.EdgeConsumes,
+				})
+			}
+			if m := reTemporalGoExecute.FindStringSubmatch(trimmed); len(m) > 1 {
+				bindings = append(bindings, EventBinding{
+					Broker:     BrokerTemporal,
+					Direction:  DirectionPublish,
+					Topic:      m[1],
+					Function:   currentFunc,
+					Line:       lineNum,
+					Confidence: model.ConfidenceHigh,
+					EdgeKind:   model.EdgePublishes,
+				})
+			}
+			if reTemporalPyDefn.MatchString(trimmed) {
+				pendingTemporalLine = lineNum
+			}
+			if m := reTemporalPyExecute.FindStringSubmatch(trimmed); len(m) > 1 {
+				bindings = append(bindings, EventBinding{
+					Broker:     BrokerTemporal,
+					Direction:  DirectionPublish,
+					Topic:      m[1],
+					Function:   currentFunc,
+					Line:       lineNum,
+					Confidence: model.ConfidenceHigh,
+					EdgeKind:   model.EdgePublishes,
+				})
+			}
+			if m := reTemporalTSExecute.FindStringSubmatch(trimmed); len(m) > 1 {
+				bindings = append(bindings, EventBinding{
+					Broker:     BrokerTemporal,
+					Direction:  DirectionPublish,
+					Topic:      m[1],
+					Function:   currentFunc,
+					Line:       lineNum,
+					Confidence: model.ConfidenceHigh,
+					EdgeKind:   model.EdgePublishes,
+				})
+			}
+		}
 	}
 
 	return bindings

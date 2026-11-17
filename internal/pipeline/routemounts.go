@@ -291,3 +291,79 @@ func sharedDirs(a, b string) int {
 	}
 	return n
 }
+
+// MountExpressRouters gives each Express route the prefix of the router mount
+// that serves it from another file.
+func MountExpressRouters(ctx context.Context, reg *registry.Registry, runID int64) (RouteMountStats, error) {
+	var st RouteMountStats
+	endpoints, err := reg.ExpressEndpoints(ctx, runID)
+	if err != nil || len(endpoints) == 0 {
+		return st, err
+	}
+	mountFiles, err := reg.ExpressMountFiles(ctx, runID)
+	if err != nil || len(mountFiles) == 0 {
+		return st, err
+	}
+
+	paths, err := reg.FilePaths(ctx, runID)
+	if err != nil {
+		return st, err
+	}
+	allFiles := make([]string, 0, len(paths))
+	for _, p := range paths {
+		allFiles = append(allFiles, p)
+	}
+	sort.Strings(allFiles)
+
+	filePrefixes := map[string]string{}
+	for _, mf := range mountFiles {
+		routers := api.ExpressRouters([]byte(mf.Content))
+		for _, m := range routers.Mounts {
+			if m.Prefix == "" || m.Child == "" {
+				continue
+			}
+			modPath, ok := routers.Imports[m.Child]
+			if !ok {
+				continue
+			}
+			resolvedFile := api.ResolveJSModulePath(mf.Path, modPath, allFiles)
+			if resolvedFile == "" {
+				continue
+			}
+			st.Mounts++
+			existing := filePrefixes[resolvedFile]
+			if existing != "" && existing != m.Prefix {
+				st.Ambiguous++
+				continue
+			}
+			filePrefixes[resolvedFile] = m.Prefix
+		}
+	}
+
+	if len(filePrefixes) == 0 {
+		return st, nil
+	}
+
+	renames := map[int64]string{}
+	for _, e := range endpoints {
+		pfx, ok := filePrefixes[e.Path]
+		if !ok || pfx == "" {
+			continue
+		}
+		raw, ok := strings.CutPrefix(e.FQN, e.Path+"#")
+		if !ok {
+			continue
+		}
+		method, routePath, ok := strings.Cut(raw, " ")
+		if !ok {
+			continue
+		}
+		want := method + " " + api.JoinRoutePath(pfx, routePath)
+		if want != e.Name {
+			renames[e.ID] = want
+		}
+	}
+
+	st.Renamed = len(renames)
+	return st, reg.RenameEndpoints(ctx, renames)
+}

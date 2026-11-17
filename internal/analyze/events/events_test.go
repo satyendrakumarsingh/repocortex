@@ -231,3 +231,141 @@ func TestExtractActiveMQStompAndJMS(t *testing.T) {
 		t.Errorf("stompjs bindings = %+v", bs)
 	}
 }
+
+func TestExtractCeleryTaskQueues(t *testing.T) {
+	pySrc := []byte(`
+from celery import Celery, shared_task
+
+app = Celery('tasks')
+
+@shared_task
+def send_email(user_id):
+    pass
+
+@app.task(name="billing.generate_invoice")
+def make_invoice(order_id):
+    pass
+
+def trigger_workflow():
+    send_email.delay(42)
+    make_invoice.apply_async(args=[101])
+    app.send_task("reports.daily_summary", [2026])
+`)
+
+	bs := Extract("tasks.py", pySrc)
+	if len(bs) < 5 {
+		t.Fatalf("expected at least 5 Celery bindings, got %d: %+v", len(bs), bs)
+	}
+
+	// 1. send_email (consumed)
+	if b := find(bs, "send_email", DirectionConsume); b == nil || b.Broker != BrokerCelery {
+		t.Errorf("expected send_email consume binding, got: %+v", b)
+	}
+	// 2. billing.generate_invoice (consumed)
+	if b := find(bs, "billing.generate_invoice", DirectionConsume); b == nil || b.Broker != BrokerCelery {
+		t.Errorf("expected billing.generate_invoice consume binding, got: %+v", b)
+	}
+	// 3. send_email.delay (published)
+	if b := find(bs, "send_email", DirectionPublish); b == nil || b.Broker != BrokerCelery {
+		t.Errorf("expected send_email publish binding, got: %+v", b)
+	}
+	// 4. make_invoice.apply_async (published)
+	if b := find(bs, "make_invoice", DirectionPublish); b == nil || b.Broker != BrokerCelery {
+		t.Errorf("expected make_invoice publish binding, got: %+v", b)
+	}
+	// 5. app.send_task (published)
+	if b := find(bs, "reports.daily_summary", DirectionPublish); b == nil || b.Broker != BrokerCelery {
+		t.Errorf("expected reports.daily_summary publish binding, got: %+v", b)
+	}
+}
+
+func TestExtractBullMQTaskQueues(t *testing.T) {
+	tsSrc := []byte(`
+import { Queue, Worker } from 'bullmq';
+
+const emailQueue = new Queue('emails');
+const emailWorker = new Worker('emails', async (job) => {
+    console.log(job.data);
+});
+
+async function queueJob() {
+    await emailQueue.add('welcome-email', { userId: 123 });
+}
+`)
+
+	bs := Extract("queue.ts", tsSrc)
+	if len(bs) < 2 {
+		t.Fatalf("expected at least 2 BullMQ bindings, got %d: %+v", len(bs), bs)
+	}
+
+	// Worker consumes from emails queue
+	if b := find(bs, "emails", DirectionConsume); b == nil || b.Broker != BrokerBullMQ {
+		t.Errorf("expected emails queue consume, got: %+v", b)
+	}
+	// emailQueue.add publishes welcome-email job
+	if b := find(bs, "welcome-email", DirectionPublish); b == nil || b.Broker != BrokerBullMQ {
+		t.Errorf("expected welcome-email publish, got: %+v", b)
+	}
+}
+
+func TestExtractTemporalWorkflowsAndActivities(t *testing.T) {
+	// Go Temporal
+	goSrc := []byte(`
+package temporalwork
+
+import (
+	"go.temporal.io/sdk/worker"
+	"go.temporal.io/sdk/workflow"
+)
+
+func Register(w worker.Worker) {
+	w.RegisterWorkflow(OrderWorkflow)
+	w.RegisterActivity(ProcessPaymentActivity)
+}
+
+func OrderWorkflow(ctx workflow.Context) error {
+	return workflow.ExecuteActivity(ctx, ProcessPaymentActivity).Get(ctx, nil)
+}
+`)
+
+	bs := Extract("workflow.go", goSrc)
+	if len(bs) < 3 {
+		t.Fatalf("expected at least 3 Temporal Go bindings, got %d: %+v", len(bs), bs)
+	}
+
+	if b := find(bs, "OrderWorkflow", DirectionConsume); b == nil || b.Broker != BrokerTemporal {
+		t.Errorf("expected OrderWorkflow consume, got: %+v", b)
+	}
+	if b := find(bs, "ProcessPaymentActivity", DirectionConsume); b == nil || b.Broker != BrokerTemporal {
+		t.Errorf("expected ProcessPaymentActivity consume, got: %+v", b)
+	}
+	if b := find(bs, "ProcessPaymentActivity", DirectionPublish); b == nil || b.Broker != BrokerTemporal {
+		t.Errorf("expected ProcessPaymentActivity publish, got: %+v", b)
+	}
+
+	// Python Temporal
+	pySrc := []byte(`
+from temporalio import workflow, activity
+
+@activity.defn
+def send_notification(msg: str):
+    pass
+
+@workflow.defn
+class MyWorkflow:
+    @workflow.run
+    async def run(self):
+        await workflow.execute_activity(send_notification, "hello")
+`)
+
+	pyBs := Extract("temporal_wf.py", pySrc)
+	if len(pyBs) < 2 {
+		t.Fatalf("expected at least 2 Temporal Python bindings, got %d: %+v", len(pyBs), pyBs)
+	}
+	if b := find(pyBs, "send_notification", DirectionConsume); b == nil || b.Broker != BrokerTemporal {
+		t.Errorf("expected send_notification consume, got: %+v", b)
+	}
+	if b := find(pyBs, "send_notification", DirectionPublish); b == nil || b.Broker != BrokerTemporal {
+		t.Errorf("expected send_notification publish, got: %+v", b)
+	}
+}

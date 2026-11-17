@@ -601,6 +601,34 @@ func TestAGoInterfaceSaysItsImplementationsAreNotListed(t *testing.T) {
 	}
 }
 
+func interfaceDispatchFixture(b *indexBuilder) {
+	b.file("repo/repo.go", "go", 40, typ("UserRepo", model.KindInterface, 5, 20), method("Save", 10, 15, 1))
+	b.file("repo/impl.go", "go", 40, typ("UserRepoImpl", model.KindClass, 5, 30), method("Save", 12, 25, 1))
+	b.file("service/main.go", "go", 40, fn("Main", 5, 20))
+
+	ifaceMethod := symKey("repo/repo.go", "Save", 10)
+	implMethod := symKey("repo/impl.go", "Save", 12)
+	caller := symKey("service/main.go", "Main", 5)
+
+	// UserRepoImpl.Save implements UserRepo.Save
+	b.edge(implMethod, ifaceMethod, model.EdgeImplements, model.ConfidenceHigh, "repo/impl.go", 12)
+	// Main calls UserRepo.Save
+	b.call(caller, ifaceMethod, "Save", "repo", "service/main.go", 8, model.ConfidenceHigh)
+	b.wellBound("go", ".go")
+}
+
+func TestFindCallersInterfaceDispatchNotes(t *testing.T) {
+	fs := serverFor(t, interfaceDispatchFixture)
+	// Query callers for the concrete implementation
+	text, _ := answer(t, fs.sess, "find_callers", map[string]any{"name": "Save", "path": "repo/impl.go"})
+	if !strings.Contains(text, "Interface dispatch: Save implements Save (repo/repo.go:10)") {
+		t.Errorf("expected interface dispatch note, got:\n%s", text)
+	}
+	if !strings.Contains(text, "which has 1 recorded caller(s)") {
+		t.Errorf("expected 1 recorded caller note, got:\n%s", text)
+	}
+}
+
 // ---------------------------------------------------------------- item 5
 
 // manyCallers gives one function 180 callers, and one interface 36 subtypes.

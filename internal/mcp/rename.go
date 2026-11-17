@@ -271,7 +271,73 @@ func (s *Server) referencesFor(
 		resp.Notes = append(resp.Notes, note)
 	}
 
+	if checkValueUse { // checkValueUse is true for callersOnly (find_callers)
+		if ifNotes := s.interfaceDispatchNotes(ctx, runID, target); len(ifNotes) > 0 {
+			resp.Notes = append(resp.Notes, ifNotes...)
+		}
+	}
+
 	return refLookup{Items: resp.Items, Resp: resp, Target: target, RunID: runID, Status: status}, nil
+}
+
+func (s *Server) interfaceDispatchNotes(ctx context.Context, runID int64, target registry.SymbolCandidate) []string {
+	var notes []string
+	if s.deps.Registry == nil {
+		return nil
+	}
+
+	// 1. Direct method-level hierarchy: does target implement or extend a supertype method?
+	upEdges, _, err := s.deps.Registry.EdgePage(ctx, runID, target.ID, false, 5, 0, registry.EdgeFilter{Kinds: hierarchyKinds})
+	if err == nil && len(upEdges) > 0 {
+		for _, e := range upEdges {
+			if e.DstID > 0 {
+				callers, _ := s.deps.Registry.IncomingEdgeCount(ctx, runID, e.DstID, registry.EdgeFilter{Kinds: []string{"CALLS"}}, nil)
+				if dstSym, ok, _ := s.deps.Registry.SymbolByID(ctx, runID, e.DstID); ok {
+					notes = append(notes, fmt.Sprintf(
+						"Interface dispatch: %s implements %s (%s:%d), which has %d recorded caller(s). Upstream callers invoke the contract.",
+						target.Name, dstSym.Name, dstSym.FilePath, dstSym.StartLine, callers))
+				}
+			}
+		}
+	}
+
+	// 2. Class/Struct owner-level hierarchy: if target has an owner (e.g. class UserRepoImpl),
+	// check if Owner implements an interface that defines target.Name.
+	if target.Owner != "" {
+		if supertypes, serr := s.deps.Registry.Supertypes(ctx, runID, []string{target.Owner}); serr == nil {
+			for _, st := range supertypes[target.Owner] {
+				cands, _, cerr := s.deps.Registry.SymbolCandidates(ctx, runID, target.Name, 10)
+				if cerr != nil {
+					continue
+				}
+				for _, c := range cands {
+					if c.Owner == st && c.ID != target.ID {
+						callers, _ := s.deps.Registry.IncomingEdgeCount(ctx, runID, c.ID, registry.EdgeFilter{Kinds: []string{"CALLS"}}, nil)
+						notes = append(notes, fmt.Sprintf(
+							"Interface dispatch: %s is declared on %s (which implements %s). %s.%s (%s:%d) has %d recorded caller(s) through interface/dependency injection dispatch.",
+							target.Name, target.Owner, st, st, target.Name, c.FilePath, c.StartLine, callers))
+						break
+					}
+				}
+			}
+		}
+	}
+
+	// 3. Reverse direction: does target define an interface method implemented by concrete types?
+	downEdges, downTotal, derr := s.deps.Registry.EdgePage(ctx, runID, target.ID, true, 5, 0, registry.EdgeFilter{Kinds: hierarchyKinds})
+	if derr == nil && downTotal > 0 {
+		var implNames []string
+		for _, e := range downEdges {
+			if srcSym, ok, _ := s.deps.Registry.SymbolByID(ctx, runID, e.SrcID); ok {
+				implNames = append(implNames, fmt.Sprintf("%s (%s:%d)", srcSym.Name, srcSym.FilePath, srcSym.StartLine))
+			}
+		}
+		notes = append(notes, fmt.Sprintf(
+			"Interface contract: %s is implemented by %d concrete type(s) or method(s) (including %s). Calls to this method dispatch to implementations at runtime.",
+			target.Name, downTotal, strings.Join(implNames, ", ")))
+	}
+
+	return notes
 }
 
 // bindingNote states, in one sentence, what the index did with every reference

@@ -911,3 +911,37 @@ def health():
 		t.Error("a name no import binds resolved to a module")
 	}
 }
+
+func TestExpressRoutersReadsMountsAndImports(t *testing.T) {
+	src := `const express = require('express');
+const usersRouter = require('./routes/users');
+import ordersRouter from './routes/orders';
+const app = express();
+app.use('/api/v1/users', usersRouter);
+app.use('/api/v1/orders', ordersRouter);
+`
+	info := ExpressRouters([]byte(src))
+	if len(info.Mounts) != 2 {
+		t.Fatalf("got %d mounts, want 2: %+v", len(info.Mounts), info.Mounts)
+	}
+	if info.Imports["usersRouter"] != "./routes/users" {
+		t.Errorf("expected usersRouter import, got %q", info.Imports["usersRouter"])
+	}
+	if info.Imports["ordersRouter"] != "./routes/orders" {
+		t.Errorf("expected ordersRouter import, got %q", info.Imports["ordersRouter"])
+	}
+
+	allFiles := []string{
+		"server/app.js",
+		"server/routes/users.js",
+		"server/routes/orders.ts",
+	}
+	uPath := ResolveJSModulePath("server/app.js", "./routes/users", allFiles)
+	if uPath != "server/routes/users.js" {
+		t.Errorf("ResolveJSModulePath = %q, want 'server/routes/users.js'", uPath)
+	}
+	oPath := ResolveJSModulePath("server/app.js", "./routes/orders", allFiles)
+	if oPath != "server/routes/orders.ts" {
+		t.Errorf("ResolveJSModulePath = %q, want 'server/routes/orders.ts'", oPath)
+	}
+}

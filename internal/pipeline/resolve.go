@@ -273,6 +273,13 @@ func Resolve(
 	if err != nil {
 		return stats, fmt.Errorf("mount python routers: %w", err)
 	}
+	jsMounts, err := MountExpressRouters(ctx, reg, runID)
+	if err != nil {
+		return stats, fmt.Errorf("mount express routers: %w", err)
+	}
+	mounts.Mounts += jsMounts.Mounts
+	mounts.Renamed += jsMounts.Renamed
+	mounts.Ambiguous += jsMounts.Ambiguous
 	if opts.OnRouteMounts != nil {
 		opts.OnRouteMounts(mounts)
 	}

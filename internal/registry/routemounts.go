@@ -81,6 +81,64 @@ func (r *Registry) PythonEndpoints(ctx context.Context, runID int64) ([]Endpoint
 	return out, rows.Err()
 }
 
+// ExpressMountFiles returns indexed JS/TS files that may contain Express router mounts (app.use).
+func (r *Registry) ExpressMountFiles(ctx context.Context, runID int64) ([]FileText, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT f.path, files_fts.content
+		  FROM files_fts
+		  JOIN files_fts_map m ON m.fts_rowid = files_fts.rowid
+		  JOIN files f         ON f.id = m.file_id
+		 WHERE files_fts MATCH ?
+		   AND f.index_run_id = ?
+		 ORDER BY f.path`,
+		`content : "use"`, runID)
+	if err != nil {
+		return nil, fmt.Errorf("registry: express mount files: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var out []FileText
+	for rows.Next() {
+		var ft FileText
+		if err := rows.Scan(&ft.Path, &ft.Content); err != nil {
+			return nil, err
+		}
+		if isJSExt(ft.Path) {
+			out = append(out, ft)
+		}
+	}
+	return out, rows.Err()
+}
+
+// ExpressEndpoints returns every endpoint the run's JS/TS files declare.
+func (r *Registry) ExpressEndpoints(ctx context.Context, runID int64) ([]EndpointRow, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT s.id, s.name, s.fqn, f.path, s.start_line
+		  FROM symbols s
+		  JOIN files f ON f.id = s.file_id
+		 WHERE s.index_run_id = ? AND s.kind = ? 
+		   AND (f.path LIKE '%.js' OR f.path LIKE '%.ts' OR f.path LIKE '%.mjs' OR f.path LIKE '%.cjs')
+		 ORDER BY f.path, s.start_line, s.id`,
+		runID, string(model.KindEndpoint))
+	if err != nil {
+		return nil, fmt.Errorf("registry: express endpoints: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var out []EndpointRow
+	for rows.Next() {
+		var e EndpointRow
+		if err := rows.Scan(&e.ID, &e.Name, &e.FQN, &e.Path, &e.Line); err != nil {
+			return nil, err
+		}
+		out = append(out, e)
+	}
+	return out, rows.Err()
+}
+
+func isJSExt(p string) bool {
+	return strings.HasSuffix(p, ".js") || strings.HasSuffix(p, ".ts") ||
+		strings.HasSuffix(p, ".mjs") || strings.HasSuffix(p, ".cjs")
+}
+
 // RenameEndpoints sets the display name of endpoint symbols, by id. The FQN,
 // which is the symbol's identity, is left alone.
 func (r *Registry) RenameEndpoints(ctx context.Context, names map[int64]string) error {

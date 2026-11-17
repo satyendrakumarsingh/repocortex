@@ -198,3 +198,41 @@ func TestMountsInTestsAreIgnored(t *testing.T) {
 		t.Fatalf("prefix = %q, ambiguous = %d; want /users, 0", p, st.Ambiguous)
 	}
 }
+
+func TestMountExpressRouters(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	tree := map[string]string{
+		"app.js": `const express = require('express');
+const usersRouter = require('./routes/users');
+const app = express();
+app.use('/api/v1/users', usersRouter);
+`,
+		"routes/users.js": `const express = require('express');
+const router = express.Router();
+router.get('/:id', getUser);
+module.exports = router;
+`,
+	}
+	writeTree(t, root, tree)
+	reg, runID, _ := indexTree(t, root, filepath.Join(t.TempDir(), "index.db"))
+
+	endpoints, err := reg.EndpointReport(ctx, runID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, e := range endpoints {
+		if e.Signature == "GET /api/v1/users/:id" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		var sigs []string
+		for _, e := range endpoints {
+			sigs = append(sigs, e.Signature)
+		}
+		t.Fatalf("did not find GET /api/v1/users/:id in %v", sigs)
+	}
+}
