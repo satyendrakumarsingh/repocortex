@@ -1513,7 +1513,7 @@ func pathSegments(p string) []string {
 //
 // Which of the two applies is LanguageSpec.ImportPathNamesFile.
 func fileSegments(spec LanguageSpec, filePath string) []string {
-	dir := pathSegments(spec.packageOf(filePath))
+	dir := pathSegments(spec.moduleDirOf(filePath))
 	if !spec.ImportPathNamesFile {
 		return dir
 	}

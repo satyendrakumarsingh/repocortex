@@ -343,6 +343,11 @@ func (w *shWalker) textualShape(tag ts.Tag) callShape {
 		// dartCallShape.
 		return dartCallShape(w.src, int(nameStart))
 	}
+	if w.language == "elixir" && elixirClauseHead(w.src, int(start)) {
+		// `total(c)` in `def total(c)` and in `@spec total(t) :: number` names
+		// what is declared, not something called.
+		return callShape{notCall: true}
+	}
 	pre := strings.TrimSpace(string(w.src[start:nameStart]))
 	post := w.src[nameEnd:end]
 
@@ -358,6 +363,10 @@ func (w *shWalker) textualShape(tag ts.Tag) callShape {
 		return callShape{kind: model.ReceiverBare}
 	}
 
+	if w.language == "r" && strings.HasSuffix(pre, ":::") {
+		// `pkg:::f()` reaches the same function as `pkg::f()`, unexported.
+		pre = pre[:len(pre)-1]
+	}
 	op := ""
 	for _, candidate := range memberOperators {
 		if strings.HasSuffix(pre, candidate) {
@@ -370,6 +379,30 @@ func (w *shWalker) textualShape(tag ts.Tag) callShape {
 		// everything up to the selector. `[[Item alloc] init]` is the construction
 		// of an Item, which states the receiver's type.
 		return objcReceiver(strings.TrimSpace(pre[1:]))
+	}
+	if w.language == "powershell" && op != "" {
+		// `[Acct]::Create(5)` is a call on the type Acct, `[System.IO.File]::Exists(p)`
+		// on File: the brackets are a type literal, and a namespace in front of
+		// the name says nothing about which type of that name.
+		if recv := strings.TrimSpace(pre[:len(pre)-len(op)]); strings.HasPrefix(recv, "[") && strings.HasSuffix(recv, "]") {
+			name := strings.TrimSpace(recv[1 : len(recv)-1])
+			if i := strings.LastIndexByte(name, '.'); i >= 0 {
+				name = name[i+1:]
+			}
+			if !isIdentifier(name) {
+				return callShape{kind: model.ReceiverExpr, receiver: model.OpaqueReceiver}
+			}
+			return callShape{kind: model.ReceiverType, receiver: name}
+		}
+	}
+	if op == "" && w.language == "r" && strings.HasSuffix(pre, "$") {
+		// `obj$method(x)` and R6's `self$method(x)`. A lone `$` is not in
+		// memberOperators because in a shell or in PHP it is a variable sigil.
+		op = "$"
+		if strings.ContainsAny(pre[:len(pre)-1], "$[(@") {
+			// `a$b$f()`, `xs[[1]]$f()`: not a value that has a name.
+			return callShape{kind: model.ReceiverExpr, receiver: model.OpaqueReceiver}
+		}
 	}
 	if op == "" && w.language == "lua" && strings.HasSuffix(pre, ":") {
 		// `obj:method(x)` passes obj as self. A lone colon is not in
@@ -442,7 +475,7 @@ func classifyReceiver(language, text, op string) callShape {
 	if !ok {
 		return opaque
 	}
-	if language == "php" {
+	if language == "php" || language == "powershell" {
 		for i := range segments {
 			segments[i] = strings.TrimPrefix(segments[i], "$")
 		}
@@ -1586,4 +1619,25 @@ func (w *shWalker) declareDart(n *ts.Node, scope int) {
 			w.bindField(w.scopes[target].name, w.text(name), typ)
 		}
 	}
+}
+
+// elixirClauseHead reports whether the call that begins at start is the head of
+// a definition or the subject of a typespec: the word before it is `def`,
+// `defp`, `@spec` and the like. The grammar reads both as calls, and a function
+// would otherwise call itself from the line that declares it.
+func elixirClauseHead(src []byte, start int) bool {
+	i := start
+	for i > 0 && (src[i-1] == ' ' || src[i-1] == '\t') {
+		i--
+	}
+	end := i
+	for i > 0 && (src[i-1] == '_' || src[i-1] >= 'a' && src[i-1] <= 'z' || src[i-1] >= 'A' && src[i-1] <= 'Z' || src[i-1] >= '0' && src[i-1] <= '9') {
+		i--
+	}
+	switch string(src[i:end]) {
+	case "def", "defp", "defmacro", "defmacrop", "defguard", "defguardp", "defdelegate",
+		"spec", "callback", "macrocallback", "type", "typep", "opaque":
+		return true
+	}
+	return false
 }

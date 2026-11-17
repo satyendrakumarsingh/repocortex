@@ -437,3 +437,40 @@ func f(a *A) {
 		}
 	}
 }
+
+// R reads `$` as the member operator and `:::` as `::`; the head of an Elixir
+// clause and of a typespec is not a call; a PowerShell type literal names the
+// type of a static call, with any namespace dropped, and a bash command is bare.
+func TestCallShapesOfScriptLanguages(t *testing.T) {
+	checkShapes(t, "a.R", `f <- function(o) {
+  helper(1)
+  pkg::g(2)
+  pkg:::h(3)
+  o$run(4)
+  self$step(5)
+  xs[[1]]$walk(6)
+}
+`, []wantShape{
+		{"helper", "bare", ""}, {"g", "scope", "pkg"}, {"h", "scope", "pkg"},
+		{"run", "value", "o"}, {"step", "self", "self"}, {"walk", "expr", "?"},
+	}, nil)
+
+	checkShapes(t, "a.ex", `defmodule A do
+  @spec total(t) :: number
+  def total(c) when is_map(c), do: Money.zero()
+  defp helper(c), do: total(c)
+end
+`, []wantShape{{"zero", "name", "Money"}, {"is_map", "bare", ""}, {"total", "bare", ""}}, nil)
+
+	checkShapes(t, "a.ps1", `function F {
+  [Acct]::Create(5)
+  [System.IO.File]::Exists($p)
+  $this.Save()
+  Get-Thing -Arg 1
+}
+`, []wantShape{
+		{"Create", "type", "Acct"}, {"Exists", "type", "File"}, {"Save", "self", "this"}, {"Get-Thing", "bare", ""},
+	}, nil)
+
+	checkShapes(t, "a.sh", "deploy() {\n  FOO=1 build --now | grep x\n}\n", []wantShape{{"build", "bare", ""}, {"grep", "bare", ""}}, nil)
+}

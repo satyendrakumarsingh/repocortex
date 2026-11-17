@@ -11,6 +11,14 @@ from an actual run.
 
 ## [Unreleased]
 
+- **Bash, R, Elixir and PowerShell bind calls across files.** They were `parsed`; each now reads its imports:
+  - **Bash:** `source` and `.` with script-relative paths, and bats `load`.
+  - **R:** `source()`, and a package's `R/` directory as one namespace that testthat tests see.
+  - **Elixir:** modules, `alias`, `import` (with `only:`) and `use`. Elixir has a resolver of its own, because it binds by module name, not by file.
+  - **PowerShell:** dot-sourcing, `Import-Module` and `using module`. Class methods are qualified by their class.
+
+  Builtins, cmdlets and external commands never bind to a repository function of the same name. On multi-file fixtures, precision was 100% for Bash (14 of 14 edges), R (15 of 15) and Elixir (17 of 17), and 92% for PowerShell (11 of 12, the wrong edge `low`). Main gaps: transitive sourcing in Bash and PowerShell, `pkg::f()` calls into an R package's own namespace, Elixir function captures and protocol dispatch, and PowerShell commands written in a different case.
+
 - **Swift, Dart, Objective-C and Lua bind calls across files.** They were `parsed`: definitions were found, but no call reached another file. Each now reads its imports and has a resolver spec:
   - **Swift:** a SwiftPM module is the tree `Sources/<Target>/**`, whose files see each other without an import. `import Core` covers the module.
   - **Dart:** relative and `package:` imports name a library, and `import … as u` qualifies calls.

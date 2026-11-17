@@ -1,10 +1,13 @@
 package parse
 
 import (
+	"regexp"
 	"strconv"
 	"strings"
 
 	ts "github.com/odvcencio/gotreesitter"
+
+	"github.com/satyendrakumarsingh/repocortex/pkg/model"
 )
 
 // Elixir: modules, protocols and their implementations, functions and macros,
@@ -37,6 +40,15 @@ import (
 // Not recorded: defstruct and defexception (they declare no name; the struct
 // is the module), @spec, imports, and the generated functions of `test`
 // blocks.
+// elixirForms are the macros and special forms that open a construct and are
+// written like a call. Quoted for a query predicate.
+const elixirForms = `"def" "defp" "defmacro" "defmacrop" "defguard" "defguardp" "defdelegate" ` +
+	`"defmodule" "defprotocol" "defimpl" "defstruct" "defexception" "defoverridable" "defcallback" ` +
+	`"alias" "import" "require" "use" "quote" "unquote" "unquote_splicing" "if" "unless" "case" "cond" ` +
+	`"with" "for" "try" "receive" "fn" "else" "rescue" "catch" "after" "do" "end" ` +
+	`"doc" "moduledoc" "typedoc" "spec" "type" "typep" "opaque" "callback" "macrocallback" ` +
+	`"impl" "behaviour" "derive" "enforce_keys" "deprecated" "since" "dialyzer" "compile"`
+
 func init() {
 	const defs = `"def" "defp" "defmacro" "defmacrop" "defguard" "defguardp" "defdelegate"`
 	// The ways a clause head can be written, as the first argument of def.
@@ -48,8 +60,15 @@ func init() {
 	}
 
 	var q strings.Builder
+	// Calls: `f(x)` (and `f x`), `Mod.f(x)` and `__MODULE__.f(x)`. A macro of the
+	// language that only opens a construct (`def`, `alias`, `if`) is not a call
+	// of anything the repository defines, and neither is the head of a clause
+	// (`total(c)` in `def total(c)`), which shape.go finds from the text before it.
 	q.WriteString(`
 (call (identifier) @name) @reference.call
+  (#not-any-of? @name ` + elixirForms + `)
+(call (dot left: (alias) right: (identifier) @name)) @reference.call
+(call (dot left: (identifier) @_m right: (identifier) @name) (#eq? @_m "__MODULE__")) @reference.call
 
 (call (identifier) @_head (arguments . (alias) @name) (#eq? @_head "defmodule")) @definition.module
 (call (identifier) @_head (arguments . (alias) @name) (#eq? @_head "defprotocol")) @definition.interface
@@ -80,6 +99,110 @@ func init() {
 `)
 	registerDefinitions("elixir", q.String(), true)
 	registerClauseMerge("elixir", elixirClauseArity)
+	definitionRefiners["elixir"] = elixirOwners
+	registerImportFix("elixir", elixirImport)
+}
+
+// elixirModuleCall is the module a `defmodule`, `defprotocol` or `defimpl` call
+// declares, as the name its functions are qualified by: `Shop.Cart`, and for an
+// implementation `Shop.Printable.Cart`, which is what the compiler calls it.
+// ok is false for any other call.
+func elixirModuleCall(call *ts.Node, lang *ts.Language, src []byte) (name string, ok bool) {
+	if call == nil || call.Type(lang) != "call" || call.ChildCount() == 0 {
+		return "", false
+	}
+	head := call.Child(0)
+	if head == nil || head.Type(lang) != "identifier" {
+		return "", false
+	}
+	switch head.Text(src) {
+	case "defmodule", "defprotocol", "defimpl":
+	default:
+		return "", false
+	}
+	var first *ts.Node
+	for i := 1; i < call.ChildCount(); i++ {
+		if c := call.Child(i); c != nil && c.Type(lang) == "arguments" {
+			for j := 0; j < c.ChildCount(); j++ {
+				if a := c.Child(j); a != nil && a.Type(lang) == "alias" {
+					first = a
+					break
+				}
+			}
+			if first != nil {
+				if head.Text(src) == "defimpl" {
+					if m := elixirImplFor.FindStringSubmatch(c.Text(src)); m != nil {
+						return first.Text(src) + "." + m[1], true
+					}
+				}
+			}
+			break
+		}
+	}
+	if first == nil {
+		return "", false
+	}
+	return first.Text(src), true
+}
+
+var elixirImplFor = regexp.MustCompile(`for:\s*([A-Z][A-Za-z0-9_.]*)`)
+
+// elixirOwners says which module every definition is in. A function's name does
+// not state it (`def total(c)` in `defmodule Shop.Cart`), and a call from
+// another file names the module and not the file, so the module is the
+// function's owner and its qualified name becomes `path:Shop.Cart.total`. A
+// module nested in another is qualified by it (`path:Shop.Cart` for `defmodule
+// Cart` inside `defmodule Shop`), as the compiler names it, and keeps the name
+// it is written with.
+func elixirOwners(root *ts.Node, lang *ts.Language, _ string, src []byte, tags []ts.Tag) map[uint32]definitionFix {
+	var fixes map[uint32]definitionFix
+	for _, tag := range tags {
+		if !strings.HasPrefix(tag.Kind, "definition.") {
+			continue
+		}
+		n := root.NamedDescendantForByteRange(tag.NameRange.StartByte, tag.NameRange.EndByte)
+		// The module a tag declares has itself as its first enclosing call.
+		declares := ""
+		if kind := kindFromTag(tag.Kind); kind == model.KindPackage || kind == model.KindInterface || kind == model.KindClass {
+			if p := n; p != nil {
+				for depth := 0; p != nil && depth < 3; depth++ {
+					if name, ok := elixirModuleCall(p, lang, src); ok {
+						declares = name
+						break
+					}
+					p = p.Parent()
+				}
+			}
+		}
+		var chain []string
+		skipped := declares == ""
+		for p := n; p != nil; p = p.Parent() {
+			name, ok := elixirModuleCall(p, lang, src)
+			if !ok {
+				continue
+			}
+			if !skipped && name == declares {
+				skipped = true
+				continue
+			}
+			chain = append([]string{name}, chain...)
+		}
+		if len(chain) == 0 {
+			continue
+		}
+		if fixes == nil {
+			fixes = map[uint32]definitionFix{}
+		}
+		// A module nested in another is a member of it as far as its qualified
+		// name goes (`path:Shop.Cart.Line`); its name stays as written. A
+		// protocol or an implementation nested in a module keeps the plain
+		// qualified name its callers know it by.
+		if declares != "" && kindFromTag(tag.Kind) != model.KindPackage {
+			continue
+		}
+		fixes[tag.NameRange.StartByte] = definitionFix{owner: strings.Join(chain, ".")}
+	}
+	return fixes
 }
 
 // elixirClauseArity counts the arguments of the clause head a name sits in:
@@ -110,4 +233,85 @@ func namedChildCount(n *ts.Node, childType string, lang *ts.Language) string {
 		return strconv.Itoa(total)
 	}
 	return ""
+}
+
+// The import rows of an Elixir file are directives, and a module is named by
+// what it is called and not by where it is, so the rows carry the module name
+// in Path and the directive in Alias:
+//
+//	alias Shop.Money                 Path Shop.Money, Alias alias:Money
+//	alias Shop.Billing.Invoice, as: Inv        ... Alias alias:Inv
+//	alias Shop.{Tax, Order}          one row each: Shop.Tax and Shop.Order
+//	import Shop.Util                 Path Shop.Util, Alias import
+//	import Shop.Fmt, only: [fmt: 1]  Path Shop.Fmt, Alias import:fmt
+//	use Shop.Worker, retries: 3      Path Shop.Worker, Alias use
+//	require Shop.Mod, as: M          like alias: it names M
+//
+// A plain `require` names no function and no alias and is not a row. A module
+// named by an Erlang atom (`:crypto`) or relative to the module it is written
+// in (`__MODULE__.Sub`) is not one either.
+//
+// The prefixes are read by the resolver (internal/resolve/infer/elixir.go).
+const (
+	ElixirAliasPrefix  = "alias:"
+	ElixirImportAlias  = "import"
+	ElixirImportPrefix = "import:"
+	ElixirUseAlias     = "use"
+)
+
+var (
+	elixirDirective = regexp.MustCompile(`^(alias|import|use|require)\s*\(?\s*([A-Z][A-Za-z0-9_]*(?:\.[A-Z][A-Za-z0-9_]*)*)(?:\.\{([^}]*)\})?`)
+	elixirAs        = regexp.MustCompile(`\bas:\s*([A-Z][A-Za-z0-9_]*)`)
+	elixirOnly      = regexp.MustCompile(`\bonly:\s*\[([^\]]*)\]`)
+	elixirOnlyName  = regexp.MustCompile(`([a-z_][A-Za-z0-9_?!]*)\s*:`)
+)
+
+func elixirImport(_ string, imp Import) []Import {
+	text := imp.Path
+	m := elixirDirective.FindStringSubmatch(text)
+	if m == nil {
+		return nil
+	}
+	directive, module, group := m[1], m[2], m[3]
+	rest := text[len(m[0]):]
+	lastSegment := func(name string) string { return name[strings.LastIndexByte(name, '.')+1:] }
+	row := func(path, alias string) Import {
+		next := imp
+		next.Path, next.Alias = path, alias
+		return next
+	}
+	switch directive {
+	case "use":
+		return []Import{row(module, ElixirUseAlias)}
+	case "import":
+		if o := elixirOnly.FindStringSubmatch(rest); o != nil {
+			var names []string
+			for _, n := range elixirOnlyName.FindAllStringSubmatch(o[1], -1) {
+				names = append(names, n[1])
+			}
+			if len(names) > 0 {
+				return []Import{row(module, ElixirImportPrefix+strings.Join(names, ","))}
+			}
+		}
+		return []Import{row(module, ElixirImportAlias)}
+	}
+	if group != "" {
+		var out []Import
+		for _, part := range strings.Split(group, ",") {
+			part = strings.TrimSpace(part)
+			if part == "" || part[0] < 'A' || part[0] > 'Z' {
+				continue
+			}
+			full := module + "." + part
+			out = append(out, row(full, ElixirAliasPrefix+lastSegment(full)))
+		}
+		return out
+	}
+	if a := elixirAs.FindStringSubmatch(rest); a != nil {
+		return []Import{row(module, ElixirAliasPrefix+a[1])}
+	}
+	if directive == "require" {
+		return nil
+	}
+	return []Import{row(module, ElixirAliasPrefix+lastSegment(module))}
 }

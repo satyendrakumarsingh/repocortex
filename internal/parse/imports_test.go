@@ -460,3 +460,193 @@ end
 		t.Errorf("imports = %v, want exactly %d (a computed require names no module)", importPaths(res), len(cases))
 	}
 }
+
+// `source` and `.` name a file. A path relative to the script, or opened by one
+// of the spellings of the script's own directory, names a file of the
+// repository; a path built from any other variable, an absolute one and a home
+// directory name none.
+func TestBashImports(t *testing.T) {
+	res := parse(t, "scripts/deploy.sh", `source ./lib/log.sh
+. lib/net.sh
+source "$(dirname "$0")/common.sh"
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/paths.sh"
+. "${BASH_SOURCE%/*}/env.bash"
+source "$SCRIPT_DIR/lib/retry.sh"
+source "${SCRIPT_DIR}"/lib/quote.sh
+source ../shared/util.sh
+
+source "$HOME/.profile"
+source "$LIB_DIR/x.sh"
+source /etc/profile
+source ~/.bashrc
+source "$1"
+echo source other.sh
+`)
+	for _, want := range []string{
+		"scripts/lib/log", "lib/log", "scripts/lib/net", "lib/net", "scripts/common", "scripts/paths",
+		"scripts/env", "scripts/lib/retry", "scripts/lib/quote", "shared/util",
+	} {
+		if !hasImport(res, want) {
+			t.Errorf("missing import %q; got %v", want, importPaths(res))
+		}
+	}
+	// A path from the script's directory is not also read as the working
+	// directory's.
+	for _, bad := range []string{"common", "paths", "env", "lib/retry", "lib/quote"} {
+		if hasImport(res, bad) {
+			t.Errorf("import %q is relative to the script and was also recorded as written: %v", bad, importPaths(res))
+		}
+	}
+	if len(res.Imports) != 10 {
+		t.Errorf("imports = %v, want 10 (a variable, absolute or home path names no file)", importPaths(res))
+	}
+}
+
+// bats's `load` names a file beside the test, and only in a .bats file: in any
+// other it is a command of the script's own.
+func TestBashLoadIsBats(t *testing.T) {
+	bats := parseAs(t, "bash", "test/deploy.bats", "load helper\nload '../scripts/lib/net'\nsource \"$BATS_TEST_DIRNAME/../deploy.sh\"\n")
+	for _, want := range []string{"test/helper", "scripts/lib/net", "deploy"} {
+		if !hasImport(bats, want) {
+			t.Errorf("missing import %q; got %v", want, importPaths(bats))
+		}
+	}
+	if len(bats.Imports) != 3 {
+		t.Errorf("imports = %v, want 3", importPaths(bats))
+	}
+	plain := parse(t, "scripts/run.sh", "load helper\n")
+	if len(plain.Imports) != 0 {
+		t.Errorf("`load` outside a .bats file is no import: %v", importPaths(plain))
+	}
+}
+
+// `source` names a file, relative to the script and as written; `library`
+// names a package; a package that ships with R and a path built at run time
+// name nothing.
+func TestRImports(t *testing.T) {
+	res := parse(t, "analysis/run.R", `source("helpers.R")
+source('R/util.R', local = TRUE)
+source(file.path("R", "paths.R"))
+sys.source(here::here("R", "io.R"), envir = env)
+library(dplyr)
+library("jsonlite")
+require(testthat)
+requireNamespace("cli", quietly = TRUE)
+library(stats)
+library(utils)
+source(paste0(dir, "/x.R"))
+source("/abs/y.R")
+source("~/z.R")
+library(pkg, character.only = TRUE)
+`)
+	for _, want := range []string{
+		"analysis/helpers", "helpers", "analysis/R/util", "R/util", "analysis/R/paths", "R/paths",
+		"analysis/R/io", "R/io", "dplyr", "jsonlite", "testthat", "cli", "pkg",
+	} {
+		if !hasImport(res, want) {
+			t.Errorf("missing import %q; got %v", want, importPaths(res))
+		}
+	}
+	if len(res.Imports) != 13 {
+		t.Errorf("imports = %v, want 13 (a base package, a computed path and an absolute one name no file)", importPaths(res))
+	}
+	for _, i := range res.Imports {
+		if i.Alias != "" {
+			t.Errorf("import %q kept alias %q", i.Path, i.Alias)
+		}
+	}
+}
+
+// Every Elixir directive is a row that names a module, with the directive in
+// the alias, and the functions of a module are qualified by it.
+func TestElixirImports(t *testing.T) {
+	res := parse(t, "lib/shop/cart.ex", `defmodule Shop.Cart do
+  alias Shop.Money
+  alias Shop.Billing.Invoice, as: Inv
+  alias Shop.{Tax, Billing.Order}
+  import Shop.Util
+  import Shop.Fmt, only: [fmt: 1, pad: 2]
+  require Logger
+  require Shop.Mod, as: M
+  use Shop.Worker, retries: 3
+  import :lists
+
+  def total(c), do: c
+
+  defmodule Line do
+    def price(l), do: l
+  end
+end
+`)
+	want := map[string]string{
+		"Shop.Money": "alias:Money", "Shop.Billing.Invoice": "alias:Inv", "Shop.Tax": "alias:Tax",
+		"Shop.Billing.Order": "alias:Order", "Shop.Util": "import", "Shop.Fmt": "import:fmt,pad",
+		"Shop.Mod": "alias:M", "Shop.Worker": "use",
+	}
+	for path, alias := range want {
+		got, ok := importAlias(res, path)
+		if !ok {
+			t.Errorf("missing import %q; got %v", path, importPaths(res))
+		} else if got != alias {
+			t.Errorf("import %q has alias %q, want %q", path, got, alias)
+		}
+	}
+	if len(res.Imports) != len(want) {
+		t.Errorf("imports = %v, want exactly %d (a plain require and an atom name no module)", importPaths(res), len(want))
+	}
+	// A function is qualified by its module and a nested module by its parent; a
+	// symbol with no qualified name of its own is `path:name`.
+	fqns := map[string]bool{}
+	for _, s := range res.Symbols {
+		fqns[s.Name+" "+s.FQN] = true
+	}
+	for _, f := range []string{
+		"Shop.Cart ", "Line lib/shop/cart.ex:Shop.Cart.Line",
+		"total lib/shop/cart.ex:Shop.Cart.total", "price lib/shop/cart.ex:Shop.Cart.Line.price",
+	} {
+		if !fqns[f] {
+			t.Errorf("missing symbol %q; got %v", f, fqns)
+		}
+	}
+}
+
+// A dot-source, Import-Module and `using module` name a file or a module; the
+// script's own directory is spelled several ways; a path built from anything
+// else names nothing.
+func TestPowerShellImports(t *testing.T) {
+	res := parse(t, "scripts/deploy.ps1", `. ./lib/util.ps1
+. "$PSScriptRoot\lib\log.ps1"
+. (Join-Path $PSScriptRoot 'net.ps1')
+Import-Module ./M.psm1
+Import-Module "$PSScriptRoot\Mod.psm1" -Force
+Import-Module -Name Billing -Force
+Import-Module Pester
+using module ./Types.psm1
+using namespace System.IO
+. $env:HOME\profile.ps1
+. $Config.Path
+. C:\tools\x.ps1
+& ./run.ps1
+`)
+	for _, want := range []string{
+		"scripts/lib/util", "lib/util", "scripts/lib/log", "scripts/net",
+		"scripts/M", "M", "scripts/Mod", "Billing", "Pester", "scripts/Types", "Types",
+	} {
+		if !hasImport(res, want) {
+			t.Errorf("missing import %q; got %v", want, importPaths(res))
+		}
+	}
+	for _, bad := range []string{"lib/log", "net", "Mod"} {
+		if hasImport(res, bad) {
+			t.Errorf("import %q is relative to the script and was also recorded as written: %v", bad, importPaths(res))
+		}
+	}
+	if len(res.Imports) != 11 {
+		t.Errorf("imports = %v, want 11 (a variable, a drive path, `using namespace` and `&` name no file)", importPaths(res))
+	}
+
+	pester := parse(t, "tests/Deploy.Tests.ps1", "BeforeAll { . $PSCommandPath.Replace('.Tests.ps1', '.ps1') }\n")
+	if !hasImport(pester, "tests/Deploy") || len(pester.Imports) != 1 {
+		t.Errorf("a Pester test names the file under test: %v", importPaths(pester))
+	}
+}

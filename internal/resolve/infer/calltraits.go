@@ -424,6 +424,10 @@ var callTraitsByLanguage = map[string]CallTraits{
 	"dart":       {CallConstructs: true, ImplicitSelf: true, TypesAreCapitalised: true, Imports: ImportsNameModules, Builtins: dartBuiltins},
 	"objc":       {OpenTypes: true, TypesAreCapitalised: true, Builtins: objcBuiltins},
 	"lua":        {Imports: ImportsNameModules, Builtins: luaBuiltins},
+	"bash":       {},
+	"powershell": {Measured: ruleTiers{UniqueTypeName: model.ConfidenceLow}},
+	"elixir":     {ExternalRoots: []string{"Kernel", "Enum", "Map", "MapSet", "List", "String", "Keyword", "Tuple", "Integer", "Float", "Atom", "Regex", "Range", "Stream", "IO", "File", "Path", "System", "Process", "Task", "Agent", "GenServer", "Supervisor", "DynamicSupervisor", "Application", "Logger", "Code", "Module", "Macro", "Access", "Date", "DateTime", "Time", "NaiveDateTime", "Calendar", "URI", "Base", "Bitwise", "Inspect", "Node", "Port", "Registry", "Version", "Record", "Exception", "ExUnit", "Mix", "Ecto", "Phoenix", "Plug", "Jason"}},
+	"r":          {ExternalRoots: []string{"base", "stats", "utils", "methods", "graphics", "grDevices", "datasets", "tools", "parallel", "compiler", "grid", "splines", "stats4"}},
 	"groovy":     {ImplicitSelf: true, Overloads: true, TypesAreCapitalised: true, Imports: ImportsNameClasses, ExternalRoots: []string{"java", "javax", "groovy"}, Builtins: javaBuiltins},
 }
 

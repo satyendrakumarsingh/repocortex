@@ -338,6 +338,22 @@ type LanguageSpec struct {
 	// directory, which is what the language does with no better evidence.
 	ModuleDirs []string
 
+	// NamespaceDirs names the only directories whose files share a namespace
+	// with no import: an R package's `R/`, where every file's functions are the
+	// package's and every other file of the directory calls them by name. Empty
+	// for every other language, where the directory is the package (or, with
+	// PackageIsDirectory unset, no directory is).
+	//
+	// R has both kinds of directory side by side. A script directory loads
+	// nothing it does not `source()`, and a neighbour is no more in scope than
+	// any other file; an `R/` directory is a namespace. A language-wide
+	// PackageIsDirectory would call the first kind a package and bind a call of
+	// `filter(df, x)` to whichever sibling script happens to define `filter`.
+	// With NamespaceDirs set, packageOf names the directory for a file inside one
+	// of them and the FILE ITSELF for any other, so that a package's files are
+	// neighbours (High, as in Go) and nothing else is.
+	NamespaceDirs []string
+
 	// TypesNeedImport reports that a type declared in a neighbouring file is in
 	// scope only when the file imports it: a Dart library is one file, and
 	// `Item` in lib/models/item.dart is invisible to lib/models/cart.dart
@@ -429,6 +445,21 @@ func (s LanguageSpec) usableReceiver(receiver string) bool {
 // directory, or for a language with ModuleDirs the module directory that
 // holds it. See LanguageSpec.ModuleDirs.
 func (s LanguageSpec) packageOf(filePath string) string {
+	if len(s.NamespaceDirs) > 0 {
+		dir := path.Dir(filePath)
+		if !containsString(s.NamespaceDirs, path.Base(dir)) {
+			return filePath
+		}
+		return dir
+	}
+	return s.moduleDirOf(filePath)
+}
+
+// moduleDirOf is the directory that names a file's module in an import path: its
+// own, or for a language with ModuleDirs the module directory that holds it.
+// Unlike packageOf it is never the file itself, because an import path is
+// compared with the file's directory and stem.
+func (s LanguageSpec) moduleDirOf(filePath string) string {
 	dir := path.Dir(filePath)
 	if len(s.ModuleDirs) == 0 {
 		return dir
@@ -442,6 +473,33 @@ func (s LanguageSpec) packageOf(filePath string) string {
 		}
 	}
 	return dir
+}
+
+// testSees reports whether a test file reaches a definition without naming it,
+// because the test framework puts it in scope: for R, testthat attaches the
+// package under test (every file of the `R/` beside the tests' directory) and
+// sources the `helper*` and `setup*` files that sit with the tests.
+//
+// False for every language but one with NamespaceDirs, where nothing of the
+// kind is modelled and a test file is a file like any other. It is one more
+// way for a call to be in scope, asked only where a call has already named
+// something the repository defines.
+func (s LanguageSpec) testSees(testPath, candPath string) bool {
+	if len(s.NamespaceDirs) == 0 || !s.TestFiles.Matches(testPath) {
+		return false
+	}
+	testDir, candDir := path.Dir(testPath), path.Dir(candPath)
+	if candDir == testDir {
+		base := strings.ToLower(path.Base(candPath))
+		return strings.HasPrefix(base, "helper") || strings.HasPrefix(base, "setup")
+	}
+	segs := strings.Split(testDir, "/")
+	for i, seg := range segs {
+		if seg == "tests" {
+			return candDir == path.Join(append(append([]string{}, segs[:i]...), s.NamespaceDirs[0])...)
+		}
+	}
+	return false
 }
 
 func (s LanguageSpec) isSelfName(r string) bool {
@@ -947,6 +1005,20 @@ func NewSpecs() *Specs {
 		Suffixes: []string{"test.php"},
 		Dirs:     []string{"tests", "test"},
 	}))
+	// Bash. A script reaches another's functions only by `source`, so what a
+	// script calls is a function it defines or one in a file it sources, and a
+	// neighbour it does not source is no more in scope than any other file:
+	// ProximityIsEvidence is off, as for Lua and Ruby. An import names a file
+	// (the parser drops its extension), and a function has no qualifier, so a
+	// call is always bare and is told from a command by name alone
+	// (corefunctions.go).
+	bash := scopeSpec("bash", []string{"bash"}, TestFiles{
+		Suffixes: []string{".bats", "_test.sh", "-test.sh", ".test.sh"},
+		Dirs:     []string{"test", "tests"},
+	})
+	bash.ProximityIsEvidence = false
+	bash.MemberSeparators = sepDefault
+	add(bash)
 	// C and C++ have no test convention worth claiming; they keep the directory
 	// rule. Interop nil: unclassified, pending the header-sharing decision above.
 	// Swift. A module is the unit: `Sources/<Target>/**` is one package whose
@@ -975,6 +1047,43 @@ func NewSpecs() *Specs {
 	lua.PackageInitStem = "init"
 	lua.MemberSeparators = sepDefault
 	add(lua)
+	// Elixir. A call reaches a module by name, not a file by path, and every rule
+	// of this table that is about files (neighbours, import paths) is moot: the
+	// resolution is elixir.go's. The spec says what is true regardless: a
+	// directory is no package and proximity is no evidence.
+	elixir := scopeSpec("elixir", []string{"elixir"}, TestFiles{
+		Suffixes: []string{"_test.exs"},
+		Dirs:     []string{"test"},
+	})
+	elixir.ProximityIsEvidence = false
+	elixir.MemberSeparators = sepDefault
+	add(elixir)
+	// PowerShell. A script reaches another's functions by dot-sourcing it and a
+	// module's by importing it, and a class by `using module`: a neighbour is in
+	// scope only through one of them (ProximityIsEvidence off, TypesNeedImport on,
+	// as for Dart). An import names a file or a module by name, with its extension
+	// dropped by the parser.
+	powershell := scopeSpec("powershell", []string{"powershell"}, TestFiles{
+		Suffixes: []string{".tests.ps1"},
+		Dirs:     []string{"tests", "test"},
+	})
+	powershell.ProximityIsEvidence = false
+	powershell.TypesNeedImport = true
+	powershell.MemberSeparators = sepDefault
+	add(powershell)
+	// R. A file is a script that loads nothing it does not `source()`, except
+	// inside a package's `R/`, whose files are one namespace (NamespaceDirs). An
+	// import names a file (the parser drops its extension), and `pkg::f()` is
+	// qualified by a package, not by a file of the repository.
+	r := scopeSpec("r", []string{"r"}, TestFiles{
+		Prefixes: []string{"test-", "test_"},
+		Dirs:     []string{"testthat", "tests"},
+	})
+	r.PackageIsDirectory = true
+	r.NamespaceDirs = []string{"R"}
+	r.ProximityIsEvidence = false
+	r.MemberSeparators = sepDefault
+	add(r)
 	// Dart. A file is a library and sees nothing of its directory: what it
 	// uses it imports, by a path relative to itself or `package:` (rewritten by
 	// the parser to the file's repository path, so an import names one file and
@@ -1173,6 +1282,14 @@ func languageOfPath(p string) string {
 		return "swift"
 	case "lua":
 		return "lua"
+	case "sh", "bash", "bats":
+		return "bash"
+	case "r":
+		return "r"
+	case "ex", "exs":
+		return "elixir"
+	case "ps1", "psm1", "psd1":
+		return "powershell"
 	case "dart":
 		return "dart"
 	case "groovy":

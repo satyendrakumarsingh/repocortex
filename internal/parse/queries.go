@@ -818,6 +818,48 @@ var importQueries = map[string]string{
   (#eq? @_f "require")) @import
 `,
 
+	// Bash: `source x.sh` and `. ./lib/x.sh` name a file. The word is captured
+	// whole, whatever it is made of (a quoted string, a `$(dirname "$0")/x.sh`
+	// concatenation), because which spellings name a file of the repository is a
+	// question about text that bashImport (lang_bash.go) answers.
+	//
+	// bats's `load helper` names a file beside the test too. The command name is
+	// captured as the alias so that bashImport can tell the two apart (and keeps
+	// `load` only in a .bats file, where it is not some script's own function);
+	// it is cleared there, because an alias would read as a module qualifier.
+	"bash": `
+(command (command_name (word) @alias) . [(word) (string) (raw_string) (concatenation)] @path
+  (#any-of? @alias "source" "." "load"))
+`,
+
+	// R: `source("x.R")` and `sys.source("x.R", env)` name a file; `library(pkg)`,
+	// `require(pkg)` and `requireNamespace("pkg")` name a package. The first
+	// argument is captured whole (a string, a bare name, `file.path("R", "x.R")`)
+	// and its function as the alias, and rImport (lang_r.go) reads the two.
+	"r": `
+(call function: (identifier) @alias arguments: (arguments . (argument value: (_) @path))
+  (#any-of? @alias "source" "sys.source" "library" "require" "requireNamespace" "loadNamespace" "attachNamespace"))
+`,
+
+	// Elixir: `alias`, `import`, `use` and `require` are calls. The whole directive
+	// is captured, because what it says (a group of aliases, `as:`, `only:`) is
+	// text that elixirImport (lang_elixir.go) reads, and each row names a module.
+	"elixir": `
+((call (identifier) @_d) @path
+  (#any-of? @_d "alias" "import" "use" "require"))
+`,
+
+	// PowerShell: a dot-source (`. ./x.ps1`), `Import-Module` and `using module`.
+	// All three are commands, and the whole command is captured: which of its
+	// words is the file, and how a path built from $PSScriptRoot reads, is text
+	// that powershellImport (lang_powershell.go) answers.
+	"powershell": `
+((command (command_name) @_c) @path
+  (#match? @_c "^(?i:import-module|ipmo|using)$"))
+((command (command_invokation_operator) @_op) @path
+  (#eq? @_op "."))
+`,
+
 	"c": `
 (preproc_include path: (system_lib_string) @path)
 (preproc_include path: (string_literal) @path)

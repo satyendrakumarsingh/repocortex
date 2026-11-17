@@ -1,5 +1,7 @@
 package infer
 
+import "strings"
+
 // # Bare names a language's own library provides
 //
 // corenames.go lists the MEMBER names a language's core types declare, so that
@@ -98,6 +100,110 @@ func buildCoreFunctions() map[string]map[string]struct{} {
 		select setmetatable getmetatable rawget rawset rawequal rawlen next unpack
 		load loadstring loadfile dofile collectgarbage`)
 
+	// Bash: the shell's own builtins and the utilities a script runs by name.
+	// A command word that names one of them is that command, even when some
+	// other script of the repository defines a function of the same name; a
+	// function the file itself defines, or one it sources, is never refused (see
+	// the note at the top of this file). Names a script plausibly defines for
+	// itself (`install`, `build`, `check`, `run`, `usage`, `die`) are not here.
+	out["bash"] = words(`
+		alias bg bind break builtin caller cd command compgen complete compopt continue
+		declare dirs disown echo enable eval exec exit export false fc fg getopts hash
+		help history jobs kill let local logout mapfile popd printf pushd pwd read
+		readarray readonly return set shift shopt source suspend test times trap true
+		type typeset ulimit umask unalias unset wait
+		awk basename cat chgrp chmod chown cp curl cut date dd df diff dirname du env
+		find git grep gzip head hostname id jq ln ls md5sum mkdir mktemp mv nc ps rm
+		rmdir rsync scp sed seq sha256sum sleep sort ssh stat tail tar tee touch tr
+		uname uniq wc which whoami xargs docker kubectl terraform npm pip pip3 python
+		python3 node go cargo java ruby perl sudo tput`)
+
+	// R: base, stats, utils and methods, which are attached to every session, and
+	// testthat's expectations, which every test file calls. A name here is the
+	// language's whatever a script of the repository defines under it, from a
+	// file this one does not define or `source()`.
+	out["r"] = words(`
+		c list vector numeric character logical integer double complex matrix array factor
+		data.frame list2env environment new.env local eval evalq parse deparse substitute
+		quote bquote body formals args arity match.arg match.call match.fun missing on.exit
+		do.call Recall Reduce Filter Map Position Find lapply sapply vapply mapply rapply
+		tapply apply outer sweep aggregate by split unsplit tryCatch try stop warning message
+		signalCondition simpleError simpleCondition conditionMessage stopifnot invisible
+		return print cat format formatC sprintf paste paste0 toString nchar substr substring
+		strsplit gsub sub grepl grep regexpr gregexpr regmatches toupper tolower trimws
+		startsWith endsWith sprintf rev sort order unique duplicated which which.max which.min
+		any all is.na is.null is.numeric is.character is.function is.list is.logical ifelse
+		length names setNames nrow ncol NROW NCOL dim rownames colnames levels nlevels table
+		seq seq_len seq_along rep head tail append sum mean median min max range var sd
+		round floor ceiling abs sqrt exp log log2 log10 cumsum cumprod prod rnorm runif sample
+		set.seed quantile cor lm glm predict t.test filter select rbind cbind merge subset
+		with within transform setdiff union intersect identical all.equal isTRUE isFALSE
+		exists get get0 mget assign rm library require requireNamespace loadNamespace
+		suppressWarnings suppressMessages suppressPackageStartupMessages source sys.source
+		sys.call sys.function Sys.time Sys.Date Sys.getenv Sys.setenv Sys.sleep file.path
+		file.exists dir.create list.files readLines writeLines readRDS saveRDS read.csv
+		write.csv read.table write.table basename dirname normalizePath nlevels unlist
+		structure class inherits attr attributes oldClass unclass is as new validObject
+		setClass setGeneric setMethod setValidity setRefClass isVirtualClass standardGeneric
+		callNextMethod UseMethod NextMethod R6Class slot slotNames str summary mapply
+		Negate Vectorize nargs interactive commandArgs quit q date format.Date as.Date
+		is.element match nchar rev max min pmin pmax cut findInterval
+		test_that describe it context skip skip_if skip_if_not skip_on_cran expect_equal
+		expect_identical expect_true expect_false expect_null expect_error expect_warning
+		expect_message expect_silent expect_length expect_match expect_s3_class
+		expect_s4_class expect_type expect_named expect_setequal expect_gt expect_lt
+		expect_gte expect_lte expect_output expect_condition expect_no_error
+		expect_snapshot expect_is expect_that expect_invisible`)
+
+	// Elixir: Kernel, which every module imports, and ExUnit's macros, which
+	// every test calls. A bare call of one is the language's unless the module
+	// it is written in defines it or an `import` names it (elixir.go).
+	out["elixir"] = words(`
+		abs apply binding ceil div elem exit floor function_exported? get_and_update_in
+		get_in hd inspect is_atom is_binary is_bitstring is_boolean is_float is_function
+		is_integer is_list is_map is_nil is_number is_pid is_port is_reference is_struct
+		is_tuple is_exception length make_ref map_size max min node not pop_in put_elem
+		put_in raise reraise rem round self send spawn spawn_link spawn_monitor struct
+		struct! tl throw trunc tuple_size update_in to_string to_charlist then tap dbg
+		byte_size bit_size binary_part is_map_key
+		test describe setup setup_all assert refute assert_receive refute_receive
+		assert_raise assert_received refute_received flunk on_exit doctest start_supervised
+		start_supervised! capture_io capture_log`)
+
+	// PowerShell: the cmdlets and aliases of the modules every session loads, the
+	// executables a script runs by name, and Pester's commands. Only a function
+	// the repository defines binds, and a function that shares a name with one of
+	// these is the cmdlet from any file that does not define it itself. Kept
+	// lowercase: command names are case-insensitive.
+	out["powershell"] = words(`
+		add-content add-member add-type clear-content clear-host clear-item clear-variable compare-object
+		convert-path convertfrom-json convertfrom-csv convertfrom-securestring convertto-json convertto-csv
+		convertto-html convertto-securestring convertto-xml copy-item disable-psbreakpoint enable-psbreakpoint
+		enter-pssession exit-pssession export-clixml export-csv export-modulemember foreach-object
+		format-custom format-list format-table format-wide get-alias get-childitem get-command get-content
+		get-credential get-date get-event get-eventlog get-help get-history get-host get-item get-itemproperty
+		get-job get-location get-member get-module get-process get-psdrive get-pssession get-random
+		get-service get-unique get-variable get-wmiobject get-ciminstance get-filehash get-acl get-culture
+		get-executionpolicy get-hotfix get-netipaddress get-nettcpconnection get-psprovider get-timezone
+		group-object import-clixml import-csv import-module import-localizeddata invoke-command invoke-expression
+		invoke-item invoke-restmethod invoke-webrequest invoke-rest invoke-sqlcmd join-path measure-command
+		measure-object move-item new-alias new-item new-itemproperty new-module new-object new-psdrive
+		new-pssession new-service new-timespan new-variable out-default out-file out-host out-null out-string
+		pop-location push-location read-host receive-job register-argumentcompleter register-objectevent
+		remove-item remove-itemproperty remove-job remove-module remove-psdrive remove-pssession
+		remove-variable rename-item resolve-path restart-service select-object select-string select-xml
+		send-mailmessage set-acl set-alias set-content set-date set-executionpolicy set-item set-itemproperty
+		set-location set-psdebug set-psreadlineoption set-service set-strictmode set-variable sort-object
+		split-path start-job start-process start-service start-sleep start-transcript stop-process
+		stop-service stop-transcript tee-object test-connection test-json test-path test-netconnection
+		trace-command unblock-file update-help wait-job wait-process where-object write-debug write-error
+		write-host write-information write-output write-progress write-verbose write-warning write-eventlog
+		cd ls dir cat cp mv rm del echo cls pwd gci gc gcm gi gl gm gp gv iex irm iwr kill ps sls sort tee
+		select where foreach measure sleep start saps sasv spps spsv md mkdir type man help
+		git docker kubectl npm node python python3 pip dotnet nuget msbuild curl wget ssh scp az aws gh terraform
+		describe context it beforeall afterall beforeeach aftereach should mock assert-mockcalled
+		invoke-pester new-pesterconfiguration inmodulescope skip set-itresult`)
+
 	// Dart: the dart:core functions a file can call with no import.
 	out["dart"] = words(`print identical identityHashCode`)
 
@@ -146,6 +252,10 @@ func buildCoreFunctions() map[string]map[string]struct{} {
 // isCoreFunction reports whether the language's own library provides a
 // callable of this bare name.
 func (s LanguageSpec) isCoreFunction(name string) bool {
+	if s.Name == "powershell" {
+		// Command names are case-insensitive, and the list is kept lowercase.
+		name = strings.ToLower(name)
+	}
 	_, ok := coreFunctions[s.Name][name]
 	return ok
 }

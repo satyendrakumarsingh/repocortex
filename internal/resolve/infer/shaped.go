@@ -205,6 +205,12 @@ func (r *Resolver) resolveCall(c call, stats *Stats) decision {
 		c.cands = kept
 	}
 
+	if c.spec.Name == "elixir" {
+		// A call reaches a module by its name, which no rule below can say. Only
+		// Elixir's calls come here; see elixir.go.
+		return r.callElixir(c, stats)
+	}
+
 	switch c.ref.ReceiverKind {
 	case model.ReceiverBare:
 		return r.callBare(c, stats)
@@ -971,7 +977,9 @@ func (r *Resolver) bareByName(c call, reach []registry.SymbolIndexEntry, stats *
 			// The same directory, or — on the JVM — the same package under
 			// another source root (`src/test/kotlin/a/b` beside `src/main/java/a/b`).
 			d := c.spec.packageOf(s.FilePath)
-			if d == dir || (c.spec.Calls.Imports == ImportsNameClasses && sharesPackageTail(dir, d) && !r.callsTestHelper(c, s)) {
+			// A test the framework puts a package in scope for (testSees) is the
+			// one case of a neighbour that is not a directory's: R only.
+			if d == dir || c.spec.testSees(c.fr.Path, s.FilePath) || (c.spec.Calls.Imports == ImportsNameClasses && sharesPackageTail(dir, d) && !r.callsTestHelper(c, s)) {
 				pkg = append(pkg, s)
 			}
 		}
