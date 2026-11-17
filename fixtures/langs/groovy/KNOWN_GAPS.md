@@ -18,6 +18,13 @@ right.
 
 ## A private/public constructor with two or more parameters
 
+Recovered since: `findGroovySignatures` (mask_groovy.go) keeps the first
+parameter's name and blanks the rest of the list when a line opens with modifiers
+directly before `name(` and ends the parameters with `) {`, which the grammar
+reads as a method (and, with an ERROR, a constructor; the second is a query). The
+text below is what the grammar does without the mask, for a file where the guard
+refuses it.
+
 `private Inventory(String name, int size) { this(name) }` (Inventory.groovy
 line 24) is read as a declaration with an `ERROR` inside, a second declaration
 for `int size`, and a stray closure. The constructor name is in the `ERROR`
@@ -78,6 +85,13 @@ follows). The name is captured from that sequence. Not captured:
 closes at that line and every later member is read at the top level of the
 file, so it is recorded as a `function` instead of a `method` (seen in
 `InterceptingGCL.groovy`), and members that follow an `ERROR` can be missed.
+
+## An abstract method in a trait with a bare type variable
+
+`abstract T snapshot()` in a trait that has `implements` is read as the
+identifiers `abstract` and `T` and a call; the call is recorded as a method, from
+the call's node (it starts at `snapshot`, not at `abstract`). A bodiless method
+with any other return type in that trait is not captured.
 
 ## Not recorded by design
 

@@ -37,6 +37,19 @@ fix belongs in the grammar, not in a query.
 
 ## A class the grammar gives up on
 
+The cause that was measured, an attribute on a function type
+(`@escaping @Sendable (_ data: Data?) -> Void`, `(@Sendable (...) -> Void)?`),
+is dealt with before the parse: `mask_swift.go` overwrites `@Sendable` and
+`@MainActor` with spaces when only white space separates them from `(`, and the
+file is parsed a second time under the guard the other masks use (`Fetcher.swift`
+and `RequestBase.swift`: every definition, `validate` and `response` included).
+The recovery below stays for any other construct that makes the parser give up,
+and for a file where the guard refuses the mask. What the mask does not touch:
+an attribute with its own arguments (`@MainActor(unsafe)`), and `@Sendable`
+before a declaration.
+
+What follows describes the tree when the mask is not applied.
+
 Two methods in a row, one taking `@escaping @Sendable (_ data: Data?) -> Void`
 and the next a parameter typed `(@Sendable (_ data: Data?) -> Void)?`, make the
 parser give up on the whole file (Alamofire's `DownloadRequest.swift`, reduced

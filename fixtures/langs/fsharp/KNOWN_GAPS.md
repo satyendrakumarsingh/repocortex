@@ -59,8 +59,11 @@ Not read, measured:
 
 - `let inline f<'T when 'T: (static member Zero: 'T)> () : 'T = 'T.Zero`
   (a static abstract member used as `'T.Zero`) gives error nodes;
-- an `and` group (`let rec f ... and g ...`) puts every function after the
-  first in the first function's definition, so they are recorded at its line;
+- an `and` group (`let rec f ... and g ...`) is one `function_or_value_defn` for
+  the grammar. Each function after the first is now tagged at its own pattern
+  and every function of the group ends at its own body (`AndGroup.fsx`); an
+  `and` value (`and x = 1`) is not separated from the first function's
+  definition;
 - a few deeply nested expressions in one function (FAKE's `FSIHelper.fs`
   `getCacheInfoFromScript`, Analyzers' `TASTCollecting.fs` `visitExpr`) leave
   the declarations after them unread with no error node;

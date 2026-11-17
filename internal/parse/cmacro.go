@@ -975,7 +975,10 @@ type spanMask struct {
 // spanMask has no macro or conditional mask, so this is its only retry.
 var spanMasks = map[string]spanMask{
 	"fsharp": {find: findFSharpConstraintCalls},
-	"groovy": {find: findGroovyOneLineDocs, swallows: true},
+	"groovy": {find: findGroovyMasks, swallows: true},
+	"swift":  {find: findSwiftTypeAttributes},
+	"make":   {find: findMakeEmptySubstitutions},
+	"haxe":   {find: findHaxeConstructs},
 }
 
 // applyMaskSpans returns a copy of src with the spans overwritten.

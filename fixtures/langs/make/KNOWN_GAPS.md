@@ -30,7 +30,11 @@
   some directive lines as variable assignments, so every name that begins with
   a dot is dropped (`bsd.mk`).
 - **A substitution reference with an empty replacement** (`$(OBJ:.c=)`,
-  `$(BOARD_DIR:/=)`, `$(X:$(Y)=)`) is not in the grammar. It does not only fail
+  `$(BOARD_DIR:/=)`, `$(X:$(Y)=)`) is not in the grammar. `mask_make.go` now
+  overwrites the text from the `:` to the `=` with spaces before a second
+  parse, so the reference reads as `$(BOARD_DIR   )` and the file is read
+  whole (`Makefile.stm32`, `Makefile.mimxrt`); what follows is what is left when
+  the guard refuses the mask. Unmasked, it does not only fail
   on that line: the parser stops building `rule` and `variable_assignment`
   nodes for the rest of the file and returns a flat run of words, with each
   operator (`=`, `:=`, `:`) an ERROR node between two words (`recover.mk`).

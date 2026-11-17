@@ -1,0 +1,59 @@
+# Include the core environment definitions; this will set $(TOP).
+include ../../py/mkenv.mk
+
+BOARD ?= PYBV10
+BOARD_DIR ?= boards/$(BOARD)
+ifeq ($(wildcard $(BOARD_DIR)/.),)
+$(error Invalid BOARD specified: $(BOARD_DIR))
+endif
+
+BUILD ?= build-$(BOARD)
+
+include mpconfigport.mk
+include $(BOARD_DIR)/mpconfigboard.mk
+
+CMSIS_DIR=$(TOP)/lib/stm32lib/CMSIS/STM32$(MCU_SERIES_UPPER)xx/Include
+MCU_SERIES_UPPER = $(shell echo $(MCU_SERIES) | tr '[:lower:]' '[:upper:]')
+CMSIS_MCU_LOWER = $(shell echo $(CMSIS_MCU) | tr '[:upper:]' '[:lower:]')
+
+AF_FILE = boards/$(MCU_SERIES)xx_af.csv
+LD_FILES = boards/$(CMSIS_MCU_LOWER).ld boards/common_basic.ld
+
+GEN_PINS_SRC = $(BUILD)/pins_$(BOARD).c
+FIRMWARE_DIR = $(BUILD)/firmware
+BOARD_NAME = $(notdir $(BOARD_DIR:/=))
+
+INC += -I.
+INC += -I$(BUILD)
+CFLAGS += $(INC) -Wall -Werror -DSTM32_HAL_H='<stm32$(MCU_SERIES)xx_hal.h>'
+CFLAGS += -DMICROPY_HW_VTOR=$(TEXT0_ADDR)
+
+SRC_LIB_C = $(addprefix lib/,oofatfs/ff.c)
+SRC_C = main.c $(SRC_LIB_C)
+OBJ = $(addprefix $(BUILD)/, $(SRC_C:.c=.o))
+OBJ += $(GEN_PINS_SRC:.c=.o)
+
+all: $(TOP)/lib/stm32lib/README.md $(BUILD)/firmware.hex
+
+$(BUILD)/firmware.elf: $(LD_FILES) $(OBJ)
+	$(ECHO) "LINK $@"
+	$(Q)$(CC) $(LDFLAGS) -o $@ $^
+
+TEXT0_SECTIONS ?= .isr_vector .text .data
+.PHONY: deploy
+deploy: $(BUILD)/firmware.dfu
+	$(ECHO) "Writing $< to the board"
+	$(Q)$(PYTHON) $(PYDFU) -u $<
+
+deploy-stlink: $(BUILD)/firmware.dfu
+	$(Q)$(PYTHON) $(STFLASH) write $< 0x08000000
+
+clean-board:
+	$(RM) -rf $(BUILD)
+
+define GEN_RULE
+$(1): $(2)
+	@echo gen $$@
+endef
+
+include $(TOP)/py/mkrules.mk

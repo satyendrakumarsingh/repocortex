@@ -11,6 +11,16 @@ from an actual run.
 
 ## [Unreleased]
 
+- **Fewer definitions lost to grammar errors in F#, Make, PowerShell, Groovy, Swift and Haxe.** Each fix is checked by a new hand-written fixture that reproduces a failure the 13 November verification recorded.
+  - **Swift:** `@Sendable` and `@MainActor` before a function type no longer make the grammar give up on the enclosing class.
+  - **Make:** `$(X:pat=)` no longer derails the rest of the file.
+  - **Groovy:** methods and constructors with modifiers and several typed parameters are read, and so are abstract trait methods.
+  - **Haxe:** object typedefs, metadata, type-parameter constraints, `enum abstract` and abstract members are read.
+  - **F#:** each function of a `let rec … and …` group gets its own line.
+  - **PowerShell:** DSC `Configuration` blocks are read.
+
+  The guarded second parse that blanks unreadable text, already used for F# and Groovy, now covers Swift, Make and Haxe too. On the fixtures, recall went from 73% to 100% for Haxe, from 90% to 100% for Make, and from 96 to 99% to 100% for the rest, with no spurious definitions left.
+
 - **Haskell, F#, OCaml, Perl and Zig bind calls across files.**
   - **Haskell:** reads every `import` form (qualified, aliased, with and without lists, `hiding`) and binds through modules.
   - **OCaml:** a file is its module, and `open`, `include` and module aliases bring it into scope.

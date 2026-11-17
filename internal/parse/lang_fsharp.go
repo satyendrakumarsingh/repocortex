@@ -57,14 +57,17 @@ func init() {
 	decls := []string{
 		// functions
 		"(declaration_expression (function_or_value_defn (function_declaration_left . [(identifier) (op_identifier) (active_pattern)] @name) ) @definition.function)",
-		"(declaration_expression (function_or_value_defn (value_declaration_left " + strings.Replace(pat, "%s", ". (_)", 1) + ")) @definition.function)",
-		"(declaration_expression (function_or_value_defn (value_declaration_left " + strings.Replace(pat, "%s", ".", 1) + ") . (fun_expression)) @definition.function)",
-		"(declaration_expression (function_or_value_defn (value_declaration_left " + strings.Replace(pat, "%s", ".", 1) + ") . (function_expression)) @definition.function)",
+		"(declaration_expression (function_or_value_defn . (value_declaration_left " + strings.Replace(pat, "%s", ". (_)", 1) + ")) @definition.function)",
+		"(declaration_expression (function_or_value_defn . (value_declaration_left " + strings.Replace(pat, "%s", ".", 1) + ") . (fun_expression)) @definition.function)",
+		"(declaration_expression (function_or_value_defn . (value_declaration_left " + strings.Replace(pat, "%s", ".", 1) + ") . (function_expression)) @definition.function)",
 		// an access modifier moves the name: `let internal f (x: int) =` is a function_declaration_left
 		// with the modifier first, `let inline private f x =` likewise
 		"(declaration_expression (function_or_value_defn (function_declaration_left (access_modifier) . [(identifier) (op_identifier) (active_pattern)] @name)) @definition.function)",
+		// the second and later functions of an `and` group are children of the first one's
+		// definition, as further pairs of a pattern and a body
+		"(declaration_expression (function_or_value_defn (_) (_) (value_declaration_left " + strings.Replace(pat, "%s", ". (_)", 1) + ") @definition.function))",
 		// values
-		"(declaration_expression (function_or_value_defn (value_declaration_left " + strings.Replace(pat, "%s", ".", 1) + ") . (_) @_body) @definition.variable (#not-match? @_body \"^(fun|function)\\\\b\"))",
+		"(declaration_expression (function_or_value_defn . (value_declaration_left " + strings.Replace(pat, "%s", ".", 1) + ") . (_) @_body) @definition.variable (#not-match? @_body \"^(fun|function)\\\\b\"))",
 		// types
 		"(type_definition [(union_type_defn (type_name " + tn + ")) (record_type_defn (type_name " + tn + ")) (anon_type_defn (type_name " + tn + ")) (delegate_type_defn (type_name " + tn + ")) (enum_type_defn (type_name " + tn + "))] @definition.class)",
 		"(type_definition (interface_type_defn (type_name " + tn + ")) @definition.interface)",
@@ -252,6 +255,7 @@ var (
 // out named `inline` and `rec`; the name is the word after it.
 func refineFSharpDefinitions(root *ts.Node, lang *ts.Language, _ string, src []byte, tags []ts.Tag) map[uint32]definitionFix {
 	fixes := fsharpOwners(root, lang, src, tags)
+	fixes = fsharpAndGroups(root, lang, tags, fixes)
 	for _, t := range tags {
 		if t.Name != "inline" && t.Name != "rec" || !strings.HasPrefix(t.Kind, "definition") {
 			continue
@@ -290,4 +294,57 @@ func fsharpWordAfter(src []byte, pos int) string {
 		}
 	}
 	return ""
+}
+
+// fsharpAndGroups bounds each function of an `and` group at its own body. The
+// grammar puts `let rec f ... and g ... and h ...` in one function_or_value_defn,
+// a run of patterns and bodies, so the first function's range would take in the
+// others, and callers in the body of g would be attributed to f. The functions
+// after the first are tagged on their own pattern (see init); each, and the
+// first, ends where its body does.
+func fsharpAndGroups(root *ts.Node, lang *ts.Language, tags []ts.Tag, fixes map[uint32]definitionFix) map[uint32]definitionFix {
+	for _, t := range tags {
+		if !strings.HasPrefix(t.Kind, "definition.function") {
+			continue
+		}
+		var left, defn *ts.Node
+		for n := root.NamedDescendantForByteRange(t.NameRange.StartByte, t.NameRange.EndByte); n != nil; n = n.Parent() {
+			if n.Type(lang) == "value_declaration_left" && left == nil {
+				left = n
+			}
+			if n.Type(lang) == "function_or_value_defn" {
+				defn = n
+				break
+			}
+		}
+		if left == nil || defn == nil {
+			continue
+		}
+		lefts := 0
+		for i := 0; i < defn.NamedChildCount(); i++ {
+			if c := defn.NamedChild(i); c != nil && c.Type(lang) == "value_declaration_left" {
+				lefts++
+			}
+		}
+		if lefts < 2 {
+			continue
+		}
+		end := left
+		for sib := left.NextSibling(); sib != nil; sib = sib.NextSibling() {
+			if !sib.IsNamed() {
+				continue
+			}
+			if sib.Type(lang) != "value_declaration_left" {
+				end = sib
+			}
+			break
+		}
+		if fixes == nil {
+			fixes = map[uint32]definitionFix{}
+		}
+		fix := fixes[t.NameRange.StartByte]
+		fix.endLine, fix.endCol = int(end.EndPoint().Row)+1, int(end.EndPoint().Column)
+		fixes[t.NameRange.StartByte] = fix
+	}
+	return fixes
 }

@@ -101,6 +101,14 @@ func init() {
 (source_file (closure (declaration) @_d . (function_call (identifier) @name) @definition.method)
   (#not-match? @_d "="))
 
+; an abstract method whose return type is a bare type variable (abstract T snapshot()) is the
+; identifiers abstract and T, then a call
+((closure (identifier) @_m . (identifier) . (function_call (identifier) @name) @definition.method)
+  (#eq? @_m "abstract"))
+
+; a constructor with modifiers (private Name(a) {): an ERROR holding the modifier and the name
+(class_definition (closure (ERROR (access_modifier) (identifier) @name .) @definition.method . (parenthesized_expression) . (closure)))
+
 ; a method with modifiers and no return type (private static name(a) {) is a declaration of
 ; the modifiers and the name, then the parameters as a parenthesised expression, then the body
 (class_definition (closure (declaration (identifier) @name .) @definition.method . (parenthesized_expression) . (closure)))

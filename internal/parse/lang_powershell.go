@@ -15,6 +15,7 @@ import (
 //   - function, filter and workflow are a function, at any depth, under the
 //     name written after the keyword with its scope modifier removed:
 //     `function script:Get-Item` is Get-Item, as it is called;
+//   - a DSC `Configuration Name { ... }` is a function;
 //   - class and enum are a class;
 //   - a method or constructor of a class is a method.
 //
@@ -81,6 +82,14 @@ const powershellDefinitions = `
 (class_statement . (simple_name) @name) @definition.class
 (class_method_definition (simple_name) @name) @definition.method
 (enum_statement . (simple_name) @name) @definition.class
+
+; A DSC configuration is declared like a function: Configuration Name { ... }.
+; The grammar reads it as a command whose first argument is the name and whose
+; second is a script block.
+((command (command_name) @_kw
+   (command_elements . (command_argument_sep) . (generic_token) @name . (command_argument_sep)
+     . (array_literal_expression (unary_expression (script_block_expression))))) @definition.function
+  (#match? @_kw "^[Cc][Oo][Nn][Ff][Ii][Gg][Uu][Rr][Aa][Tt][Ii][Oo][Nn]$"))
 `
 
 var (

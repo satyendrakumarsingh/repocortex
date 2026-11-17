@@ -1,0 +1,42 @@
+MCU_SERIES = MIMXRT1021
+BOARD ?= MIMXRT1020_EVK
+BOARD_DIR ?= boards/$(BOARD)
+BUILD ?= build-$(BOARD)
+
+ifeq ($(wildcard $(BOARD_DIR)/.),)
+$(error Invalid BOARD specified: $(BOARD_DIR))
+endif
+
+include ../../py/mkenv.mk
+-include mpconfigport.mk
+include $(BOARD_DIR)/mpconfigboard.mk
+
+MICROPY_PY_LWIP ?= 1
+MICROPY_PY_SSL ?= 1
+SUPPORTS_HARDWARE_FP_SINGLE = 0
+
+BOARD_NAME_DIR = $(abspath $(BOARD_DIR:/=))
+CFLAGS += -DCPU_$(MCU_SERIES)=1
+CFLAGS += -D'MICROPY_BOARD="$(BOARD)"'
+
+SRC_HAL_IMX_C += $(MCU_DIR)/drivers/fsl_clock.c
+SRC_C += main.c
+
+OBJ += $(PY_O) $(addprefix $(BUILD)/, $(SRC_C:.c=.o))
+OBJ += $(BUILD)/pins_gen.o
+
+LIBS = $(shell $(CC) $(CFLAGS) -print-libgcc-file-name)
+
+all: $(BUILD)/firmware.bin
+
+$(BUILD)/firmware.elf: $(OBJ)
+	$(ECHO) "LINK $@"
+	$(Q)$(CC) $(LDFLAGS) -o $@ $^ $(LIBS)
+
+$(BUILD)/firmware.bin: $(BUILD)/firmware.elf
+	$(Q)$(OBJCOPY) -O binary -j .text $^ $@
+
+flash: $(BUILD)/firmware.bin
+	$(Q)$(PYTHON) flash.py $<
+
+include $(TOP)/py/mkrules.mk

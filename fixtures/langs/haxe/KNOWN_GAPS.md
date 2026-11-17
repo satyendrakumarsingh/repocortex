@@ -8,7 +8,25 @@ floating at module level). On the five real files used to measure this
 (hscript), most of the loss is of that kind. The query cannot repair a tree
 that does not contain the name.
 
-Constructs that break the parse, each seen in real code:
+Read before the parse, since the construct is the whole cause (`mask_haxe.go`,
+second parse under the shared guard; `Expression.hx`, `Generics.hx`):
+
+- a short-form object typedef (`typedef Argument = { name : String, ?t : CType };`,
+  `{> Base, var z : Int }`): the inside of the braces is overwritten, the typedef
+  is still a `type_alias`, and the declarations after it are read;
+- metadata before a type (`@:autoBuild(...) extern interface Live`): overwritten
+  when a type keyword follows it. The metadata of a class, a function and a
+  variable that the grammar does read is taken by the query;
+- a constraint on a type parameter (`class Box<T:Dynamic>`, `function f<K:Foo>()`);
+- an empty `default:` that ends a switch, and an empty `case A(_), B(_):`;
+- an `abstract` after other declarations (a query on the ERROR node that holds
+  the keyword), its constructor, and its methods, which are read as a block
+  directly in the module and recorded as methods.
+
+Constructs that break the parse and are still not read, each seen in real code
+(the first of these is only partly true on the fixture: the enums of
+`Expression.hx` are read once the typedefs are masked, but a file the mask is
+refused for still comes back as one ERROR):
 
 - **Object-literal typedefs and enum constructors with arguments** in the same
   file as other declarations: `typedef Argument = { name : String, ?t : CType };`
@@ -32,8 +50,10 @@ Constructs that break the parse, each seen in real code:
 - **Constructors**: `function new` has no identifier node; it is read from the
   anonymous `new` token, and only inside a class body.
 - **Expression-bodied functions** (`function f():Int return 1;`), `macro`
-  functions and `enum abstract` are not read: the parse breaks around them.
-  Nothing is recovered from these.
+  functions and `enum abstract` are read when they stand alone in a class
+  (`Expression.hx`), and are listed here because in the real file they were
+  seen to break the parse around them; no case of that is kept in the fixture,
+  and nothing is recovered from one if it happens.
 - **`extern interface` with metadata above it** (`@:autoBuild(...)`): the
   interface is lost to an ERROR node (hscript `Live.hx`).
 

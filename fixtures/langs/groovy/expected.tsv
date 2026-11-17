@@ -7,12 +7,13 @@
 # Not recorded: plain fields and script variables, enum constants, locals, parameters, calls,
 # configuration blocks (repositories {}, dependencies {}), tasks.named (configures an existing task).
 # A class with an annotation starts at the annotation line (Inventory.groovy 5).
-# Not captured, see KNOWN_GAPS.md: Inventory.groovy 24 (private constructor with two parameters), 80-84 (enum constants and constructor).
+# Not captured, see KNOWN_GAPS.md: Inventory.groovy 80-84 (enum constants and constructor).
 Inventory.groovy	5	class	Inventory
 Inventory.groovy	13	method	formatter
 Inventory.groovy	14	method	handler
 Inventory.groovy	16	method	Inventory
 Inventory.groovy	20	method	Inventory
+Inventory.groovy	24	method	Inventory
 Inventory.groovy	26	method	add
 Inventory.groovy	31	method	create
 Inventory.groovy	35	method	intercept
@@ -91,3 +92,30 @@ OneLineDoc.groovy	34	method	of
 OneLineDoc.groovy	37	class	Tail
 OneLineDoc.groovy	39	method	finish
 OneLineDoc.groovy	41	method	helper
+# Constraints.groovy: a class under an annotation stack with implements, a private static method and a constructor with two typed parameters (read through the mask). Roles.groovy: enum, trait with an abstract method, interface, @interface.
+Constraints.groovy	11	class	DefaultConstrainedProperty
+Constraints.groovy	23	method	DefaultConstrainedProperty
+Constraints.groovy	28	method	getPropertyName
+Constraints.groovy	30	method	getOwningClass
+Constraints.groovy	32	method	isDisplay
+Constraints.groovy	36	method	setDisplay
+Constraints.groovy	40	method	applyConstraint
+Constraints.groovy	45	method	hasAppliedConstraint
+Constraints.groovy	50	method	defaultValueFor
+Constraints.groovy	54	method	writeStackToFile
+Constraints.groovy	58	method	validate
+Roles.groovy	5	class	Role
+Roles.groovy	10	method	Role
+Roles.groovy	14	method	canWrite
+Roles.groovy	18	method	fromCode
+Roles.groovy	24	interface	Auditable
+Roles.groovy	27	method	snapshot
+Roles.groovy	29	method	describe
+Roles.groovy	34	interface	Visitor
+Roles.groovy	35	method	visit
+Roles.groovy	37	method	done
+Roles.groovy	40	interface	Marker
+Roles.groovy	41	method	value
+Roles.groovy	44	class	Registry
+Roles.groovy	47	method	register
+Roles.groovy	51	method	lookup
