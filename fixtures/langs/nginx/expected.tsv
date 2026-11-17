@@ -1,0 +1,11 @@
+# nginx definitions. Rule (see the comments at the top of nginx.conf):
+#  - server block with a server_name: class named by its first server_name;
+#  - location block: function named by its path, modifier left out;
+#  - upstream NAME: class NAME. Directives, if blocks and comments are not definitions.
+nginx.conf	7	class	backend_pool
+nginx.conf	12	class	example.com
+nginx.conf	16	function	/
+nginx.conf	20	function	/health
+nginx.conf	24	function	\.(png|jpg)$
+nginx.conf	32	function	/api/v1/
+nginx.conf	38	class	api.example.org

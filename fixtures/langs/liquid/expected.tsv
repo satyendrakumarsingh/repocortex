@@ -1,0 +1,8 @@
+# Liquid definitions. Rule (see the comment at the top of page.liquid):
+#  - {% capture NAME %} is a variable at any depth; top-level {% assign NAME = ... %} is a variable;
+#  - assigns inside blocks, loop variables, include, render, filters, output and comments are not.
+page.liquid	6	variable	site_title
+page.liquid	7	variable	count
+page.liquid	8	variable	greeting
+page.liquid	9	variable	footer_text
+page.liquid	12	variable	row

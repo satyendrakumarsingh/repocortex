@@ -1,0 +1,5 @@
+# Blade definitions. Rule (see the comment at the top of layout.blade.php):
+#  - @section(literal) in block or inline form is a function named by the literal name; @component, @include, @extends, @yield, @push and comments are not.
+layout.blade.php	8	function	title
+layout.blade.php	10	function	sidebar
+layout.blade.php	20	function	content

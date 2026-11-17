@@ -1,0 +1,17 @@
+{% comment %} Liquid definitions. Rule:
+  - {% capture name %} is a variable named name, at any depth;
+  - {% assign name = value %} is a variable only at the top level of the template;
+  - an assign inside a for, if or capture block, a for loop variable, include, render, filters, output and comments are not definitions.
+{% endcomment %}
+{% assign site_title = "Shop" %}
+{% assign count = 0 %}
+{% capture greeting %}Hello {{ customer.name }}{% endcapture %}
+{% capture footer_text %}Thanks{% endcapture %}
+{% for product in products %}
+  {% assign inside_loop = product.price %}
+  {% capture row %}{{ product.title }}{% endcapture %}
+{% endfor %}
+{% if user %}{% assign in_if = true %}{% endif %}
+{% include 'header' %}
+{% render 'card' with product %}
+{{ greeting | append: "!" }}

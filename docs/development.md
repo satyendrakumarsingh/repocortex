@@ -423,7 +423,7 @@ The highest-value contribution, and deliberately well-bounded.
 
 | Tier | Delivers | Where |
 |---|---|---|
-| 1 | Symbols, imports, outline | Free for the grammars that infer a usable query; 108 of the 206 grammars have a definition query, and 98 have none (text-searchable only) |
+| 1 | Symbols, imports, outline | Free for the grammars that infer a usable query; 115 of the 206 grammars have a definition query, and 91 have none (text-searchable only) |
 | 1b | A definition query of its own for the language, replacing or adding to the inferred one | `internal/parse/lang_<language>.go`, with a fixture in `fixtures/langs/<language>/` |
 | 2 | Cross-file resolution + confidence | `internal/resolve/infer` — but see below |
 | 3 | Framework awareness (routes, ORM, config keys) | `internal/analyze/{api,db,config,deps}` |

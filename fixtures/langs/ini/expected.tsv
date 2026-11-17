@@ -1,0 +1,7 @@
+# INI definitions. Rule:
+#  - each [section] is a package named by the section name, without brackets;
+#  - keys are not definitions (as in TOML and YAML: a key is a setting, and
+#    names like host or port occur in nearly every file).
+config.ini	8	package	database
+config.ini	12	package	logging.file
+config.ini	15	package	spaced section

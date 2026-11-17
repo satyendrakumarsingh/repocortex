@@ -1,0 +1,29 @@
+{# Jinja2 definitions. Rule:
+   - {% macro NAME(args) %} is a function named NAME;
+   - {% block NAME %} is a function named NAME;
+   - {% extends %}, {% include %}, {% import %}, {% set %}, {% for %}, endmacro and endblock tags, {{ NAME() }} calls,
+     and the text of a comment such as {% macro fake() %} are not definitions.
+#}
+<div class="page">
+{% extends "base.html" %}
+{% import "forms.html" as forms %}
+{% set page_title = "Home" %}
+<hr>
+{% macro render_card(title, body="") %}<div class="card">{{ title }}{{ body }}</div>{% endmacro %}
+<hr>
+{% macro button(label) %}<button>{{ label }}</button>{% endmacro %}
+<hr>
+{%- macro panel(
+      heading,
+      footer="") -%}
+  <section>{{ heading }}</section>
+{%- endmacro %}
+<hr>
+{% block content %}
+  {{ render_card("Hello") }}
+  {% call button("x") %}ok{% endcall %}
+  {% for item in items %}{{ button(item) }}{% endfor %}
+{% endblock content %}
+<hr>
+{% block footer %}{% endblock footer %}
+</div>

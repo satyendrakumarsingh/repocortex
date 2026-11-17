@@ -233,7 +233,7 @@ Two more:
 - `text_only: no definition query for "markdown"; …` — the grammar exists but
   ships no definition query, so no symbols can be extracted. The file's **text is
   indexed**: `repocortex search` finds a name that appears in it, `repocortex
-  symbol` does not. 98 of the 206 grammars are in this group, mostly data and
+  symbol` does not. 91 of the 206 grammars are in this group, mostly data and
   configuration formats; `repocortex languages --verbose` lists them.
 
 ### `repocortex index` says "up to date" after an edit

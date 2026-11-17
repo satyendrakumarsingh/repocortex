@@ -1,0 +1,5 @@
+# awk definitions. Rule (see the comments at the top of report.awk):
+#  - function NAME(...) and func NAME(...) are functions; BEGIN, END, rules, calls and variables are not.
+report.awk	11	function	add_row
+report.awk	16	function	format_money
+report.awk	20	function	parse_line

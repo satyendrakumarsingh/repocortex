@@ -1,0 +1,8 @@
+# Twig definitions. Rule (see the comment at the top of layout.html.twig):
+#  - {% macro NAME %} and {% block NAME %} are functions named NAME, wherever written; endmacro, endblock, extends, from, set, embed, call and calls are not.
+layout.html.twig	12	function	render_card
+layout.html.twig	14	function	button
+layout.html.twig	16	function	panel
+layout.html.twig	23	function	content
+layout.html.twig	26	function	body
+layout.html.twig	29	function	footer

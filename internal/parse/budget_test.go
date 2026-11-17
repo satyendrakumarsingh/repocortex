@@ -499,7 +499,7 @@ func TestStatusDescribesTheParse(t *testing.T) {
 		for path, src := range map[string]string{
 			"script.fth": ": compute_total ( n -- n )\n    1 + ;\n",
 			"main.tal":   "|0100 @on-reset ( -> )\n    #01 #02 ADD POP\n    BRK\n",
-			"Dockerfile": "FROM alpine\nRUN true\n",
+			"more.csv":   "x,y\n3,4\n",
 			"table.csv":  "a,b\n1,2\n",
 		} {
 			res := parse(t, path, src)

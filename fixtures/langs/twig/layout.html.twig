@@ -1,0 +1,30 @@
+{# Twig definitions. Rule:
+   - {% macro name(args) %} is a function named name;
+   - {% block name %} is a function named name;
+   - {% extends %}, {% include %}, {% embed %}, {% from %} / {% import %}, {% set %}, {% for %}, endmacro and endblock tags,
+     {{ name() }} calls, {% call %}, and the text of a comment such as {% macro fake() %} are not definitions.
+#}
+<div class="page">
+{% extends "base.html.twig" %}
+{% from "forms.html.twig" import input as field %}
+{% set title = "Home" %}
+<hr>
+{% macro render_card(title, body = "") %}<div class="card">{{ title }}{{ body }}</div>{% endmacro %}
+<hr>
+{% macro button(label) %}<button>{{ label|e }}</button>{% endmacro %}
+<hr>
+{%- macro panel(
+      heading,
+      footer = ""
+    ) -%}
+  <section>{{ heading }}</section>
+{%- endmacro %}
+<hr>
+{% block content %}
+  {{ _self.render_card("Hello") }}
+  {% for item in items %}{{ button(item) }}{% endfor %}
+  {% embed "card.html.twig" %}{% block body %}x{% endblock %}{% endembed %}
+{% endblock content %}
+<hr>
+{% block footer %}{% endblock %}
+</div>

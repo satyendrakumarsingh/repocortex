@@ -11,6 +11,14 @@ from an actual run.
 
 ## [Unreleased]
 
+- **Symbols for INI, Nginx, awk and four template languages.**
+  - INI `[section]` headers are packages, as TOML table headers are.
+  - Nginx `server` blocks (named by their first `server_name`) and `upstream` blocks are classes, and `location` blocks are functions named by their path.
+  - awk functions are functions.
+  - Jinja2 and Twig macros and blocks, Blade `@section`s, and Liquid `capture` and top-level `assign` are definitions.
+
+  INI keys are not definitions, as in TOML and YAML. Dockerfile and `.properties` stay text only: the deployment and configuration analysers already report their stages, arguments and keys, and a grammar query would index each one twice. Gaps are in each language's `KNOWN_GAPS.md`; Jinja2's grammar gives tags no nodes of their own, so a tag that follows another on a new line is skipped rather than given the wrong line. 115 of the 206 grammars now have a definition query, and 91 are text only.
+
 - **Bash, R, Elixir and PowerShell bind calls across files.** They were `parsed`; each now reads its imports:
   - **Bash:** `source` and `.` with script-relative paths, and bats `load`.
   - **R:** `source()`, and a package's `R/` directory as one namespace that testthat tests see.

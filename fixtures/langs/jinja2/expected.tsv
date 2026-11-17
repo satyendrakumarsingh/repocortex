@@ -1,0 +1,7 @@
+# Jinja2 definitions. Rule (see the comment at the top of page.html.j2):
+#  - {% macro NAME %} and {% block NAME %} are functions named NAME; endmacro, endblock, extends, set, for, call and calls are not.
+page.html.j2	12	function	render_card
+page.html.j2	14	function	button
+page.html.j2	16	function	panel
+page.html.j2	22	function	content
+page.html.j2	28	function	footer

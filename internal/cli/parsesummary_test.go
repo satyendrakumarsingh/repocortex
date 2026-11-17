@@ -248,7 +248,7 @@ func TestLanguagesSaysWhichAreTextOnly(t *testing.T) {
 		}
 		return false
 	}
-	for _, lang := range []string{"forth", "uxntal", "dockerfile", "xml"} {
+	for _, lang := range []string{"forth", "uxntal", "csv", "xml"} {
 		if !in(rep.TextOnly, lang) {
 			t.Errorf("%s is not listed as text only", lang)
 		}
