@@ -11,9 +11,9 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-	"strings"
 	"unicode"
 
+	"github.com/satyendrakumarsingh/repocortex/internal/capability"
 	"github.com/satyendrakumarsingh/repocortex/internal/registry"
 	"github.com/satyendrakumarsingh/repocortex/pkg/model"
 )
@@ -157,13 +157,7 @@ func Collect(ctx context.Context, ix Index, runID int64, req Request) (Plan, err
 		return Plan{}, fmt.Errorf("rename: find %q: %w", req.Old, err)
 	}
 	if req.Path != "" {
-		var kept []registry.SymbolHit
-		for _, h := range hits {
-			if strings.Contains(h.FilePath, req.Path) {
-				kept = append(kept, h)
-			}
-		}
-		hits = kept
+		hits = capability.BestPathMatches(hits, func(h registry.SymbolHit) string { return h.FilePath }, req.Path)
 	}
 	switch {
 	case len(hits) == 0:

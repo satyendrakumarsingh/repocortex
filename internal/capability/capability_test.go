@@ -362,3 +362,31 @@ func TestFreshenDropsTheCacheWhenTheRunChangesInPlace(t *testing.T) {
 	}
 	Deps{}.Freshen("x") // a zero Deps has no cache to freshen and must not panic
 }
+
+func TestPathMatchPrefersWholeSegments(t *testing.T) {
+	cases := []struct {
+		path, want string
+		rank       int
+	}{
+		{"src/a/Store.java", "src/a/Store.java", 3},
+		{"src/a/Store.java", "Store.java", 2},
+		{"src/a/Store.java", "./a/Store.java", 2},
+		{"src/a/Store.java", "src", 2},
+		{"src/a/SqlStore.java", "Store.java", 1},
+		{"src/a/SqlStore.java", "Mem", 0},
+		{"src/a/SqlStore.java", "", 0},
+	}
+	for _, c := range cases {
+		if got := PathMatch(c.path, c.want); got != c.rank {
+			t.Errorf("PathMatch(%q, %q) = %d, want %d", c.path, c.want, got, c.rank)
+		}
+	}
+	got := BestPathMatches([]string{"src/a/SqlStore.java", "src/a/Store.java"}, func(s string) string { return s }, "Store.java")
+	if len(got) != 1 || got[0] != "src/a/Store.java" {
+		t.Errorf("BestPathMatches = %v", got)
+	}
+	got = BestPathMatches([]string{"src/a/SqlStore.java", "src/b/MemStore.java"}, func(s string) string { return s }, "Store.java")
+	if len(got) != 2 {
+		t.Errorf("a substring still matches when nothing matches whole segments: %v", got)
+	}
+}

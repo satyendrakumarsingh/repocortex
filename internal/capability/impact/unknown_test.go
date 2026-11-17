@@ -229,7 +229,7 @@ func TestAnAmbiguousQualifiedNameIsNotResolvedToItsFirstOverload(t *testing.T) {
 		t.Errorf("%d candidates, want 2", len(amb.Candidates))
 	}
 	// The message tells them apart, which a list of the shared name cannot.
-	if msg := err.Error(); strings.Count(msg, "src/Gson.java:fromJson") > 1 || !strings.Contains(msg, "select one by file and line") {
+	if msg := err.Error(); strings.Count(msg, "src/Gson.java:fromJson") > 1 || !strings.Contains(msg, "select one by file and line") || !strings.Contains(msg, "--path") {
 		t.Errorf("message = %q", msg)
 	}
 

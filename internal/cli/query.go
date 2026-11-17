@@ -11,6 +11,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/satyendrakumarsingh/repocortex/internal/capability"
 	devctx "github.com/satyendrakumarsingh/repocortex/internal/context"
 	"github.com/satyendrakumarsingh/repocortex/internal/graph"
 	"github.com/satyendrakumarsingh/repocortex/internal/registry"
@@ -297,12 +298,7 @@ func resolveTarget(ctx stdctx.Context, s *session, name, path string) (registry.
 	}
 
 	if path != "" {
-		var kept []registry.SymbolHit
-		for _, sym := range syms {
-			if strings.Contains(sym.FilePath, path) {
-				kept = append(kept, sym)
-			}
-		}
+		kept := capability.BestPathMatches(syms, func(h registry.SymbolHit) string { return h.FilePath }, path)
 		if len(kept) == 0 {
 			return registry.SymbolHit{}, nil, fmt.Errorf(
 				"no symbol named %q in a file matching %q; %d definition(s) exist elsewhere", name, path, len(syms))

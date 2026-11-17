@@ -2334,8 +2334,18 @@ counted on the first line and is not a row.
 
 ### `tests <symbol>`
 
-Lists the tests that reach a symbol and how each was found. Flag:
-`--min-confidence`. Agent tool: `find_tests`.
+Lists the tests that reach a symbol and how each was found. Flags:
+`--min-confidence`, `--path`. Agent tool: `find_tests`.
+
+The `SIGNAL` column, strongest first:
+
+- `graph`: the test reaches the symbol through recorded call edges.
+- `interface_dispatch`: the test calls a method the symbol implements or
+  overrides (an interface or base-class method), so it runs the symbol when it
+  holds this implementation. It is at most `medium` when the method has
+  another implementation the test may hold instead.
+- `naming_convention`: the test's name follows the symbol's.
+- `co_location`: the test sits in the sibling test file.
 
 ### `coverage import <file>`
 

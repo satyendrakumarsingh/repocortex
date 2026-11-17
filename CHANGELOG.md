@@ -11,6 +11,9 @@ from an actual run.
 
 ## [Unreleased]
 
+- **Tests that call through an interface are found.** A test written against `Store` calls `Store.save`, and that call is bound to the interface method, so the walk from `SqlStore.save` never reached the test. On a four-file Java fixture, the implementation's only test was invisible, and `untested_critical` could report the method as untested. `find_tests`, `repocortex tests` and `untested_critical` now follow a method to what it implements or overrides. They use method-level IMPLEMENTS edges where the index records them (Go), or the class's IMPLEMENTS or EXTENDS edges plus a method of the same name in the supertype (Java, Kotlin, C#, TypeScript). The tests that reach those methods are listed with the signal `interface_dispatch`, ranked below a recorded call chain and above a naming match, and capped at `medium` when another implementation exists.
+- **`--path` prefers whole file names.** `callers save --path Store.java` answered for `SqlStore.java`, the first definition whose path merely contained the text, and its first line named the other one. `callers`, `callees`, `references` and `rename` now use a substring only when no candidate's path matches whole segments. For `rename` that was the difference between editing the right file and the wrong one. The error for an ambiguous name now says how to choose: a qualified name (`SqlStore.save`) or `--path`.
+
 - **Every known issue in the roadmap is fixed.** They were found by running every command for the CLI output and portal guides.
   - `rename`: a definition site is `exact` once a compiler indexer has read its file or bound a reference to it, so the default `--floor exact` applies after a SCIP import instead of refusing every rename.
   - `plan_change` and `analyze_impact`: both use the same confidence floor and print risk as `N/100`, so the same change no longer scores 5 in one and 0 in the other. The PR comment and `impact --diff` say `/100` too.

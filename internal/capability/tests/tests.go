@@ -85,6 +85,13 @@ const (
 	// evidence of intent.
 	SignalGraph Signal = "graph"
 
+	// SignalDispatch: a test reaches a method the target implements or
+	// overrides (an interface method, a base-class method). The call is bound
+	// to the declaration, so no edge leads to the implementation, yet the test
+	// runs it whenever it holds this implementation. Which one it holds is
+	// decided at run time, so this is weaker than a recorded call chain.
+	SignalDispatch Signal = "interface_dispatch"
+
 	// SignalNaming: the test's name follows a convention derived from the
 	// target's name. Usually right, occasionally a coincidence, never proof.
 	SignalNaming Signal = "naming_convention"
@@ -98,6 +105,8 @@ const (
 func (s Signal) rank() int {
 	switch s {
 	case SignalGraph:
+		return 4
+	case SignalDispatch:
 		return 3
 	case SignalNaming:
 		return 2
@@ -372,6 +381,16 @@ func findTestsFor(ctx context.Context, deps capability.Deps, runID int64, tgt ca
 				Confidence: n.Confidence,
 				Depth:      n.Depth,
 			})
+		}
+	}
+
+	if !opts.SkipGraph {
+		dt, dreason, err := addDispatchHits(ctx, deps, idx, acc, tgt, opts)
+		if err != nil {
+			return TestReport{}, err
+		}
+		if dt && !truncated {
+			truncated, truncReason = true, dreason
 		}
 	}
 
@@ -673,4 +692,200 @@ func depthKey(d int) int {
 		return 1 << 30
 	}
 	return d
+}
+
+// supertypeKinds are the edges from an implementation to what it implements.
+var supertypeKinds = []model.EdgeKind{model.EdgeImplements, model.EdgeExtends}
+
+// maxSupertypeHops bounds the climb from a class to its supertypes
+// (SqlStore -> AbstractStore -> Store); a deeper hierarchy is rare and the
+// walk is per target.
+const maxSupertypeHops = 3
+
+// declaration is a method the target implements or overrides.
+type declaration struct {
+	sym  capability.Symbol
+	conf model.Confidence // the weakest edge on the way up
+	why  string           // how it was found, for the detail line
+}
+
+// addDispatchHits finds tests that call a method the target implements.
+//
+// A test written against an interface calls Store.save; the call is bound to
+// Store.save, and no edge leads from it to SqlStore.save, so a walk of the
+// callers of SqlStore.save never meets the test. Measured on a four-file
+// Java fixture: the only test of the implementation was invisible and the
+// method was reported untested.
+//
+// The declarations come from two kinds of edge: a method-level IMPLEMENTS
+// edge (Go records them: Walker.Root IMPLEMENTS Rooter.Root), or the class's
+// IMPLEMENTS or EXTENDS edges and a method of the same name in the supertype
+// (Java, Kotlin, C#, TypeScript record them on the type). The callers of each
+// declaration are walked as the target's are, and a test found that way is
+// at most medium when the declaration has another implementation: the test
+// may hold that one instead.
+func addDispatchHits(ctx context.Context, deps capability.Deps, idx *capability.SymbolIndex, acc *accumulator, tgt capability.Target, opts Options) (bool, string, error) {
+	if tgt.Kind != string(model.KindMethod) && tgt.Kind != string(model.KindFunction) {
+		return false, "", nil
+	}
+	decls, err := declarationsOf(ctx, deps, idx, tgt, opts.MinConfidence)
+	if err != nil || len(decls) == 0 {
+		return false, "", err
+	}
+	truncated, reason := false, ""
+	for _, d := range decls {
+		conf := d.conf
+		impls, err := deps.Graph.Neighbours(ctx, d.sym.ID, graph.Incoming, supertypeKinds, opts.MinConfidence)
+		if err != nil {
+			return false, "", fmt.Errorf("tests: implementations of %s: %w", d.sym.FQN, err)
+		}
+		others := 0
+		for _, n := range impls {
+			if n.SymbolID != tgt.SymbolID {
+				others++
+			}
+		}
+		if owner, ok := ownerOf(idx, d.sym); ok && others == 0 {
+			// Type-level edges: count the supertype's other subtypes.
+			subs, err := deps.Graph.Neighbours(ctx, owner.ID, graph.Incoming, supertypeKinds, opts.MinConfidence)
+			if err != nil {
+				return false, "", fmt.Errorf("tests: subtypes of %s: %w", owner.FQN, err)
+			}
+			if len(subs) > 1 {
+				others = len(subs) - 1
+			}
+		}
+		if others > 0 && conf.Rank() > model.ConfidenceMedium.Rank() {
+			conf = model.ConfidenceMedium
+		}
+
+		res, err := deps.Graph.Traverse(ctx, graph.Query{
+			Roots:          []int64{d.sym.ID},
+			Kinds:          graphKinds,
+			MinConfidence:  opts.MinConfidence,
+			MaxDepth:       max(opts.MaxDepth-1, 1),
+			MaxNodes:       opts.MaxNodes,
+			HubDegreeLimit: opts.HubDegreeLimit,
+			Direction:      graph.Incoming,
+		})
+		if err != nil {
+			return false, "", fmt.Errorf("tests: traverse from %s: %w", d.sym.FQN, err)
+		}
+		if res.Truncated && !truncated {
+			truncated, reason = true, "dispatch through "+d.sym.Name+": "+res.TruncatedReason
+		}
+		for _, n := range res.Nodes {
+			if n.Depth == 0 {
+				continue
+			}
+			sym, ok := idx.Lookup(n.SymbolID)
+			if !ok || !capability.IsTestSymbol(sym.Kind, sym.Name, sym.FilePath) {
+				continue
+			}
+			c := n.Confidence
+			if conf.Rank() < c.Rank() {
+				c = conf
+			}
+			detail := fmt.Sprintf("reaches %s through %d recorded edge(s); %s %s, so the call runs %s when the test holds this implementation",
+				qualifiedName(d.sym), n.Depth, tgt.Name, d.why, tgt.Name)
+			if others > 0 {
+				detail += fmt.Sprintf(" (%d other implementation(s) exist)", others)
+			}
+			acc.add(sym, SignalMatch{Signal: SignalDispatch, Detail: detail, Confidence: c, Depth: n.Depth + 1})
+		}
+	}
+	return truncated, reason, nil
+}
+
+// declarationsOf returns the methods the target implements or overrides.
+func declarationsOf(ctx context.Context, deps capability.Deps, idx *capability.SymbolIndex, tgt capability.Target, minConf model.Confidence) ([]declaration, error) {
+	var out []declaration
+	seen := map[int64]bool{tgt.SymbolID: true}
+	addDecl := func(sym capability.Symbol, conf model.Confidence, why string) {
+		if seen[sym.ID] {
+			return
+		}
+		seen[sym.ID] = true
+		out = append(out, declaration{sym: sym, conf: conf, why: why})
+	}
+
+	direct, err := deps.Graph.Neighbours(ctx, tgt.SymbolID, graph.Outgoing, supertypeKinds, minConf)
+	if err != nil {
+		return nil, fmt.Errorf("tests: what %s implements: %w", tgt.FQN, err)
+	}
+	for _, n := range direct {
+		if sym, ok := idx.Lookup(n.SymbolID); ok && sym.Kind == string(model.KindMethod) {
+			addDecl(sym, n.Confidence, verbPhrase(n.Kind)+" "+qualifiedName(sym))
+		}
+	}
+
+	owner, ok := ownerOf(idx, capability.Symbol{ID: tgt.SymbolID, Name: tgt.Name, FQN: tgt.FQN})
+	if !ok {
+		return out, nil
+	}
+	type step struct {
+		id   int64
+		conf model.Confidence
+	}
+	frontier := []step{{owner.ID, model.ConfidenceExact}}
+	visited := map[int64]bool{owner.ID: true}
+	for hop := 0; hop < maxSupertypeHops && len(frontier) > 0; hop++ {
+		var next []step
+		for _, st := range frontier {
+			ups, err := deps.Graph.Neighbours(ctx, st.id, graph.Outgoing, supertypeKinds, minConf)
+			if err != nil {
+				return nil, fmt.Errorf("tests: supertypes of %s: %w", owner.FQN, err)
+			}
+			for _, n := range ups {
+				if visited[n.SymbolID] {
+					continue
+				}
+				visited[n.SymbolID] = true
+				conf := n.Confidence
+				if st.conf.Rank() < conf.Rank() {
+					conf = st.conf
+				}
+				next = append(next, step{n.SymbolID, conf})
+				super, ok := idx.Lookup(n.SymbolID)
+				if !ok {
+					continue
+				}
+				if m, ok := idx.ByFQN(super.FQN + "." + tgt.Name); ok {
+					addDecl(m, conf, fmt.Sprintf("is in %s, which %s %s", owner.Name, verbPhrase(n.Kind), super.Name))
+				}
+			}
+		}
+		frontier = next
+	}
+	return out, nil
+}
+
+// ownerOf is the type a method is declared in, read from its qualified name
+// ("path:Class.method" -> "path:Class").
+func ownerOf(idx *capability.SymbolIndex, s capability.Symbol) (capability.Symbol, bool) {
+	file, qual, ok := strings.Cut(s.FQN, ":")
+	if !ok {
+		return capability.Symbol{}, false
+	}
+	i := strings.LastIndexByte(qual, '.')
+	if i <= 0 {
+		return capability.Symbol{}, false
+	}
+	return idx.ByFQN(file + ":" + qual[:i])
+}
+
+// qualifiedName is a symbol's name with its type ("Store.save"), as a reader
+// would write it.
+func qualifiedName(s capability.Symbol) string {
+	if _, qual, ok := strings.Cut(s.FQN, ":"); ok && qual != "" {
+		return qual
+	}
+	return s.Name
+}
+
+func verbPhrase(k model.EdgeKind) string {
+	if k == model.EdgeExtends {
+		return "extends"
+	}
+	return "implements"
 }

@@ -193,7 +193,7 @@ func (e *AmbiguousTargetError) Error() string {
 		}
 		names = append(names, fmt.Sprintf("%s:%d", c.FilePath, c.Line))
 	}
-	return fmt.Sprintf("capability: %q matches %d definitions; select one by file and line (%s)",
+	return fmt.Sprintf("capability: %q matches %d definitions; select one by file and line (%s): pass the qualified name (Type.method) or, in the CLI, --path with the file",
 		e.Query, len(e.Candidates), strings.Join(names, ", "))
 }
 

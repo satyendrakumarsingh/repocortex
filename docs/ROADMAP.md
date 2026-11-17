@@ -31,7 +31,7 @@ date; items move to the [CHANGELOG](../CHANGELOG.md) when they ship.
 | Vue 3 SFC SCIP indexing | **Shipped** | Synthesizes `.vue.ts` mirrors with whitespace masking to preserve 1:1 line/column coordinates for `scip-typescript`. |
 | Compact MCP frontdoor profile | **Shipped** | Exposes a single unified `repocortex` router tool, about 550 tokens of schema against 9,100 for the full profile (`repocortex tool list`). |
 | Temporal git coupling for impact | **Shipped** | Mines commit co-change history to boost PR blast-radius recall and discover coupled companion files. |
-| Test discovery through interface dispatch | Planned | `untested_critical` misses tests that reach a method through an interface or a shared method name. It is reported, not gated, until this lands. |
+| Test discovery through interface dispatch | **Shipped** | `find_tests` and `untested_critical` follow a method to the interface or base-class methods it implements, and report the tests that call those as `interface_dispatch`. |
 | Declarative graph query (`search_graph`) | **Shipped** | Guarded read-only SQL graph query tool via MCP (`search_graph`), CLI (`repocortex query`) and compact frontdoor (`action: query`), matching GitNexus and codebase-memory-mcp. |
 | Call binding by column and name | **Shipped** | `PromoteCalls` pairs compiler occurrences with parser call columns via `pairsOneToOne` and `(line, name)` grouping. |
 | Incremental re-binding of cross-file handlers | **Shipped** | An incremental update runs the same resolve pass as `index --full`, so a route handler declared in another file is bound again after either file changes. |

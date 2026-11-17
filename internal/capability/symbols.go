@@ -285,3 +285,44 @@ func (c *symbolCache) getStats(runID int64, load func() (registry.ResolutionStat
 	c.statsRun, c.stats, c.statsOK = runID, stats, true
 	return stats, nil
 }
+
+// PathMatch ranks how well a file path matches what a user typed to choose
+// it: 3 the whole path, 2 whole trailing segments ("Store.java" for
+// "src/com/shop/Store.java"), 1 any other substring ("Store.java" inside
+// "SqlStore.java"), 0 no match.
+func PathMatch(filePath, want string) int {
+	want = strings.TrimPrefix(strings.TrimSpace(strings.ReplaceAll(want, `\`, "/")), "./")
+	switch {
+	case want == "":
+		return 0
+	case filePath == want:
+		return 3
+	case strings.HasSuffix(filePath, "/"+want) || strings.HasPrefix(filePath, want+"/") ||
+		strings.Contains(filePath, "/"+want+"/"):
+		return 2
+	case strings.Contains(filePath, want):
+		return 1
+	}
+	return 0
+}
+
+// BestPathMatches keeps the items whose path matches want best. --path
+// Store.java chose SqlStore.java, the first by substring, when Store.java was
+// also a candidate; a substring is now used only when nothing matches whole
+// segments.
+func BestPathMatches[T any](items []T, pathOf func(T) string, want string) []T {
+	best := 0
+	for _, it := range items {
+		best = max(best, PathMatch(pathOf(it), want))
+	}
+	if best == 0 {
+		return nil
+	}
+	var out []T
+	for _, it := range items {
+		if PathMatch(pathOf(it), want) == best {
+			out = append(out, it)
+		}
+	}
+	return out
+}

@@ -751,8 +751,19 @@ To find the tests for everything a change touches, use 'repocortex impact'.`,
 				fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", t.Name, t.FilePath, t.Kind, t.Strongest, t.Confidence)
 			}
 			_ = tw.Flush()
-			fmt.Fprintf(out, "\n%d test(s) to run; %d reached through a recorded call edge, the rest by convention.\n",
-				len(runnable), countProven(runnable))
+			dispatched := 0
+			for _, t := range runnable {
+				if t.Strongest == tests.SignalDispatch {
+					dispatched++
+				}
+			}
+			if dispatched > 0 {
+				fmt.Fprintf(out, "\n%d test(s) to run; %d reached through a recorded call edge, %d through a method %s implements, the rest by convention.\n",
+					len(runnable), countProven(runnable), dispatched, rep.Target.Name)
+			} else {
+				fmt.Fprintf(out, "\n%d test(s) to run; %d reached through a recorded call edge, the rest by convention.\n",
+					len(runnable), countProven(runnable))
+			}
 			if len(helpers) > 0 {
 				names := make([]string, 0, len(helpers))
 				for _, h := range helpers {
