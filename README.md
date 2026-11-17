@@ -161,7 +161,7 @@ CALLS  mergeMCPConfig                                     internal/cli/install.g
 |---|---|
 | **Every protocol** | The same tools are now served as plain HTTP with an OpenAPI document (`/api/v1`) and from the shell (`repocortex tool call`), through one implementation. [Protocols](docs/guides/protocols.md) |
 | **Unused code and hotspots** | `repocortex dead-code` grades what nothing calls and checks it against the source text; `repocortex hotspots` ranks where change concentrates and names files that change together. [What it answers](#what-it-answers) |
-| **A redesigned portal** | `repocortex ui --next`: one page per symbol, with its callers, reach and tests as tabs. [Portal guide](docs/guides/portal-guide.md) |
+| **A redesigned portal** | `repocortex ui`: one page per symbol, with its callers, reach and tests as tabs. [Portal guide](docs/guides/portal-guide.md) |
 | **HTTP transport** | `repocortex serve --http` serves MCP over Streamable HTTP, with a token on every request, so ChatGPT, Android Studio and other remote-only clients can connect. [Details](docs/guides/coding-agents.md#remote-mcp-over-http) |
 | **30 agents in one command** | `repocortex install` writes each agent's own config format (JSON, TOML or YAML), keeps everything else in the file, and prints the steps for 10 more. [Coding agents guide](docs/guides/coding-agents.md) |
 | **Agent setup prompt** | Paste one prompt into your coding agent and it installs, indexes and registers RepoCortex for you. [Set up with your AI agent](#set-up-with-your-ai-agent) |
@@ -639,13 +639,11 @@ Details: [docs/operations/ci-cd-gates.md](docs/operations/ci-cd-gates.md).
 
 ## Local portal
 
-`repocortex ui` serves a read-only portal at `http://localhost:7777`: a map of the code, the blast radius of a change, routes and the tables they touch, test coverage, owners, and what your agent sees. It binds to loopback only and loads nothing from the network.
+`repocortex ui` serves a read-only portal at `http://localhost:7777`: one page for every function, type, file, route and table, with what uses it, what a change can reach and the tests that cover it, plus how complete the index is and how to connect your agent. It binds to loopback only and loads nothing from the network.
 
-<img alt="The RepoCortex portal's Index health screen: an answer line saying when the index was built, a layered view from inbound APIs to data tables, and counts of files, relationships, directories and exported symbols" src="docs/assets/portal/overview.png" width="100%">
+<img alt="The RepoCortex portal's home page: a search box, five sections in the sidebar, and the state of the index" src="docs/assets/portal/home.png" width="100%">
 
-Screen-by-screen walkthrough with screenshots: **[portal guide](docs/guides/portal-guide.md)**.
-
-A redesigned portal is available to try with `repocortex ui --next`: five sections in place of twenty-three screens, and one page per symbol with its callers, what a change can reach and its tests as tabs. It reads the same tool endpoint agents use. The interface and screens: [portal guide](docs/guides/portal-guide.md).
+It has five sections and one page per symbol, with its callers, what a change can reach and its tests as tabs. It reads the same tool endpoint agents use. Page-by-page walkthrough with screenshots: **[portal guide](docs/guides/portal-guide.md)**.
 
 ## Security and privacy
 
@@ -764,7 +762,7 @@ More: [docs/FAQ.md](docs/FAQ.md).
 | Guide | What it covers |
 |---|---|
 | [CLI output guide](docs/guides/cli-output-guide.md) | Every command, a real run, and how to read each part of its output |
-| [Portal guide](docs/guides/portal-guide.md) | Every screen of `repocortex ui`, with screenshots, layout and what each number means |
+| [Portal guide](docs/guides/portal-guide.md) | Every page of `repocortex ui`, with screenshots, layout and how to read an answer |
 | [User guide](docs/USER_GUIDE.md) | Day-to-day use, end to end: indexing, asking questions, keeping the index current |
 | [Coding agents](docs/guides/coding-agents.md) | All 40+ supported agents, their config files, and agents without MCP |
 | [Protocols](docs/guides/protocols.md) | The same tools over MCP, plain HTTP with OpenAPI, and the shell; profiles, tool cost and the audit log |

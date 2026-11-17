@@ -2,21 +2,16 @@ package integration
 
 import (
 	"context"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/satyendrakumarsingh/repocortex/internal/acquire/fs"
-	"github.com/satyendrakumarsingh/repocortex/internal/capability"
 	"github.com/satyendrakumarsingh/repocortex/internal/config"
-	"github.com/satyendrakumarsingh/repocortex/internal/graph"
 	"github.com/satyendrakumarsingh/repocortex/internal/pipeline"
 	"github.com/satyendrakumarsingh/repocortex/internal/prune"
 	"github.com/satyendrakumarsingh/repocortex/internal/registry"
 	"github.com/satyendrakumarsingh/repocortex/internal/store"
-	"github.com/satyendrakumarsingh/repocortex/internal/web"
 )
 
 // TestMultiLanguageEndToEnd verifies that RepoCortex indexes, resolves, queries,
@@ -438,48 +433,6 @@ echo "Building polyglot project..."
 			}
 			if pt.stripVal != "" && stringContains(prunedStr, pt.stripVal) {
 				t.Errorf("prune %s still contains implementation body %q", pt.path, pt.stripVal)
-			}
-		}
-	})
-
-	// 7. Test Web API Server over polyglot repository
-	t.Run("web_portal_serves_polyglot", func(t *testing.T) {
-		caps := capability.NewDeps(reg, graph.New(db))
-
-		srv, err := web.New(web.Deps{
-			Registry: reg,
-			Caps:     caps,
-			Config: config.Config{
-				ProjectName: "test-polyglot",
-			},
-			IndexPath: filepath.Join(dir, ".repocortex", "index.db"),
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		h := srv.Handler()
-
-		endpoints := []string{
-			"/api/health",
-			"/api/overview",
-			"/api/graph",
-			"/api/symbols",
-			"/api/events",
-			"/api/missed",
-		}
-
-		for _, ep := range endpoints {
-			req := httptest.NewRequest(http.MethodGet, ep, nil)
-			req.Host = "127.0.0.1"
-			w := httptest.NewRecorder()
-			h.ServeHTTP(w, req)
-
-			if w.Code != http.StatusOK {
-				t.Errorf("endpoint %s returned status %d: %s", ep, w.Code, w.Body.String())
-			}
-			if stringContains(w.Body.String(), `"undefined"`) {
-				t.Errorf("endpoint %s serialized \"undefined\"", ep)
 			}
 		}
 	})

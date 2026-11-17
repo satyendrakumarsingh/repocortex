@@ -298,39 +298,33 @@ Event topology (`repocortex events`) is available from the CLI and the portal, n
 
 ---
 
-## 6. Enterprise Interactive Dashboard (`repocortex ui`)
+## 6. The local portal (`repocortex ui`)
 
-RepoCortex includes an embedded, high-performance web dashboard providing complete $N$-level visibility into your codebase architecture.
+RepoCortex includes a local, read-only web portal over the index. It has five sections (Home, Explore, Change, Health and Agents) and one page for every function, type, file, route and table.
 
 To launch the portal:
 ```bash
 repocortex ui
 ```
-By default, the server listens on loopback (`127.0.0.1`) on an ephemeral port and prints the access URL.
+It listens on loopback (`127.0.0.1`) on port 7777 and prints the address. Use `--port 0` to pick a free port. `--host` accepts loopback addresses only; the portal has no login.
 
-### Command Palette (`Cmd+K` / `Ctrl+K`)
-Press `Cmd+K` (macOS) or `Ctrl+K` (Linux/Windows) anywhere in the portal to open the global Command Palette:
-- Instant fuzzy navigation to any screen (`Overview`, `Explore Graph`, `APIs`, `Database`, `Events`, `Blindspots`, `Plan Refactor`, `Governance`, `Metrics`).
-- Quick actions: reload data, copy repo root, trigger index refresh.
+### Search
+The box in the header searches functions, types, files, routes, tables and text. Press `/` to jump to it.
 
-### 360° Symbol Inspector Drawer
-Clicking any symbol name anywhere in the application (in tables, graph nodes, callers, or refactor steps) slides open the 360° Symbol Inspector drawer from the right:
-- Definition path and exact line number with one-click editor opening (`vscode://`).
-- Inbound callers and outbound dependencies grouped by confidence.
-- Database read/write associations and event broker linkages.
-- Covering tests and test gap analysis.
+### Symbol pages
+A symbol page shows what calls it, what it calls, what a change to it can reach, the tests that reach it and its type hierarchy, as tabs. File, route and table pages follow the same pattern.
 
-### Screens Overview
-- **System Overview**: High-level repository health, language breakdown, resolution coverage rate, and freshness indicators.
-- **Code map** — four views of the index behind one breadcrumb and one tab strip. They share the selection, so a symbol chosen in one view is selected in the others:
-  - **Graph**: the canvas map of directories, files or symbols, with grouping, focus, path finding and three layouts.
-  - **Tree**: the repository as an outline, directory → file → symbol, navigable with the keyboard.
-  - **Treemap**: where the code is — boxes sized by symbols and coloured by connections, exported share or language.
-  - **Code**: a file's text as the index holds it, with its declarations, callers and callees, and the lines relationships cite. Served by `GET /api/source` from the index's own copy, never from disk.
-- **Event Bus & Queues**: Interactive topology of Kafka topics, AMQP exchanges, and cloud pub/sub queues with publisher and consumer cards.
-- **Code Blindspots**: Actionable matrix of unmapped endpoints, unresolved dynamic calls, and orphan database tables with remediation suggestions.
-- **Plan a Refactor**: Interactive refactoring orchestrator generating step-by-step modification lists with preconditions, affected tests, and post-checks.
-- **Architecture Governance**: Real-time evaluation of declared Architecture Decision Records (ADRs) and prohibited dependency boundaries.
+### Reading an answer
+Every relationship is marked proven, very likely, uncertain or a guess. Each answer shows "What this answer cannot see" and "Ask your agent the same thing", the exact `repocortex tool call ...` command that returns the same answer.
+
+### Sections
+- **Home**: the state of the index and how to read an answer.
+- **Explore**: the routes the code exposes and the tables it uses.
+- **Change**: review a branch, or plan a change to one thing.
+- **Health**: how complete the index is, hotspots, unused code and blind spots.
+- **Agents**: four ways to connect an agent, and what each tool costs in context.
+
+The portal never writes to the index. To refresh it, run `repocortex index` or `repocortex watch`. See the [portal guide](../guides/portal-guide.md).
 
 ---
 

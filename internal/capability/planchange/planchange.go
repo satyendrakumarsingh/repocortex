@@ -48,9 +48,7 @@ type Plan struct {
 	// other than undetermined callers (a walk cut at a bound, a name that occurs
 	// where no call is recorded).
 	//
-	// Not in the JSON form: internal/web serialises a Plan under a frozen field
-	// contract that nothing renders these in yet. The plan-change command adds
-	// them to its own JSON.
+	// Not in the JSON form; the plan-change command adds them to its own JSON.
 	RiskPartial string `json:"-"`
 
 	// ValueUse is the impact analysis's text check for a function passed as a

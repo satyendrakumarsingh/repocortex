@@ -7,7 +7,6 @@ index:
     - ".github/**"
     - "fixtures/**"
     - "**/testdata/**"
-    - "internal/web/e2e/**"
     # The VS Code extension is a separate TypeScript package with its own
     # tests. Nearly every call in it goes into the editor API, which this
     # index cannot bind, so indexing it filled the capped blindspot report

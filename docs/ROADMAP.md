@@ -52,8 +52,5 @@ Found while writing the [CLI output guide](guides/cli-output-guide.md) and the [
 | `config` / `deps` | Keys in `.repocortex.yml` and Compose files count as "declared and never read"; Maven coordinates never match Java package names, so every dependency reads "not imported". |
 | `trace` | A span matched by `code.function` and `code.namespace` is not joined to the method; only `http.route` matches. |
 | `plan-change` vs `impact` | The two report risk on different scales without saying so. |
-| Portal: Plan a refactor | Caller lines show `:undefined`, the example chips name symbols from another codebase, and `?sym=` is ignored. |
-| Portal: What changed | The empty state suggests `?from=`/`?to=`, but the page reads `dfrom`/`dto`. |
-| Portal: Test coverage vs Code blindspots | Test coverage shows symbols with no proven test while Code blindspots shows "Untested critical 0". |
 
 Suggestions and votes: [open a discussion](https://github.com/satyendrakumarsingh/repocortex/discussions).

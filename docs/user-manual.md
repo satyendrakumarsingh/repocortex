@@ -1432,57 +1432,48 @@ $ repocortex agent --check
 ```bash
 repocortex ui                        # http://127.0.0.1:7777/
 repocortex ui --port 0               # pick a free port
-repocortex ui --allow-refresh        # let the page rebuild the index (opt-in)
+repocortex ui --print-url            # print the address and exit
 ```
 
-A local web portal over the index, with 23 screens grouped by what you
-want to know. Index health stands alone above the groups, carrying the same
-weight as a group's first entry. Then five groups, named the way a reader
-would ask the question:
+A local web portal over the index. It has five sections, named the way a
+reader would ask the question, and one page for every function, type, file,
+route and table:
 
-- **Understand the code** — Map of the code (a graph explorer that drills
-  repository → package → file → symbol), Find a symbol, Shape of the code.
-- **Before you change something** — What could break (blast radius for one
-  symbol), Task brief (the compiled task contract), Check a change (the
-  verify report that marks a completed change against that contract), Who
-  knows this code, What changed, Plan a change.
-- **How it runs** — APIs and what they touch (the cross-stack view from a
-  frontend component through the route it calls, the handler that answers
-  it and the tables that handler reaches), Database tables, Settings and
-  secrets, What actually ran, Events and async, Across repositories.
-- **Quality** — Test coverage, Architecture rules (governance), Dependencies,
-  How accurate is this index, Code blindspots.
-- **For your AI agent** — Connect an agent, Retrieval quality.
+- **Home** — the state of the index and how to read an answer.
+- **Explore** — the routes the code exposes and the tables it uses.
+- **Change** — review a branch, or plan a change to one thing.
+- **Health** — how complete the index is, hotspots, unused code and blind
+  spots.
+- **Agents** — four ways to connect an agent, and what each tool costs in
+  context.
 
-Every screen opens with its answer in one plain sentence, built from the same
-data the screen renders. The evidence behind that sentence, and the things
-the view can't see, sit folded below it — closed by default, so the answer is
-what a reader meets first — and `?open=1` on any screen's URL unfolds all of
-them at once, for an agent or a screenshot that needs the whole page. Where
-the old portal showed confidence as a raw tier, it now reads as a word
-(proven, very likely, uncertain, a guess); the tier's id is kept on every
-field and flag underneath so a script can still match on it. A "What do these
-words mean?" button in the rail opens a glossary for the handful of terms
-that remain.
+A symbol page has tabs for Callers, Calls, What could break, Tests and Type
+hierarchy. A route page has What it calls, Tables it reaches and Tests. A
+table page lists what writes to it, what reads it and the routes that lead
+there. The header has a search box (press `/` to jump to it), an "Index
+coverage" link and a Light and Dark theme toggle.
 
-The portal is read-only. It opens the index read-only and serves only GET
-routes; without `--allow-refresh` no route that writes is registered at all,
-so read-only is enforced by the absence of a route rather than by a check
-inside a handler. With the flag, a refresh must carry a header a cross-site
-form cannot set, and a foreign `Origin` is refused even so.
+Every figure is a call to the same tool endpoint under `/api/v1` that an agent
+uses, so a page and an agent cannot disagree. Each answer shows "What this
+answer cannot see" and "Ask your agent the same thing", the exact
+`repocortex tool call ...` command that returns it. Confidence reads as a
+word: proven, very likely, uncertain or a guess.
 
-It binds to `127.0.0.1` and refuses requests whose `Host` is not a loopback
-address, because a page on the public internet can otherwise point your own
-browser at `localhost:7777` and read the structure of your code. Everything is
-served from the binary: no npm, no build step, no CDN, and a
+The portal is read-only. It opens the index read-only, the tools it calls are
+read-only, and it registers no route that writes. To refresh the index, run
+`repocortex index` or keep `repocortex watch` running. `--allow-refresh` was
+removed. `--next` and `--max-nodes` are accepted but do nothing.
+
+It binds to `127.0.0.1`. `--host` accepts loopback addresses only (`127.0.0.1`,
+`::1` or `localhost`); anything else is refused, because the portal has no
+login. It refuses requests whose `Host` is not a loopback address and
+cross-origin requests, because a page on the public internet can otherwise
+point your own browser at `localhost:7777` and read the structure of your code.
+Everything is served from the binary: no npm, no build step, no CDN, and a
 Content-Security-Policy that forbids loading from any other origin, so it works
-offline on a machine with no Node.
+offline.
 
-Confidence is the visual language of every screen: a proven edge is drawn
-solid with a tick, an uncertain one dashed, and guesses are off by default
-with the count of what that hides stated in every response. Every
-level of the graph states what it did not draw, and every screen ends with what
-it could not see.
+Page by page, with screenshots: [portal guide](guides/portal-guide.md).
 
 ## Across repositories
 

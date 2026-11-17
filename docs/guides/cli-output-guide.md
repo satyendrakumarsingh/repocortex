@@ -2643,8 +2643,9 @@ The JSON form has `"directed": true`, a `nodes` array (`id`, `kind`) and an
 
 **Answers:** Serves a local, read-only web portal over the index.
 
-**Use it when:** You want to browse the map, blast radius, tables, config,
-architecture and accuracy screens instead of reading terminal output.
+**Use it when:** You want to browse symbols, routes, tables, the blast radius of
+a change and the health of the index in a browser instead of reading terminal
+output.
 
 **Run:** `repocortex ui --print-url`, then `repocortex ui --port 7791`
 
@@ -2666,15 +2667,18 @@ Press Ctrl-C to stop.
 
 **How to read it:**
 
-- Open the URL. The first screen is index health; read it before anything else.
+- Open the URL. The Home page shows the state of the index; the Health page
+  shows how complete it is. Read them before anything else.
 - `binding loopback only` is the safe default. A request with a non-loopback
   `Host` header gets `403`.
-- In the graphs, solid lines with a tick are `exact`, dashed lines are weaker,
-  and the weakest are hidden by default with a count of what was hidden.
+- Every relationship is marked proven, very likely, uncertain or a guess. Each
+  answer shows what it cannot see and the `repocortex tool call ...` command
+  that returns the same answer.
 
-**Useful flags:** `--port N` (`0` picks a free port), `--print-url`,
-`--allow-refresh` (adds one button that rebuilds the index), `--host`
-(binding elsewhere exposes your code structure to the network), `--max-nodes N`.
+**Useful flags:** `--port N` (`0` picks a free port), `--print-url`, `--host`
+(loopback addresses only: `127.0.0.1`, `::1` or `localhost`; the portal has no
+login, so anything else is refused). `--allow-refresh` was removed; the portal
+never writes. See the [portal guide](portal-guide.md).
 
 ---
 

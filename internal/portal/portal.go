@@ -1,19 +1,17 @@
 // Package portal serves the next RepoCortex portal: a small web application
 // that asks the index the same questions an agent does, through the same tools.
 //
-// # Why it is a separate package from internal/web
+// # Why it has no routes of its own
 //
-// internal/web is the current portal: twenty-three report screens over its own
-// JSON routes. This one is built differently on purpose (see
-// docs/guides/portal-guide.md): five sections, a page for each symbol, file,
-// route and table, and NO routes of its own. Every figure on every page comes
+// Five sections, a page for each symbol, file, route and table, and NO data
+// routes (see docs/guides/portal-guide.md). Every figure on every page comes
 // from a tool call to the REST surface in internal/restapi, which in turn calls
 // the MCP server in-process. So a page and an agent cannot disagree about an
 // answer, because there is one implementation of each answer, and "ask your
 // agent the same thing" beside a table is literally true.
 //
-// The two portals live side by side until this one covers every screen of the
-// other; `repocortex ui --next` serves this one.
+// It replaced the previous portal, twenty-three report screens over their own
+// JSON routes, which was retired and deleted. `repocortex ui` serves it.
 //
 // # Security
 //

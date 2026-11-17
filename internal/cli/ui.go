@@ -6,14 +6,12 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
-	"github.com/satyendrakumarsingh/repocortex/internal/capability"
-	"github.com/satyendrakumarsingh/repocortex/internal/graph"
-	"github.com/satyendrakumarsingh/repocortex/internal/registry"
-	"github.com/satyendrakumarsingh/repocortex/internal/web"
+	"github.com/satyendrakumarsingh/repocortex/internal/config"
+	"github.com/satyendrakumarsingh/repocortex/internal/portal"
+	"github.com/satyendrakumarsingh/repocortex/internal/restapi"
 
 	"github.com/spf13/cobra"
 )
@@ -28,11 +26,13 @@ import (
 // machine or inside a container with a mapped port, and the reader would have no
 // signal that it had happened. So the default is 127.0.0.1, the bound address is
 // printed on every start, and choosing anything else requires typing it — at
-// which point the command says plainly what has been given up. The server-side
-// Host guard (web.WithAllowRemoteHosts) is the second half of the same
-// decision: on a loopback bind it also refuses requests whose Host header is not
-// a loopback name, which is what stops a public web page from using a reader's
-// own browser to fetch this API off their laptop.
+// which point the command says plainly what has been given up.
+//
+// The portal has no login, so it is served on loopback ONLY: --host accepts a
+// loopback address and nothing else. The server-side guard (internal/portal) is
+// the second half of the same decision: it refuses requests whose Host header
+// is not a loopback name, which is what stops a public web page from using a
+// reader's own browser to fetch this API off their laptop.
 
 const (
 	// defaultUIPort is a fixed default so the URL is memorable across restarts
@@ -50,85 +50,72 @@ func newUICmd(g *Global) *cobra.Command {
 	var (
 		port         int
 		host         string
-		maxNodes     int
 		printOnly    bool
 		allowRefresh bool
 		next         bool
+		maxNodes     int
 	)
 
 	cmd := &cobra.Command{
 		Use:   "ui",
 		Short: "Serve a local, read-only portal over the index",
-		Long: `Starts a local web portal that visualises the indexed repository.
+		Long: `Starts a local web portal over the indexed repository.
 
-Twenty-three screens, grouped by what you're trying to find out. Index health opens
-on its own, above everything else. Then: Understand the code (map of the
-code, find a symbol, shape of the code); Before you change something (what
-could break, task brief, check a change, who knows this code, what changed,
-plan a change); How it runs (APIs and what they touch, database tables,
-settings and secrets, what actually ran, events and async, across repositories);
-Quality (test coverage, architecture rules, dependencies, how accurate is this
-index, code blindspots); and For your AI agent (connect an agent, retrieval
-quality).
+Five sections, built around what you came to find out: Home (ask a question,
+and the state of the index), Explore (routes, tables and layout), Change (plan
+a change safely), Health (hotspots, unused code, blind spots) and Agents
+(connect an agent, and what each tool costs). Every function, type, file,
+route and table has its own page: what uses it, what a change to it can reach,
+and the tests that cover it.
 
-The portal is READ-ONLY. It opens the index read-only, exposes only GET routes,
-and never writes. --allow-refresh is the single, opt-in exception: it adds one
-POST route that rebuilds the index, and nothing else changes.
+The portal asks the index the same questions an agent does, through the same
+tools: it has no data routes of its own, and every figure on every page is a
+call to the tool endpoint under /api/v1. A page and an agent cannot disagree.
 
-It binds to 127.0.0.1 by default and refuses requests whose Host header is not a
-loopback address. That is deliberate: this server renders the whole structure of
-your codebase, and a page on the public internet can otherwise point your own
-browser at http://localhost:7777 and read it. Pass --host to bind elsewhere; the
-command will say what that gives up.
+The portal is READ-ONLY. It opens the index read-only, the tools it calls are
+read-only, and it serves no route that writes.
+
+It is reachable from this machine only. It binds to 127.0.0.1, accepts only a
+loopback address for --host, refuses requests whose Host header is not a
+loopback name, and refuses cross-origin requests: it renders the structure of
+your codebase and has no login, so a page on the internet must not be able to
+point your own browser at http://localhost:7777 and read it.
 
 Everything is served from the binary. There is no npm, no build step and no CDN:
 the assets are embedded, and the page's Content-Security-Policy forbids loading
-anything from another origin, so it works offline on a machine with no Node.
-
-Confidence is the visual language of every view. An edge a compiler proved is
-drawn solid with a tick; one measured at 5.7-37.5% precision is drawn dashed;
-one measured at 0.0-2.8% is off by default — and the count of what that hides is
-stated in every response, never dropped in silence.`,
+anything from another origin, so it works offline on a machine with no Node.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runUI(cmd, g, uiOptions{
-				Host: host, Port: port, MaxNodes: maxNodes, PrintOnly: printOnly,
-				AllowRefresh: allowRefresh, Next: next,
-			})
+			if allowRefresh {
+				return errors.New("--allow-refresh was removed with the previous portal: the portal has no route " +
+					"that writes. Run 'repocortex index' to rebuild, or 'repocortex watch' to keep the index current")
+			}
+			return runUI(cmd, g, uiOptions{Host: host, Port: port, PrintOnly: printOnly})
 		},
 	}
 
 	cmd.Flags().IntVar(&port, "port", defaultUIPort, "port to listen on (0 picks a free one)")
 	cmd.Flags().StringVar(&host, "host", defaultUIHost,
-		"address to bind (default loopback; anything else exposes your codebase's structure to the network)")
-	cmd.Flags().IntVar(&maxNodes, "max-nodes", web.DefaultMaxNodes,
-		"maximum symbol nodes in one graph response; whatever it excludes is stated, never dropped")
+		"loopback address to bind (127.0.0.1, ::1 or localhost); the portal has no login and is never served beyond this machine")
 	cmd.Flags().BoolVar(&printOnly, "print-url", false,
 		"print the URL that would be served and exit, without listening")
-	cmd.Flags().BoolVar(&next, "next", false,
-		"serve the redesigned portal: a page per symbol, built on the same tools an agent calls. "+
-			"Loopback only. The current portal stays the default until this one covers every screen.")
-	cmd.Flags().BoolVar(&allowRefresh, "allow-refresh", false,
-		"let the portal rebuild the index from its own page; without this the portal is "+
-			"strictly read-only and serves no route that writes. Even when enabled the "+
-			"refresh is refused for any non-loopback origin, and requires a header a "+
-			"cross-site request cannot set.")
+
+	// Flags of the previous portal, kept so existing scripts and shortcuts do
+	// not fail on an unknown flag. --next selected the portal that is now the
+	// only one; --max-nodes bounded a graph screen that no longer exists.
+	cmd.Flags().BoolVar(&next, "next", false, "")
+	_ = cmd.Flags().MarkDeprecated("next", "the redesigned portal is now the only one; drop --next")
+	cmd.Flags().IntVar(&maxNodes, "max-nodes", 0, "")
+	_ = cmd.Flags().MarkDeprecated("max-nodes", "it bounded a screen of the previous portal and has no effect")
+	cmd.Flags().BoolVar(&allowRefresh, "allow-refresh", false, "")
+	_ = cmd.Flags().MarkHidden("allow-refresh")
 	return cmd
 }
 
 type uiOptions struct {
 	Host      string
 	Port      int
-	MaxNodes  int
 	PrintOnly bool
-
-	// AllowRefresh adds the one route that writes. Default false, and the
-	// default is the security decision: see internal/web/reindex.go.
-	AllowRefresh bool
-
-	// Next serves the redesigned portal (internal/portal) instead of the
-	// current one.
-	Next bool
 }
 
 func runUI(cmd *cobra.Command, g *Global, opts uiOptions) error {
@@ -148,31 +135,19 @@ func runUI(cmd *cobra.Command, g *Global, opts uiOptions) error {
 		return nil
 	}
 
-	dbPath := g.DBPath()
-	var handler http.Handler
-	if opts.Next {
-		// The new portal has no login and calls the tool endpoint without a
-		// token, so it is never served beyond this machine.
-		if !loopback {
-			return errors.New("--next serves on loopback only; drop --host, or use the current portal")
-		}
-		if opts.AllowRefresh {
-			return errors.New("--allow-refresh applies to the current portal; the new one has no route that writes")
-		}
-		h, closeNext, err := newNextPortal(ctx, g)
-		if err != nil {
-			return err
-		}
-		defer closeNext()
-		handler = h
-	} else {
-		srv, closePortal, err := newPortal(ctx, g, opts)
-		if err != nil {
-			return err
-		}
-		defer closePortal()
-		handler = srv.Handler()
+	// The portal has no login and calls the tool endpoint without a token, so
+	// it is never served beyond this machine.
+	if !loopback {
+		return fmt.Errorf("--host %s: the portal is served on a loopback address only (127.0.0.1, ::1 or localhost); "+
+			"it renders the structure of your codebase and has no login", opts.Host)
 	}
+
+	dbPath := g.DBPath()
+	handler, closePortal, err := newPortal(ctx, g)
+	if err != nil {
+		return err
+	}
+	defer closePortal()
 
 	addr := net.JoinHostPort(opts.Host, fmt.Sprint(opts.Port))
 	ln, err := net.Listen("tcp", addr)
@@ -185,15 +160,11 @@ func runUI(cmd *cobra.Command, g *Global, opts uiOptions) error {
 
 	if g.JSON {
 		if err := emitJSON(out, map[string]any{
-			"url":     shown,
-			"address": ln.Addr().String(),
-			// read_only describes this process's own handle on the index, which
-			// stays read-only either way; allow_refresh is the separate fact
-			// about whether the portal may ask the indexer to rebuild it.
-			"read_only":     true,
-			"allow_refresh": opts.AllowRefresh,
-			"loopback":      loopback,
-			"index_path":    dbPath,
+			"url":        shown,
+			"address":    ln.Addr().String(),
+			"read_only":  true,
+			"loopback":   loopback,
+			"index_path": dbPath,
 		}); err != nil {
 			_ = ln.Close()
 			return err
@@ -201,23 +172,9 @@ func runUI(cmd *cobra.Command, g *Global, opts uiOptions) error {
 	} else {
 		fmt.Fprintf(out, "RepoCortex portal: %s\n", shown)
 		fmt.Fprintf(out, "  index      %s (opened read-only; this portal never writes)\n", dbPath)
-		if loopback {
-			fmt.Fprintln(out, "  binding    loopback only — not reachable from other machines.")
-			fmt.Fprintln(out, "             Requests whose Host header is not a loopback address are refused, so a")
-			fmt.Fprintln(out, "             page on the internet cannot use your browser to read this index.")
-		} else {
-			fmt.Fprintf(out, "  binding    %s — REACHABLE FROM OTHER MACHINES.\n", opts.Host)
-			fmt.Fprintln(out, "             This serves the entire structure of your codebase — every symbol, file")
-			fmt.Fprintln(out, "             path and architectural boundary — to anything that can reach this port,")
-			fmt.Fprintln(out, "             with no authentication. The loopback Host guard is disabled on a")
-			fmt.Fprintln(out, "             non-loopback bind because it cannot work there.")
-		}
-		if opts.AllowRefresh {
-			fmt.Fprintln(out, "  refresh    ENABLED — the page can rebuild this index (POST /api/reindex).")
-			fmt.Fprintln(out, "             This is the only route that writes. It is refused for any origin that")
-			fmt.Fprintln(out, "             is not loopback, and it requires a header a cross-site request cannot")
-			fmt.Fprintln(out, "             set. Drop --allow-refresh to go back to a portal with no write route.")
-		}
+		fmt.Fprintln(out, "  binding    loopback only — not reachable from other machines.")
+		fmt.Fprintln(out, "             Requests whose Host header is not a loopback address are refused, so a")
+		fmt.Fprintln(out, "             page on the internet cannot use your browser to read this index.")
 		fmt.Fprintln(out, "\nPress Ctrl-C to stop.")
 	}
 
@@ -256,74 +213,31 @@ func runUI(cmd *cobra.Command, g *Global, opts uiOptions) error {
 	return err
 }
 
-// newPortal opens the index and assembles the portal server, returning a
-// closer for the database handle.
+// newPortal assembles the portal: its embedded page and assets, plus the tool
+// endpoint over the read-only index.
 //
-// Split out of runUI because everything above the listener — which options the
-// flags select, and above all whether a Reindexer exists at all — is the part
-// worth asserting on, and a test that has to bind a real port to reach it
-// cannot assert on the ABSENCE of a route.
-//
-// extra options are appended last and therefore win, which is the seam a test
-// uses to put a stubbed pipeline behind a portal built by this exact code.
-func newPortal(ctx stdctx.Context, g *Global, opts uiOptions, extra ...web.Option) (*web.Server, func(), error) {
-	dbPath := g.DBPath()
-	if _, err := os.Stat(dbPath); errors.Is(err, os.ErrNotExist) {
-		// Not a fault. The portal itself answers an unindexed repository with
-		// guidance rather than an error, but there is no database to open at
-		// all here, so the guidance has to come from the command.
-		return nil, nil, fmt.Errorf("no index at %s — run 'repocortex init' and 'repocortex index' first", dbPath)
-	}
-
-	// Read-only at the file level too, not only by convention: a portal must
-	// never be able to mutate the index it is describing. That stays true with
-	// --allow-refresh: a refresh runs the indexer, which opens its own writable
-	// handle, so the portal's own connection can still never write.
-	db, err := openReadOnly(ctx, dbPath)
+// It uses the `full` profile whatever .repocortex.yml says. A profile exists to
+// keep tool schemas out of a model's context; a web page pays nothing for a
+// tool it does not call, and the Health section needs the full-profile tools.
+func newPortal(ctx stdctx.Context, g *Global) (http.Handler, func(), error) {
+	srv, closeServer, err := openAgentServer(ctx, g, agentServerOptions{Profile: config.MCPFull})
 	if err != nil {
 		return nil, nil, err
 	}
-	closeDB := func() { _ = db.Close() }
-
-	reg := registry.New(db)
-	webOpts := []web.Option{
-		web.WithLogger(g.Log()),
-		web.WithMaxNodes(opts.MaxNodes),
-		web.WithAllowRemoteHosts(!isLoopbackAddr(opts.Host)),
-		// "Is what I am reading current?" has two answers, and this is the
-		// second one: whether a commit hook rebuilds the index without anyone
-		// remembering to. The portal renders the fact and never installs
-		// anything — writing into .git is a CLI action, so only the status
-		// crosses the port.
-		web.WithHookReporter(web.HookReporterFunc(func(root string) any {
-			return CommitHookStatus(root)
-		})),
-	}
-	if opts.AllowRefresh {
-		// The only write the portal can cause, and only because the operator
-		// typed the flag. Passing nothing here is what leaves the POST route
-		// unregistered — read-only enforced by an absent route rather than by a
-		// check somebody could later reorder.
-		webOpts = append(webOpts, web.WithReindexer(newUIReindexer(g, reg)))
-	}
-	webOpts = append(webOpts, extra...)
-
-	srv, err := web.New(web.Deps{
-		Registry: reg,
-		Caps:     capability.NewDeps(reg, graph.New(db, graph.WithCSR())),
-		// The contract and verify screens compile a brief from a context pack,
-		// which needs full-text file search and file excerpting on top of the
-		// bulk reads the graph screens use. Passed explicitly rather than left
-		// to a type assertion inside the portal, so the wiring is visible here.
-		Packs:     reg,
-		Config:    g.Config(),
-		IndexPath: dbPath,
-	}, webOpts...)
+	inv, err := srv.NewInvoker(ctx, "portal")
 	if err != nil {
-		closeDB()
+		closeServer()
 		return nil, nil, err
 	}
-	return srv, closeDB, nil
+	api := restapi.Handler(inv, restapi.Info{
+		Project: g.Config().ProjectName,
+		Version: Version,
+		Profile: string(config.MCPFull),
+	})
+	return portal.Handler(api), func() {
+		_ = inv.Close()
+		closeServer()
+	}, nil
 }
 
 // displayURL turns a listener address into something a reader can paste.

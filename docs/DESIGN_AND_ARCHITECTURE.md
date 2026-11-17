@@ -40,7 +40,8 @@ RepoCortex follows a strict unidirectional dependency hierarchy adhering to **Cl
 graph TD
     CLI["cmd/repocortex (CLI Entrypoint)"] --> Cap["internal/capability (Domain Features)"]
     MCP["internal/mcp (Agent Protocol)"] --> Cap
-    Web["internal/web (Interactive UI)"] --> Cap
+    Portal["internal/portal (Local portal)"] --> Rest["internal/restapi (Tool endpoint)"]
+    Rest --> MCP
     
     Cap --> Graph["internal/graph (Traversal & CSR)"]
     Cap --> Pipe["internal/pipeline (Orchestration)"]
@@ -74,12 +75,11 @@ graph TD
 | `internal/parse` | Polyglot Tree-Sitter AST parsing, query compilation, tag extraction, arity extraction, and parser arena pools. | `pkg/model` | Must not access the registry or database. |
 | `internal/resolve` | Multi-pass reference resolution, receiver type narrowing, inherited dispatch, and SCIP compiler import. | `internal/registry`, `pkg/model` | Must not import `internal/pipeline` or CLI logic. |
 | `internal/graph` | Directed graph traversal, hub pruning, cycle detection, and high-performance in-memory Compressed Sparse Row (CSR) indexing. | `internal/store`, `internal/registry`, `pkg/model` | Must not mutate source code or execute pipeline indexing. |
-| `internal/capability` | Business logic for product capabilities: `impact` (blast radius), `rename` (safe refactoring), `testgap` (coverage proof), `planchange` (change blueprint), `missed` (risk detection). | `internal/graph`, `internal/registry`, `internal/edit`, `pkg/model` | Must not import `internal/cli` or `internal/web`. |
+| `internal/capability` | Business logic for product capabilities: `impact` (blast radius), `rename` (safe refactoring), `testgap` (coverage proof), `planchange` (change blueprint), `missed` (risk detection). | `internal/graph`, `internal/registry`, `internal/edit`, `pkg/model` | Must not import `internal/cli`, `internal/restapi` or `internal/portal`. |
 | `internal/edit` | Surgical source code splicing, exact identifier boundary matching, hash validation, and multi-file rollback transactions. | `pkg/model`, `internal/security` | Must not import graph traversal or MCP servers. |
 | `internal/mcp` | Model Context Protocol server exposing JSON-RPC tools and prompts to autonomous coding agents. | `internal/capability`, `internal/graph`, `internal/registry`, `pkg/model` | Must not expose internal database drivers directly over the wire. |
-| `internal/web` | Local interactive web portal, SVG visualizers, tree views, code views, and Server-Sent Events (SSE). | `internal/capability`, `internal/graph`, `internal/registry`, `pkg/model` | Must be entirely self-contained with embedded HTML/JS/CSS assets. |
 | `internal/restapi` | The agent tools as plain HTTP and JSON, and the OpenAPI document generated from them. | `internal/mcp` | Must contain **no** tool handlers; every call is forwarded through `mcp.Invoker`. |
-| `internal/portal` | The redesigned portal's embedded assets and its loopback, same-origin and CSP guard. | None (standard library only). | Must not read the index; the page gets every figure from the tool endpoint. |
+| `internal/portal` | The local portal: embedded HTML, JS and CSS assets and its loopback, same-origin and CSP guard. Served by `repocortex ui`. | None (standard library only). | Must not read the index and has no data routes; every figure on a page is a call to the tool endpoint under `/api/v1`. |
 | `internal/cli` | Cobra command definitions, flag parsing, human terminal formatting, and structured JSON output. | All `internal/...` packages. | Should contain **zero** business logic; strictly delegates to `internal/capability` or `internal/pipeline`. |
 
 ---
@@ -124,7 +124,7 @@ A capability is implemented once, in `internal/capability`, and reaches every
 front end through the MCP tool that wraps it.
 
 - **Do not write a second handler.** The REST endpoint (`internal/restapi`), the
-  shell front end (`repocortex tool`) and the new portal (`internal/portal`) call
+  shell front end (`repocortex tool`) and the portal (`internal/portal`) call
   tools through `mcp.Invoker`. A handler written beside them would bound,
   validate or caveat its answer differently within a release.
 - **A new tool needs five things**, and a test fails for each one missing: a

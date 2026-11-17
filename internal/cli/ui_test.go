@@ -92,20 +92,40 @@ func TestUIWithoutAnIndexNamesTheFix(t *testing.T) {
 		t.Fatal("ui started against a directory with no index")
 	}
 	// There is no database to open at all here, so the guidance has to come
-	// from the command. (Once a store exists, the portal itself answers an
-	// unindexed repository with guidance rather than an error — that case is
-	// covered in internal/web.)
+	// from the command.
 	if !strings.Contains(err.Error(), "repocortex init") || !strings.Contains(err.Error(), "repocortex index") {
 		t.Errorf("error does not name the fix: %v", err)
+	}
+}
+
+// The portal has no login, so it is never served beyond this machine, and the
+// flag that let the previous portal write is refused rather than ignored.
+func TestUIRefusesANonLoopbackHostAndTheRemovedRefresh(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	seedIndex(t, dir)
+	for _, args := range [][]string{
+		{"--host", "0.0.0.0", "--port", "0"},
+		{"--host", "192.168.1.9", "--port", "0"},
+		{"--allow-refresh", "--port", "0"},
+	} {
+		if _, err := runUICommand(t, dir, args...); err == nil {
+			t.Errorf("ui %v was accepted", args)
+		}
+	}
+	// The previous portal's other flags still parse, so a script that passed
+	// them does not stop working.
+	if _, err := runUICommand(t, dir, "--next", "--max-nodes", "10", "--print-url"); err != nil {
+		t.Errorf("ui --next --max-nodes --print-url: %v", err)
 	}
 }
 
 // TestUIServesTheReadOnlyPortalOverAnEphemeralPort starts the real command
 // against a real (empty but committed) index and drives it over HTTP.
 //
-// This is the only test that proves the wiring: that the CLI opens the index
-// read-only, builds the capability dependencies the screens need, binds where it
-// says it binds, and answers.
+// This is the only test that proves the wiring: that the CLI opens the index,
+// mounts the tool endpoint behind the page, binds where it says it binds, and
+// answers.
 func TestUIServesTheReadOnlyPortalOverAnEphemeralPort(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -120,35 +140,24 @@ func TestUIServesTheReadOnlyPortalOverAnEphemeralPort(t *testing.T) {
 
 	url := waitForURL(t, buf)
 
-	// Health: the server is up and says what it is.
-	var health map[string]any
-	getJSON(t, url+"api/health", &health)
-	if health["status"] != "ok" {
-		t.Errorf("health status = %v", health["status"])
+	// The page and its assets are served from the binary.
+	if body := getText(t, url); !strings.Contains(body, "<title>RepoCortex") {
+		t.Error("the served page is not the portal")
 	}
-	if health["read_only"] != true {
-		t.Error("the portal does not report itself read-only")
-	}
-	if health["bound_to_local"] != true {
-		t.Error("a default bind must report bound_to_local")
+	if code := statusOf(t, http.MethodPost, url); code != http.StatusMethodNotAllowed {
+		t.Errorf("POST / returned %d, want 405: the portal's pages are read-only", code)
 	}
 
-	// The four screens answer over the wire.
-	for _, path := range []string{"api/overview", "api/graph", "api/blast?symbol=x", "api/governance"} {
-		var m map[string]any
-		getJSON(t, url+path, &m)
-		if m["meta"] == nil {
-			t.Errorf("%s returned no meta block", path)
-		}
+	// The tool endpoint every page reads from answers, and lists the tools.
+	var index map[string]any
+	getJSON(t, url+"api/v1", &index)
+	if index == nil {
+		t.Fatal("the tool endpoint returned nothing")
 	}
-
-	// The shell and its assets are served from the binary.
-	body := getText(t, url)
-	if !strings.Contains(body, "<canvas") {
-		t.Error("the served shell has no canvas")
-	}
-	if code := statusOf(t, http.MethodPost, url+"api/overview"); code != http.StatusMethodNotAllowed {
-		t.Errorf("POST returned %d, want 405: the portal is read-only", code)
+	var tools any
+	getJSON(t, url+"api/v1/tools", &tools)
+	if tools == nil {
+		t.Error("the tool endpoint lists no tools")
 	}
 
 	cancel()

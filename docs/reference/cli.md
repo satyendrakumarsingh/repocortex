@@ -2278,20 +2278,19 @@ repocortex communities --members 20 --min-confidence high
 | `--members N` | Most files to list for each community (default 8; 0 lists none) |
 | `--min-confidence TIER` | Weakest relationship that links two files: `exact`, `high`, `medium` or `low` (default `medium`) |
 
-One community from `repocortex communities --members 3` on this repository:
+Each community from `repocortex communities --members 3` has this shape
+(`<dir>`, `<file>` and the numbers stand for your own):
 
 ```text
-3. internal/web  (35 files)
+3. <dir>  (<N> files)
    NAMED FOR  the directory every member is under
-   ID         internal/web/accuracy.go
-   MOSTLY IN  internal/web (35)
-   INSIDE     467 relationship(s) between members
-   CROSSING   279 relationship(s) with a file outside
+   ID         <first member in path order>
+   MOSTLY IN  <dir> (<N>)
+   INSIDE     <N> relationship(s) between members
+   CROSSING   <N> relationship(s) with a file outside
    MEMBERS, most referenced by the others first
-     internal/web/web.go         220
-     internal/web/confidence.go  85
-     internal/web/omission.go    65
-     ... and 32 more; raise --members to list them
+     <file>  <count>
+     ... and <N> more; raise --members to list them
 ```
 
 A community is named for the directory all its members share, or for its
@@ -2568,58 +2567,42 @@ directory): [sharing one index with a team](../guides/protocols.md#sharing-one-i
 
 ### `ui`
 
-`repocortex ui --next` serves the redesigned portal instead: one page per symbol,
-built on the tool endpoint agents use. Loopback only. See the
+**Answers:** a local, read-only web portal over the index. One page for every
+function, type, file, route and table, and five sections to start from:
+
+- **Home** — the state of the index and how to read an answer.
+- **Explore** — the routes the code exposes and the tables it uses.
+- **Change** — review a branch, or plan a change to one thing.
+- **Health** — how complete the index is, hotspots, unused code and blind spots.
+- **Agents** — how to connect an agent, and what each tool costs in context.
+
+A symbol page has tabs for Callers, Calls, What could break, Tests and Type
+hierarchy; route and table pages follow the same pattern. Every figure is a
+call to the same tool endpoint under `/api/v1` that an agent uses, so a page
+and an agent cannot disagree. Each answer shows "What this answer cannot see"
+and "Ask your agent the same thing", the exact `repocortex tool call ...`
+command that returns it. Confidence reads as a word: proven, very likely,
+uncertain or a guess. There is a Light and Dark theme toggle. See the
 [portal guide](../guides/portal-guide.md).
-
-**Answers:** a local, read-only web portal over the index — 23 screens
-grouped by what you want to know. Index health stands alone above the
-groups; then five groups, named the way a reader would ask the question:
-
-- **Understand the code** — Map of the code (graph explorer), Find a
-  symbol, Shape of the code.
-- **Before you change something** — What could break (blast radius for one
-  symbol), Task brief (the compiled task contract), Check a change (the
-  verify report against that contract), Who knows this code, What changed,
-  Plan a change.
-- **How it runs** — APIs and what they touch (the cross-stack view from a
-  frontend component through the route, handler and tables it reaches),
-  Database tables, Settings and secrets, What actually ran, Events and async,
-  Across repositories.
-- **Quality** — Test coverage, Architecture rules (governance),
-  Dependencies, How accurate is this index, Code blindspots.
-- **For your AI agent** — Connect an agent, Retrieval quality.
-
-Every screen opens with its answer in one plain sentence. Evidence and the
-things the view can't see fold below that sentence, closed by default, and
-`?open=1` on the URL unfolds them all. Confidence reads as a word (proven,
-very likely, uncertain, a guess) with the tier id kept on every field and
-flag underneath. A "What do these words mean?" button opens a glossary for
-the terms that remain.
 
 | Flag | Effect |
 |---|---|
 | `--port N` | port to listen on; `0` picks a free one (default `7777`) |
-| `--host ADDR` | address to bind; anything but loopback exposes your codebase's structure and the command says so |
-| `--max-nodes N` | symbol nodes per graph response; what is excluded is stated, never dropped (default `1500`) |
-| `--allow-refresh` | add the one write route, a POST that rebuilds the index; off by default |
+| `--host ADDR` | loopback address to bind: `127.0.0.1`, `::1` or `localhost`; any other address is refused |
 | `--print-url` | print the URL that would be served and exit |
 
-The portal opens the index read-only and serves only GET routes. Without
-`--allow-refresh` no route that writes is registered at all — read-only is
-enforced by the absence of a route, not by a check inside a handler. With it,
-a refresh must carry a header a cross-site form cannot set, and a foreign
-`Origin` is refused even so.
+`--next` and `--max-nodes` are accepted but do nothing. `--allow-refresh` was
+removed: the portal has no route that writes. Run `repocortex index` or keep
+`repocortex watch` running to refresh the index.
+
+The portal opens the index read-only and registers no route that writes.
 
 It binds to `127.0.0.1` and refuses requests whose `Host` is not a loopback
 address, because a page on the public internet can otherwise point your own
-browser at `localhost:7777` and read the structure of your code. Everything is
-served from the binary: no npm, no build step, no CDN, and a Content-Security-
-Policy that forbids loading from any other origin, so it works offline.
-
-Confidence is the visual language of every screen: a compiler-proven edge is
-drawn solid with a tick, a `medium` edge dashed, and `low` edges are off by
-default with the count of what that hides stated in every response.
+browser at `localhost:7777` and read the structure of your code. It also
+refuses cross-origin requests. Everything is served from the binary: no npm, no
+build step, no CDN, and a Content-Security-Policy that forbids loading from any
+other origin, so it works offline.
 
 ```
 $ repocortex ui --print-url

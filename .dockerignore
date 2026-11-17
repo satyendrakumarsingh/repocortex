@@ -12,7 +12,6 @@ tests
 packaging
 script
 scripts
-internal/web/e2e
 **/node_modules
 **/*_test.go
 **/testdata

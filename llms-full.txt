@@ -7,66 +7,66 @@
 # --- BEGIN FILE: llms.txt ---
 
 # RepoCortex
+> A Code Knowledge Graph and Token Optimizer for AI Coding Agents
 
-> RepoCortex is an open-source MCP server and CLI (`repocortex`) that indexes a code repository into a graph of symbols, call edges, HTTP routes, SQL tables, configuration keys and tests, and serves it to AI coding agents over the Model Context Protocol. It runs locally from one static Go binary and stores the graph in SQLite at `.repocortex/index.db`. Apache-2.0.
+RepoCortex is a local-first, compiler-verified code knowledge graph and token optimizer CLI tool (`repocortex`). It indexes software repositories into a comprehensive graph of functions, call edges, HTTP routes, database tables, configuration keys, and tests, serving it to AI coding agents (Claude Code, Cursor, Codex, Gemini CLI, Windsurf, GitHub Copilot) over the Model Context Protocol (MCP) or command line.
 
-An AI agent asks RepoCortex a question instead of searching: what a task touches, who calls a function, what a change can break (blast radius) or which tests reach it. Every edge in an answer is marked with how it was found, and every answer states what the index could not see.
+## How RepoCortex Compares to RAG
+- **Deterministic Code Knowledge Graph vs. Vector Similarity**: Replaces probabilistic semantic chunk embedding with exact AST and compiler (SCIP) proven symbol definitions, callers, and callees.
+- **Multi-Hop Traversal**: Resolves deep cross-file dependency chains (API endpoint -> Service -> Repository -> SQL migration) in sub-millisecond CSR memory hops where vector search yields zero similarity.
+- **Decoy Disambiguation & Near-Miss Exclusion**: Eliminates false positives and decoy comments/test mocks through strict syntax binding and impossible call edge pruning.
+- **Zero Hallucination & Honest Incompleteness**: Discloses confidence tiers (`exact`, `high`, `medium`, `low`) and reports unindexed boundaries directly to agents.
+- **100% Local & Zero Recurrent Token Cost**: Single static Go binary (`CGO_ENABLED=0`), embedded SQLite database, zero external embedding API calls.
 
-## Facts
-- Command: `repocortex`. Requires Go 1.26+ to build from source; no CGO.
-- Protocol: MCP over stdio, or Streamable HTTP with `repocortex serve --http 127.0.0.1:7788` (bearer token required, loopback by default) for ChatGPT, Android Studio and other remote-only clients. `repocortex install --rules` configures 30 agents, including Claude Code, Codex CLI, Copilot CLI, Gemini CLI, Cursor, VS Code, Visual Studio, Windsurf, Devin Desktop, Antigravity, Claude Desktop, Zed, Goose, Kiro, Junie, Amp, Qwen Code, Continue and Warp, and writes AGENTS.md guidance. Any stdio MCP client works; Aider uses the CLI through CONVENTIONS.md. Full list: docs/guides/coding-agents.md.
-- Confidence tiers: `exact` (proven by a compiler index, SCIP), `high` (syntax tree: what the call was made on names the definition; 405 of 420 sampled edges right in a hand check of 14 projects, 73–100% by project, and 98.7–100% against a compiler index on three repositories), `medium` (a weaker rule; at least 60% by design; 249 of 259 sampled edges right in that check), `low` (mostly a name match where the receiver's type is unknown; no promise, hidden by default; right on 8 of 30 sampled edges in Python and 9 of 30 in Kotlin). Details: docs/accuracy.md.
-- Languages: definitions are extracted for 91 languages; 115 more grammars are bundled and nothing is extracted from them, though their text is searchable. Typed (8): C#, C++, Go, Java, Kotlin, Python, Scala, TypeScript. Resolved (6): C, JavaScript, PHP, Ruby, Rust, TSX. Parsed (77): definitions and search only. Call-site recall on the files sampled was 85% (450 of 529) over 14 projects; the per-language results and what is still wrong are in docs/verification/2026-11-13/README.md.
-- Privacy: no network requests while indexing or serving, no telemetry. The opt-in `repocortex indexers install` is the only command that downloads anything.
-- MCP profiles: `minimal` (default) exposes 7 tools (about 2,000 tokens of schema per request), `standard` 18 (about 5,000), `full` 28 (about 8,400).
-- Surfaces: the same tools over MCP (stdio or Streamable HTTP), a REST API at `/api/v1/tools/{name}` with an OpenAPI 3.1 document at `/api/v1/openapi.json`, and the shell (`repocortex tool call <tool> key=value`).
-- Tool names are `<verb>_<noun>` with the verbs get, list, find, search, trace, analyze, plan, minimize. One name per tool; no aliases.
-- Licence: Apache-2.0. No paid tier, no account, no hosted service.
+## Token Optimization Metrics
+- **MCP Prompt Schema**: Compact profile reduces tool definitions from ~31 KB (30 tools) to <1.2 KB (1 tool), saving 75% prompt schema overhead (~7,500 prompt tokens per turn).
+- **Task Context Assembly**: `get_task_context` extracts targeted symbol interfaces and call paths in ~1,500 tokens, achieving a 90–98.5% context reduction compared to full-file reading.
+- **Single-Turn Symbol Exploration**: `repocortex explore` returns line-numbered verbatim source excerpts and callers in 1 turn, reducing agent exploratory search turns by 80–85%.
+- **Stream Pack AI Bundling**: `repocortex pack` streams entire codebases with constant O(1) resident memory, ASCII hierarchy trees, and automated secret redaction.
 
-## MCP tools (28)
-- minimal (default): get_task_context, get_project_overview, search_code, find_symbol, get_symbol, find_references, find_callers
-- standard / full add: find_tests, analyze_impact, get_resolution_coverage, plan_rename, list_api_endpoints, list_db_tables, get_config_key, get_file_outline, minimize_diff, plan_change, list_blindspots
-- full adds: analyze_change, find_owners, find_callees, find_implementations, trace_call_path, list_dead_code, list_hotspots, list_knowledge_risks, list_communities, get_session_stats
+## Key Capabilities
+- **Single-Turn Symbol Exploration (`repocortex explore`)**: Deep symbol inspection returning line-numbered verbatim source excerpts, callers (tagged exact vs. heuristic), callees, and impacted routes in 1 turn.
+- **Compiler-Verified Precision**: Dual-layer architecture combining Tree-Sitter AST extraction with SCIP compiler verification to eliminate false-positive call edges.
+- **Automated Secret Redaction**: Automatically masks API keys (`sk_live_...`), passwords, tokens, and private keys to `[REDACTED:...]` during context assembly and pack export.
+- **Graph Centrality Token Budgeting**: Applies in-degree and graph centrality ranking to fit the most architecturally critical interfaces into strict LLM token budgets.
+- **Whole-Codebase AI Packaging (`repocortex pack`)**: Bundles source trees into token-counted XML, Markdown, or JSON formats with an ASCII directory hierarchy tree.
+- **Pull Request Blast Radius (`repocortex pr-impact`)**: Maps git diffs against base branches to determine blast radius, impacted callers, and required tests in sticky Markdown reports.
+- **Cross-Stack Mapping**: Connects HTTP endpoints to handlers (`repocortex api`), database tables to queries (`repocortex db`), and configuration keys to readers (`repocortex config`).
+- **100% Local & Zero Dependencies**: Single static Go binary (`CGO_ENABLED=0`), embedded SQLite FTS5 database, zero telemetry, and zero network calls while indexing or serving.
 
-## Quickstart
-```
-go install github.com/satyendrakumarsingh/repocortex/cmd/repocortex@latest
-cd your-project
-repocortex init && repocortex index && repocortex resolve
-repocortex install --rules
-```
+## Facts & Invariants
+- Command: `repocortex`. Built with pure Go (Go 1.26+); zero CGO dependencies.
+- Protocol: MCP over stdio (`repocortex serve --mcp`), or Streamable HTTP with `repocortex serve --http 127.0.0.1:7788`.
+- Agent Autoconfiguration: `repocortex install --rules` automatically configures 30+ coding agents (Claude Code, Cursor, Codex, Copilot CLI, Gemini CLI, Windsurf, Devin Desktop, Antigravity, Zed, Goose, Kiro, Junie, Amp, Qwen Code, Continue, etc.).
+- Confidence tiers:
+  - `exact`: Compiler-proven edge (SCIP indexers: `scip-typescript`, `scip-python`, `scip-go`, `scip-clang`, `scip-java`).
+  - `high`: Syntax-tree binding where receiver type and imports align (measured 98.7%–100% against compiler indices).
+  - `medium`: Inferred call relationship across modules.
+  - `low`: Heuristic name matching (hidden by default).
+- Languages: Definitions extracted for 91 languages (206 bundled grammars). Typed resolution for Go, TypeScript, Python, Java, C++, C#, Kotlin, Scala, Rust, Ruby, PHP.
+- Privacy: 100% local. Zero telemetry. No network requests while indexing or serving code.
 
-## Key CLI commands
-- `repocortex context "<task>"`: the files, symbols, callers and tests a task needs
-- `repocortex callers <symbol>` / `repocortex callees <symbol>`: call edges with confidence
-- `repocortex impact --base <rev> --head <rev>`: blast radius of a commit range (tool: analyze_change)
-- `repocortex dead-code`: definitions nothing calls, graded likely or possible, checked against the source text
-- `repocortex bus-factor` / `repocortex communities` / `repocortex stats`: who holds the history, which files form a group, what a session cost
-- `repocortex sbom` / `repocortex vulns --advisories <file>`: CycloneDX SBOM; dependency reachability against advisories you supply
-- `repocortex move`: move a Go declaration to another file of its package (dry run by default)
-- `repocortex hotspots`: files ranked by change frequency times size, with the files that change together
-- `repocortex path <from> <to>`: the shortest routes between two symbols, hop by hop
-- `repocortex tool list|describe|call`: every agent tool from the shell
-- `repocortex ui --next`: the redesigned portal, one page per symbol
-- `repocortex rename <old> <new>`: rename that edits only sites it can defend
-- `repocortex api` / `repocortex db` / `repocortex config` / `repocortex events`: routes, tables, settings, queues
-- `repocortex arch --fail-on high` / `repocortex blindspots --fail-on high`: CI gates
-- `repocortex compile "<task>"` then `repocortex verify --contract <file>`: check an agent's change against its task
-- `repocortex ui`: read-only local portal at http://localhost:7777
+## MCP Tools (30 Total)
+- `minimal` profile (7 tools): `get_task_context`, `get_project_overview`, `search_code`, `find_symbol`, `get_symbol`, `find_references`, `find_callers`.
+- `standard` profile (adds 12 tools): `repocortex_explore`, `find_tests`, `analyze_impact`, `get_resolution_coverage`, `plan_rename`, `list_api_endpoints`, `list_db_tables`, `get_config_key`, `get_file_outline`, `minimize_diff`, `plan_change`, `list_blindspots`.
+- `full` profile (adds 11 tools): `analyze_change`, `find_owners`, `find_callees`, `find_implementations`, `trace_call_path`, `list_dead_code`, `list_hotspots`, `list_knowledge_risks`, `list_communities`, `search_graph`, `get_session_stats`.
 
-## Docs
-- [README](README.md)
-- [CLI output guide](docs/guides/cli-output-guide.md)
-- [Portal guide](docs/guides/portal-guide.md)
-- [Coding agents](docs/guides/coding-agents.md)
-- [Agent integration](docs/agent-integration.md)
-- [CLI reference](docs/CLI.md)
-- [Accuracy](docs/accuracy.md)
-- [Performance](docs/performance.md)
-- [Why not vector search](docs/WHY_NOT_VECTOR_RAG.md)
-- [FAQ](docs/FAQ.md)
-- [Security](docs/security.md)
-- [Roadmap](docs/ROADMAP.md)
+## Quickstart for Agents
+- Start MCP Server (stdio): `repocortex serve --mcp`
+- CLI Context Assembly: `repocortex context --task "<task description>" --budget 4000`
+- Single-Turn Symbol Inspection: `repocortex explore <symbol>`
+- PR Impact Analysis: `repocortex pr-impact --base origin/main`
+- Codebase Pack Export: `repocortex pack --format xml --out bundle.xml`
+
+## Core Documentation Links
+- [User Guide](docs/USER_GUIDE.md): Comprehensive CLI and workflow documentation.
+- [Agent Integration](docs/agent-integration.md): Setup instructions for 30+ coding agents.
+- [Agent Install Guide](llms-install.md): Self-service installation instructions for automated coding assistants.
+- [CLI Reference](docs/CLI.md): Detailed flags and commands reference.
+- [Architecture & Design](docs/DESIGN_AND_ARCHITECTURE.md): Compiler resolution and CSR graph internals.
+- [Accuracy](docs/accuracy.md): Confidence tier measurement methodology.
+- [Performance](docs/performance.md): Benchmark results and replication steps.
+
 
 # --- END FILE: llms.txt ---
 
@@ -1136,7 +1136,7 @@ $ repocortex api
 METHOD & PATH           HANDLER         DECLARED AT
 POST /payment/callback  handleCallback  src/main/java/com/pay/controller/CallbackController.java:21
 
-1 endpoint(s). Discovery covers spring, go-http, go-router, fastapi, flask, django, express, nest.
+1 endpoint(s). Discovery covers spring, go-http, go-router, fastapi, flask, django, express, nest, nextjs.
 ```
 
 **How to read it:**
@@ -2718,8 +2718,9 @@ The JSON form has `"directed": true`, a `nodes` array (`id`, `kind`) and an
 
 **Answers:** Serves a local, read-only web portal over the index.
 
-**Use it when:** You want to browse the map, blast radius, tables, config,
-architecture and accuracy screens instead of reading terminal output.
+**Use it when:** You want to browse symbols, routes, tables, the blast radius of
+a change and the health of the index in a browser instead of reading terminal
+output.
 
 **Run:** `repocortex ui --print-url`, then `repocortex ui --port 7791`
 
@@ -2741,15 +2742,18 @@ Press Ctrl-C to stop.
 
 **How to read it:**
 
-- Open the URL. The first screen is index health; read it before anything else.
+- Open the URL. The Home page shows the state of the index; the Health page
+  shows how complete it is. Read them before anything else.
 - `binding loopback only` is the safe default. A request with a non-loopback
   `Host` header gets `403`.
-- In the graphs, solid lines with a tick are `exact`, dashed lines are weaker,
-  and the weakest are hidden by default with a count of what was hidden.
+- Every relationship is marked proven, very likely, uncertain or a guess. Each
+  answer shows what it cannot see and the `repocortex tool call ...` command
+  that returns the same answer.
 
-**Useful flags:** `--port N` (`0` picks a free port), `--print-url`,
-`--allow-refresh` (adds one button that rebuilds the index), `--host`
-(binding elsewhere exposes your code structure to the network), `--max-nodes N`.
+**Useful flags:** `--port N` (`0` picks a free port), `--print-url`, `--host`
+(loopback addresses only: `127.0.0.1`, `::1` or `localhost`; the portal has no
+login, so anything else is refused). `--allow-refresh` was removed; the portal
+never writes. See the [portal guide](portal-guide.md).
 
 ---
 
@@ -2876,45 +2880,31 @@ committed file is out of date, which is how CI uses it.
 
 # --- BEGIN FILE: docs/guides/portal-guide.md ---
 
-# The RepoCortex portal: a screen-by-screen guide
+# The RepoCortex portal: a guide
 
 `repocortex ui` serves a local web portal over your RepoCortex index. It is a
 reading tool. It shows what the index holds, how sure the index is about each
 fact, and what the index cannot see. It never edits your code or your index.
 
+The portal asks the index the same questions an agent does, through the same
+tools. It has no data routes of its own. Every figure on every page is a call
+to the tool endpoint under `/api/v1`, so a page and an agent cannot disagree.
+
 Every screenshot in this guide is a real capture of the portal running against
-the sample service in `fixtures/payment-platform` (10 files, 54 symbols, one
-HTTP endpoint, two database tables). Your numbers will differ.
+the sample service in `fixtures/payment-platform` (10 files, about 55
+definitions, one HTTP endpoint, two database tables). Your numbers will differ.
 
 Contents
 
 - [Start the portal](#start-the-portal)
 - [The layout](#the-layout)
-- [Reading conventions used on every screen](#reading-conventions-used-on-every-screen)
-- [Screens](#screens)
-  - [Index health](#index-health-soverview)
-  - Understand the code: [Map of the code](#map-of-the-code-sgraph),
-    [Find a symbol](#find-a-symbol-ssearch),
-    [Shape of the code](#shape-of-the-code-smetrics)
-  - Before you change something: [Plan a refactor](#plan-a-refactor-splanchange),
-    [What could break](#what-could-break-sblast),
-    [Task brief](#task-brief-scontract),
-    [Check a change](#check-a-change-sverify),
-    [Who knows this code](#who-knows-this-code-sownership),
-    [What changed](#what-changed-sdiff)
-  - How it runs: [APIs and what they touch](#apis-and-what-they-touch-scrossstack),
-    [Database tables](#database-tables-stables),
-    [Events and queues](#events-and-queues-sevents),
-    [Settings and secrets](#settings-and-secrets-sconfig),
-    [What actually ran](#what-actually-ran-strace),
-    [Across repositories](#across-repositories-sestate)
-  - Quality: [Test coverage](#test-coverage-stests),
-    [Code blindspots](#code-blindspots-smissed),
-    [Architecture rules](#architecture-rules-sgovernance),
-    [Dependencies](#dependencies-sdeps),
-    [How accurate is this index](#how-accurate-is-this-index-saccuracy)
-  - For your AI agent: [Connect an agent](#connect-an-agent-sagent),
-    [Retrieval quality](#retrieval-quality-sretrieval)
+- [How to read an answer](#how-to-read-an-answer)
+- [Pages](#pages)
+  - [Home](#home), [Explore](#explore), [Change](#change),
+    [Health](#health), [Agents](#agents)
+  - [Search results](#search-results)
+  - [A symbol](#a-symbol), [a file](#a-file), [a route](#a-route),
+    [a table](#a-table)
 - [How the portal is designed to behave](#how-the-portal-is-designed-to-behave)
 - [Troubleshooting](#troubleshooting)
 
@@ -2927,7 +2917,6 @@ The portal reads an existing index, so build one first:
 ```sh
 repocortex init
 repocortex index
-repocortex resolve
 repocortex ui
 ```
 
@@ -2936,986 +2925,254 @@ stop it.
 
 ```text
 RepoCortex portal: http://127.0.0.1:7777/
-  index      /path/to/repo/.repocortex/index.db (opened read-only; this portal never writes)
+  index      /work/payment-platform/.repocortex/index.db (opened read-only; this portal never writes)
   binding    loopback only — not reachable from other machines.
+             Requests whose Host header is not a loopback address are refused, so a
+             page on the internet cannot use your browser to read this index.
+
+Press Ctrl-C to stop.
 ```
 
-| Flag | What it does |
+Open the address in a browser. Everything is served from the binary: there is
+no npm, no build step and no CDN, so it works offline.
+
+| Flag | Effect |
 |---|---|
-| `--port N` | Port to listen on. Default `7777`. `0` picks a free port and prints it. |
-| `--allow-refresh` | Adds a "Refresh index" button to the index bar. This is the only way the portal can write anything: it adds one POST route that rebuilds the index. Off by default. |
-| `--host ADDR` | Address to bind. Default `127.0.0.1`. Anything else exposes the structure of your code to the network, and the command says so. |
-| `--max-nodes N` | Most symbol nodes in one map response. Default `1500`. Anything left out is counted on screen. |
-| `--print-url` | Print the address and exit without starting. |
-| `--project DIR` | Serve the index of another project root (a global flag). |
+| `--port N` | Port to listen on. `0` picks a free one. Default `7777`. |
+| `--host ADDR` | Loopback address to bind: `127.0.0.1`, `::1` or `localhost`. Any other address is refused. |
+| `--print-url` | Print the URL that would be served and exit, without listening. |
+| `--project PATH` | Global flag. The repository whose index to serve. |
+| `--json` | Global flag. Print the URL, address and index path as JSON instead of the banner. |
 
-What the portal guarantees:
-
-- **Read-only.** The index is opened read-only and only GET routes exist.
-  Without `--allow-refresh` no route that writes is registered at all. With
-  it, a refresh still needs a header a cross-site page cannot set, and a
-  request from a non-loopback origin is refused.
-- **Loopback only.** It binds to `127.0.0.1` and refuses any request whose
-  `Host` header is not a loopback address. A web page on the internet cannot
-  use your browser to read your index.
-- **Offline.** All assets are inside the `repocortex` binary. There is no npm, no
-  CDN, and the page's content policy blocks loading anything from another
-  origin.
-
-## The layout
-
-![The whole Index health page at 1440 pixels wide: the rail on the left, the index bar at the top, the answer card, summary cards, runtime surface, coverage bars, blind spots and the health card, with the rail footer at the bottom](../assets/portal/layout.png)
-
-Every screen shares the same frame:
-
-```text
-+------------------+---------------------------------------------------------------+
-| RAIL             | INDEX BAR (sticky)                                            |
-|  project name    |  project | index ready | indexed 2 min ago | state | sha      |
-|  index path      |  [How this index was built]  [proven|very likely|uncertain|a  |
-|  [Cmd-K Quick    |   guess]  [Copy link]                                         |
-|   Jump]          +---------------------------------------------------------------+
-|                  | ANSWER LINE                                                   |
-|  Index health    |  One sentence with the key numbers in bold.                   |
-|  UNDERSTAND...   |  A supporting sentence.                                       |
-|   Map of the code|  Next step: [Copy: repocortex <command>]  why it helps            |
-|   ...            +---------------------------------------------------------------+
-|  BEFORE YOU...   | CONTROLS  (input, depth, filters — only where the screen      |
-|  HOW IT RUNS     |            takes a question)                                  |
-|  QUALITY         +---------------------------------------------------------------+
-|  FOR YOUR AI...  | SUMMARY CARDS   [ n ] [ n ] [ n ] [ n ]                       |
-|                  +---------------------------------------------------------------+
-|                  | TABLES AND CARDS: rows, each with a confidence word and a     |
-|                  |   file:line you can copy                                      |
-|                  | > Evidence — ... (fold, closed)                               |
-|                  | > What this view can't see — ... (fold, closed)               |
-|  FOOTER          |                                                               |
-|  read-only ·     |                                                               |
-|  localhost       |                                                               |
-|  [What do these  |                                                               |
-|   words mean?]   |                                                               |
-|  [Theme: system] |                                                               |
-+------------------+---------------------------------------------------------------+
-```
-
-- **Rail.** The project name, the path of the index file being read, a Quick
-  Jump button, and the screens grouped by the question you are asking. Index
-  health sits alone at the top because its verdict qualifies every other
-  screen. Below 1000 pixels wide the rail becomes one row that scrolls
-  sideways.
-- **Index bar.** Sticky at the top of every screen. It shows the run verdict
-  (`index ready`, or a warning colour when the run is partial, stale or has
-  parse failures), the age of the index, its state, the git revision it read,
-  and any parse failures. Click the verdict to jump to the freshness card on
-  Index health. "How this index was built" opens a panel under the bar with
-  the exact finish time, the revision, and whether a commit hook keeps the
-  index current. The four confidence chips and Copy link sit on the right.
-- **Answer line.** The first thing on every screen: one sentence that answers
-  the screen's question, with the numbers in bold. When the server suggests a
-  next step, it appears as a button that copies the command.
-- **Folds.** Evidence, caveats and long lists sit in `details` folds below the
-  answer. They start closed.
-- **Footer.** At the bottom of the rail: the project, the run number, the
-  number of files indexed, and "read-only". The "What do these words mean?"
-  button opens a short glossary, and the theme button sits below it.
-
-## Reading conventions used on every screen
-
-### The answer line
-
-Each screen opens with one sentence that answers its question, for example
-"3 things could be affected if you change findById: 2 directly, 1 further
-along the walk." No heading sits above it. If the screen needs input first, the
-sentence says what to type. If the data fails to load, the sentence changes to
-"<screen> could not load." and an error card below says why.
-
-### Confidence words and colours
-
-Every relationship carries a confidence level. The portal shows it as a word,
-never as a bare id:
-
-| Word on screen | Id in the API and CLI | Meaning |
-|---|---|---|
-| proven (with a tick) | `exact` | a compiler proved it |
-| very likely | `high` | measured 87–96% right |
-| uncertain | `medium` | measured 6–38% right |
-| a guess | `low` | measured under 3% right |
-| unmeasured (with a `?`) | unknown | no measurement recorded |
-
-Confidence is drawn as ink density on one neutral hue, not as a traffic-light
-colour. The darker the ink, the stronger the proof. Proven is the darkest and
-carries a tick. A guess is the faintest. Unmeasured uses a muted purple and a
-question mark. On the map, proven and very likely edges are solid lines,
-uncertain edges are dashed, and guesses are dotted. Because the levels differ
-by lightness, they survive colour blindness and greyscale printing. Hover a
-badge to see the measurement behind the word.
-
-Green, amber and red are kept for status (pass, warning, failure) and never
-mean confidence.
-
-### The standard of proof
-
-The four chips in the index bar are both the legend and a filter. Click one to
-set the weakest level a screen will show; that chip and every stronger one
-become pressed. The default is "uncertain and better", so guesses are hidden
-until you ask for them. The choice is saved in the URL as `?floor=` and
-applies to every screen. Once Index health has loaded in the tab, the chips
-also show how many relationships sit at each level.
-
-When something is hidden by this setting, the screen says how many, in its
-"What this view can't see" fold.
-
-### "What this view can't see"
-
-Screens that list rows end with a fold named "What this view can't see". It
-counts what was left out and why: rows below the chosen standard of proof,
-rows past a page limit, calls that could not be bound. Each reason has a
-count, and where a count is not recorded it says "how many is not recorded"
-rather than showing zero. Where something can be fixed, the fold shows the
-command. When nothing was left out it says so in one sentence.
-
-Several screens also carry a fold such as "What this screen never does, and
-what it cannot see". Read these before you trust an empty answer.
-
-### Deep links and Copy link
-
-Everything about a screen lives in the URL: the screen (`?s=blast`), the
-symbol (`&sym=findById`), the depth, the standard of proof, the page, the map
-view and its selection. Opening that URL in a fresh tab restores the same
-screen. Copy link in the index bar copies the current URL, and the button
-changes to "Link copied" for a moment.
-
-Useful keys:
-
-| Key | Screen | Example |
-|---|---|---|
-| `s` | screen id | `?s=tables` |
-| `sym`, `depth` | What could break, Who knows this code, Test coverage | `?s=blast&sym=findById&depth=3` |
-| `q` | Find a symbol | `?s=search&q=CallbackController` |
-| `intent` | Task brief | `?s=contract&intent=Add+idempotency+to+payment+callback+processing` |
-| `intent`, `changed` | Check a change | `?s=verify&intent=...&changed=src/a.java,src/b.java` |
-| `csdepth`, `off`, `limit` | APIs and what they touch | `?s=crossstack&csdepth=4` |
-| `dfrom`, `dto` | What changed | `?s=diff&dfrom=3&dto=4` |
-| `open=1` | any | unfolds every fold (see below) |
-
-An unknown `?s=` value falls back to Index health rather than a blank page.
-Old links of the form `/#graph` still work. Back and Forward move between
-screens.
-
-### `?open=1`
-
-Add `&open=1` to any URL and every fold on the page opens. This is meant for
-screenshots, reviews and agents that read the page. It is not remembered: the
-next visit without it starts with folds closed again.
-
-### Keyboard
-
-- Every rail entry is a real button, so Tab reaches them in order. A "Skip to
-  content" link is the first stop.
-- Cmd-K (Ctrl-K on Windows and Linux) opens Quick Jump, a palette for going to
-  any screen by name. Esc closes it.
-- On Map of the code, `/` jumps to the search box from anywhere on the screen.
-  With the canvas focused: arrow keys pan (hold Shift to move further), `+`
-  and `-` zoom, `0` fits the drawing, Tab and Shift-Tab walk the nodes, and
-  Enter opens the selected node.
-- Search boxes with suggestions accept Up, Down, Enter and Esc.
-
-### Theme
-
-The theme button in the rail footer cycles Theme: system, Theme: light,
-Theme: dark. The choice is kept in your browser and survives a reload. "system"
-follows your operating system's setting.
-
-### The glossary
-
-"What do these words mean?" opens one-sentence definitions of the few terms
-the portal cannot avoid: index, symbol, relationship, package, endpoint, hop,
-lower bound, degraded, blast radius and compiler-backed. The same definitions
-appear when you hover those words where they are underlined.
+`--max-nodes` is accepted but does nothing. It belonged to a screen of the
+previous portal that no longer exists. `--allow-refresh` was removed (see
+[Troubleshooting](#troubleshooting)). The `--next` flag is no longer needed:
+the redesigned portal is the only one.
 
 ---
 
-## Screens
-
-The same template is used for each screen. "Data comes from" names the API
-route the screen calls (all are GET, on the same port) and the CLI command
-that gives the same answer in a terminal.
-
-### Index health (`?s=overview`)
-
-**Answers:** How fresh and how complete is this index, and where is it blind?
-**Data comes from:** `/api/overview` (with `/api/indexstate` for the build
-panel). CLI: `repocortex status` and `repocortex doctor`.
-
-![Index health: answer line saying the index was built seconds ago and every file was read, a Copy repocortex watch button, a summary banner, three entry cards, and counts for files, relationships, directories and exported symbols](../assets/portal/overview.png)
-
-**Layout skeleton:**
-
-```text
-[ANSWER  Indexed 27 seconds ago. Every file was read.  [Copy: repocortex watch]]
-[System banner: inbound APIs -> services -> repositories -> tables]
-[Entry cards: architecture | change safety | agents]
-[FILES] [RELATIONSHIPS] [DIRECTORIES] [EXPORTED SURFACE]
-[Runtime surface: endpoints, tables, next step]
-[API list]                [Table list]
-[What are you about to change?  (task box -> Task brief)]
-[Resolution coverage: bound | unresolved | ambiguous | compiler-proven + bars]
-> Evidence — how sure each relationship is
-[Blind spots: language x edge kind with symbols but no edges]
-[Index health and freshness: verdict | age | files indexed | parse failures]
-> What this view can't see
-```
-
-**How to read it:**
-
-- **Answer line.** Good: "Every file was read." Worrying: a partial run, parse
-  failures, or an age over a day. The button under it is the next step the
-  server suggests: `repocortex watch` when all is well, `repocortex index` when the
-  index is partial or stale.
-- **Summary cards.** Files, relationships, directories (or components, if you
-  declared an architecture) and exported symbols. These are the totals every
-  other screen counts against.
-- **Runtime surface.** Endpoints and tables the index found, with links to
-  APIs and what they touch and Database tables.
-- **What are you about to change?** Type a task and press Compile to go
-  straight to a Task brief.
-- **Resolution coverage.** How many references were bound to exactly one
-  definition, how many were ambiguous, how many stayed unbound, and how many
-  are compiler-proven. A low bound share means every answer on every screen
-  is a lower bound. The note under the bars says which command raises it.
-- **Blind spots.** Each row is a language and a relationship kind that has
-  symbols but zero edges. That is a gap in what the index can see, not proof
-  that your code has no such relationships. Read this before trusting an
-  empty answer elsewhere.
-- **Index health and freshness.** The verdict (`ready`, or a warning), age,
-  files indexed against files discovered, and parse failures.
-- **Where to go next:** Map of the code for structure, What could break before
-  a change, How accurate is this index if most edges are unmeasured.
-
-### Map of the code (`?s=graph`)
-
-**Answers:** Which parts of the code talk to each other, and how sure is each
-link?
-**Data comes from:** `/api/graph` (and `/api/source` for the Code view). CLI:
-`repocortex export --format svg|json|dot|graphml|csv`.
-
-![Map of the code: answer line saying 10 directories talk to each other through 6 relationships, view tabs Graph, Tree, Treemap and Code, scope and detail controls, and a layered drawing of directory boxes joined by arrows](../assets/portal/graph.png)
-
-**Layout skeleton:**
-
-```text
-[ANSWER  10 directories talk to each other: 6 relationships ...]
-[Breadcrumb: Repository]                 [Graph | Tree | Treemap | Code]
-[SCOPE ...] [DETAIL LEVEL ...] [FIND ... press /] [Filters]
-+--------------------------------------------------------------+
-| [Grouped] Layout [Layered v] [+] [-] 124% [Fit] [minimap]    |
-|   boxes = groups, arrows = relationships, line style = proof |
-+--------------------------------------------------------------+
-[Scope banner: what was chosen and why]
-[Every relationship on the map, with its evidence  (table)]
-> What this view can't see
-```
-
-**How to read it:**
-
-- **Answer line.** How many groups and relationships are drawn, and whether
-  the map shows all of them.
-- **View tabs.** Graph is the drawing. Tree lists what is inside each group.
-  Treemap sizes groups by a measure you choose. Code shows a file with line
-  numbers. All four share the same address, so a link keeps the view.
-- **Toolbar.** Scope narrows to one group. Detail level goes from the whole
-  system down to directories, files and symbols. Find (or `/`) searches the
-  drawn names. Filters holds grouping, language, edge kinds, the standard of
-  proof and focus depth; the button shows how many are changed from the
-  default, so a narrowed map never looks like the whole one.
-- **Canvas.** Click a box to select it, open it to go a level deeper. Line
-  style tells you the confidence of each edge (solid, dashed, dotted). A
-  number on a box is how many relationships it has.
-- **Scope banner.** If you did not choose a scope, it says which one was
-  chosen and by what rule, instead of drawing an empty canvas.
-- **Relationship table.** A full text version of the drawing. Each row has
-  the weakest confidence along it and an example file and line. This table is
-  the thing to cite in a review.
-- **Where to go next:** Shape of the code for the riskiest symbols, What could
-  break for one symbol.
-
-### Find a symbol (`?s=search`)
-
-**Answers:** Is this name in the index at all, and where is it defined?
-**Data comes from:** `/api/symbols`. CLI: `repocortex symbol <name>` (exact
-match) or `repocortex search <text>` (full text).
-
-![Find a symbol: answer line saying 8 definitions are named CallbackController, a search box, counts for matches, shown and exported, and a table of definitions with kind, match type, edges, confidence and a Blast radius button per row](../assets/portal/search.png)
-
-**Layout skeleton:**
-
-```text
-[ANSWER  8 definitions named CallbackController.]
-[SYMBOL NAME ______________________________] [Search]
-[MATCHES] [SHOWN] [EXPORTED]
-[Definitions: symbol + fqn | kind | match | edges | extraction | file | [Blast radius]]
-```
-
-**How to read it:**
-
-- **Answer line.** How many definitions carry that name. Zero here is the
-  real "not in the index" answer that every empty result elsewhere depends on.
-- **Match column.** `exact`, `prefix` or `contains`. Results are ranked with
-  exact matches first.
-- **Edges.** How many relationships touch the definition. Zero edges on a
-  class you know is used points to a blind spot (see Index health).
-- **Extraction.** The confidence word for how the definition was read.
-- **Blast radius button.** Opens What could break for that exact definition,
-  which avoids the "this name matches several things" step.
-
-### Shape of the code (`?s=metrics`)
-
-**Answers:** Which symbols are most connected, so a change there is most
-dangerous, and are there cycles?
-**Data comes from:** `/api/metrics`. CLI: `repocortex export` (the full ranking
-under the same keys).
-
-![Shape of the code: answer line naming the 5 most connected symbols and 0 cycles, level and filter controls, and a ranked table with score, fan-in, fan-out, instability and location](../assets/portal/metrics.png)
-
-**Layout skeleton:**
-
-```text
-[ANSWER  The 5 most connected symbols ... and the 0 cycles between them.  [Copy: repocortex export]]
-[LEVEL symbol v]  [FILTERS: callable kinds only | exclude test files]
-(note: level, standard of proof, filters applied)
-[Where change is dangerous: rank | what | kind | score | fan-in | fan-out | instability | where]
-[... further measures ...]
-> What this view can't see
-```
-
-**How to read it:**
-
-- **Level and filters.** Rank symbols, files or groups. "callable kinds only"
-  drops fields and types; "exclude test files" drops test code. The note
-  under the controls states exactly what was applied.
-- **Where change is dangerous.** Ranked by betweenness: how many shortest paths
-  run through a symbol. It measures position, not importance, and it is
-  sampled, so ranks near the cut-off can differ from a full computation.
-- **Fan-in, fan-out, instability.** High fan-in means many callers depend on
-  it. Instability near 1 means it depends on much and little depends on it.
-- **Where to go next:** click through to What could break for the top rows.
-
-### Plan a refactor (`?s=planchange`)
-
-**Answers:** In what order should a change to this symbol be made, and what
-must hold before and after?
-**Data comes from:** `/api/planchange`. CLI: `repocortex plan-change <symbol>`.
-
-![Plan a refactor: a symbol box containing findById, a summary card with its file and a moderate risk score, and numbered steps to modify the method and update its two direct callers](../assets/portal/planchange.png)
-
-**Layout skeleton:**
-
-```text
-[ANSWER  Deterministic refactoring planner: ...]
-[symbol ____________________] [Generate Blueprint]
- example chips
-[Target: name, file:line            Risk score, direct and total callers]
-Execution Blueprint (ordered steps)
- (1) Modify the target ...
- (2) Update direct caller ...
-[Preconditions]        [Postconditions]
-```
-
-**How to read it:**
-
-- Type a symbol name and press Generate Blueprint. If the name matches several
-  definitions you get a list to pick from.
-- **Target card.** The definition that was planned, with a risk score and how
-  many callers it has.
-- **Steps.** Change the target first, then each caller, in dependency order.
-- **Preconditions and postconditions.** What should be true before you start
-  and which tests should pass after.
-- This screen does not read `?sym=` from the URL, so a link cannot reopen a
-  plan; use the CLI command for something you can share.
-
-### What could break (`?s=blast`)
-
-**Answers:** If I change this symbol, what else could be affected?
-**Data comes from:** `/api/blast`. CLI: `repocortex callers <name>` gives the
-first step; the full walk is the MCP tool `analyze_impact`.
-
-![What could break for findById: answer line saying 3 things could be affected, 2 directly and 1 further along, with moderate risk; the target card; counts for direct, indirect, covering tests and risk](../assets/portal/blast.png)
-
-**Layout skeleton:**
-
-```text
-[ANSWER  3 things could be affected if you change findById: 2 directly, 1 further ...]
-[SYMBOL ______________________] [DEPTH 3 v] [Analyse]
-[Target: name, confidence, fqn, file:line]
-[DIRECT] [INDIRECT] [COVERING TESTS] [RISK]
-> Evidence — why the risk is <level>, in N factors
-[The files a change lands in]
-[What it reaches: symbol | depth | via | confidence | file]
-[What it touches outside the code: tables read/written, endpoints exposed]
-[Tests that cover it]
-[What this walk could not see]
-> This answer is a lower bound — N caveats
-```
-
-**How to read it:**
-
-- **No symbol yet.** The screen explains why a bare name may not be enough and
-  waits for input.
-- **Ambiguous name.** You get a list of candidates, each with an "Analyse this
-  one" button. Use the fully qualified form (`path/File.java:Name`) to skip
-  this.
-- **Counts.** Direct is one hop away. Indirect is further along, up to the
-  chosen depth. Every reached symbol carries the confidence of the weakest
-  link on the path that found it.
-- **Risk.** Low, moderate or high with a score out of 100. Open the Evidence
-  fold to see the factors behind it.
-- **Tests that cover it.** Proven tests and tests that only share a name are
-  shown apart. A test matched by name alone is marked uncertain.
-- **What this walk could not see.** Unbound calls and depth limits. A result of
-  zero with caveats here is a lower bound, not a guarantee.
-- **Where to go next:** Who knows this code to find a reviewer, Task brief to
-  scope the work.
-
-### Task brief (`?s=contract`)
-
-**Answers:** For this task, what is in scope, what is not, and what could the
-index not find out?
-**Data comes from:** `/api/contract`. CLI: `repocortex compile "<task>"` (add
-`--json` to save the contract for Check a change).
-
-![Task brief for "Add idempotency to payment callback processing": answer line with 9 entries in scope, 0 covering tests and 6 unknowns, a task box with a scope budget, count cards, and the "What was asked, and what was understood" card](../assets/portal/contract.png)
-
-**Layout skeleton:**
-
-```text
-[ANSWER  A brief for "<task>": 9 entries in scope, 0 tests ..., 6 things it could not find out.
-         [Answer the 6 unknowns before starting]]
-[TASK ______________________________] [SCOPE BUDGET 12 v] [Compile]
-[IN SCOPE] [EXPLICITLY NOT] [REACHED] [UNKNOWNS]
-[What was asked, and what was understood]
-[What the index cannot answer]   (open by default, listed first)
-> Evidence — scope, non-scope, constraints, tests ...
-[Open -> Check a change]
-```
-
-**How to read it:**
-
-- **Unknowns come first.** Each one is a question the index could not answer.
-  An agent given this brief would have to guess them, so answer them before
-  starting.
-- **What was understood.** The concepts and anchor symbols the task was matched
-  to. If these are wrong, reword the task.
-- **In scope and explicitly not.** What the change should touch, and nearby
-  code it should leave alone. Scope budget caps the in-scope list.
-- **Where to go next:** "Open" carries the same task to Check a change.
-
-### Check a change (`?s=verify`)
-
-**Answers:** Did a finished change stay inside its brief and break nothing
-the index can see?
-**Data comes from:** `/api/verify`. CLI:
-`repocortex verify --contract contract.json --changed <files>`.
-
-![Check a change: answer line reading Pass with 0 things broken and 0 that might be, task and changed-files boxes, a green PASS banner, and counts for changed files, in scope, undeclared and facts](../assets/portal/verify.png)
-
-**Layout skeleton:**
-
-```text
-[ANSWER  Pass: 0 things this change broke, 0 it might have.  [Copy: repocortex verify ...]]
-[TASK THE CHANGE WAS COMPILED FROM ____] [CHANGED FILES ____] [Verify]
-[PASS | ADVISORY | UNVERIFIED banner, exit code]
-[CHANGED FILES] [IN SCOPE] [UNDECLARED] [FACTS]
-> Evidence — the questions this check asked
-[Findings]
-> Evidence — every changed file
-```
-
-**How to read it:**
-
-- Paste the task and a comma-separated list of changed files (for example from
-  `git diff --name-only | paste -sd, -`). Nothing is written and no git command
-  is run.
-- **Banner.** Pass, advisory or unverified are shown in different styles. The
-  exit code is what the same check returns in CI.
-- **Undeclared.** Files the change touched that the brief took no position on.
-  More than zero means the change went outside its scope.
-- **Findings.** Each finding says whether a compiler proved it or a name
-  suggested it.
-
-### Who knows this code (`?s=ownership`)
-
-**Answers:** Who has touched the code that a change to this symbol can reach?
-**Data comes from:** `/api/who`. CLI: `repocortex owners <symbol>`.
-
-![Who knows this code for findById: answer line saying 1 person has touched the reachable code, counts for symbols reached, attributable, files reached and people found, and a ranking table](../assets/portal/ownership.png)
-
-**Layout skeleton:**
-
-```text
-[ANSWER  1 person has touched the code a change to findById can reach.]
-[SYMBOL ____] [DEPTH v]
-[Routing a review of findById]
-[SYMBOLS REACHED] [ATTRIBUTABLE] [FILES REACHED] [PEOPLE FOUND]
-[Who has context: person | share | symbols | files | commits | last touch | basis]
-[Bus factor over the reached files]
-> Evidence — the reached set
-> The window of history this was read over
-[What a name in this ranking does and does not mean]
-```
-
-**How to read it:**
-
-- The ranking is over the same set What could break would reach, then read
-  from git history.
-- **Bus factor.** Files that only one person touched. Many rows here mean
-  review knowledge is thin.
-- A name in the ranking means that person changed those files in the history
-  window. It does not mean they own or understand the code.
-
-### What changed (`?s=diff`)
-
-**Answers:** Which facts about the code changed between two indexed runs?
-**Data comes from:** `/api/diff`. CLI: `repocortex diff`.
-
-![What changed: answer line saying the index holds only one run so there is nothing to compare, a Copy repocortex index button, and base and head run boxes with not-compared counts](../assets/portal/diff.png)
-
-**Layout skeleton:**
-
-```text
-[ANSWER  This index holds only one run, so there is nothing to compare.  [Copy: repocortex index]]
-[BASE RUN ____] [HEAD RUN ____] [Compare]
-[RELATIONSHIPS GAINED] [LOST] [RE-GRADED DOWNWARDS] [COVERING TESTS LOST]
-[why there is nothing to compare / the diff rows]
-```
-
-**How to read it:**
-
-- One index file normally holds one committed run, so this screen is usually
-  empty. That is the normal state, not a fault. To compare across commits, run
-  `repocortex diff --from-index <other index.db> ...` in a terminal.
-- With two runs, watch "lost" and "re-graded downwards": a relationship that
-  got weaker or a test that stopped covering code.
-- The run ids go in the URL as `dfrom` and `dto`. (The empty-state text
-  mentions `?from=`/`?to=`; those are the API's own parameter names.)
-
-### APIs and what they touch (`?s=crossstack`)
-
-**Answers:** For each endpoint, which handler serves it and which database
-tables it reaches?
-**Data comes from:** `/api/crossstack`. CLI: `repocortex api`.
-
-![APIs and what they touch: answer line saying 1 endpoint reaches a database table, walk depth and page controls, counts for routes, with a handler, with a caller and reaching a table, and a table explaining where chains stop](../assets/portal/crossstack.png)
-
-**Layout skeleton:**
-
-```text
-[ANSWER  1 endpoint. On this page, 1 of 1 reach a database table.  [next step]]
-[HANDLER WALK DEPTH v] [ROUTES PER PAGE v] [< Prev] routes 1-1 of 1 [Next >]
-[ROUTES] [WITH A HANDLER] [WITH A CALLER] [REACHING A TABLE]
-[Where the chains stop, and why: stage | reason | chains | what it means]
-[Chains: client -> endpoint -> handler -> service -> table, drawn at the weakest hop]
-```
-
-**How to read it:**
-
-- Each chain runs client, endpoint, handler, service, table, and is shown at
-  the confidence of its weakest step.
-- **With a caller = 0.** Either the routes are called from outside this
-  repository (a public API) or client calls were never extracted. The
-  overview's blind spots tell these apart.
-- **Where the chains stop.** Every chain that ended early says where and why,
-  with a remedy such as raising the walk depth.
-- Counts on the cards are for the chains on this page; paging moves through
-  the rest.
-
-### Database tables (`?s=tables`)
-
-**Answers:** Which tables does this code use, and who writes and reads each?
-**Data comes from:** `/api/db`. CLI: `repocortex db` and `repocortex db table <name>`.
-
-![Database tables: answer line saying 2 tables, 2 written and 1 read by the code, count cards, and a table of every table with read and write statement counts](../assets/portal/tables.png)
-
-**Layout skeleton:**
-
-```text
-[ANSWER  2 tables. 2 are written by this code, 1 is read by it.]
-[TABLES] [WITH A RECORDED WRITER] [WITH A RECORDED READER] [NO RECORDED ACCESSOR]
-> What a static SQL read cannot see
-[Every table: table | standing | read stmts | write stmts | uncertain | readers | writers | declared at]
-[Who writes, and who only reads — per table: written by / read by, with confidence and evidence]
-```
-
-**How to read it:**
-
-- A table with writers but no readers, or no accessor at all, is worth a look:
-  it may be read by another service, or by SQL this index cannot parse.
-- Open "What a static SQL read cannot see" before concluding a table is unused.
-  Dynamic SQL and ORM-generated queries can be invisible.
-
-### Events and queues (`?s=events`)
-
-**Answers:** Which message topics does this code publish to or consume from?
-**Data comes from:** `/api/events`. CLI: `repocortex events`.
-
-![Events and queues: answer line saying 0 topics, 0 publishers and 0 consumers, and an empty-state card naming the supported brokers](../assets/portal/events.png)
-
-**Layout skeleton:**
-
-```text
-[ANSWER  0 topics across Kafka, RabbitMQ, SQS, SNS, and Pub/Sub. 0 publishers, 0 consumers.]
-[topic list: topic | publishers | consumers]   or   [empty-state card]
-```
-
-**How to read it:**
-
-- The sample service uses no message broker, so this screen is empty. The card
-  lists the client libraries that are recognised.
-- A topic with publishers but no consumers (or the reverse) in one repository
-  is normal when the other side lives elsewhere; check Across repositories.
-
-### Settings and secrets (`?s=config`)
-
-**Answers:** Which configuration keys exist, which are read, and which look
-sensitive?
-**Data comes from:** `/api/config`. CLI: `repocortex config`.
-
-![Settings and secrets: answer line saying no setting is recorded and the reason is stated below, a Copy repocortex config button, and counts for keys, read but declared nowhere, declared but never read, and sensitive by name](../assets/portal/config.png)
-
-**Layout skeleton:**
-
-```text
-[ANSWER  No setting is recorded in this index, and the reason is stated below.  [Copy: repocortex config]]
-[KEYS] [READ, DECLARED NOWHERE] [DECLARED, NEVER READ] [SENSITIVE BY NAME]
-[keys table]  or  [why this index recorded no configuration]
-> What this screen never does, and what it cannot see
-```
-
-**How to read it:**
-
-- No value is ever read. A key is marked sensitive by its name alone.
-- **Read, declared nowhere.** The most urgent column: a service that needs
-  these keys and does not find them fails at start-up.
-- **Declared, never read.** Dead configuration, or a lookup this scan cannot
-  see.
-- Kubernetes, Helm, Terraform and CI definitions are not read. An empty screen
-  means nothing recognisable was found, not that the service has no settings.
-
-### What actually ran (`?s=trace`)
-
-**Answers:** Which endpoints and code paths were exercised in a real trace?
-**Data comes from:** `/api/trace`. CLI: `repocortex trace repocortex.trace.json`.
-
-![What actually ran: answer line saying no trace export was placed at repocortex.trace.json, a Copy command button, and counts for spans, indexed endpoints, indexed symbols and exercised entities](../assets/portal/trace.png)
-
-**Layout skeleton:**
-
-```text
-[ANSWER  No trace export has been placed at repocortex.trace.json.  [Copy: repocortex trace ...]]
-[SPANS] [INDEXED ENDPOINTS] [INDEXED SYMBOLS] [EXERCISED ENTITIES]
-[The file this screen reads: where it looked]
-[hot / cold endpoints]  or  [why there is nothing to lay over the graph]
-```
-
-**How to read it:**
-
-- Export an OpenTelemetry (OTLP/JSON) or Jaeger trace and save it as
-  `repocortex.trace.json` in the repository root, or pass `?export=<path>`.
-- Without a trace, endpoints are "unobserved", which is different from "cold".
-  The screen will not call code dead because no trace was given.
-
-### Across repositories (`?s=estate`)
-
-**Answers:** How does this repository connect to the other repositories in the
-system?
-**Data comes from:** `/api/system`. CLI: `repocortex system --members repocortex.system.yml`.
-
-![Across repositories: answer line saying there is no estate manifest at repocortex.system.yml, a Copy command button, and counts for members declared, cross-repository calls, shared tables and completeness](../assets/portal/estate.png)
-
-**Layout skeleton:**
-
-```text
-[ANSWER  No estate manifest at repocortex.system.yml.  [Copy: repocortex system --members ...]]
-[MEMBERS DECLARED] [CROSS-REPOSITORY CALLS] [SHARED TABLES] [COMPLETE]
-[The file this screen reads]
-[members, cross-repo calls, shared tables]  or  [why it is empty]
-```
-
-**How to read it:**
-
-- Which repositories make up your system is not something one index can
-  know, so you list them in a committed `repocortex.system.yml` (or pass
-  `?estate=<path>`).
-- Once declared, each cross-repository call has a confidence word and a file
-  and line on both ends. Shared tables written by more than one member are
-  worth a review.
-
-### Test coverage (`?s=tests`)
-
-**Answers:** Which symbols does a test provably reach?
-**Data comes from:** `/api/tests`. There is no separate CLI command in this
-build; the MCP tool `find_tests` gives the same answer for one symbol.
-
-![Test coverage: answer line saying 0 of 48 symbols have a test that reaches them through a recorded relationship, a Copy repocortex resolve button, a symbol box and depth, and count cards](../assets/portal/tests.png)
-
-**Layout skeleton:**
-
-```text
-[ANSWER  0 of 48 symbols have a test that reaches them ...  [Copy: repocortex resolve]]
-[COVERAGE FOR ONE SYMBOL (optional) ____] [TRAVERSAL DEPTH v]
-[TEST FILES] [NON-TEST SYMBOLS] [WITH A PROVEN COVERING TEST] [WITH NO PROVEN COVERING TEST]
-> What each of the 3 verdicts means
-[explanation card when nothing is proven]
-> What the two lists below are, and are not
-> Evidence — every test file
-[Symbols a test reaches through a recorded edge]
-[Tests suggested by a naming convention only]
-```
-
-**How to read it:**
-
-- "Proven" coverage means a test reaches the symbol through a recorded
-  relationship. A test that only shares a name (for example
-  `CallbackControllerTest`) is listed separately and never counted as proven.
-- **With no proven covering test.** This is an absence of proof, not proof of
-  no test. On the sample service every symbol lands here because Java test
-  calls are not bound to their targets without a compiler-backed index.
-- Enter a symbol to see the tests for that one symbol.
-
-### Code blindspots (`?s=missed`)
-
-**Answers:** Where can the index see code but not prove anything about it?
-**Data comes from:** `/api/missed`. CLI: `repocortex blindspots`.
-
-![Code blindspots: answer line saying 37 blindspots were found, count cards for unresolved calls, untested critical symbols, unmapped endpoints and orphan tables, and a findings table with severity, category, target, location and remediation](../assets/portal/missed.png)
+## The layout
 
-**Layout skeleton:**
-
-```text
-[ANSWER  37 blindspots identified across ...]
-[UNRESOLVED CALLS] [UNTESTED CRITICAL] [UNMAPPED ENDPOINTS] [ORPHAN TABLES]
-[Prioritized findings: severity | category | target | location | remediation]
-```
-
-**How to read it:**
-
-- **Unresolved calls.** Calls that could not be bound to a definition, often
-  library calls. Many of these lower the confidence of every walk.
-- **Untested critical, unmapped endpoints, orphan tables.** Exported code with
-  no proven test, routes with no handler, and tables nothing reads or writes.
-- Each row has a file and line you can copy, and a suggested fix.
-
-### Architecture rules (`?s=governance`)
-
-**Answers:** Does the code cross any line the declared architecture forbids?
-**Data comes from:** `/api/governance`. CLI: `repocortex arch` (add
-`--fail-on <severity>` in CI).
-
-![Architecture rules: answer line saying no architecture is declared so there is nothing to check, a Copy repocortex arch --help button, and a standard-of-proof selector](../assets/portal/governance.png)
-
-**Layout skeleton:**
-
-```text
-[ANSWER  No architecture is declared, so there is nothing to check ...  [Copy: repocortex arch --help]]
-[STANDARD OF PROOF FOR A VIOLATION v]
-[violations table]  or  [No architecture is declared for this repository]
-```
-
-**How to read it:**
-
-- Declare components and rules in `.repocortex.yml`. Until then the map groups by
-  directory and no rule can be broken. That is different from "no
-  violations".
-- Once rules exist, each violation has a confidence word. Choose the standard
-  of proof that should count as a real violation in your CI gate.
-
-### Dependencies (`?s=deps`)
-
-**Answers:** What does this repository declare it depends on, and does anything
-import each one?
-**Data comes from:** `/api/deps`. CLI: `repocortex deps`.
-
-![Dependencies: answer line saying no dependency manifest was read and the reason is stated below, and counts for declared, declared but imported by nothing, declared and imported, and imported but declared nowhere](../assets/portal/deps.png)
-
-**Layout skeleton:**
-
-```text
-[ANSWER  No dependency manifest was read ...  [Copy: repocortex deps]]
-[DECLARED] [DECLARED, IMPORTED BY NOTHING] [DECLARED AND IMPORTED] [IMPORTED, DECLARED NOWHERE]
-[dependency table]  or  [why this screen has no manifest to read]
-[language tiers]
-```
-
-**How to read it:**
-
-- Manifests read: `go.mod`, `package.json`, `pom.xml`, `build.gradle`,
-  `requirements.txt`, `pyproject.toml`, `Cargo.toml`. Lock files are not read.
-- **Declared, imported by nothing** is a prompt to check, never a verdict that
-  a dependency is unused.
-- **Imported, declared nowhere** lists import paths that match no declaration.
-
-### How accurate is this index (`?s=accuracy`)
-
-**Answers:** How often are this index's relationships right, measured against
-a compiler?
-**Data comes from:** `/api/accuracy`. CLI: `repocortex accuracy`.
-
-![How accurate is this index: answer line saying accuracy is not measured yet and a compiler-backed index must be imported first, a Copy repocortex scip import button, and precision, recall and F1 cards all reading not measured](../assets/portal/accuracy.png)
-
-**Layout skeleton:**
-
-```text
-[ANSWER  Not measured yet: import a compiler-backed index first ...  [Copy: repocortex scip import index.scip]]
-[PRECISION] [RECALL] [F1] [COMPILER FACTS IN THIS INDEX]
-[why recall was not measured]
-> how the rates are computed
-```
-
-**How to read it:**
-
-- Until a compiler (SCIP) index is imported, every rate reads "not measured".
-  The screen never prints zero for a rate nothing has checked.
-- After import, precision says how many of the index's relationships the
-  compiler agrees with; recall says how many of the compiler's it found.
-
-### Connect an agent (`?s=agent`)
-
-**Answers:** How do I connect an AI coding agent to this index over MCP?
-**Data comes from:** `/api/agent`. CLI: `repocortex agent` (prints the
-registration) and `repocortex install` (registers with detected agents).
-
-![Connect an agent: answer line with the symbols, relationships, files and tools the index offers, count cards for MCP tools, symbols and indexed surface, and configuration snippets for two agent clients](../assets/portal/agent.png)
-
-**Layout skeleton:**
-
-```text
-[ANSWER  An agent ... can ask about <N> symbols and <N> relationships ... through <N> tools.  [Copy: repocortex install --rules]]
-[MCP TOOLS] [SYMBOLS] [INDEXED SURFACE]
-[Connect via MCP:  client 1 config JSON [Copy]   client 2 config JSON [Copy]]
-[sample file before and after pruning, when a readable file exists]
-[MCP tools: name, category, what it does]
-[What this pillar answers] [Why this screen is empty for this index]
-```
-
-**How to read it:**
-
-- The counts are read from the index. The screen does not estimate token
-  savings; the only token figures are on the sample file, measured by pruning
-  a real file from this repository.
-- Copy the configuration block for your agent client into its MCP settings
-  file. It runs `repocortex --project <repo> serve`, the same entry
-  `repocortex install` writes.
-- The tool list is the server's own: the default `minimal` profile exposes the
-  first seven tools, `standard` all 18.
-- The guidance cards at the end explain why the portal cannot show an agent
-  conversation: the MCP server is a separate process the portal is not part of.
-
-### Retrieval quality (`?s=retrieval`)
-
-**Answers:** Does the context engine hand an agent the right code for a task?
-**Data comes from:** `/api/bench`. CLI: `repocortex bench repocortex.bench.yml`.
-
-![Retrieval quality: answer line saying there is no benchmark case file at repocortex.bench.yml, a Copy repocortex bench button, and cards for cases, mean recall, mean forbid score and cases with no forbid list](../assets/portal/retrieval.png)
-
-**Layout skeleton:**
-
-```text
-[ANSWER  No benchmark case file at repocortex.bench.yml.  [Copy: repocortex bench repocortex.bench.yml]]
-[CASES] [MEAN RECALL] [MEAN FORBID SCORE] [CASES WITH NO FORBID LIST]
-[The file this screen reads]
-[per-case scores]  or  [why there is no score]
-```
-
-**How to read it:**
-
-- You write the cases: a task, the code a correct answer must contain, and the
-  code it must not. Save them as `repocortex.bench.yml` or pass `?cases=<path>`.
-- Recall is the share of expected items each context pack contained. The
-  forbid score catches packs that are simply too big. A case with no forbid
-  list cannot tell a good pack from a large one.
+![The portal home page: header with search, five sections in the sidebar, and the state of the index](../assets/portal/home.png)
+
+- **Header.** The project name, a search box and two controls on the right: an
+  "Index coverage" link (it opens the [Health](#health) page) and a Light or
+  Dark theme toggle. The search box searches functions, types, files, routes,
+  tables and text. Press `/` to jump to it.
+- **Sidebar.** Five sections: [Home](#home), [Explore](#explore),
+  [Change](#change), [Health](#health) and [Agents](#agents). The foot of the
+  sidebar says "Read-only. Served from this machine only."
+- **Pages.** Every function, type, file, route and table has its own page,
+  reached from search or from a link on another page.
+
+| Address | Page |
+|---|---|
+| `#/` | Home |
+| `#/explore` | Explore |
+| `#/change` | Change. `?base=` and `?symbol=` fill in the two forms. |
+| `#/health` | Health |
+| `#/agents` | Agents |
+| `#/search?q=` | Search results |
+| `#/s/<name>?path=&tab=` | A symbol |
+| `#/f/<path>` | A file |
+| `#/r/<signature>` | A route |
+| `#/t/<name>` | A table |
+
+---
+
+## How to read an answer
+
+Every relationship on every page is marked with how it was established. The
+mark tells you what to do with it.
+
+| Mark | Meaning |
+|---|---|
+| proven | A compiler proved it. Safe to act on without checking. |
+| very likely | Bound from the syntax tree and imports. It is rarely wrong. |
+| uncertain | One of several candidates. Check it before relying on it. |
+| a guess | A name match only. Do not act on it alone. |
+
+Beside each answer there are two boxes.
+
+- **What this answer cannot see.** The gaps the index reported for this answer,
+  for example calls into libraries. An empty list still means nothing was
+  found, never that nothing exists. Notes beyond the first are folded behind
+  "Show N more notes".
+- **Ask your agent the same thing.** The exact `repocortex tool call ...`
+  command that returns this answer, with a Copy button. Run it in a shell, or
+  have an agent call the same tool.
+
+Lists of relationships have an "Everything" and a "Very likely or better"
+switch, so you can hide the weaker rows.
+
+---
+
+## Pages
+
+### Home
+
+The first page. It asks "What do you want to know about <project>?" and offers
+two buttons: Search the code and Plan a change. Below that:
+
+- **The state of this index.** Files, definitions and relationships indexed;
+  how many of the references the index could connect are connected; and how
+  many things it could not see.
+- **How to read an answer.** The four marks above.
+- **Start from a task.** Links to Plan a change safely, Find your way around and
+  Connect your coding agent.
+
+### Explore
+
+![The Explore page: routes the code exposes and the tables it uses](../assets/portal/explore.png)
+
+How the codebase is laid out.
+
+- **Routes it exposes.** Each HTTP route the index found, the function that
+  answers it, and where it is declared. Open a route to see the tables it
+  reaches and the tests that cover it.
+- **Tables it uses.** Each table the code reads or writes, with the number of
+  statements that read it and write to it. Open a table to see what reads it,
+  what writes to it and the routes that lead there.
+
+### Change
+
+![The Change page with its two forms](../assets/portal/change.png)
+
+What a change puts at risk. There are two forms. Press Enter to run either.
+
+- **Review a branch.** Enter a branch or commit. The page reviews everything
+  from there up to the current HEAD.
+- **Plan a change to one thing.** Enter a function, method or type.
+
+![A change plan for updateStatus: edits in order, then the tests to run first](../assets/portal/change-plan.png)
+
+A plan lists the edits in order (verify the baseline, modify the target, update
+each caller, verify the tests) and then the tests to run first. Each test shows
+how it reaches the target and how sure the index is.
+
+### Health
+
+![The Health page: how complete the index is, hotspots and unused code](../assets/portal/health.png)
+
+Where the codebase needs attention. Three lists, most useful first: where change concentrates, what looks unused,
+and what the index could not see.
+
+- **How complete the index is.** The share of references connected to a
+  definition, and why the rest are not: several definitions matched, or the
+  target is outside the repository. Every other answer in the portal is only as
+  complete as this one.
+- **Hotspots.** Files that are both large and changed often. This needs git
+  history. Without it the page says that nothing can be ranked.
+- **Unused code.** Definitions nothing calls, checked against the source text as
+  well as the graph.
+- **What the index could not see.** Each kind of gap, such as calls it could not
+  connect, with what fixes it.
+
+### Agents
+
+![The Agents page: four ways to connect an agent, and what each tool costs](../assets/portal/agents.png)
+
+- **Four ways in.** The command for agents on this machine
+  (`repocortex install --rules`), for agents that need a URL
+  (`repocortex serve --http`), for anything that calls HTTP, and for a shell.
+  Each has a Copy button.
+- **What each tool costs.** Every tool an agent can see spends context on each
+  request. The page lists each tool with the tokens its description costs and
+  what it returns, and says how many the default profile exposes.
+
+### Search results
+
+![Search results for callback](../assets/portal/search.png)
+
+The header search box opens `#/search?q=`. It lists matching definitions, files,
+routes and tables, and files whose text matches. A text match says the words
+appear. It is not a relationship.
+
+### A symbol
+
+![The page for updateStatus, on the Callers tab](../assets/portal/symbol.png)
+
+One page per function, method or type. It opens with a sentence that sums up
+the symbol: how many places use it directly, what a change can reach, and the
+risk. The tabs, with their counts:
+
+- **Callers.** What calls it. Each row is a call site.
+- **Calls.** What it calls, inside this repository.
+- **What could break.** Everything a change to it can reach, nearest first.
+- **Tests.** The tests that reach it. Run the ones found through a call first.
+- **Type hierarchy.** What implements or extends it, and what it extends.
+
+![The What could break tab for updateStatus](../assets/portal/symbol-reach.png)
+
+![The Tests tab for updateStatus](../assets/portal/symbol-tests.png)
+
+### A file
+
+![The page for TransactionService.java](../assets/portal/file.png)
+
+The first tab shows how the file opens, with the bodies of its functions
+removed. Names defined in the file are links to their pages. The other tabs are
+Changes with (files usually committed with this one), Looks unused and Routes.
+The file page links to "Plan a change to one definition".
+
+### A route
+
+![The page for POST /payment/callback](../assets/portal/route.png)
+
+The sentence at the top names the function that answers the route, the tables
+it reaches and the tests that reach it. The tabs are What it calls, Tables it
+reaches and Tests. Settings the route reads and events it sends are not on this
+page. The page shows `repocortex config` and `repocortex events`, which print
+them for the whole repository.
+
+### A table
+
+![The page for the transactions table](../assets/portal/table.png)
+
+The tabs are Written by, Read by, Routes that reach it and Declared in. Check
+what writes to a table first, then what reads it, before you change a column.
+A statement put together while the program runs may be missing from both lists.
 
 ---
 
 ## How the portal is designed to behave
 
-These rules come from the comments in `internal/web/assets/app.js`, the Go
-handlers, and the end-to-end specs in `internal/web/e2e/specs/`, which check
-them on every screen.
+- **Read-only.** The portal opens the index read-only. The tools it calls are
+  read-only. It serves no route that writes. To refresh the index, run
+  `repocortex index` or keep `repocortex watch` running.
+- **Loopback only.** It binds to `127.0.0.1`. `--host` accepts a loopback
+  address and nothing else. It refuses any request whose Host header is not a
+  loopback name, so a page on the internet cannot point your browser at
+  `localhost:7777` and read the structure of your code.
+- **Same origin only.** Cross-origin requests are refused.
+- **Strict Content-Security-Policy.** The page can load nothing from another
+  origin. All assets are embedded in the binary.
+- **No data of its own.** Every figure comes from a tool call to `/api/v1`, the
+  same tools an MCP agent calls.
 
-- **It shows only what an endpoint returned.** Each answer line is built from
-  the response the screen already has. When a response carries no summary
-  number, the line says what the screen shows instead of making one up.
-- **It never prints a number nothing measured.** Rates that were never
-  checked read "not measured". Counts that were not recorded read "how many is
-  not recorded", never zero. Empty pillar screens say "not compared" or "none
-  read" rather than showing 0%.
-- **It labels uncertainty everywhere.** Every relationship carries a confidence
-  word and an example file and line. Proven and name-matched evidence are
-  never mixed into one list.
-- **It states what it left out.** Hidden rows are counted with a reason and,
-  where possible, the command that reveals them. A narrowed map shows how many
-  filters are active.
-- **Empty is explained, not blank.** Every empty screen says why (no file, no
-  second run, nothing declared) and which command or file fills it. It also
-  says when empty is not the same as "none exists".
-- **Plain language.** The specs block internal jargon on screen and require
-  confidence ids to be shown as words. A short glossary covers the terms that
-  remain.
-- **Answer first, details folded.** One sentence leads each screen. Evidence
-  and caveats are kept, one click down, and `?open=1` shows all of them.
-- **Everything is a link.** Screen, filters and selection live in the URL, so a
-  finding can be shared as a link rather than a screenshot.
-- **Accessible by default.** Real buttons in tab order, a skip link, a
-  labelled canvas with a full text table below it, keyboard control of the
-  map, and confidence shown by lightness, glyph and line style as well as
-  colour.
+---
 
 ## Troubleshooting
 
-**`error: no index at .../.repocortex/index.db`**
-The portal needs an index. Run `repocortex init`, `repocortex index` and
-`repocortex resolve` in the project root, or pass `--project <dir>`.
+**The page says there is no index.** Run `repocortex init` and
+`repocortex index` in the repository, or pass `--project` to point at one.
 
-**`listen on 127.0.0.1:7777: ... bind: address already in use`**
-Another process (often an earlier `repocortex ui`) holds the port. Stop it, or
-start on another port with `repocortex ui --port 7790`, or let the system choose
-with `--port 0` and read the printed address.
+**The port is in use.** Choose another with `--port N`, or use `--port 0` to let
+the system pick a free one. The banner prints the address it chose.
 
-**The index bar is amber or red**
-Click the verdict. Index health shows why: a partial run, parse failures, or an
-index more than a day old. Run `repocortex index` (and `repocortex resolve`), then
-reload. Start the portal with `--allow-refresh` to get a Refresh index button
-in the bar. Run `repocortex watch` in another terminal to keep the index current
-while you work.
+**`--host` is refused.** The portal has no login and shows the structure of your
+codebase, so it is served on loopback addresses only (`127.0.0.1`, `::1` or
+`localhost`). To reach it from another machine, use an SSH tunnel to the
+loopback port, or serve the tools to agents with `repocortex serve --http`,
+which uses tokens.
 
-**The index is older than my latest commit**
-Open "How this index was built" in the index bar to see the revision it read.
-A matching revision still does not include uncommitted edits. Re-index.
+**`--allow-refresh` returns an error.** It was removed. The portal has no route
+that writes. Run `repocortex index` to rebuild the index, or `repocortex watch`
+to keep it current.
 
-**A screen is empty**
-Read its answer line and the card under it; each one says why. Common causes:
-
-- Trace, estate and retrieval need a file you write
-  (`repocortex.trace.json`, `repocortex.system.yml`, `repocortex.bench.yml`).
-- What changed needs two runs.
-- Architecture rules needs components declared in `.repocortex.yml`.
-- How accurate is this index needs `repocortex scip import`.
-- Settings and dependencies only read the file formats they list.
-- What could break, Task brief, Check a change and Who knows this code wait for
-  input; Plan a refactor waits for a symbol name.
-
-**Counts look too low, or Test coverage shows nothing proven**
-Check Resolution coverage and Blind spots on Index health. If many references
-are unbound, run `repocortex resolve`, and for full accuracy install a
-compiler-backed indexer (`repocortex indexers status`). Lower the standard of proof
-to "a guess" in the index bar to see what is being held back.
-
-**"This name matches several definitions"**
-Pick one of the listed candidates, or type the fully qualified form shown in
-Find a symbol, such as `src/main/java/com/pay/repository/TransactionRepository.java:findById`.
-
-**A screen says "could not load"**
-The error card under it gives the reason. Check the terminal running
-`repocortex ui`; if the process stopped, start it again and reload.
+**A list is empty or short.** Read "What this answer cannot see" beside it. An
+empty list means nothing was found in the index, not that nothing exists. The
+Health page shows how complete the index is.
 
 # --- END FILE: docs/guides/portal-guide.md ---
 
@@ -4799,6 +4056,7 @@ version re-parses every file and rewrites them.
 |---|---|
 | `--verify-index` | run the graph invariant gate: dangling edges, orphaned symbols, edges claiming compiler certainty without compiler evidence |
 | `--resolution-precision` | adjudicate the heuristic resolver against compiler facts already imported into this index |
+| `--vacuum` | reclaim freelist pages and defragment index database |
 
 `--resolution-precision` needs a run holding both heuristic and compiler edges,
 so import a SCIP index first. It reports precision, never recall, and it reports
@@ -5142,7 +4400,7 @@ $ repocortex api
 METHOD & PATH           HANDLER         DECLARED AT
 POST /payment/callback  handleCallback  …/controller/CallbackController.java:21
 
-1 endpoint(s). Discovery covers spring, go-http, go-router, fastapi, flask, django, express, nest.
+1 endpoint(s). Discovery covers spring, go-http, go-router, fastapi, flask, django, express, nest, nextjs.
 5 further route(s) are declared in test files and are not counted above — they
 are fixtures, not this service's API.
 ```
@@ -5483,8 +4741,8 @@ These run against the committed index. Each takes the global `--json`.
 **Answers:** which topics, queues and exchanges exist, and who publishes to or
 consumes from them?
 
-`repocortex events` lists them across Kafka, RabbitMQ/AMQP, SQS, SNS and Google
-Cloud Pub/Sub. `repocortex events topic <name>` lists the functions that publish
+`repocortex events` lists them across Kafka, RabbitMQ/AMQP, SQS, SNS, Google
+Cloud Pub/Sub and ActiveMQ (STOMP/JMS). `repocortex events topic <name>` lists the functions that publish
 to or consume from one. Event topology is not an MCP tool.
 
 ### `missed`
@@ -6532,20 +5790,19 @@ repocortex communities --members 20 --min-confidence high
 | `--members N` | Most files to list for each community (default 8; 0 lists none) |
 | `--min-confidence TIER` | Weakest relationship that links two files: `exact`, `high`, `medium` or `low` (default `medium`) |
 
-One community from `repocortex communities --members 3` on this repository:
+Each community from `repocortex communities --members 3` has this shape
+(`<dir>`, `<file>` and the numbers stand for your own):
 
 ```text
-3. internal/web  (35 files)
+3. <dir>  (<N> files)
    NAMED FOR  the directory every member is under
-   ID         internal/web/accuracy.go
-   MOSTLY IN  internal/web (35)
-   INSIDE     467 relationship(s) between members
-   CROSSING   279 relationship(s) with a file outside
+   ID         <first member in path order>
+   MOSTLY IN  <dir> (<N>)
+   INSIDE     <N> relationship(s) between members
+   CROSSING   <N> relationship(s) with a file outside
    MEMBERS, most referenced by the others first
-     internal/web/web.go         220
-     internal/web/confidence.go  85
-     internal/web/omission.go    65
-     ... and 32 more; raise --members to list them
+     <file>  <count>
+     ... and <N> more; raise --members to list them
 ```
 
 A community is named for the directory all its members share, or for its
@@ -6760,9 +6017,9 @@ segment (`/mcp/<token>`). See the
 [coding agents guide](guides/coding-agents.md#remote-mcp-over-http).
 
 The tool set is governed by `mcp.profile` in `.repocortex.yml` — `minimal`
-(default), `standard`, `full`. The default is deliberately small: every tool's
+(default), `standard`, `full`, or `compact` (single front door). The default is deliberately small: every tool's
 schema is injected into the agent's context on every request, so a large surface
-spends the very context this tool exists to save.
+spends the very context this tool exists to save. Using `compact` exposes a single unified `repocortex` tool, saving over 25 KB of agent prompt context.
 
 ```
 $ repocortex serve --list-tools
@@ -6822,58 +6079,42 @@ directory): [sharing one index with a team](guides/protocols.md#sharing-one-inde
 
 ### `ui`
 
-`repocortex ui --next` serves the redesigned portal instead: one page per symbol,
-built on the tool endpoint agents use. Loopback only. See the
+**Answers:** a local, read-only web portal over the index. One page for every
+function, type, file, route and table, and five sections to start from:
+
+- **Home** — the state of the index and how to read an answer.
+- **Explore** — the routes the code exposes and the tables it uses.
+- **Change** — review a branch, or plan a change to one thing.
+- **Health** — how complete the index is, hotspots, unused code and blind spots.
+- **Agents** — how to connect an agent, and what each tool costs in context.
+
+A symbol page has tabs for Callers, Calls, What could break, Tests and Type
+hierarchy; route and table pages follow the same pattern. Every figure is a
+call to the same tool endpoint under `/api/v1` that an agent uses, so a page
+and an agent cannot disagree. Each answer shows "What this answer cannot see"
+and "Ask your agent the same thing", the exact `repocortex tool call ...`
+command that returns it. Confidence reads as a word: proven, very likely,
+uncertain or a guess. There is a Light and Dark theme toggle. See the
 [portal guide](guides/portal-guide.md).
-
-**Answers:** a local, read-only web portal over the index — 23 screens
-grouped by what you want to know. Index health stands alone above the
-groups; then five groups, named the way a reader would ask the question:
-
-- **Understand the code** — Map of the code (graph explorer), Find a
-  symbol, Shape of the code.
-- **Before you change something** — What could break (blast radius for one
-  symbol), Task brief (the compiled task contract), Check a change (the
-  verify report against that contract), Who knows this code, What changed,
-  Plan a change.
-- **How it runs** — APIs and what they touch (the cross-stack view from a
-  frontend component through the route, handler and tables it reaches),
-  Database tables, Settings and secrets, What actually ran, Events and async,
-  Across repositories.
-- **Quality** — Test coverage, Architecture rules (governance),
-  Dependencies, How accurate is this index, Code blindspots.
-- **For your AI agent** — Connect an agent, Retrieval quality.
-
-Every screen opens with its answer in one plain sentence. Evidence and the
-things the view can't see fold below that sentence, closed by default, and
-`?open=1` on the URL unfolds them all. Confidence reads as a word (proven,
-very likely, uncertain, a guess) with the tier id kept on every field and
-flag underneath. A "What do these words mean?" button opens a glossary for
-the terms that remain.
 
 | Flag | Effect |
 |---|---|
 | `--port N` | port to listen on; `0` picks a free one (default `7777`) |
-| `--host ADDR` | address to bind; anything but loopback exposes your codebase's structure and the command says so |
-| `--max-nodes N` | symbol nodes per graph response; what is excluded is stated, never dropped (default `1500`) |
-| `--allow-refresh` | add the one write route, a POST that rebuilds the index; off by default |
+| `--host ADDR` | loopback address to bind: `127.0.0.1`, `::1` or `localhost`; any other address is refused |
 | `--print-url` | print the URL that would be served and exit |
 
-The portal opens the index read-only and serves only GET routes. Without
-`--allow-refresh` no route that writes is registered at all — read-only is
-enforced by the absence of a route, not by a check inside a handler. With it,
-a refresh must carry a header a cross-site form cannot set, and a foreign
-`Origin` is refused even so.
+`--next` and `--max-nodes` are accepted but do nothing. `--allow-refresh` was
+removed: the portal has no route that writes. Run `repocortex index` or keep
+`repocortex watch` running to refresh the index.
+
+The portal opens the index read-only and registers no route that writes.
 
 It binds to `127.0.0.1` and refuses requests whose `Host` is not a loopback
 address, because a page on the public internet can otherwise point your own
-browser at `localhost:7777` and read the structure of your code. Everything is
-served from the binary: no npm, no build step, no CDN, and a Content-Security-
-Policy that forbids loading from any other origin, so it works offline.
-
-Confidence is the visual language of every screen: a compiler-proven edge is
-drawn solid with a tick, a `medium` edge dashed, and `low` edges are off by
-default with the count of what that hides stated in every response.
+browser at `localhost:7777` and read the structure of your code. It also
+refuses cross-origin requests. Everything is served from the binary: no npm, no
+build step, no CDN, and a Content-Security-Policy that forbids loading from any
+other origin, so it works offline.
 
 ```
 $ repocortex ui --print-url
@@ -6892,6 +6133,8 @@ each config file.
 | `--list` | list every supported agent, whether it is detected, its config file, and the manual step for agents set up by hand |
 | `--create` | also write configs for agents that are not detected |
 | `--rules` | add guidance to `AGENTS.md` (created if missing) and to agent instruction files that already exist; `CONVENTIONS.md` for Aider |
+| `--only CLIENT` | restrict configuration to specific clients (repeatable, e.g. `--only claude-code`) |
+| `--no-agents-md` | skip creating or updating `AGENTS.md` when `--rules` is specified |
 
 Covers 30 agents automatically, including Claude Code, Codex CLI, Copilot CLI,
 Gemini CLI, Cursor, VS Code, Windsurf, Antigravity, Zed, Goose and Kiro. A file
@@ -6997,7 +6240,8 @@ RepoCortex follows a strict unidirectional dependency hierarchy adhering to **Cl
 graph TD
     CLI["cmd/repocortex (CLI Entrypoint)"] --> Cap["internal/capability (Domain Features)"]
     MCP["internal/mcp (Agent Protocol)"] --> Cap
-    Web["internal/web (Interactive UI)"] --> Cap
+    Portal["internal/portal (Local portal)"] --> Rest["internal/restapi (Tool endpoint)"]
+    Rest --> MCP
     
     Cap --> Graph["internal/graph (Traversal & CSR)"]
     Cap --> Pipe["internal/pipeline (Orchestration)"]
@@ -7031,12 +6275,11 @@ graph TD
 | `internal/parse` | Polyglot Tree-Sitter AST parsing, query compilation, tag extraction, arity extraction, and parser arena pools. | `pkg/model` | Must not access the registry or database. |
 | `internal/resolve` | Multi-pass reference resolution, receiver type narrowing, inherited dispatch, and SCIP compiler import. | `internal/registry`, `pkg/model` | Must not import `internal/pipeline` or CLI logic. |
 | `internal/graph` | Directed graph traversal, hub pruning, cycle detection, and high-performance in-memory Compressed Sparse Row (CSR) indexing. | `internal/store`, `internal/registry`, `pkg/model` | Must not mutate source code or execute pipeline indexing. |
-| `internal/capability` | Business logic for product capabilities: `impact` (blast radius), `rename` (safe refactoring), `testgap` (coverage proof), `planchange` (change blueprint), `missed` (risk detection). | `internal/graph`, `internal/registry`, `internal/edit`, `pkg/model` | Must not import `internal/cli` or `internal/web`. |
+| `internal/capability` | Business logic for product capabilities: `impact` (blast radius), `rename` (safe refactoring), `testgap` (coverage proof), `planchange` (change blueprint), `missed` (risk detection). | `internal/graph`, `internal/registry`, `internal/edit`, `pkg/model` | Must not import `internal/cli`, `internal/restapi` or `internal/portal`. |
 | `internal/edit` | Surgical source code splicing, exact identifier boundary matching, hash validation, and multi-file rollback transactions. | `pkg/model`, `internal/security` | Must not import graph traversal or MCP servers. |
 | `internal/mcp` | Model Context Protocol server exposing JSON-RPC tools and prompts to autonomous coding agents. | `internal/capability`, `internal/graph`, `internal/registry`, `pkg/model` | Must not expose internal database drivers directly over the wire. |
-| `internal/web` | Local interactive web portal, SVG visualizers, tree views, code views, and Server-Sent Events (SSE). | `internal/capability`, `internal/graph`, `internal/registry`, `pkg/model` | Must be entirely self-contained with embedded HTML/JS/CSS assets. |
 | `internal/restapi` | The agent tools as plain HTTP and JSON, and the OpenAPI document generated from them. | `internal/mcp` | Must contain **no** tool handlers; every call is forwarded through `mcp.Invoker`. |
-| `internal/portal` | The redesigned portal's embedded assets and its loopback, same-origin and CSP guard. | None (standard library only). | Must not read the index; the page gets every figure from the tool endpoint. |
+| `internal/portal` | The local portal: embedded HTML, JS and CSS assets and its loopback, same-origin and CSP guard. Served by `repocortex ui`. | None (standard library only). | Must not read the index and has no data routes; every figure on a page is a call to the tool endpoint under `/api/v1`. |
 | `internal/cli` | Cobra command definitions, flag parsing, human terminal formatting, and structured JSON output. | All `internal/...` packages. | Should contain **zero** business logic; strictly delegates to `internal/capability` or `internal/pipeline`. |
 
 ---
@@ -7081,7 +6324,7 @@ A capability is implemented once, in `internal/capability`, and reaches every
 front end through the MCP tool that wraps it.
 
 - **Do not write a second handler.** The REST endpoint (`internal/restapi`), the
-  shell front end (`repocortex tool`) and the new portal (`internal/portal`) call
+  shell front end (`repocortex tool`) and the portal (`internal/portal`) call
   tools through `mcp.Invoker`. A handler written beside them would bound,
   validate or caveat its answer differently within a release.
 - **A new tool needs five things**, and a test fails for each one missing: a

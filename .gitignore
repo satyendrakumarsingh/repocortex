@@ -59,17 +59,10 @@ repocortex-out/
 *.key
 *.cert
 
-# Playwright deps for the portal e2e suite
-internal/web/e2e/node_modules/
-internal/web/e2e/test-results/
-
 # VS Code extension: installed dependencies, compiled output and packages
 editors/vscode/node_modules/
 editors/vscode/out/
 editors/vscode/*.vsix
-
-# Machine-local e2e fixtures: real repositories on one disk, never public
-internal/web/e2e/support/local-fixtures.mjs
 
 # Maintainer records: audits, plans, research and the UI preview mock name
 # machines and repositories that are not public. Kept on disk, never published.

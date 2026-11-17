@@ -21,10 +21,6 @@ on:
         description: "Run tests on macOS and Windows (10x runner multiplier)"
         type: boolean
         default: false
-      run_portal_e2e:
-        description: "Run portal E2E browser tests (usually run locally)"
-        type: boolean
-        default: false
       run_fuzz:
         description: "Run the fuzzing gate"
         type: boolean
@@ -315,61 +311,6 @@ jobs:
           /tmp/repocortex resolve
           /tmp/repocortex docs --out /tmp/docs-c
           diff -u /tmp/docs-a/ARCHITECTURE.md /tmp/docs-c/ARCHITECTURE.md
-
-  # Tier 2 — the portal, driven by a browser against the fixture that ships
-  # with the repository. Run locally by default to avoid heavy runner minutes;
-  # can be run on demand in CI via workflow_dispatch.
-  portal-e2e:
-    name: portal e2e (ci fixture)
-    if: github.event_name == 'workflow_dispatch' && inputs.run_portal_e2e
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    needs: [lint]
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
-        with: { go-version: "${{ env.GO_VERSION }}", cache: true }
-      - uses: actions/setup-node@v7
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: internal/web/e2e/package-lock.json
-      - name: install the suite
-        run: npm --prefix internal/web/e2e ci
-      # The browser is cached by Playwright version, and the install does not
-      # touch apt. --with-deps was dropped: it runs apt-get on every run, and the
-      # hosted runner image already carries the Chromium runtime libraries. When
-      # the package mirrors are unreachable (exit 100 in a run), this step used
-      # to fail the whole suite.
-      - name: restore the browser cache
-        uses: actions/cache@v6
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-chromium-${{ hashFiles('internal/web/e2e/package-lock.json') }}
-
-      - name: install the browser
-        run: |
-          cd internal/web/e2e
-          for attempt in 1 2 3; do
-            if npx playwright install chromium; then exit 0; fi
-            echo "::warning::playwright install attempt $attempt failed; retrying"
-            sleep 20
-          done
-          exit 1
-      - name: run the ci tier
-        env:
-          REPOCORTEX_E2E_TIER: ci
-        run: npm --prefix internal/web/e2e test
-      - name: keep the traces of anything that failed
-        if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: portal-e2e-traces
-          retention-days: 3
-          path: |
-            internal/web/e2e/test-results/
-            internal/web/e2e/results.json
-          if-no-files-found: ignore
 
   # Proves the zero-CGO promise: if this fails, `go install` is broken for
   # users without a C toolchain, and cross-compilation stops working.
