@@ -1,6 +1,14 @@
 package parse
 
-import "strings"
+import (
+	"path"
+	"regexp"
+	"strings"
+
+	ts "github.com/odvcencio/gotreesitter"
+
+	"github.com/satyendrakumarsingh/repocortex/pkg/model"
+)
 
 // Julia. What the index holds, see fixtures/langs/julia/expected.tsv.
 //
@@ -32,9 +40,31 @@ import "strings"
 //     recovery patterns at the end of juliaDefinitions);
 //   - plain assignments, global declarations and `(x::T)(args) = ...`
 //     functors are not definitions.
+//
+// Calls: `f(x)`, `M.f(x)`, `A.B.f(x)` and a constructor `Dict{K,V}(...)`. The call node
+// begins at the receiver, so the text before the name is how shape.go reads what the
+// call was made on. The left side of a method definition is a call to the grammar
+// (`f(x) = ...`, `f(x::T) where T = ...`) and is not one: a signature is excluded by
+// the pattern and the short form by shape.go (juliaDefinitionHead).
+//
+// Every definition is qualified by the modules around it (`Shop.total` for `total` in
+// `module Shop`, see juliaOwners), because a call reaches a function through the
+// module it is in. A file with no module of its own has names with no owner: it is
+// part of whichever module `include`s it.
 func init() {
-	registerDefinitions("julia", juliaDefinitions(), true)
+	registerDefinitions("julia", juliaCalls+juliaDefinitions(), true)
+	definitionRefiners["julia"] = juliaOwners
+	registerImportFix("julia", juliaImport)
 }
+
+const juliaCalls = `
+((call_expression . (identifier) @name) @reference.call
+  (#not-has-ancestor? @reference.call signature))
+((call_expression . (field_expression (_) . (identifier) @name .)) @reference.call
+  (#not-has-ancestor? @reference.call signature))
+((call_expression . (parametrized_type_expression . (identifier) @name)) @reference.call
+  (#not-has-ancestor? @reference.call signature))
+`
 
 // juliaCallName matches the call-shaped left side of a method definition and
 // captures its name.
@@ -149,4 +179,143 @@ func juliaDefinitions() string {
 		b.WriteString("(source_file (ERROR (ERROR \"function\" . (signature " + s + ") @definition.function)) @_top)\n  (#not-has-ancestor? @_top ERROR)\n")
 	}
 	return b.String()
+}
+
+// juliaDefinitionHead reports whether the text that follows a call is the rest
+// of a method definition: `f(x) = ...`, `f(x)::Int = ...`, `f(x) where T = ...`.
+// The grammar reads the left side as a call, and it declares what it names.
+func juliaDefinitionHead(after []byte) bool {
+	n := len(after)
+	if n > 200 {
+		n = 200
+	}
+	return juliaHeadTail.Match(after[:n])
+}
+
+var juliaHeadTail = regexp.MustCompile(`^[ \t]*(::[^=\n]*)?([ \t]+where[ \t][^=\n]*)?[ \t]*=([^=>]|$)`)
+
+// juliaOwners says which modules every definition is in: the names of the
+// `module` blocks around it, outermost first, joined with dots. A module is
+// qualified by the ones around it and not by itself.
+func juliaOwners(root *ts.Node, lang *ts.Language, _ string, src []byte, tags []ts.Tag) map[uint32]definitionFix {
+	var fixes map[uint32]definitionFix
+	for _, tag := range tags {
+		if !strings.HasPrefix(tag.Kind, "definition.") {
+			continue
+		}
+		n := root.NamedDescendantForByteRange(tag.NameRange.StartByte, tag.NameRange.EndByte)
+		isModule := kindFromTag(tag.Kind) == model.KindPackage
+		var chain []string
+		for p := n; p != nil; p = p.Parent() {
+			if p.Type(lang) != "module_definition" {
+				continue
+			}
+			var name *ts.Node
+			for i := 0; i < p.ChildCount(); i++ {
+				if c := p.Child(i); c != nil && c.Type(lang) == "identifier" {
+					name = c
+					break
+				}
+			}
+			if name == nil {
+				continue
+			}
+			if isModule && name.StartByte() == tag.NameRange.StartByte {
+				// The module a tag declares is not its own owner.
+				continue
+			}
+			chain = append([]string{name.Text(src)}, chain...)
+		}
+		if len(chain) == 0 {
+			continue
+		}
+		if fixes == nil {
+			fixes = map[uint32]definitionFix{}
+		}
+		fixes[tag.NameRange.StartByte] = definitionFix{owner: strings.Join(chain, ".")}
+	}
+	return fixes
+}
+
+// The import rows of a Julia file name a module by what it is called, or a file
+// by where it is (`include`); see lang_modules.go for the encoding.
+//
+//	using Money                  Money, import         (its exported names)
+//	using .Money, Base.Fmt       Money, Base.Fmt       (a leading dot says
+//	                             "a module of this one" and is dropped)
+//	using Money: zero, add       Money, import:zero,add
+//	import Money                 Money, no directive: `Money.f()` only
+//	import Money: add            Money, import:add
+//	import Money as M            Money, alias:M
+//	include("util/format.jl")    util/format.jl, include   (rooted at the repository)
+//
+// A name imported under another name (`import Money: add as plus`) is dropped:
+// the row does not carry which name it stood for.
+var (
+	juliaStatement = regexp.MustCompile(`(?s)^(using|import)\s+(.*)$`)
+	juliaInclude   = regexp.MustCompile(`^include\(\s*(?:joinpath\(\s*(?:@__DIR__\s*,\s*)?)?((?:"[^"]*"\s*,?\s*)+)\)?`)
+	juliaQuoted    = regexp.MustCompile(`"([^"]*)"`)
+	juliaModuleRef = regexp.MustCompile(`^\.*([A-Za-z_][A-Za-z0-9_!]*(?:\.[A-Za-z_][A-Za-z0-9_!]*)*)`)
+)
+
+func juliaImport(filePath string, imp Import) []Import {
+	text := strings.TrimSpace(imp.Path)
+	if m := juliaInclude.FindStringSubmatch(text); m != nil {
+		var segs []string
+		for _, q := range juliaQuoted.FindAllStringSubmatch(m[1], -1) {
+			segs = append(segs, q[1])
+		}
+		if len(segs) == 0 {
+			return nil
+		}
+		imp.Path = path.Join(path.Dir(filePath), path.Join(segs...))
+		imp.Alias = ModuleInclude
+		return []Import{imp}
+	}
+	m := juliaStatement.FindStringSubmatch(text)
+	if m == nil {
+		return nil
+	}
+	verb, rest := m[1], strings.TrimSpace(m[2])
+	row := func(module, alias string) Import {
+		next := imp
+		next.Path, next.Alias = module, alias
+		return next
+	}
+	if module, names, ok := strings.Cut(rest, ":"); ok && !strings.HasPrefix(names, ":") {
+		ref := juliaModuleRef.FindStringSubmatch(strings.TrimSpace(module))
+		if ref == nil {
+			return nil
+		}
+		var listed []string
+		for _, n := range strings.FieldsFunc(names, func(r rune) bool { return r == ',' || r == '(' || r == ')' || r == '\n' }) {
+			n = strings.TrimSpace(n)
+			if n == "" || strings.Contains(n, " as ") {
+				continue
+			}
+			listed = append(listed, strings.TrimPrefix(n, "@"))
+		}
+		if len(listed) == 0 {
+			return []Import{row(ref[1], "")}
+		}
+		return []Import{row(ref[1], ModuleImportPrefix+strings.Join(listed, ","))}
+	}
+	var out []Import
+	for _, item := range strings.Split(rest, ",") {
+		item = strings.TrimSpace(item)
+		module, alias, aliased := strings.Cut(item, " as ")
+		ref := juliaModuleRef.FindStringSubmatch(strings.TrimSpace(module))
+		if ref == nil {
+			continue
+		}
+		switch {
+		case aliased:
+			out = append(out, row(ref[1], ModuleAliasPrefix+strings.TrimSpace(alias)))
+		case verb == "using":
+			out = append(out, row(ref[1], ModuleImportAll))
+		default:
+			out = append(out, row(ref[1], ""))
+		}
+	}
+	return out
 }

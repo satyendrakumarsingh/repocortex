@@ -11,6 +11,14 @@ from an actual run.
 
 ## [Unreleased]
 
+- **Groovy, Julia, Erlang and Clojure bind calls across files.**
+  - **Groovy:** reads Java-style imports, including static, wildcard and aliased imports.
+  - **Erlang:** binds `m:f()` to the module the file is named after, and `-import` lists. A call whose argument count contradicts the function's arity is ruled out.
+  - **Clojure:** reads `ns` `:require` with `:as` and `:refer` (and `:use`), mapping namespaces to files.
+  - **Julia:** reads `using`, `import` and `include`. Definitions are qualified by their module.
+
+  Erlang, Clojure and Julia share a resolver that binds by module name. Groovy's import handling is gated so Java, Kotlin and Scala are unchanged. On multi-file fixtures, precision was 100% for Erlang (20 of 20 edges) and Clojure (18 of 18), 95% for Groovy (19 of 20) and 93% for Julia (14 of 15), each wrong edge `low`. Main gaps: Erlang `fun f/1` references and macros, Clojure record constructors, calls from a Julia included file to its module's other names, and untyped Groovy receivers.
+
 - **Symbols for INI, Nginx, awk and four template languages.**
   - INI `[section]` headers are packages, as TOML table headers are.
   - Nginx `server` blocks (named by their first `server_name`) and `upstream` blocks are classes, and `location` blocks are functions named by their path.

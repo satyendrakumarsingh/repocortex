@@ -860,6 +860,46 @@ var importQueries = map[string]string{
   (#eq? @_op "."))
 `,
 
+	// Erlang: `-import(m, [f/1, g/2]).` brings functions of a module in under
+	// their own names. The whole attribute is captured, and erlangImport
+	// (lang_erlang.go) reads the module and the names out of its text. Nothing
+	// else names a module: `m:f()` needs no import, and an -include is a header
+	// of records and macros.
+	"erlang": `
+(import_attribute) @path
+`,
+
+	// Clojure: `(ns a.b (:require [c.d :as d :refer [f]]) (:use ...))` and a
+	// top-level `(require '[c.d :as d])` or `(use ...)`. The whole form is
+	// captured because what it says (a prefix list, `:as`, `:refer`, `:only`)
+	// is text that clojureImport (lang_clojure.go) reads, and each row names a
+	// namespace.
+	"clojure": `
+((source (list_lit . (sym_lit (sym_name) @_h)) @path)
+  (#any-of? @_h "ns" "require" "use"))
+`,
+
+	// Julia: `using`, `import` and `include("x.jl")`. Each whole statement is
+	// captured because what it says (a module, a list of names, an alias) is
+	// text that juliaImport (lang_julia.go) reads, and each row names a module,
+	// or for an include a file.
+	"julia": `
+(using_statement) @path
+(import_statement) @path
+((call_expression . (identifier) @_f (argument_list . [(string_literal) (call_expression)])) @path
+  (#eq? @_f "include"))
+`,
+
+	// Groovy: `import a.b.C`, `import a.b.*`, `import static a.b.C.m` and
+	// `import a.b.C as D`. The qualified name is the class (or package, or static
+	// member) as written, and is read as Java's is; an alias is the identifier
+	// after it. The plain pattern also matches the aliased form, and dedupeImports
+	// keeps the row that carries the alias.
+	"groovy": `
+(groovy_import (qualified_name) @path)
+(groovy_import (qualified_name) @path (identifier) @alias)
+`,
+
 	"c": `
 (preproc_include path: (system_lib_string) @path)
 (preproc_include path: (string_literal) @path)

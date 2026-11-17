@@ -714,6 +714,44 @@ func NewSpecs() *Specs {
 		},
 	})
 
+	// Groovy. A JVM language with Java's module system: a package is a directory
+	// (across source roots, `src/main/groovy` and `src/test/groovy`), an import
+	// names a class by its package path and the class's own name and never a file
+	// stem, and a class sees its package's with no import. Classes map to files
+	// the Java way, though a Groovy file may hold several, so the class is found by
+	// the directory its package names and not by a file name.
+	//
+	// Unlike Java's, a Groovy receiver is not rewritten to a type by a query
+	// (`def x = ...` states none), so ReceiverDenotesType is false, as for Scala.
+	// Spock specifications are `*Spec.groovy` and JUnit tests `*Test.groovy`, both
+	// under src/test/groovy.
+	add(LanguageSpec{
+		Name: "groovy",
+		// Groovy calls Java and the other JVM languages through languageFamilies
+		// (canBind), which is what the binding path reads; Interop is consulted
+		// only by Python's static rules. It is not widened to the JVM set because
+		// that would have to be declared back by Java, Kotlin and Scala, whose
+		// behaviour this change does not touch.
+		Interop:             []string{"groovy"},
+		PackageIsDirectory:  true,
+		ImportPathNamesFile: false,
+		ReceiverDenotesType: false,
+		QualifiedMembers:    false,
+		ClassSelfNames:      nil,
+		SuperName:           "",
+		PackageInitStem:     "",
+		ProximityIsEvidence: true,
+		MemberSeparators:    sepJVM,
+		SelfNames:           commonSelfNames,
+		MinTypeNameLength:   3,
+		MaxCandidates:       MaxCandidates,
+		CallShapes:          CallBare | CallMethod | CallQualified | CallStatic,
+		TestFiles: TestFiles{
+			Suffixes: []string{"test.groovy", "tests.groovy", "spec.groovy", "testcase.groovy"},
+			Dirs:     []string{"test"},
+		},
+	})
+
 	add(LanguageSpec{
 		Name:                "kotlin",
 		Interop:             []string{"java", "kotlin", "scala"},
@@ -1084,6 +1122,38 @@ func NewSpecs() *Specs {
 	r.ProximityIsEvidence = false
 	r.MemberSeparators = sepDefault
 	add(r)
+	// Erlang. A module is a file (the compiler insists that `-module(m)` lives in
+	// m.erl), reached by name with no import, and a bare call reaches the file's
+	// own functions or a `-import`: no neighbour is in scope, and the resolution
+	// is modules.go's. Common Test suites are `*_SUITE.erl` and EUnit's are
+	// `*_tests.erl`, both under test/.
+	erlang := scopeSpec("erlang", []string{"erlang"}, TestFiles{
+		Suffixes: []string{"_suite.erl", "_tests.erl", "_test.erl"},
+		Dirs:     []string{"test"},
+	})
+	erlang.ProximityIsEvidence = false
+	erlang.MemberSeparators = sepDefault
+	add(erlang)
+	// Clojure. A namespace is a path and a call reaches one by the name `:require`
+	// gave it; a neighbour is in scope only by being required (modules.go).
+	clojure := scopeSpec("clojure", []string{"clojure"}, TestFiles{
+		Suffixes: []string{"_test.clj", "_test.cljc", "_test.cljs"},
+		Dirs:     []string{"test"},
+	})
+	clojure.ProximityIsEvidence = false
+	clojure.MemberSeparators = sepDefault
+	add(clojure)
+	// Julia. A module is a block with a name, and a file is part of the module
+	// that `include`s it: no neighbour is in scope and the resolution is
+	// modules.go's. Tests run from test/runtests.jl, which includes the others.
+	julia := scopeSpec("julia", []string{"julia"}, TestFiles{
+		Suffixes:  []string{"_test.jl", "_tests.jl"},
+		BaseNames: []string{"runtests.jl"},
+		Dirs:      []string{"test"},
+	})
+	julia.ProximityIsEvidence = false
+	julia.MemberSeparators = sepDefault
+	add(julia)
 	// Dart. A file is a library and sees nothing of its directory: what it
 	// uses it imports, by a path relative to itself or `package:` (rewritten by
 	// the parser to the file's repository path, so an import names one file and

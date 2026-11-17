@@ -207,6 +207,18 @@ type CallTraits struct {
 	// Imports says how the import table binds names.
 	Imports ImportStyle
 
+	// ImportAliases reports that an import may rename the class it names, and the
+	// parser records both rows: Groovy's `import a.b.Formatter as Fmt` is the
+	// import of a.b.Formatter and an alias row, and `Fmt.format(x)` is a call on
+	// Formatter. Where unset a row with an alias is not read as a class's rename,
+	// which is what Java (which cannot write one), Kotlin and Scala have always had.
+	ImportAliases bool
+
+	// WildcardImports reports that `import a.b.*` brings every type of package
+	// a.b into scope, and the import row is the package path. Where unset a
+	// package import names no type, as it never has for Java, Kotlin and Scala.
+	WildcardImports bool
+
 	// ExternalRoots are the first segments of a qualified path that always
 	// lie outside any repository: Rust's `std`, C++'s `std`, C#'s `System`.
 	ExternalRoots []string
@@ -428,7 +440,10 @@ var callTraitsByLanguage = map[string]CallTraits{
 	"powershell": {Measured: ruleTiers{UniqueTypeName: model.ConfidenceLow}},
 	"elixir":     {ExternalRoots: []string{"Kernel", "Enum", "Map", "MapSet", "List", "String", "Keyword", "Tuple", "Integer", "Float", "Atom", "Regex", "Range", "Stream", "IO", "File", "Path", "System", "Process", "Task", "Agent", "GenServer", "Supervisor", "DynamicSupervisor", "Application", "Logger", "Code", "Module", "Macro", "Access", "Date", "DateTime", "Time", "NaiveDateTime", "Calendar", "URI", "Base", "Bitwise", "Inspect", "Node", "Port", "Registry", "Version", "Record", "Exception", "ExUnit", "Mix", "Ecto", "Phoenix", "Plug", "Jason"}},
 	"r":          {ExternalRoots: []string{"base", "stats", "utils", "methods", "graphics", "grDevices", "datasets", "tools", "parallel", "compiler", "grid", "splines", "stats4"}},
-	"groovy":     {ImplicitSelf: true, Overloads: true, TypesAreCapitalised: true, Imports: ImportsNameClasses, ExternalRoots: []string{"java", "javax", "groovy"}, Builtins: javaBuiltins},
+	"erlang":     {ExternalRoots: []string{"erlang", "lists", "io", "io_lib", "maps", "string", "binary", "proplists", "gen_server", "gen_statem", "gen_event", "gen_fsm", "supervisor", "application", "ets", "dets", "mnesia", "file", "filename", "os", "timer", "calendar", "crypto", "rand", "random", "sets", "ordsets", "gb_trees", "gb_sets", "dict", "orddict", "queue", "array", "digraph", "logger", "code", "net_kernel", "rpc", "inet", "gen_tcp", "gen_udp", "ssl", "unicode", "re", "sys", "proc_lib", "init", "eunit", "ct", "math", "base64", "zlib", "erl_scan", "erl_parse", "epp", "persistent_term", "atomics", "counters", "cowboy", "ranch", "lager", "jsx", "jiffy", "meck"}},
+	"clojure":    {ExternalRoots: []string{"clojure", "java", "javax", "cljs", "js", "goog", "Math", "System", "String", "Integer", "Long", "Double", "Thread", "Character", "Boolean", "Object", "Class", "Runtime", "StringBuilder", "Pattern", "UUID", "Instant", "LocalDate", "Duration", "File", "Files", "Paths"}},
+	"julia":      {CallConstructs: true, ExternalRoots: []string{"Base", "Core", "Main", "LinearAlgebra", "Statistics", "Random", "Dates", "Test", "Printf", "Distributed", "SparseArrays", "Pkg", "Markdown", "Logging", "Libdl", "Sockets", "Serialization", "Unicode", "UUIDs", "REPL", "InteractiveUtils", "Mmap", "Downloads", "TOML", "DelimitedFiles", "Profile", "SHA", "Base64", "Threads", "JSON", "JSON3", "DataFrames", "CSV", "Plots", "HTTP"}},
+	"groovy":     {ImportAliases: true, WildcardImports: true, NewConstructs: true, Measured: ruleTiers{NamedAfterType: model.ConfidenceLow, UniqueTypeName: model.ConfidenceLow}, ImplicitSelf: true, Overloads: true, TypesAreCapitalised: true, Imports: ImportsNameClasses, ExternalRoots: []string{"java", "javax", "groovy"}, Builtins: javaBuiltins},
 }
 
 // callTraitsFor returns a language's row with its family filled in.

@@ -155,5 +155,8 @@ func fixImports(language, filePath string, in []Import) []Import {
 		out = append(out, fix(filePath, imp)...)
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Path < out[j].Path })
+	if keepsEveryDirective[language] {
+		return dedupeDirectives(out)
+	}
 	return dedupeImports(out)
 }

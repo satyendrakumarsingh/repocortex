@@ -58,7 +58,7 @@ var legacyLanguages = []string{
 	"rust", "scala", "ruby", "cpp", "c", "php",
 	// Never named by any switch. These must still answer exactly as the old
 	// default branch did.
-	"haskell", "elixir", "zig", "ocaml", "julia", "", "GO", "Java",
+	"haskell", "elixir", "zig", "ocaml", "perl", "", "GO", "Java",
 }
 
 func TestSpecsReproduceTheLegacySwitches(t *testing.T) {

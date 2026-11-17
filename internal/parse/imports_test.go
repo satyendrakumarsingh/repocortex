@@ -4,6 +4,8 @@ import (
 	"context"
 	"strings"
 	"testing"
+
+	"github.com/satyendrakumarsingh/repocortex/pkg/model"
 )
 
 func importPaths(res *Result) []string {
@@ -648,5 +650,307 @@ using namespace System.IO
 	pester := parse(t, "tests/Deploy.Tests.ps1", "BeforeAll { . $PSCommandPath.Replace('.Tests.ps1', '.ps1') }\n")
 	if !hasImport(pester, "tests/Deploy") || len(pester.Imports) != 1 {
 		t.Errorf("a Pester test names the file under test: %v", importPaths(pester))
+	}
+}
+
+// A Groovy import names a class by its package path, a package with a wildcard, a
+// static member, and may rename the class. The renamed one keeps both rows: the
+// class, and the alias.
+func TestGroovyImports(t *testing.T) {
+	res := parse(t, "src/main/groovy/com/acme/shop/Cart.groovy", `package com.acme.shop
+
+import com.acme.money.Money
+import com.acme.tax.*
+import static com.acme.util.Strings.slug
+import com.acme.fmt.Formatter as Fmt
+import groovy.json.JsonOutput
+
+class Cart {
+    def total() { Money.zero() }
+}
+`)
+	want := []struct{ path, alias string }{
+		{"com.acme.money.Money", ""}, {"com.acme.tax", ""}, {"com.acme.util.Strings.slug", ""},
+		{"com.acme.fmt.Formatter", ""}, {"com.acme.fmt.Formatter", "Fmt"}, {"groovy.json.JsonOutput", ""},
+	}
+	if len(res.Imports) != len(want) {
+		t.Fatalf("imports = %v, want %d rows", res.Imports, len(want))
+	}
+	for _, w := range want {
+		found := false
+		for _, i := range res.Imports {
+			found = found || (i.Path == w.path && i.Alias == w.alias)
+		}
+		if !found {
+			t.Errorf("missing import %q alias %q; got %v", w.path, w.alias, res.Imports)
+		}
+	}
+}
+
+// A method written with modifiers and no return type is read by the grammar as a
+// call, and is a declaration: it must not call itself from the line that
+// declares it. `new` is a construction, recorded on the type's name.
+func TestGroovyCallShapes(t *testing.T) {
+	refs, res := shapeOf(t, "src/main/groovy/a/Cart.groovy", `package a
+
+class Cart {
+    def total(items) {
+        helper(items)
+        this.helper(items)
+        Money.zero()
+        def t = new TaxCalc()
+        t.rate(1)
+        x?.go()
+    }
+
+    private helper(x) { x }
+}
+`)
+	for _, r := range res.References {
+		if r.Name == "helper" && r.Range.Start.Line == 12 {
+			t.Errorf("the declaration of helper on line 12 was recorded as a call: %+v", r)
+		}
+	}
+	for name, want := range map[string]struct{ kind, recv string }{
+		"zero": {model.ReceiverName, "Money"},
+		"go":   {model.ReceiverName, "x"},
+	} {
+		got, ok := refs[name]
+		if !ok || got.ReceiverKind != want.kind || got.Receiver != want.recv {
+			t.Errorf("%s = %+v, want %s %q", name, got, want.kind, want.recv)
+		}
+	}
+	if got := refs["TaxCalc"]; got.Kind != "reference.call.new" {
+		t.Errorf("new TaxCalc() = %+v, want a construction", got)
+	}
+}
+
+// Erlang: only `-import` names functions; `m:f()` needs no import. The arity is
+// written, and part of what is named.
+func TestErlangImports(t *testing.T) {
+	res := parse(t, "src/shop_cart.erl", `-module(shop_cart).
+-export([total/1]).
+-import(shop_util, [slug/1, pad/2]).
+-import('odd-mod', [f/0]).
+-include("shop.hrl").
+-behaviour(gen_server).
+
+total(X) -> shop_util:slug(X).
+`)
+	want := map[string]string{"shop_util": "import:slug/1,pad/2", "odd-mod": "import:f/0"}
+	for path, alias := range want {
+		got, ok := importAlias(res, path)
+		if !ok {
+			t.Errorf("missing import %q; got %v", path, importPaths(res))
+		} else if got != alias {
+			t.Errorf("import %q has alias %q, want %q", path, got, alias)
+		}
+	}
+	if len(res.Imports) != len(want) {
+		t.Errorf("imports = %v, want exactly %d (an include and a behaviour name no function)", importPaths(res), len(want))
+	}
+}
+
+// Erlang calls: a remote call names its module, `?MODULE` is the module the call
+// is in, a variable module names nothing; the arity of a call and of a function
+// is counted; a call inside a -spec is a type.
+func TestErlangCallShapes(t *testing.T) {
+	res := parse(t, "src/m.erl", `-module(m).
+-spec f(integer()) -> ok.
+f(X) ->
+    money:zero(),
+    ?MODULE:g(X, 1),
+    Mod:h(X),
+    g(X, 2).
+g(_, _) -> ok.
+`)
+	type shape struct {
+		name, recv, kind string
+		args             int
+	}
+	var got []shape
+	for _, r := range res.References {
+		n := -1
+		if r.ArgCount.Known() {
+			n = r.ArgCount.Count()
+		}
+		got = append(got, shape{r.Name, r.Receiver, r.ReceiverKind, n})
+	}
+	want := []shape{
+		{"zero", "money", model.ReceiverName, 0},
+		{"g", "?MODULE", model.ReceiverSelf, 2},
+		{"h", model.OpaqueReceiver, model.ReceiverExpr, 1},
+		{"g", "", model.ReceiverBare, 2},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("references = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("reference %d = %v, want %v", i, got[i], want[i])
+		}
+	}
+	for _, s := range res.Symbols {
+		if s.Name == "g" && (!s.ParamCount.Known() || s.ParamCount.Count() != 2) {
+			t.Errorf("g/2 has ParamCount %v", s.ParamCount)
+		}
+	}
+}
+
+// Clojure: one row per namespace a form loads, each saying what the directive
+// does with it. `:import` and `:refer-clojure` name no namespace.
+func TestClojureImports(t *testing.T) {
+	res := parse(t, "src/shop/cart.clj", `(ns shop.cart
+  (:require [shop.money :as money :refer [zero]]
+            [shop.util :refer :all]
+            [shop.tax :refer [rate apply-tax]]
+            [shop.data
+             [db :as db]
+             [cache]]
+            shop.plain)
+  (:use [shop.fmt :only [fmt]]
+        shop.all)
+  (:refer-clojure :exclude [first])
+  (:import (java.util Date)))
+
+(require '[shop.late :as late])
+(defn total [x] x)
+`)
+	want := map[string]string{
+		"shop.money": "alias:money;import:zero", "shop.util": "import", "shop.tax": "import:rate,apply-tax",
+		"shop.data.db": "alias:db", "shop.data.cache": "", "shop.plain": "",
+		"shop.fmt": "import:fmt", "shop.all": "import", "shop.late": "alias:late",
+	}
+	for path, alias := range want {
+		got, ok := importAlias(res, path)
+		if !ok {
+			t.Errorf("missing import %q; got %v", path, importPaths(res))
+		} else if got != alias {
+			t.Errorf("import %q has alias %q, want %q", path, got, alias)
+		}
+	}
+	if len(res.Imports) != len(want) {
+		t.Errorf("imports = %v, want exactly %d", importPaths(res), len(want))
+	}
+}
+
+// Clojure calls: `(f x)` is bare, `(m/f x)` is qualified by an alias or a
+// namespace, a special form and a Java method are not calls of the repository.
+func TestClojureCallShapes(t *testing.T) {
+	refs, res := shapeOf(t, "src/shop/cart.clj", `(ns shop.cart)
+
+(defn total [items]
+  (let [s (money/zero)]
+    (when-let [x (slugify s)] x)
+    (shop.tax/rate s)
+    (.getTime (Date.))
+    (Math/abs 1)
+    '(not-a-call 1)
+    #(helper %)))
+`)
+	for name, want := range map[string]struct{ kind, recv string }{
+		"zero":    {model.ReceiverName, "money"},
+		"slugify": {model.ReceiverBare, ""},
+		"rate":    {model.ReceiverPath, "shop.tax"},
+		"abs":     {model.ReceiverName, "Math"},
+		"helper":  {model.ReceiverBare, ""},
+	} {
+		got, ok := refs[name]
+		if !ok || got.ReceiverKind != want.kind || got.Receiver != want.recv {
+			t.Errorf("%s = %+v, want %s %q", name, got, want.kind, want.recv)
+		}
+	}
+	for _, r := range res.References {
+		switch r.Name {
+		case "let", "when-let", "defn", "getTime", "Date.", "not-a-call":
+			t.Errorf("%q was recorded as a call", r.Name)
+		}
+	}
+}
+
+// Julia: a module by name, a list of names, an alias, and an include rooted at the
+// repository. A leading dot says "a module of this one" and is dropped.
+func TestJuliaImports(t *testing.T) {
+	res := parse(t, "src/Shop.jl", `module Shop
+
+using LinearAlgebra
+using .Money, Base.Fmt
+using Stats: mean, median
+import .Tax: rate, apply as ap
+import Geo
+import Geo.Shapes as Sh
+
+include("cart.jl")
+include(joinpath("util", "format.jl"))
+include(path)
+
+end
+`)
+	want := map[string]string{
+		"LinearAlgebra": "import", "Money": "import", "Base.Fmt": "import", "Stats": "import:mean,median",
+		"Tax": "import:rate", "Geo": "", "Geo.Shapes": "alias:Sh",
+		"src/cart.jl": "include", "src/util/format.jl": "include",
+	}
+	for path, alias := range want {
+		got, ok := importAlias(res, path)
+		if !ok {
+			t.Errorf("missing import %q; got %v", path, importPaths(res))
+		} else if got != alias {
+			t.Errorf("import %q has alias %q, want %q", path, got, alias)
+		}
+	}
+	if len(res.Imports) != len(want) {
+		t.Errorf("imports = %v, want exactly %d (a computed include names no file)", importPaths(res), len(want))
+	}
+}
+
+// Julia calls: a short-form definition and a signature are not calls; a
+// definition is qualified by the modules around it.
+func TestJuliaCallShapes(t *testing.T) {
+	refs, res := shapeOf(t, "src/Shop.jl", `module Shop
+
+helper(x) = x * 2
+fmt(x::Int)::String = string(x)
+conv(x::T) where T = x
+
+function total(items)
+    s = Money.zero_money()
+    helper(s)
+    A.B.deep(s)
+    Dict{String,Int}()
+    if helper(s) == 3
+    end
+    s
+end
+
+module Inner
+    deep(x) = x
+end
+
+end
+`)
+	for _, r := range res.References {
+		if r.Name == "conv" || (r.Name == "fmt" && r.Range.Start.Line == 4) || (r.Name == "helper" && r.Range.Start.Line == 3) {
+			t.Errorf("the definition of %s on line %d was recorded as a call", r.Name, r.Range.Start.Line)
+		}
+	}
+	for name, want := range map[string]struct{ kind, recv string }{
+		"zero_money": {model.ReceiverName, "Money"},
+		"deep":       {model.ReceiverPath, "A.B"},
+		"Dict":       {model.ReceiverBare, ""},
+	} {
+		got, ok := refs[name]
+		if !ok || got.ReceiverKind != want.kind || got.Receiver != want.recv {
+			t.Errorf("%s = %+v, want %s %q", name, got, want.kind, want.recv)
+		}
+	}
+	fqns := map[string]bool{}
+	for _, s := range res.Symbols {
+		fqns[s.FQN] = true
+	}
+	for _, f := range []string{"src/Shop.jl:Shop.total", "src/Shop.jl:Shop.Inner", "src/Shop.jl:Shop.Inner.deep", "src/Shop.jl:Shop.helper"} {
+		if !fqns[f] {
+			t.Errorf("missing symbol %q; got %v", f, fqns)
+		}
 	}
 }

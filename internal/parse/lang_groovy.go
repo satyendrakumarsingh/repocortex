@@ -38,6 +38,21 @@ import "strings"
 // record parameters.
 func init() {
 	registerDefinitions("groovy", `
+; Calls. f(x), a.b.f(x), obj?.f(x) and `+"`f x`"+` are function_call, access_op and juxt_function_call
+; nodes whose callee is an identifier or a dotted_identifier. A call node begins at its
+; receiver, so the text before the name is how shape.go reads what the call was made on;
+; the callee of `+"`obj?.f()`"+` is the function_call inside an access_op, so that node is the
+; tagged one. `+"`new Widget(1)`"+` is a unary_op around the same function_call, and is
+; recorded as a construction (reference.call.new) of the type and not as a call of a method.
+((function_call . (identifier) @name) @reference.call
+  (#not-has-parent? @reference.call unary_op access_op))
+(function_call . (dotted_identifier (identifier) @name .)) @reference.call
+(access_op (function_call . (identifier) @name)) @reference.call
+(juxt_function_call . (identifier) @name) @reference.call
+(juxt_function_call . (dotted_identifier (identifier) @name .)) @reference.call
+(unary_op "new" . (function_call . (identifier) @name @reference.call.new))
+(unary_op "new" . (function_call . (dotted_identifier . (identifier) (identifier) @name @reference.call.new .)))
+
 ; class, interface, @interface: the first identifier after the keyword. A class that has
 ; "implements" and no "extends" is read with the keyword inside an ERROR node and its name
 ; mangled; that form is the ERROR followed by an identifier (the mangled name).
@@ -123,6 +138,21 @@ func init() {
   (#eq? @_m "task")
 `, true)
 	registerNameFix("groovy", groovyName)
+	registerImportFix("groovy", groovyImport)
+}
+
+// groovyImport keeps the class an aliased import names. `import a.b.Formatter as
+// Fmt` is two facts, that the file imports the class a.b.Formatter and that it
+// writes it `Fmt`, and the row for each is kept: the first is read as Java's
+// import of a class is, and the second says what a call qualified by `Fmt` is
+// qualified by.
+func groovyImport(_ string, imp Import) []Import {
+	if imp.Alias == "" {
+		return []Import{imp}
+	}
+	plain := imp
+	plain.Alias = ""
+	return []Import{plain, imp}
 }
 
 // groovyName removes the quotes of a Spock feature title (`"adds two numbers"`),

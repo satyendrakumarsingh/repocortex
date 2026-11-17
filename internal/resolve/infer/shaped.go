@@ -211,6 +211,12 @@ func (r *Resolver) resolveCall(c call, stats *Stats) decision {
 		return r.callElixir(c, stats)
 	}
 
+	if modularLanguages[c.spec.Name] {
+		// Erlang, Clojure and Julia reach a function through the module it is in,
+		// which no rule below can say. Only their calls come here; see modules.go.
+		return r.callModular(c, stats)
+	}
+
 	switch c.ref.ReceiverKind {
 	case model.ReceiverBare:
 		return r.callBare(c, stats)
@@ -327,6 +333,13 @@ func (r *Resolver) typeNamed(c call, name string) (t typeRef, found, known bool)
 	}
 	if t, ok := pick(sameDir, true); ok {
 		return t, true, true
+	}
+	if c.spec.Calls.WildcardImports {
+		// `import a.b.*` brings the types of package a.b into scope, after the
+		// file's own package and a single-type import of the name.
+		if t, ok := pick(r.importedByPackage(c, types), true); ok {
+			return t, true, true
+		}
 	}
 	if c.spec.PackageIsDirectory && c.spec.Calls.Imports == ImportsNameClasses {
 		// A JVM package spans source roots: `src/main/java/com/pay` and
@@ -500,6 +513,26 @@ func (r *Resolver) importedByName(c call, name string, among []registry.SymbolIn
 		}
 	}
 	return nil
+}
+
+// importedByPackage returns, of the given types, the top-level ones in a package
+// the file imports whole: `import a.b.*` is the row `a.b`, a package, and names
+// the types declared in a directory that ends with a/b. A row whose last segment
+// is a class (`import a.b.Outer.*`, a static member) or a path no directory ends
+// with names none.
+func (r *Resolver) importedByPackage(c call, types []registry.SymbolIndexEntry) []registry.SymbolIndexEntry {
+	var out []registry.SymbolIndexEntry
+	for _, e := range c.imports.imports {
+		if e.alias != "" || len(e.segments) == 0 || capitalised(lastRawSegment(e.raw)) {
+			continue
+		}
+		for _, s := range types {
+			if isModuleLevel(s) && commonSuffixLen(e.segments, pathSegments(path.Dir(s.FilePath))) == len(e.segments) {
+				out = append(out, s)
+			}
+		}
+	}
+	return out
 }
 
 // importsFromPackage reports whether an import is `import pkg.Name`: it names
@@ -1209,6 +1242,17 @@ func (r *Resolver) importedFromOutside(c call, name string) bool {
 // declare: an import, a type, or something at file level or beyond.
 func (r *Resolver) callNamed(c call, stats *Stats) decision {
 	name := c.ref.Receiver
+
+	// An import that renames a class: `Fmt.format(x)` after `import a.b.Formatter
+	// as Fmt` is a call on Formatter, which the plain row of the same import names.
+	if c.spec.Calls.ImportAliases {
+		for _, e := range c.imports.imports {
+			if e.alias == name {
+				name = lastRawSegment(e.raw)
+				break
+			}
+		}
+	}
 
 	// CommonJS: `exports.f()` is a call of what this module exports.
 	if c.spec.Calls.Imports == ImportsNameModules && name == "exports" {

@@ -204,6 +204,78 @@ func buildCoreFunctions() map[string]map[string]struct{} {
 		describe context it beforeall afterall beforeeach aftereach should mock assert-mockcalled
 		invoke-pester new-pesterconfiguration inmodulescope skip set-itresult`)
 
+	// Erlang: the functions of the `erlang` module the compiler imports into every
+	// module (auto-imported BIFs). A module cannot define one of its own under the
+	// same name and arity without `-compile({no_auto_import, ...})`, so a bare call
+	// of one is the language's. A definition in the same file is never refused
+	// (see the note at the top of this file); an `-import`, which the compiler
+	// also rejects for these names, does not override them either.
+	out["erlang"] = words(`
+		abs apply atom_to_binary atom_to_list binary_part binary_to_atom binary_to_existing_atom
+		binary_to_float binary_to_integer binary_to_list binary_to_term bit_size bitstring_to_list
+		byte_size ceil date demonitor disconnect_node element erase error exit float
+		float_to_binary float_to_list floor garbage_collect get get_keys group_leader halt hd
+		integer_to_binary integer_to_list iolist_size iolist_to_binary is_alive is_atom is_binary
+		is_bitstring is_boolean is_float is_function is_integer is_list is_map is_map_key is_number
+		is_pid is_port is_process_alive is_record is_reference is_tuple length link list_to_atom
+		list_to_binary list_to_bitstring list_to_existing_atom list_to_float list_to_integer
+		list_to_pid list_to_tuple make_ref map_get map_size max min module_loaded monitor
+		monitor_node node nodes now open_port pid_to_list port_close port_command process_flag
+		process_info processes put register registered round self setelement size spawn
+		spawn_link spawn_monitor spawn_opt split_binary statistics term_to_binary throw time tl
+		trunc tuple_size tuple_to_list unlink unregister whereis`)
+
+	// Clojure: clojure.core, which every namespace refers, and clojure.test's
+	// forms. A bare call of one is the language's unless the file defines it or
+	// a `:refer` names it (modules.go).
+	out["clojure"] = words(`
+		* *' + +' - -' / < <= = == > >= abs agent apply assoc assoc-in associative? atom bigdec bigint
+		binding boolean boolean? butlast byte char char? class cond-> conj conj! cons constantly contains?
+		count cycle dec dedupe deref dissoc dissoc! distinct distinct? doall dorun drop drop-last drop-while
+		empty empty? even? every-pred every? false? ffirst filter filterv find first flatten float fn? fnext
+		for format frequencies get get-in group-by hash-map hash-set identical? identity inc int int? interleave
+		interpose into into-array iterate juxt keep keep-indexed key keys keyword keyword? last lazy-cat
+		list list? long map map-indexed map? mapcat mapv max max-key merge merge-with meta min min-key mod
+		name namespace neg? next nfirst nil? nnext not not-any? not-empty not-every? not= nth nthnext nthrest
+		number? odd? partial partition partition-all partition-by peek persistent! pop pop! pos? pr pr-str
+		print print-str println prn quot rand rand-int rand-nth range re-find re-matches re-pattern re-seq
+		reduce reduce-kv reductions rem remove repeat repeatedly replace rest reverse reversible? rseq
+		second select-keys seq seq? sequence sequential? set set? short shuffle some some? sort sort-by
+		sorted-map sorted-set split-at split-with str string? subs subvec swap! symbol symbol? take
+		take-last take-nth take-while time transduce transient true? type unchecked-add update update-in
+		val vals vec vector vector? volatile! vreset! vswap! when-first with-meta zero? zipmap
+		ex-info ex-data ex-message resolve requiring-resolve gensym eval load-file
+		run! mapv pmap pcalls future-call promise deliver realized? force
+		testing is are deftest run-tests run-all-tests use-fixtures thrown? thrown-with-msg?`)
+
+	// Julia: Base, which every module imports, and Core. A bare call of one is
+	// the language's unless the file defines it (a method of a function that
+	// extends Base is its own definition) or `using` names it (modules.go).
+	out["julia"] = words(`
+		abs abs2 all any append! argmax argmin axes bitstring broadcast cat ceil chomp chop
+		close cld collect contains copy copyto! count cumsum cumprod deepcopy delete! deleteat!
+		diff display div divrem eachindex eachline eachsplit eltype empty empty! endswith enumerate
+		eof error eval exit exp extrema fill fill! filter filter! findall findfirst findlast findmax
+		findmin first fld flatten floor foldl foldr get get! getindex getproperty haskey hash hcat
+		identity ifelse in include insert! intersect isa isapprox isdigit isempty isequal iseven
+		isfile isless ismissing isnothing isodd isone isopen isreal isspace issubset isuppercase
+		iszero iterate join joinpath keys keytype last lastindex length lock log log10 log2 lowercase
+		lpad lstrip map map! mapfoldl mapreduce match max maximum merge merge! min minimum mod
+		mkpath modf ndims nextind ntuple occursin one open parent parse parse! permute! pop!
+		popfirst! position print println printstyled prod push! pushfirst! put! rand randn read
+		readdir readline readlines readuntil reduce rem repeat replace replace! reshape resize!
+		rethrow reverse reverse! round rpad rsplit rstrip searchsortedfirst setdiff setindex!
+		setproperty! show similar sizehint! sizeof size sleep sort sort! split splice! sprint
+		sqrt startswith string strip sum symdiff take! throw time tryparse typeof typemax typemin
+		union unique unique! unsafe_load uppercase values vcat vec view wait warn write zero zeros
+		ones fieldnames getfield setfield! hasfield nameof isdefined fieldtype supertype isconcretetype
+		convert promote promote_type Dict Vector Matrix Array Set String Int Int8 Int16 Int32 Int64
+		UInt UInt8 UInt16 UInt32 UInt64 Float16 Float32 Float64 Bool Char Symbol Tuple NamedTuple
+		Pair Ref Ptr Some Missing Nothing Union Type Any Number Real Integer AbstractString
+		ArgumentError BoundsError DomainError ErrorException KeyError MethodError AssertionError
+		DimensionMismatch Exception InterruptException OverflowError StackOverflowError TypeError
+		ismutable invokelatest hasmethod methods which sum! prod! mean_ cmp isinteger length_`)
+
 	// Dart: the dart:core functions a file can call with no import.
 	out["dart"] = words(`print identical identityHashCode`)
 

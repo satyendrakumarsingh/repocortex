@@ -913,6 +913,15 @@ func (r *Resolver) AppendNames(dst []string, seen map[string]struct{}, fr regist
 			add(lastSegment(ref.Receiver))
 		}
 	}
+	// A class imported under another name (`import a.b.C as D`) is the type a
+	// call qualified by D is made on, and no reference spells C.
+	if spec.Calls.ImportAliases {
+		for _, imp := range fr.Imports {
+			if imp.Alias != "" {
+				add(lastRawSegment(imp.Path))
+			}
+		}
+	}
 	// A use of a renamed import is bound to the definition of the name the
 	// module exports it by (renamed.go), which no reference spells.
 	for _, imp := range fr.Imports {

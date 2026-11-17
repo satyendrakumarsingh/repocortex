@@ -348,6 +348,10 @@ func (w *shWalker) textualShape(tag ts.Tag) callShape {
 		// what is declared, not something called.
 		return callShape{notCall: true}
 	}
+	if w.language == "julia" && juliaDefinitionHead(w.src[end:]) {
+		// `f(x) = ...` declares f; the grammar reads its left side as a call.
+		return callShape{notCall: true}
+	}
 	pre := strings.TrimSpace(string(w.src[start:nameStart]))
 	post := w.src[nameEnd:end]
 
@@ -359,8 +363,21 @@ func (w *shWalker) textualShape(tag ts.Tag) callShape {
 
 	// A Lisp writes the call's own parenthesis before the callee.
 	pre = strings.TrimLeft(pre, "( \t\r\n")
+	if w.language == "clojure" {
+		// `#(f %)` opens with a reader dispatch character as well.
+		pre = strings.TrimLeft(pre, "#( \t\r\n")
+		if strings.HasSuffix(pre, "/") {
+			// `(money/zero)`: the namespace or its alias, before a slash. A slash
+			// is a member operator nowhere else.
+			return classifyReceiver(w.language, strings.TrimSpace(pre[:len(pre)-1]), "/")
+		}
+	}
 	if pre == "" {
 		return callShape{kind: model.ReceiverBare}
+	}
+	if w.language == "erlang" {
+		// `m:f(x)`: the colon is not a member operator in any other language.
+		return erlangShape(pre)
 	}
 
 	if w.language == "r" && strings.HasSuffix(pre, ":::") {

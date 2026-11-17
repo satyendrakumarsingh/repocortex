@@ -606,7 +606,27 @@ func (p *genericParser) Parse(ctx context.Context, path string, src []byte) (*Re
 	// see the reference case below.
 	var objectDropped map[pySite]bool
 
+	// Groovy's grammar reads a method written with modifiers and no return type
+	// (`private helper(x) { x }`) and a constructor as a CALL, and the definition
+	// query takes the same identifier as the method's name. A method does not call
+	// itself from the line that declares it, so a call tag on a name that a
+	// definition tag names is the declaration read twice.
+	var declaredAt map[uint32]struct{}
+	if p.entry.Name == "groovy" {
+		declaredAt = make(map[uint32]struct{}, 16)
+		for _, tag := range tags {
+			if strings.HasPrefix(tag.Kind, "definition") {
+				declaredAt[tag.NameRange.StartByte] = struct{}{}
+			}
+		}
+	}
+
 	for i, tag := range tags {
+		if declaredAt != nil && isCallTag(tag.Kind) {
+			if _, declared := declaredAt[tag.NameRange.StartByte]; declared {
+				continue
+			}
+		}
 		switch {
 		case strings.HasPrefix(tag.Kind, "definition"):
 			// A tag from a host's own patterns (a component file's script) is
@@ -1557,6 +1577,9 @@ func (p *genericParser) extractImports(tree *ts.Tree, src []byte) []Import {
 	}
 
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Path < out[j].Path })
+	if keepsEveryDirective[p.entry.Name] {
+		return dedupeDirectives(out)
+	}
 	return dedupeImports(out)
 }
 
