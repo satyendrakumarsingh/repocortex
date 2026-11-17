@@ -221,11 +221,25 @@ func (r *Resolver) scriptModule(fromPath, specifier string) module {
 	}
 
 	rest := ""
-	for _, prefix := range pathAliasPrefixes {
+	prefixes := pathAliasPrefixes
+	if strings.HasSuffix(fromPath, ".svelte") {
+		// SvelteKit's `$lib` is src/lib, the alias its own tooling defines for
+		// every project, and a component's script is where it is written. It is
+		// read for a .svelte file alone: a `.ts` module of a SvelteKit app uses
+		// it too, but that file is TypeScript's to resolve and its behaviour is
+		// left as it was.
+		prefixes = append(append([]string{}, pathAliasPrefixes...), "$lib/")
+	}
+	for _, prefix := range prefixes {
 		if strings.HasPrefix(specifier, prefix) {
 			rest = strings.TrimPrefix(specifier, prefix)
 			if prefix == "src/" {
 				rest = specifier
+			}
+			if prefix == "$lib/" {
+				// Anchored under a directory named lib, so a Badge.svelte of
+				// some other directory is not the one `$lib/Badge.svelte` names.
+				rest = "lib/" + rest
 			}
 			break
 		}

@@ -225,6 +225,53 @@ var supplements = map[string]string{
 (call receiver: (_) method: (identifier) @name) @reference.call
 (call !receiver method: (identifier) @name (#not-any-of? @name "include" "extend" "prepend")) @reference.call
 `,
+
+	// Solidity: the definition query (lang_solidity.go) tags no reference, so a
+	// call, a construction and a `is` clause bound nothing. The call tag spans the
+	// whole call expression, which is how the receiver of `Math.max(a, b)` is read
+	// back from the text before the name (shape.go). `emit Sent(...)`, `revert
+	// NotOwner(...)` and a modifier written after a function's parameters
+	// (`onlyOwner`, or a base constructor `Base(x)`) are calls of the event, the
+	// error and the modifier. `new Vault(x)` constructs a contract, and
+	// `contract A is B, C` names its bases (see inheritanceQueries). A type written where a
+	// value of it is declared, and the library of a `using L for T`, is a use of it.
+	"solidity": `
+(call_expression (expression (identifier) @name)) @reference.call
+(call_expression (expression (member_expression (identifier) . (identifier) @name .))) @reference.call
+(call_expression (expression (member_expression (expression) (identifier) @name .))) @reference.call
+(emit_statement (expression (identifier) @name @reference.call))
+(revert_statement (expression (identifier) @name @reference.call))
+(modifier_invocation (identifier) @name @reference.call)
+(new_expression (type_name (user_defined_type (identifier) @name @reference.call.new .)))
+(parameter (type_name (user_defined_type (identifier) @name .))) @reference.type
+(variable_declaration (type_name (user_defined_type (identifier) @name .))) @reference.type
+(state_variable_declaration (type_name (user_defined_type (identifier) @name .))) @reference.type
+(using_directive (type_alias (identifier) @name)) @reference.type
+`,
+
+	// Apex constructs with `new`, which its inferred tags have no pattern for, so a
+	// class that is only ever constructed had no reference anywhere. Each pattern
+	// tags the type the expression names with the kind Java's construction has
+	// (see lang_java.go): the resolver reads it as a construction, and a
+	// constructor, which is indexed as a method called after its class, is not
+	// mistaken for a call. A type written where a value of it is declared (a
+	// field, a parameter, a local, a return type, a type argument) is a use of
+	// that type: `reference.type` binds only to a type and, where the org holds
+	// none of the name (String, Account, a standard SObject), is ignored.
+	"apex": `
+(object_creation_expression . (type_identifier) @name @reference.call.new)
+(object_creation_expression . (generic_type . (type_identifier) @name) @reference.call.new)
+(object_creation_expression . (scoped_type_identifier (type_identifier) @name .) @reference.call.new)
+(field_declaration (type_identifier) @name @reference.type)
+(field_declaration (generic_type . (type_identifier) @name) @reference.type)
+(formal_parameter (type_identifier) @name @reference.type)
+(formal_parameter (generic_type . (type_identifier) @name) @reference.type)
+(local_variable_declaration (type_identifier) @name @reference.type)
+(local_variable_declaration (generic_type . (type_identifier) @name) @reference.type)
+(method_declaration (type_identifier) @name @reference.type)
+(method_declaration (generic_type . (type_identifier) @name) @reference.type)
+(type_arguments (type_identifier) @name @reference.type)
+`,
 }
 
 // inheritanceQueries capture SUPERTYPE relationships as references.
@@ -312,6 +359,27 @@ var inheritanceQueries = map[string]string{
 	// plain (`Base`), generic (`Base<T>`) or qualified (`com.pay.Base`), and
 	// the three are different nodes. An interface list mentioning several types
 	// yields one match per type, so `implements C, D` produces two references.
+	// Solidity names its bases after `is`, interfaces and contracts alike, so every
+	// one is an `extends`. A qualified base (`Lib.Base`) is the last identifier.
+	"solidity": `
+(inheritance_specifier (user_defined_type (identifier) @name @reference.extends .))
+`,
+
+	// Apex's `extends` and `implements` are Java's, with the grammar's own node
+	// names (`interfaces` for the implements list). A class has one superclass; an
+	// interface extends several.
+	"apex": `
+(superclass (type_identifier) @name @reference.extends)
+(superclass (generic_type . (type_identifier) @name @reference.extends))
+(superclass (scoped_type_identifier (type_identifier) @name @reference.extends .))
+(interfaces (type_list (type_identifier) @name @reference.implementation))
+(interfaces (type_list (generic_type . (type_identifier) @name @reference.implementation)))
+(interfaces (type_list (scoped_type_identifier (type_identifier) @name @reference.implementation .)))
+(extends_interfaces (type_list (type_identifier) @name @reference.extends))
+(extends_interfaces (type_list (generic_type . (type_identifier) @name @reference.extends)))
+(extends_interfaces (type_list (scoped_type_identifier (type_identifier) @name @reference.extends .)))
+`,
+
 	"java": `
 (superclass (type_identifier) @name @reference.extends)
 (superclass (generic_type (type_identifier) @name @reference.extends))
@@ -800,6 +868,25 @@ var importQueries = map[string]string{
 	// captured. objcImport (lang_objc.go) drops the extension.
 	"objc": `
 (preproc_include path: (string_literal) @path)
+`,
+
+	// Apex has no imports. A class is global to the org by its name: `Foo` in
+	// classes/Foo.cls is visible from every other class, a namespace's classes
+	// are reached as `ns.Foo`, and nothing in a file says where a name comes
+	// from. This pattern binds no @path and so adds no row; it is the statement
+	// that the language's imports are read, and that there are none to read. What
+	// the resolver does in their place is the spec's (resolve/infer, "apex").
+	"apex": `
+(class_declaration) @import
+`,
+
+	// Solidity: `import "./A.sol";`, `import "./A.sol" as A;`, `import * as L from
+	// "./L.sol";` and `import {A, B as C} from "./x.sol";` each name a file by
+	// the string that ends the directive. solidityImport (lang_solidity.go)
+	// rewrites the path to the repository path of the file it names, and the
+	// names the directive binds are read from the tree (solidityBindings).
+	"solidity": `
+(import_directive (string) @path)
 `,
 
 	// Lua: `require("a.b")`, `require "a.b"` and `local m = require("a.b")`. The

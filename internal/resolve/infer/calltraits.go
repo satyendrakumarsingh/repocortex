@@ -204,6 +204,16 @@ type CallTraits struct {
 	// messages.rs.
 	ScopeNamesModule bool
 
+	// TypesAreGlobal reports that a type is visible to every file by its name
+	// alone, with no import and no package to say where it came from, and that
+	// the platform refuses two of one name: Apex, where a class `Foo` is the
+	// same `Foo` from every directory of the org. A reference to a type that the
+	// repository declares exactly once is then that type, not a guess from a
+	// unique name, and is bound at `high` where every other language gives that
+	// evidence `low`. It speaks only of a type: a function of a unique name keeps
+	// the weaker tier. Set for Apex alone.
+	TypesAreGlobal bool
+
 	// Imports says how the import table binds names.
 	Imports ImportStyle
 
@@ -362,6 +372,29 @@ var (
 		"Number", "Runtime", "Throwable", "Exception", "RuntimeException", "Error", "Iterable",
 		"Comparable", "CharSequence", "Void", "StrictMath", "ThreadLocal", "ClassLoader",
 	}
+	// Apex: the namespaces and types Salesforce defines in `System` and its
+	// siblings, which need no import and are in no repository. A call on one of
+	// them is the platform's, not a class of the org that shares its name.
+	apexBuiltins = []string{
+		"System", "Database", "Schema", "Test", "Limits", "Trigger", "UserInfo", "Messaging",
+		"ApexPages", "Site", "Auth", "Approval", "Label", "Crypto", "EncodingUtil", "JSON",
+		"Math", "String", "Integer", "Long", "Double", "Decimal", "Boolean", "Date", "Datetime",
+		"Time", "Id", "Blob", "Object", "List", "Set", "Map", "SObject", "Type", "Pattern",
+		"Matcher", "Http", "HttpRequest", "HttpResponse", "Url", "URL", "Exception", "DmlException",
+		"QueryException", "Savepoint", "Cache", "Metadata", "Process", "PageReference", "Apexpages",
+		"Search", "Network", "Dom", "XmlStreamReader", "XmlStreamWriter", "Comparable", "Queueable",
+		"Schedulable", "Batchable", "Callable", "StubProvider", "RestContext", "RestRequest",
+		"RestResponse", "ConnectApi", "Flow", "EventBus", "Package", "Visualforce", "UserManagement",
+	}
+	// Solidity: the global objects and the value types, which need no import. A
+	// call on one of them (`abi.encode`, `msg.sender.call`, `uint(x).max`) is the
+	// language's, not a function of the repository that shares its name.
+	solidityBuiltins = []string{
+		"abi", "msg", "block", "tx", "type", "address", "payable", "string", "bytes", "bool",
+		"uint", "int", "uint8", "uint16", "uint32", "uint64", "uint128", "uint256", "int8",
+		"int16", "int32", "int64", "int128", "int256", "bytes1", "bytes4", "bytes8", "bytes16",
+		"bytes32", "mapping", "this", "super",
+	}
 	rubyBuiltins = []string{
 		"String", "Array", "Hash", "Mutex", "Time", "File", "Integer", "Float", "Struct", "Class",
 		"Module", "Kernel", "Thread", "Set", "Proc", "Regexp", "IO", "Dir", "Symbol", "Range",
@@ -417,14 +450,16 @@ var (
 var callTraitsByLanguage = map[string]CallTraits{
 	"go":         {Measured: ruleTiers{UnknownReceiver: model.ConfidenceHigh, NamedAfterType: model.ConfidenceHigh}, CallConstructs: true, OpenTypes: true, Imports: ImportsNameDirectories, Builtins: goBuiltins},
 	"java":       {NewConstructs: true, NoFreeFunctions: true, Measured: ruleTiers{UnknownReceiver: model.ConfidenceMedium, NamedAfterType: model.ConfidenceHigh}, ImplicitSelf: true, Overloads: true, TypesAreCapitalised: true, Imports: ImportsNameClasses, ExternalRoots: []string{"java", "javax"}, Builtins: javaBuiltins},
+	"apex":       {TypesAreGlobal: true, NewConstructs: true, NoFreeFunctions: true, Measured: ruleTiers{UnknownReceiver: model.ConfidenceMedium, NamedAfterType: model.ConfidenceHigh, UniqueTypeName: model.ConfidenceHigh}, ImplicitSelf: true, Overloads: true, TypesAreCapitalised: true, Builtins: apexBuiltins},
+	"solidity":   {NewConstructs: true, ImplicitSelf: true, TypesAreCapitalised: true, Imports: ImportsNameModules, Builtins: solidityBuiltins},
 	"kotlin":     {Measured: ruleTiers{Extension: model.ConfidenceHigh}, ClassBodyCode: true, ExtensionCalls: true, CallConstructs: true, ImplicitSelf: true, Overloads: true, TypesAreCapitalised: true, Imports: ImportsNameClasses, ExternalRoots: []string{"java", "javax", "kotlin"}, Builtins: javaBuiltins},
 	"scala":      {Measured: ruleTiers{UnknownReceiver: model.ConfidenceMedium, NamedAfterType: model.ConfidenceHigh}, ObjectsAreCallable: true, ClassBodyCode: true, CallConstructs: true, ImplicitSelf: true, Overloads: true, TypesAreCapitalised: true, Imports: ImportsNameClasses, ExternalRoots: []string{"java", "javax", "scala"}, Builtins: javaBuiltins},
 	"python":     {CallConstructs: true, TypesAreCapitalised: true, Imports: ImportsNameModules},
 	"javascript": {Measured: ruleTiers{NamedAfterType: model.ConfidenceHigh}, CallConstructs: true, ValuesAreCallable: true, TypesAreCapitalised: true, Imports: ImportsNameModules, Builtins: scriptBuiltins},
 	"typescript": {Measured: ruleTiers{UnknownReceiver: model.ConfidenceMedium}, CallConstructs: true, ValuesAreCallable: true, TypesAreCapitalised: true, Imports: ImportsNameModules, Builtins: scriptBuiltins},
 	"tsx":        {CallConstructs: true, ValuesAreCallable: true, TypesAreCapitalised: true, Imports: ImportsNameModules, Builtins: scriptBuiltins},
-	"vue":        {TypesAreCapitalised: true, Imports: ImportsNameModules, Builtins: scriptBuiltins},
-	"svelte":     {TypesAreCapitalised: true, Imports: ImportsNameModules, Builtins: scriptBuiltins},
+	"vue":        {Measured: ruleTiers{UnknownReceiver: model.ConfidenceMedium}, CallConstructs: true, ValuesAreCallable: true, TypesAreCapitalised: true, Imports: ImportsNameModules, Builtins: scriptBuiltins},
+	"svelte":     {Measured: ruleTiers{UnknownReceiver: model.ConfidenceMedium}, CallConstructs: true, ValuesAreCallable: true, TypesAreCapitalised: true, Imports: ImportsNameModules, Builtins: scriptBuiltins},
 	"astro":      {TypesAreCapitalised: true, Imports: ImportsNameModules, Builtins: scriptBuiltins},
 	"rust":       {Measured: ruleTiers{UnknownReceiver: model.ConfidenceMedium, NamedAfterType: model.ConfidenceHigh, UniqueTypeName: model.ConfidenceHigh}, CallConstructs: true, OpenTypes: true, TypesAreCapitalised: true, ScopeNamesModule: true, ExternalRoots: []string{"std", "core", "alloc"}, Builtins: rustBuiltins},
 	"ruby":       {Measured: ruleTiers{NamedAfterType: model.ConfidenceHigh}, ImplicitSelf: true, DynamicSelf: true, OpenTypes: true, TypesAreCapitalised: true, Builtins: rubyBuiltins},

@@ -563,7 +563,10 @@ func (p *genericParser) Parse(ctx context.Context, path string, src []byte) (*Re
 	var shapes *shapeFacts
 	if py == nil {
 		shapes = by.analyzeShapes(tree, src, tags)
-		res.Imports = mergeMemberImports(res.Imports, by.importedBindings(tree, src))
+		// The names an import binds are written with the path the statement wrote,
+		// so a language that rewrites its paths (langreg.go) rewrites these too.
+		// No language that has bindings and a rewrite had both before Solidity.
+		res.Imports = mergeMemberImports(res.Imports, fixBindings(by.entry.Name, path, by.importedBindings(tree, src)))
 	}
 
 	// A language that needs a fact about a definition that no query can state

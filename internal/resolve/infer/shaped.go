@@ -1052,6 +1052,10 @@ func (r *Resolver) bareByName(c call, reach []registry.SymbolIndexEntry, stats *
 			return bound(best)
 		}
 	}
+	if len(reach) == 1 && c.spec.Calls.TypesAreGlobal && isTypeKind(reach[0].Kind) {
+		// TypesAreGlobal: the one class of that name is the class meant.
+		return bound(candidate{reach[0], model.ConfidenceHigh, "a type global by name, the only one of that name"})
+	}
 	if len(reach) == 1 && reach[0].Exported && !r.specs.IsGenericName(c.ref.Name) && !r.callsTestHelper(c, reach[0]) {
 		return bound(candidate{reach[0], model.ConfidenceLow, "unique name in repository, no import evidence"})
 	}

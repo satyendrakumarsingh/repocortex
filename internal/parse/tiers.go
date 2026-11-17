@@ -81,6 +81,13 @@ func (t Tier) Description() string {
 // not know the language we certainly cannot resolve it.
 func TierFor(language string) Tier {
 	hasImports := ImportQuery(language) != ""
+	// A single-file component has no import query of its own: its <script> is
+	// handed to the TypeScript or JavaScript parser (sfc.go), which reads the
+	// imports, and the template's components are bound through them. It is
+	// resolved by the capability of the language its script is written in.
+	if isSFC(language) {
+		hasImports = ImportQuery("typescript") != ""
+	}
 	hasReceiver := HasMeasuredReceivers(language)
 	_, hasArity := arityDialectFor(language)
 

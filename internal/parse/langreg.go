@@ -150,13 +150,30 @@ func fixImports(language, filePath string, in []Import) []Import {
 	if fix == nil || len(in) == 0 {
 		return in
 	}
+	out := rewriteImports(fix, filePath, in)
+	if keepsEveryDirective[language] {
+		return dedupeDirectives(out)
+	}
+	return dedupeImports(out)
+}
+
+// rewriteImports applies a rewrite to each import and keeps every row. The rows
+// that name what an import binds (import_bindings.go) share a path and differ
+// in their alias, which dedupeImports would collapse to one.
+func rewriteImports(fix func(string, Import) []Import, filePath string, in []Import) []Import {
 	out := make([]Import, 0, len(in))
 	for _, imp := range in {
 		out = append(out, fix(filePath, imp)...)
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Path < out[j].Path })
-	if keepsEveryDirective[language] {
-		return dedupeDirectives(out)
+	return out
+}
+
+// fixBindings is fixImports for the rows that name what an import binds.
+func fixBindings(language, filePath string, in []Import) []Import {
+	fix := importFixes[language]
+	if fix == nil || len(in) == 0 {
+		return in
 	}
-	return dedupeImports(out)
+	return rewriteImports(fix, filePath, in)
 }

@@ -752,6 +752,77 @@ func NewSpecs() *Specs {
 		},
 	})
 
+	// Apex. Java's syntax with a different module system: there are no imports and
+	// no packages. A class is global to the org by its name, `Foo` in
+	// classes/Foo.cls is visible from every file of the org whatever directory it
+	// is in, and Salesforce refuses two classes of one name, so a type name that
+	// the repository defines once IS the type (calltraits.go gives that rule the
+	// tier it earns, UniqueTypeName). Proximity therefore says nothing: a
+	// neighbour is no more in scope than any other class, so it is no evidence.
+	//
+	// Not a directory package (PackageIsDirectory false) and no file stem in an
+	// import (there is no import). A receiver is a type where the parser has
+	// stated one, as Java's is. Tests are classes annotated @isTest, which a file
+	// convention cannot see; by convention they are named `FooTest` or `FooTests`.
+	add(LanguageSpec{
+		Name:                "apex",
+		Interop:             []string{"apex"},
+		PackageIsDirectory:  false,
+		ImportPathNamesFile: false,
+		ReceiverDenotesType: true,
+		QualifiedMembers:    false,
+		ClassSelfNames:      nil,
+		SuperName:           "",
+		PackageInitStem:     "",
+		ProximityIsEvidence: false,
+		MemberSeparators:    sepJVM,
+		SelfNames:           commonSelfNames,
+		MinTypeNameLength:   3,
+		MaxCandidates:       MaxCandidates,
+		CallShapes:          CallBare | CallMethod | CallQualified | CallStatic,
+		TestFiles: TestFiles{
+			Suffixes: []string{"test.cls", "tests.cls", "_test.cls", "_tests.cls"},
+			Dirs:     []string{"test", "tests"},
+		},
+	})
+
+	// Solidity. A file is a module and sees nothing of its directory: a contract,
+	// library or interface reaches another file's by an import, whose string names
+	// the file (the parser rewrites it to the file's repository path, so an import
+	// names one file and not whichever file has that ending). Proximity is
+	// therefore no evidence, and a type next door is not in scope until imported
+	// (TypesNeedImport), as in Dart.
+	//
+	// A library's functions and a contract's static-like members are reached as
+	// `Lib.f()`, so a qualified call is on a type; MemberSeparators is the dot. A
+	// receiver is a type where the parser stated one (`Vault v; v.f()`), and the
+	// one inherited through `contract B is A` is found through the extends edges.
+	// Foundry tests are `*.t.sol` under test/, and scripts `*.s.sol` under script/;
+	// Hardhat's are JavaScript or TypeScript and are not in this language.
+	solidity := LanguageSpec{
+		Name:                "solidity",
+		Interop:             []string{"solidity"},
+		PackageIsDirectory:  false,
+		ImportPathNamesFile: true,
+		ReceiverDenotesType: true,
+		QualifiedMembers:    false,
+		ClassSelfNames:      nil,
+		SuperName:           "",
+		PackageInitStem:     "",
+		ProximityIsEvidence: false,
+		TypesNeedImport:     true,
+		MemberSeparators:    sepDefault,
+		SelfNames:           commonSelfNames,
+		MinTypeNameLength:   3,
+		MaxCandidates:       MaxCandidates,
+		CallShapes:          CallBare | CallMethod | CallQualified | CallStatic,
+		TestFiles: TestFiles{
+			Suffixes: []string{".t.sol", ".s.sol"},
+			Dirs:     []string{"test", "tests"},
+		},
+	}
+	add(solidity)
+
 	add(LanguageSpec{
 		Name:                "kotlin",
 		Interop:             []string{"java", "kotlin", "scala"},
@@ -1364,6 +1435,10 @@ func languageOfPath(p string) string {
 		return "dart"
 	case "groovy":
 		return "groovy"
+	case "cls", "trigger", "apex":
+		return "apex"
+	case "sol":
+		return "solidity"
 	case "cs":
 		// The GRAMMAR name, as internal/parse spells it and as the c_sharp spec
 		// is keyed. This used to say "csharp", which no spec is named, so a

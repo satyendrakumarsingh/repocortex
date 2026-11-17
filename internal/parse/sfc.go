@@ -152,6 +152,9 @@ func (p *sfcParser) Parse(ctx context.Context, path string, src []byte) (*Result
 		mergeShifted(res, sub, offset)
 	}
 	res.Symbols = dropShadowedBindings(res.Symbols)
+	refs, bindings := templateComponents(src, blocks, res.Imports)
+	res.References = append(res.References, refs...)
+	res.Imports = append(res.Imports, bindings...)
 	return res, nil
 }
 
@@ -400,33 +403,7 @@ func svelteSnippets(src []byte, blocks [][]int) []model.Symbol {
 	if !bytes.Contains(src, []byte("{#snippet")) {
 		return nil
 	}
-	masked := append([]byte(nil), src...)
-	blank := func(from, to int) {
-		for i := from; i < to; i++ {
-			if masked[i] != '\n' {
-				masked[i] = ' '
-			}
-		}
-	}
-	for _, b := range blocks {
-		blank(b[0], b[1])
-	}
-	for _, loc := range styleBlock.FindAllIndex(masked, -1) {
-		blank(loc[0], loc[1])
-	}
-	for pos := 0; pos < len(masked); {
-		c := bytes.Index(masked[pos:], []byte("<!--"))
-		if c < 0 {
-			break
-		}
-		end := bytes.Index(masked[pos+c:], []byte("-->"))
-		if end < 0 {
-			blank(pos+c, len(masked))
-			break
-		}
-		blank(pos+c, pos+c+end+3)
-		pos += c + end + 3
-	}
+	masked := markupOnly(src, blocks)
 
 	var out []model.Symbol
 	for _, m := range snippetOpen.FindAllSubmatchIndex(masked, -1) {
@@ -455,6 +432,138 @@ func svelteSnippets(src []byte, blocks [][]int) []model.Symbol {
 		})
 	}
 	return out
+}
+
+// markupOnly is a copy of a component with its script and style elements and its
+// comments blanked to spaces, newlines kept: what is left is the template, with
+// every byte at the offset and line it had in the file. Text in a script that
+// looks like markup (a string holding `<Foo />`) is not markup.
+func markupOnly(src []byte, blocks [][]int) []byte {
+	masked := append([]byte(nil), src...)
+	blank := func(from, to int) {
+		for i := from; i < to; i++ {
+			if masked[i] != '\n' {
+				masked[i] = ' '
+			}
+		}
+	}
+	for _, b := range blocks {
+		blank(b[0], b[1])
+	}
+	for _, loc := range styleBlock.FindAllIndex(masked, -1) {
+		blank(loc[0], loc[1])
+	}
+	for pos := 0; pos < len(masked); {
+		c := bytes.Index(masked[pos:], []byte("<!--"))
+		if c < 0 {
+			break
+		}
+		end := bytes.Index(masked[pos+c:], []byte("-->"))
+		if end < 0 {
+			blank(pos+c, len(masked))
+			break
+		}
+		blank(pos+c, pos+c+end+3)
+		pos += c + end + 3
+	}
+	return masked
+}
+
+// componentTag matches the opening of an element whose name is a component's:
+// `<Badge`, `<Badge/>`, `<my-badge`, and Vue's `<component is=...>` is not one.
+var componentTag = regexp.MustCompile(`<([A-Za-z][A-Za-z0-9]*(?:-[A-Za-z0-9]+)*)[\s/>]`)
+
+// templateComponents are the components a template renders that the script
+// imported: `<Badge />` where the script has `import Badge from './Badge.vue'`,
+// or `import { Badge } from`, or `import { Chip as Badge }`. Each is returned as
+// a bare call of the local name, which the resolver binds through the import
+// like the script's own `Badge()` and records as an instantiation of the
+// component class.
+//
+// Only a name the script imported is returned. A tag that no import binds is a
+// global registration, a router or framework component, or an HTML element, and
+// naming it here would bind it by name to whichever component of the
+// repository shares it. A kebab-case tag (`<my-badge>`) is read as the
+// PascalCase name Vue maps it to (`MyBadge`).
+func templateComponents(src []byte, blocks [][]int, imports []Import) ([]Reference, []Import) {
+	if len(imports) == 0 {
+		return nil, nil
+	}
+	// bound maps each local name an import creates to the name the reference
+	// carries. A default import of a component file is the component, whatever
+	// the importer calls it: `import Pill from './Chip.vue'` makes `<Pill />` a
+	// use of `Chip`, the symbol Chip.vue defines, so the reference is made to
+	// that name and the resolver finds it in the file the import names.
+	bound := map[string]string{}
+	var extra []Import
+	for _, imp := range imports {
+		a := strings.TrimPrefix(imp.Alias, memberAliasPrefix)
+		if a == "" {
+			continue
+		}
+		bound[a] = a
+		ext := filepath.Ext(imp.Path)
+		if ext == ".vue" || ext == ".svelte" {
+			stem := strings.TrimSuffix(filepath.Base(imp.Path), ext)
+			if componentName.MatchString(stem) && stem != a {
+				bound[a] = stem
+				// The import states the component under its own name too, so the
+				// resolver finds it in the file the import names.
+				extra = append(extra, Import{Path: imp.Path, Alias: memberAliasPrefix + stem, Range: imp.Range})
+			}
+		}
+	}
+	if len(bound) == 0 {
+		return nil, nil
+	}
+	masked := markupOnly(src, blocks)
+	var out []Reference
+	seen := map[string]bool{}
+	for _, m := range componentTag.FindAllSubmatchIndex(masked, -1) {
+		tag := string(masked[m[2]:m[3]])
+		local := pascalCase(tag)
+		name, ok := bound[local]
+		if !ok {
+			continue
+		}
+		// An uppercase first letter is how a component is told from an element
+		// in a kebab-less tag: `<button>` is HTML even if a `button` is imported.
+		if !strings.Contains(tag, "-") && (tag[0] < 'A' || tag[0] > 'Z') {
+			continue
+		}
+		line := bytes.Count(masked[:m[0]], []byte("\n")) + 1
+		if seen[local] {
+			continue
+		}
+		seen[local] = true
+		col := m[2] - lineStart(masked, m[2])
+		out = append(out, Reference{
+			Name:         name,
+			Kind:         "reference.call",
+			ReceiverKind: model.ReceiverBare,
+			ArgCount:     model.ArityUnknown,
+			Range: model.Range{
+				Start: model.Position{Line: line, Col: col},
+				End:   model.Position{Line: line, Col: col + len(tag)},
+			},
+		})
+	}
+	return out, extra
+}
+
+// pascalCase maps `my-badge` to `MyBadge` and leaves `Badge` as it is.
+func pascalCase(tag string) string {
+	if !strings.Contains(tag, "-") {
+		return tag
+	}
+	var b strings.Builder
+	for _, part := range strings.Split(tag, "-") {
+		if part == "" {
+			continue
+		}
+		b.WriteString(strings.ToUpper(part[:1]) + part[1:])
+	}
+	return b.String()
 }
 
 // lineStart is the offset of the first byte of the line holding offset i.

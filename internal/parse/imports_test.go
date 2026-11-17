@@ -2,6 +2,7 @@ package parse
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -951,6 +952,203 @@ end
 	for _, f := range []string{"src/Shop.jl:Shop.total", "src/Shop.jl:Shop.Inner", "src/Shop.jl:Shop.Inner.deep", "src/Shop.jl:Shop.helper"} {
 		if !fqns[f] {
 			t.Errorf("missing symbol %q; got %v", f, fqns)
+		}
+	}
+}
+
+// A single-file component's template renders the components its script
+// imported, and only those: a tag nothing imports is a global registration, a
+// framework component or an HTML element.
+func TestSFCTemplateComponents(t *testing.T) {
+	vue := `<script setup lang="ts">
+import Badge from './Badge.vue'
+import Pill from './Chip.vue'
+import PriceTag from './PriceTag.vue'
+import { fmt } from '../lib/fmt'
+</script>
+
+<template>
+  <Badge />
+  <Pill :n="1" />
+  <price-tag />
+  <RouterLink to="/" />
+  <button>fmt</button>
+  <!-- <PriceTag /> in a comment -->
+</template>
+`
+	res := parse(t, "src/CartView.vue", vue)
+	var got []string
+	for _, r := range res.References {
+		if r.Kind == "reference.call" && r.Range.Start.Line >= 8 {
+			got = append(got, fmt.Sprintf("%d %s", r.Range.Start.Line, r.Name))
+		}
+	}
+	want := []string{"9 Badge", "10 Chip", "11 PriceTag"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Errorf("template references: got %q, want %q", got, want)
+	}
+	// The renamed default import is also stated under the component's own name.
+	if !hasImportAlias(res, "./Chip.vue", ".Chip") {
+		t.Errorf("no import of ./Chip.vue as .Chip: %+v", res.Imports)
+	}
+
+	svelte := `<script>
+  import Icon from '$lib/Icon.svelte'
+</script>
+
+<Icon />
+<Missing />
+<div>{#if x}<Icon />{/if}</div>
+`
+	res = parse(t, "src/routes/Page.svelte", svelte)
+	got = nil
+	for _, r := range res.References {
+		if r.Range.Start.Line >= 5 {
+			got = append(got, fmt.Sprintf("%d %s", r.Range.Start.Line, r.Name))
+		}
+	}
+	if strings.Join(got, ",") != "5 Icon" {
+		t.Errorf("svelte template references: got %q, want [5 Icon]", got)
+	}
+	if !hasImport(res, "$lib/Icon.svelte") {
+		t.Errorf("svelte import not recorded: %+v", res.Imports)
+	}
+}
+
+func hasImportAlias(res *Result, path, alias string) bool {
+	for _, i := range res.Imports {
+		if i.Path == path && i.Alias == alias {
+			return true
+		}
+	}
+	return false
+}
+
+// Solidity names a file by the string that ends an import directive, in four
+// forms. The path is rewritten to the file's repository path without the
+// extension, and the names a directive binds are rows of their own.
+func TestSolidityImports(t *testing.T) {
+	src := `pragma solidity ^0.8.0;
+
+import "./A.sol";
+import {B, C as D} from "../lib/x.sol";
+import * as L from "./L.sol";
+import "./Lib.sol" as Lib;
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "forge-std/Test.sol";
+
+contract T {}
+`
+	res := parse(t, "src/core/T.sol", src)
+	got := map[string]bool{}
+	for _, i := range res.Imports {
+		got[i.Path+" "+i.Alias] = true
+	}
+	for _, want := range []string{
+		"src/core/A ",
+		"src/lib/x ",
+		"src/lib/x .B",
+		"src/lib/x .D=C",
+		"src/core/L ",
+		"src/core/L L",
+		"src/core/Lib Lib",
+		"@openzeppelin/contracts/token/ERC20/IERC20 .IERC20",
+		"forge-std/Test ",
+	} {
+		if !got[want] {
+			t.Errorf("missing import row %q in %+v", want, res.Imports)
+		}
+	}
+	// A path that climbs out of the repository names no file in it.
+	res = parse(t, "T.sol", "import \"../outside.sol\";\ncontract T {}\n")
+	if len(res.Imports) != 0 {
+		t.Errorf("an import above the root was kept: %+v", res.Imports)
+	}
+}
+
+// What a Solidity file calls, constructs and inherits is a reference, and a
+// function in a contract is a member of it.
+func TestSolidityReferences(t *testing.T) {
+	src := `contract T is Base, IFoo {
+    using Math for uint;
+    Other private other;
+    constructor() Base() {}
+    function go(Vault v) public onlyOwner {
+        Math.max(1, 2);
+        this.go(v);
+        super.go(v);
+        helper();
+        new Vault();
+        emit Sent(msg.sender);
+        require(true);
+        abi.encode(1);
+    }
+    function helper() internal {}
+}
+`
+	res := parse(t, "src/T.sol", src)
+	got := map[string]bool{}
+	for _, r := range res.References {
+		got[r.Kind+" "+r.Receiver+"."+r.Name] = true
+	}
+	for _, want := range []string{
+		"reference.extends .Base", "reference.extends .IFoo", "reference.type .Math",
+		"reference.type .Other", "reference.type .Vault", "reference.call .Base",
+		"reference.call .onlyOwner", "reference.call Math.max", "reference.call this.go",
+		"reference.call super.go", "reference.call .helper", "reference.call.new .Vault",
+		"reference.call .Sent", "reference.call .require", "reference.call abi.encode",
+	} {
+		if !got[want] {
+			t.Errorf("missing reference %q in %v", want, got)
+		}
+	}
+	var fqns []string
+	for _, s := range res.Symbols {
+		fqns = append(fqns, s.FQN)
+	}
+	for _, want := range []string{"src/T.sol:T.go", "src/T.sol:T.helper"} {
+		found := false
+		for _, f := range fqns {
+			found = found || f == want
+		}
+		if !found {
+			t.Errorf("missing member %q in %q", want, fqns)
+		}
+	}
+}
+
+// Apex has no imports and no packages: a class is global by name. The import
+// query exists to say the language's imports are read, and binds nothing; what
+// a file constructs and extends is a reference.
+func TestApexNoImportsAndConstruction(t *testing.T) {
+	if ImportQuery("apex") == "" {
+		t.Fatal("no import query for apex")
+	}
+	src := `public class Foo extends Base implements IFoo, IBar {
+    private Bar b;
+    public void run(Baz z) {
+        Bar x = new Bar();
+        new Map<String, Qux>();
+        x.go(1);
+        Util.helper('a');
+    }
+}
+`
+	res := parse(t, "classes/Foo.cls", src)
+	if len(res.Imports) != 0 {
+		t.Errorf("apex has no imports, got %+v", res.Imports)
+	}
+	got := map[string]bool{}
+	for _, r := range res.References {
+		got[r.Kind+" "+r.Receiver+"."+r.Name] = true
+	}
+	for _, want := range []string{
+		"reference.extends .Base", "reference.implementation .IFoo", "reference.implementation .IBar",
+		"reference.type .Bar", "reference.type .Baz", "reference.type .Qux",
+		"reference.call.new .Bar", "reference.call.new .Map", "reference.call Bar.go", "reference.call Util.helper",
+	} {
+		if !got[want] {
+			t.Errorf("missing reference %q in %v", want, got)
 		}
 	}
 }

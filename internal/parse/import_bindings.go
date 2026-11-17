@@ -48,6 +48,9 @@ func (p *genericParser) importedBindings(tree *ts.Tree, src []byte) (out []Impor
 	if tree != nil && p.entry.Name == "scala" {
 		return p.scalaImports(tree, src)
 	}
+	if tree != nil && p.entry.Name == "solidity" {
+		return p.solidityBindings(tree, src)
+	}
 	if tree == nil || !importBindingLanguages[p.entry.Name] {
 		return nil
 	}

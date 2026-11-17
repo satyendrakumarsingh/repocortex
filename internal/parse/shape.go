@@ -798,6 +798,13 @@ func classifyNodeType(language, typ string) shFlags {
 		return false
 	}
 	var f shFlags
+	if language == "solidity" && (typ == "contract_declaration" || typ == "library_declaration") {
+		// A contract and a library are types, and their names do not say so
+		// ("class", "interface" and "struct" are what this reads for the rest).
+		// Without it a function written in one was a free function: no owner, so
+		// `this.f()` and `Math.max()` had no type to be a member of.
+		return shMaybeClass
+	}
 	if language == "dart" && (typ == "declaration" || typ == "formal_parameter" || typ == "initialized_variable_definition") {
 		return shMaybeDecl
 	}

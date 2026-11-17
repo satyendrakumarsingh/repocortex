@@ -86,6 +86,16 @@ func TestNewlyResolvedLanguages(t *testing.T) {
 	}
 }
 
+// A single-file component has no import query of its own: its script is read
+// as TypeScript or JavaScript, so it is resolved when that language is.
+func TestSingleFileComponentsAreResolved(t *testing.T) {
+	for _, lang := range []string{"vue", "svelte", "apex", "solidity"} {
+		if got := TierFor(lang); got != TierResolved {
+			t.Errorf("%s: want TierResolved, got %v", lang, got)
+		}
+	}
+}
+
 func TestTiersCoversEveryGrammar(t *testing.T) {
 	all := PureGoBackend().Languages()
 	tiers := Tiers()

@@ -11,6 +11,13 @@ from an actual run.
 
 ## [Unreleased]
 
+- **Vue, Svelte, Apex and Solidity bind calls across files.**
+  - **Vue and Svelte:** script blocks were already read as TypeScript or JavaScript, and are now tiered as such. A component the script imports and the template uses (`<Foo />`, `<price-tag>`) is an `INSTANTIATES` edge to that component, including a default import under another name. Svelte `$lib/` imports resolve.
+  - **Apex:** has no imports, and its classes are global by name, so a class the repository declares once binds at `high`. Standard namespaces such as `System` and `Database` are builtins.
+  - **Solidity:** reads every `import` form and binds library calls, inheritance (`is`), `emit`, `revert`, modifiers and `new`.
+
+  On multi-file fixtures, precision was 100% for Vue (12 of 12 edges), Svelte (12 of 12) and Apex (34 of 34), and 95% for Solidity (19 of 20, the wrong edge `low`). Main gaps: calls inside Vue template expressions, `<svelte:component>`, an Apex `super` call that a superclass and an interface both declare, and Foundry's own `vm` and `assertEq`.
+
 - **JavaScript, PHP, Ruby and Rust are `typed`.** Each now has an arity dialect, published only when the parameter count is exact. Defaults, rest and splat parameters, keyword arguments and Ruby block parameters leave the count unknown, and Rust skips `&self`. Ruby `x = Foo.new`, PHP `$x = new Foo()` and Rust `let x = Foo::new()` (through `?`, `.unwrap()` and similar tails) now state the receiver's class. A receiver named after a class but declared without a stated type no longer binds at `high` by its name alone: `money = load(x); money.format()` and a loop variable `order` are `medium` in Ruby, PHP and Rust.
   - **How each was measured:** JavaScript against `scip-typescript` on npm's source (1,228 files), where 4,926 of 4,932 `high` edges were right, 99.88%. PHP, Ruby and Rust on multi-file fixtures only (46 to 51 `high` edges each, none wrong); no compiler indexer for them was available, so their real-code precision is unmeasured.
   - **Trade-off:** on Ruby's standard library about 1,060 edges moved from `high` to `medium` under the naming rule, many of them probably correct.

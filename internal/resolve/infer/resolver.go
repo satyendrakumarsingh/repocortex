@@ -1192,6 +1192,11 @@ func (r *Resolver) pick(
 	// occurs exactly once is meaningfully different from one that occurs eight
 	// times, and callers can threshold on it.
 	if len(cands) == 1 {
+		if spec.Calls.TypesAreGlobal && isTypeKind(cands[0].Kind) {
+			// A class of a language with no imports is visible by its name, and
+			// the one the repository declares is the one meant (TypesAreGlobal).
+			return candidate{cands[0], model.ConfidenceHigh, "a type global by name, the only one of that name"}, true
+		}
 		if !cands[0].Exported {
 			// An unexported symbol in another file is probably not the target;
 			// the reference more likely points outside the repository.
