@@ -116,6 +116,12 @@ var skipDirs = map[string]bool{
 	".gradle": true, ".mvn": true, ".venv": true, "venv": true,
 	"__pycache__": true, ".tox": true, ".repocortex": true,
 	".idea": true, ".vscode": true, "testdata": true,
+	// Test fixtures hold sample projects on purpose (a Groovy build, a broken
+	// tsconfig), and planning them as real projects ran or blocked indexers on
+	// code nobody ships: "fixtures/langs/groovy: blocked: needs gradle".
+	// examples/ is deliberately NOT here: example apps are real code users
+	// read, and the Python run folds them into the project above anyway.
+	"fixtures": true, "__fixtures__": true,
 }
 
 // maxDetectDepth bounds how deep a sub-project may sit below the repository

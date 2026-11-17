@@ -333,3 +333,32 @@ func contains(haystack, needle string) bool {
 			return false
 		}()
 }
+
+// The cache is keyed by run ID, but an incremental update (watch, a git hook's
+// index pass) rewrites the current run in place. A long-lived MCP server kept
+// answering from the symbol index it loaded at the start of the session.
+// Freshen with a new stamp drops it; the same stamp keeps it.
+func TestFreshenDropsTheCacheWhenTheRunChangesInPlace(t *testing.T) {
+	t.Parallel()
+	deps, reg := fakeDeps()
+	ctx := context.Background()
+	deps.Freshen("run3@100")
+	if _, err := deps.SymbolIndex(ctx, 3); err != nil {
+		t.Fatal(err)
+	}
+	deps.Freshen("run3@100")
+	if _, err := deps.SymbolIndex(ctx, 3); err != nil {
+		t.Fatal(err)
+	}
+	if got := reg.loadCount(); got != 1 {
+		t.Fatalf("same stamp reloaded: %d loads, want 1", got)
+	}
+	deps.Freshen("run3@200")
+	if _, err := deps.SymbolIndex(ctx, 3); err != nil {
+		t.Fatal(err)
+	}
+	if got := reg.loadCount(); got != 2 {
+		t.Fatalf("new stamp did not reload: %d loads, want 2", got)
+	}
+	Deps{}.Freshen("x") // a zero Deps has no cache to freshen and must not panic
+}

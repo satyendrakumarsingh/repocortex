@@ -55,7 +55,7 @@ func toolFilter(p config.MCPProfile, allow []string) map[string]bool {
 // would find out when an agent could not do its job.
 func (s *Server) Scoped(profile config.MCPProfile, tools []string) (*Server, error) {
 	if !profile.Valid() {
-		return nil, fmt.Errorf("mcp: profile %q: want minimal, standard or full", profile)
+		return nil, fmt.Errorf("mcp: profile %q: want minimal, standard, full or compact (alias frontdoor)", profile)
 	}
 	deps := s.deps
 	deps.Config.MCPProfile = profile

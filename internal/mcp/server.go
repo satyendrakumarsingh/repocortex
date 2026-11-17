@@ -457,11 +457,20 @@ func (s *Server) currentRun(ctx context.Context) (int64, string, error) {
 		return 0, "absent", fmt.Errorf("read the committed index: %w", err)
 	}
 	var exactShare float64
+	stamp := fmt.Sprintf("%d/%d/%d/%d/%d", run.ID, run.StartedUnix, run.FinishedUnix, run.SymbolsFound, run.EdgesFound)
 	if s.deps.Registry != nil {
-		if rs, err := s.deps.Registry.ResolutionStats(ctx, run.ID); err == nil && rs.Resolved > 0 {
-			exactShare = float64(rs.ByCompiler) / float64(rs.Resolved)
+		if rs, err := s.deps.Registry.ResolutionStats(ctx, run.ID); err == nil {
+			if rs.Resolved > 0 {
+				exactShare = float64(rs.ByCompiler) / float64(rs.Resolved)
+			}
+			stamp += fmt.Sprintf("/%d/%d/%d", rs.Total, rs.Resolved, rs.ByCompiler)
 		}
 	}
+	// An incremental update (watch, a git hook's index pass, resolve)
+	// rewrites this run in place under the same ID. The capability cache is
+	// keyed by ID, so without this a session kept answering from the symbol
+	// index it loaded first, however the code changed underneath it.
+	s.capDeps.Freshen(stamp)
 	s.rememberRunMeta(run.ID, run.GitRevision, run.StartedUnix, exactShare)
 	return run.ID, string(run.Status), nil
 }

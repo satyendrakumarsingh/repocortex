@@ -1,8 +1,10 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"time"
 
@@ -46,7 +48,14 @@ entirely before or entirely after a change.`,
 }
 
 func runWatch(cmd *cobra.Command, g *Global, debounce time.Duration) error {
-	ctx := cmd.Context()
+	return watchLoop(cmd.Context(), g, debounce, cmd.OutOrStdout(), cmd.ErrOrStderr())
+}
+
+// watchLoop is the watch command's body, also run inside `serve --watch`.
+// out receives what a person at a terminal reads and errOut the start-up
+// progress; serve passes io.Discard for both, because on stdio its stdout is
+// the MCP transport and any stray byte there corrupts the protocol.
+func watchLoop(ctx context.Context, g *Global, debounce time.Duration, out, errOut io.Writer) error {
 	cfg := g.Config()
 	log := g.Log()
 
@@ -91,7 +100,7 @@ func runWatch(cmd *cobra.Command, g *Global, debounce time.Duration) error {
 	started := time.Now()
 	progress := func(dirs int) {
 		if !g.JSON && !g.Quiet {
-			fmt.Fprintf(cmd.ErrOrStderr(), "watching %d directories...\n", dirs)
+			fmt.Fprintf(errOut, "watching %d directories...\n", dirs)
 		}
 	}
 	w, err := watch.New(cfg.RepoRoot, watch.Options{
@@ -105,7 +114,7 @@ func runWatch(cmd *cobra.Command, g *Global, debounce time.Duration) error {
 			// Interrupted while starting. Nothing was changed, so there is
 			// nothing to report beyond having stopped.
 			if !g.JSON {
-				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "\nStopped before watching began.")
+				_, _ = fmt.Fprintln(out, "\nStopped before watching began.")
 			}
 			return nil
 		}
@@ -120,7 +129,7 @@ func runWatch(cmd *cobra.Command, g *Global, debounce time.Duration) error {
 	if stats, err := refreshIndex(ctx, reg, current, walker, cfg.RepoRoot, false); err != nil {
 		if ctx.Err() != nil {
 			if !g.JSON {
-				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "\nStopped before watching began.")
+				_, _ = fmt.Fprintln(out, "\nStopped before watching began.")
 			}
 			return nil
 		}
@@ -131,7 +140,7 @@ func runWatch(cmd *cobra.Command, g *Global, debounce time.Duration) error {
 	}
 
 	if !g.JSON {
-		fmt.Fprintf(cmd.OutOrStdout(),
+		fmt.Fprintf(out,
 			"Watching %s: %d directories (revision %d), ready in %s. Press Ctrl-C to stop.\n",
 			cfg.ProjectName, w.WatchedDirs(), current.ID, time.Since(started).Round(10*time.Millisecond))
 	}
@@ -140,7 +149,7 @@ func runWatch(cmd *cobra.Command, g *Global, debounce time.Duration) error {
 	printStopped := func() {
 		if !g.JSON && !stoppedPrinted {
 			stoppedPrinted = true
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "\nStopped.")
+			_, _ = fmt.Fprintln(out, "\nStopped.")
 		}
 	}
 	defer func() {

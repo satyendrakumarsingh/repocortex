@@ -1993,6 +1993,8 @@ accuracy:
     languages: [java, go]       # []string
     timeout: "10m"              # Go duration string. Bounds one indexer subprocess
     mount_local_artifacts: false # bool. Give a containerised build the host's ~/.m2
+    max_parallel: 1             # int. Compiler indexers run at once (opt-in above 1)
+    node_heap_mb: 0             # int. Node heap for scip-typescript / scip-python (0 = tool default)
 ```
 
 | Key | Default | Meaning |
@@ -2003,6 +2005,8 @@ accuracy:
 | `accuracy.indexers.languages` | unset | Restrict which languages get compiler-backed indexing |
 | `accuracy.indexers.timeout` | `10m` | Bounds one indexer subprocess. Applied to the resolved config; an unparseable duration falls back to the default |
 | `accuracy.indexers.mount_local_artifacts` | `false` | Lets a containerised build read and write your `~/.m2`. Off by default: it hands an untrusted repository's build one directory of your machine |
+| `accuracy.indexers.max_parallel` | `1` | How many compiler indexers run at the same time during `resolve`. Above 1, installs still happen one at a time and results keep plan order. Each scip-typescript or scip-python run holds its own Node heap, so raise this only with memory to spare |
+| `accuracy.indexers.node_heap_mb` | unset | Node heap size, in MB, for the Node-based indexers |
 
 The defaults are deliberately conservative: heuristics rather than executing
 builds, prompting rather than downloading.

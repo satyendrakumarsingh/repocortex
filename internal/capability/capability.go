@@ -115,6 +115,18 @@ func (d Deps) Validate() error {
 	return nil
 }
 
+// Freshen tells the cache which state of the index it is serving. The cache
+// is keyed by run ID, and an incremental update rewrites the current run in
+// place without a new ID, so a long-lived caller (the MCP server) passes a
+// stamp that changes with every update — the run's timestamps and counts — and
+// the cache drops what it holds when the stamp moves. A zero Deps has no cache
+// and ignores it.
+func (d Deps) Freshen(stamp string) {
+	if d.cache != nil {
+		d.cache.freshen(stamp)
+	}
+}
+
 // SymbolIndex returns the hydrated symbol table for runID, loading it once.
 func (d Deps) SymbolIndex(ctx context.Context, runID int64) (*SymbolIndex, error) {
 	if err := d.Validate(); err != nil {

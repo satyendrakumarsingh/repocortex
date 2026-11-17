@@ -32,6 +32,10 @@ type fakeRunner struct {
 
 	// recorded is every command that was run, in order.
 	recorded []Command
+
+	// ctxHandlers are handlers that see the run's context, for a tool that
+	// is killed when it is cancelled, as a real subprocess is.
+	ctxHandlers map[string]func(context.Context, Command) (Result, error)
 }
 
 func newFakeRunner(tools ...string) *fakeRunner {
@@ -54,14 +58,22 @@ func (f *fakeRunner) LookPath(file string) (string, error) {
 	return fakeBin(file), nil
 }
 
-func (f *fakeRunner) Run(_ context.Context, c Command) (Result, error) {
+func (f *fakeRunner) Run(ctx context.Context, c Command) (Result, error) {
 	if err := c.validate(); err != nil {
 		return Result{Argv: c.Argv()}, err
 	}
 	f.mu.Lock()
 	f.recorded = append(f.recorded, c)
 	h := f.handlers[filepath.Base(c.Path)]
+	ch := f.ctxHandlers[filepath.Base(c.Path)]
 	f.mu.Unlock()
+
+	if ch != nil {
+		res, err := ch(ctx, c)
+		res.Argv = c.Argv()
+		res.Dir = c.Dir
+		return res, err
+	}
 
 	if h != nil {
 		res, err := h(c)

@@ -623,6 +623,10 @@ func Execute(ctx context.Context, plan Plan, opts Options) (res Results, err err
 		NodeHeapMB:          plan.NodeHeapMB,
 	}
 
+	if plan.MaxParallel > 1 && len(runnable) > 1 {
+		return executeParallel(ctx, plan, runnable, prov, exec, res, log)
+	}
+
 	for _, s := range runnable {
 		if err := ctx.Err(); err != nil {
 			return res, errs.Wrap(errs.KindCancelled, "indexer.Execute", err)

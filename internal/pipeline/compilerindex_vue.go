@@ -89,10 +89,19 @@ func stageVueMirrors(root string, projects []indexer.Project) []string {
 			if !ok {
 				return nil
 			}
+			// O_EXCL: a file already at this path is the user's, never ours
+			// to overwrite (and never ours to remove afterwards).
 			mirrorPath := path + ".ts"
-			if err := os.WriteFile(mirrorPath, tsSrc, 0o600); err == nil { //nolint:gosec // staging Vue mirrors in project dir
-				out = append(out, mirrorPath)
+			w, err := os.OpenFile(mirrorPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600) //nolint:gosec // staging Vue mirrors in project dir
+			if err != nil {
+				return nil //nolint:nilerr // exists or unwritable: skipped, not overwritten
 			}
+			_, werr := w.Write(tsSrc)
+			if cerr := w.Close(); werr != nil || cerr != nil {
+				_ = os.Remove(mirrorPath) //nolint:gosec // G122: the mirror this callback just created with O_EXCL
+				return nil                //nolint:nilerr // a mirror that could not be written is skipped, not fatal
+			}
+			out = append(out, mirrorPath)
 			return nil
 		})
 	}

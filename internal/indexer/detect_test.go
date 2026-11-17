@@ -74,6 +74,9 @@ func TestDetectMonorepo(t *testing.T) {
 		"services/api/target/pom.xml":        "<project/>",
 		"web/dist/package.json":              "{}",
 		".git/config":                        "",
+		// Must not be detected: sample projects kept for tests.
+		"fixtures/langs/groovy/build.gradle":   "",
+		"web/__fixtures__/broken/package.json": "{}",
 	})
 
 	got, err := Detect(context.Background(), root)

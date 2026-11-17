@@ -45,3 +45,42 @@ func TestLayoutProjectOf(t *testing.T) {
 		}
 	}
 }
+
+// A tsconfig.json or requirements.txt inside a project's src/, tests/ or
+// docs/ configures that folder; it does not make the folder a project of its
+// own. Counting it split one project in two, so a test file and the code it
+// exercises landed in different "subprojects" and lost each other as
+// candidates.
+func TestLayoutIgnoresSecondaryMarkersInsideConventionalFolders(t *testing.T) {
+	layout := NewLayout([]string{
+		"web/package.json",
+		"web/src/tsconfig.json",
+		"web/src/app.ts",
+		"web/tests/tsconfig.json",
+		"web/tests/app.test.ts",
+		"svc/pyproject.toml",
+		"svc/docs/requirements.txt",
+		"svc/app/main.py",
+		"tools/requirements.txt",
+		"tools/run.py",
+	}, nil)
+	for path, want := range map[string]string{
+		"web/src/app.ts":        "web",
+		"web/tests/app.test.ts": "web",
+		"svc/app/main.py":       "svc",
+		"tools/run.py":          "tools", // a requirements.txt at a real project's root still counts
+	} {
+		if got := layout.ProjectOf(path); got != want {
+			t.Errorf("ProjectOf(%q) = %q, want %q", path, got, want)
+		}
+	}
+}
+
+// With no project around it, a secondary marker in a conventional folder is
+// still a project root: the repository's only marker is src/tsconfig.json.
+func TestLayoutKeepsALoneSecondaryMarker(t *testing.T) {
+	layout := NewLayout([]string{"app/src/tsconfig.json", "app/src/main.ts", "app/src/util.ts"}, nil)
+	if got := layout.ProjectOf("app/src/main.ts"); got != "app/src" {
+		t.Errorf("ProjectOf = %q, want app/src", got)
+	}
+}

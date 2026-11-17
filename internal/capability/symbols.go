@@ -196,6 +196,10 @@ type symbolCache struct {
 	runID int64
 	idx   *SymbolIndex
 
+	// stamp identifies the state of the run the cache was filled from; see
+	// Deps.Freshen.
+	stamp string
+
 	statsRun int64
 	stats    registry.ResolutionStats
 	statsOK  bool
@@ -223,6 +227,22 @@ func (c *symbolCache) getLanguages(runID int64, load func() (map[string]registry
 }
 
 func newSymbolCache() *symbolCache { return &symbolCache{} }
+
+// freshen drops everything cached when stamp differs from the one the cache
+// was filled under. See Deps.Freshen.
+func (c *symbolCache) freshen(stamp string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.stamp == stamp {
+		return
+	}
+	if c.stamp != "" {
+		c.idx, c.runID = nil, 0
+		c.statsOK, c.langsOK = false, false
+		c.langs = nil
+	}
+	c.stamp = stamp
+}
 
 // get returns the cached index for runID, calling load exactly once per run.
 //

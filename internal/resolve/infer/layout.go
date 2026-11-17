@@ -93,6 +93,25 @@ var projectMarkers = map[string]bool{
 	"meson.build":           true,
 }
 
+// secondaryMarkers configure a folder without declaring a project: a
+// tsconfig.json for tests, a requirements.txt for building the docs.
+var secondaryMarkers = map[string]bool{"tsconfig.json": true, "requirements.txt": true}
+
+// conventionalSubfolders are the folders inside a project that such a marker
+// configures rather than founds.
+var conventionalSubfolders = map[string]bool{
+	"src": true, "test": true, "tests": true, "__tests__": true, "spec": true,
+	"doc": true, "docs": true, "example": true, "examples": true, "scripts": true,
+}
+
+// secondaryMarkerInSubfolder reports whether a marker only configures a
+// conventional folder of an enclosing project. Counting it as a project root
+// split one project in two, and a test lost the code it exercises as a
+// candidate.
+func secondaryMarkerInSubfolder(base, dir string) bool {
+	return secondaryMarkers[base] && conventionalSubfolders[path.Base(dir)]
+}
+
 // NewLayout builds a Layout from every indexed file's path and every declared
 // dependency's name.
 func NewLayout(filePaths, dependencies []string) *Layout {
@@ -105,6 +124,9 @@ func NewLayout(filePaths, dependencies []string) *Layout {
 		projectRoots: make(map[string]struct{}, 8),
 		deps:         make(map[string]struct{}, len(dependencies)),
 	}
+	// Secondary markers in conventional subfolders, decided once every
+	// primary root is known: they count only when no project encloses them.
+	var deferred []string
 	for _, p := range filePaths {
 		dir := path.Dir(p)
 		segs := dirSegments(dir)
@@ -118,7 +140,11 @@ func NewLayout(filePaths, dependencies []string) *Layout {
 		}
 		if projectMarkers[base] || strings.HasSuffix(base, ".csproj") || strings.HasSuffix(base, ".sln") {
 			if key != "" {
-				l.projectRoots[key] = struct{}{}
+				if secondaryMarkerInSubfolder(base, key) {
+					deferred = append(deferred, key)
+				} else {
+					l.projectRoots[key] = struct{}{}
+				}
 			}
 		}
 		l.stems[strings.ToLower(strings.TrimSuffix(base, path.Ext(base)))] = struct{}{}
@@ -148,6 +174,14 @@ func NewLayout(filePaths, dependencies []string) *Layout {
 	for _, d := range dependencies {
 		if d = strings.ToLower(strings.TrimSpace(d)); d != "" {
 			l.deps[d] = struct{}{}
+		}
+	}
+	// A secondary marker in a conventional folder is a root only when no
+	// project encloses it: a repository whose one marker is src/tsconfig.json
+	// still has a project there.
+	for _, key := range deferred {
+		if l.ProjectOf(key+"/x") == "" {
+			l.projectRoots[key] = struct{}{}
 		}
 	}
 	return l

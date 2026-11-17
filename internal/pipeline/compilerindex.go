@@ -11,10 +11,12 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
 
+	acqfs "github.com/satyendrakumarsingh/repocortex/internal/acquire/fs"
 	"github.com/satyendrakumarsingh/repocortex/internal/config"
 	"github.com/satyendrakumarsingh/repocortex/internal/indexer"
 	"github.com/satyendrakumarsingh/repocortex/internal/registry"
@@ -38,7 +40,7 @@ const DefaultCompilerIndexTimeout = 5 * time.Minute
 
 // cacheKeyVersion changes when the key's recipe does, so an old sidecar can
 // never be mistaken for a current one.
-const cacheKeyVersion = "1"
+const cacheKeyVersion = "2" // 2: inputs above the project (workspace roots) are keyed
 
 // CompilerIndexOptions configures RunCompilerIndexers.
 type CompilerIndexOptions struct {
@@ -165,6 +167,37 @@ func RunCompilerIndexers(ctx context.Context, reg *registry.Registry, runID int6
 		}
 	}
 
+	// One compiler pass at a time per repository. Two at once (a hook's
+	// background pass and a manual resolve) shared one staging ledger and one
+	// set of .scip outputs: the second removed the first one's staged files
+	// mid-run and overwrote its indexes. The second pass now leaves the work
+	// to the first and keeps the heuristic answers it already has.
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		out.Err = fmt.Errorf("create %s: %w", dir, err)
+		return out
+	}
+	passLock, err := acqfs.TryLock(filepath.Join(dir, "pass.lock"))
+	if err != nil {
+		if errors.Is(err, acqfs.ErrLocked) {
+			out.Note = "another compiler pass is running in this repository; its exact answers land when it finishes (run resolve again afterwards to see them here)"
+			return out
+		}
+		out.Err = fmt.Errorf("lock the compiler pass: %w", err)
+		return out
+	}
+	defer func() { _ = passLock.Unlock() }()
+
+	// Files an interrupted run left in the tree are removed first, whether or
+	// not anything runs now: only ones still exactly as RepoCortex wrote them.
+	if removed, leftover := recoverStaged(dir, opts.Root); opts.Logger != nil {
+		if removed > 0 {
+			opts.Logger.Info("removed files an interrupted compiler pass left behind", "count", removed)
+		}
+		for _, f := range leftover {
+			opts.Logger.Warn("an interrupted compiler pass may have left this inferred tsconfig.json; remove it if you did not write it", "path", f)
+		}
+	}
+
 	var toRun []pending
 	for _, s := range plan.Steps {
 		if opts.Language != "" && s.Project.Language != opts.Language {
@@ -223,13 +256,20 @@ func RunCompilerIndexers(ctx context.Context, reg *registry.Registry, runID int6
 		// inferred into the project and leaves it there. A file the user did
 		// not write does not stay in their repository: note which projects
 		// have none now, and remove what appears.
-		inferred := inferredTsconfigs(opts.Root, toRunProjects(toRun))
-		inferred = append(inferred, writePythonSourceRoots(opts.Root, toRunProjects(toRun))...)
-		inferred = append(inferred, stageVueMirrors(opts.Root, toRunProjects(toRun))...)
+		tsInferred := inferredTsconfigs(opts.Root, toRunProjects(toRun))
+		written := writePythonSourceRoots(opts.Root, toRunProjects(toRun))
+		written = append(written, stageVueMirrors(opts.Root, toRunProjects(toRun))...)
+		// Recorded before the indexers run, so a run killed in the middle
+		// leaves a ledger the next run can clean up from (see staging.go).
+		if err := writeStagingLedger(dir, written, tsInferred); err != nil && opts.Logger != nil {
+			opts.Logger.Warn("could not record staged files", "dir", dir, "error", err)
+		}
+		inferred := append(tsInferred, written...)
 		defer func() {
 			for _, f := range inferred {
 				_ = os.Remove(f)
 			}
+			clearStagingLedger(dir)
 		}()
 		sub := plan
 		sub.Accuracy = config.AccuracyAuto
@@ -469,6 +509,9 @@ var buildInputs = map[string]bool{
 	// scip-clang reads the compilation database, so a changed flag or include
 	// path changes what it proves; cargo reads the manifest and lock file.
 	"compile_commands.json": true, "Cargo.toml": true, "Cargo.lock": true, "build.gradle": true, "build.gradle.kts": true,
+	// Workspace and multi-project build files, usually at the root above the
+	// project: they decide which packages and versions the build resolves.
+	"pnpm-workspace.yaml": true, "settings.gradle": true, "settings.gradle.kts": true, "gradle.properties": true,
 }
 
 // maxKeyedInput bounds how much of a build input is read for the key.
@@ -517,25 +560,99 @@ func cacheKey(root string, s indexer.Step, version, runner string, files []model
 	put(lines...)
 
 	projectDir := filepath.Join(root, filepath.FromSlash(s.Project.Dir))
+	// The project directory and every directory above it up to the
+	// repository root: in a workspace the lock file, the hoisted
+	// node_modules and the multi-project build settings live at the root.
 	var inputs []string
-	if entries, err := os.ReadDir(projectDir); err == nil {
-		for _, e := range entries {
-			name := e.Name()
-			isInput := buildInputs[name] || strings.HasPrefix(name, "tsconfig") || strings.HasPrefix(name, "requirements")
-			if e.IsDir() || !isInput {
-				continue
+	for _, dir := range dirsUpToRoot(root, projectDir) {
+		rel, _ := filepath.Rel(root, dir)
+		rel = filepath.ToSlash(rel)
+		if entries, err := os.ReadDir(dir); err == nil {
+			for _, e := range entries {
+				name := e.Name()
+				// tsconfig*.json only: tsconfig.tsbuildinfo is tsc -b output, not input.
+				isInput := buildInputs[name] || (strings.HasPrefix(name, "tsconfig") && strings.HasSuffix(name, ".json")) || strings.HasPrefix(name, "requirements")
+				if e.IsDir() || !isInput {
+					continue
+				}
+				inputs = append(inputs, rel+"/"+name+"\x00"+hashFile(filepath.Join(dir, name)))
 			}
-			inputs = append(inputs, name+"\x00"+hashFile(filepath.Join(projectDir, name)))
 		}
+		// Gradle's version catalog sits in gradle/ beside settings.gradle.
+		if catalog := filepath.Join(dir, "gradle", "libs.versions.toml"); fileIsRegular(catalog) {
+			inputs = append(inputs, rel+"/gradle/libs.versions.toml\x00"+hashFile(catalog))
+		}
+		for _, dep := range []string{"node_modules", ".venv", "venv"} {
+			if fi, err := os.Stat(filepath.Join(dir, dep)); err == nil && fi.IsDir() {
+				inputs = append(inputs, rel+"/"+dep+"\x00"+fmt.Sprint(fi.ModTime().UnixNano()))
+			}
+		}
+	}
+	// A tsconfig.json can extend one outside the project (../../tsconfig.base.json),
+	// which the walk above reaches only when it sits in an ancestor directory.
+	for _, ext := range tsconfigExtendsChain(filepath.Join(projectDir, "tsconfig.json")) {
+		rel, _ := filepath.Rel(root, ext)
+		inputs = append(inputs, "extends:"+filepath.ToSlash(rel)+"\x00"+hashFile(ext))
 	}
 	sort.Strings(inputs)
 	put(inputs...)
-	for _, dep := range []string{"node_modules", ".venv", "venv"} {
-		if fi, err := os.Stat(filepath.Join(projectDir, dep)); err == nil && fi.IsDir() {
-			put(dep, fmt.Sprint(fi.ModTime().UnixNano()))
-		}
-	}
 	return hex.EncodeToString(h.Sum(nil))
+}
+
+// dirsUpToRoot lists dir and its ancestors up to and including root.
+func dirsUpToRoot(root, dir string) []string {
+	root, dir = filepath.Clean(root), filepath.Clean(dir)
+	var out []string
+	for i := 0; i < 64; i++ { // bounded: a path cannot be deeper than this in practice
+		out = append(out, dir)
+		if dir == root {
+			break
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir || !strings.HasPrefix(parent, root) {
+			break
+		}
+		dir = parent
+	}
+	return out
+}
+
+func fileIsRegular(p string) bool {
+	fi, err := os.Stat(p) //nolint:gosec // G703: a build-input path this package derives inside the repository being indexed
+	return err == nil && fi.Mode().IsRegular()
+}
+
+// tsconfigExtends reads the "extends" of a tsconfig file. tsconfig allows
+// comments, so this is a pattern match rather than a JSON parse; only a
+// relative path is followed (a package name resolves inside node_modules,
+// which the key already stamps).
+var tsconfigExtends = regexp.MustCompile(`"extends"\s*:\s*"(\.{1,2}/[^"]+)"`)
+
+// tsconfigExtendsChain follows relative "extends" from a tsconfig, at most a
+// few levels, and returns the files it reaches.
+func tsconfigExtendsChain(start string) []string {
+	var out []string
+	cur := start
+	for i := 0; i < 5; i++ {
+		raw, err := os.ReadFile(cur) //nolint:gosec // G304: a tsconfig inside the repository, read for its extends only
+		if err != nil || len(raw) > maxKeyedInput {
+			break
+		}
+		m := tsconfigExtends.FindSubmatch(raw)
+		if m == nil {
+			break
+		}
+		next := filepath.Join(filepath.Dir(cur), filepath.FromSlash(string(m[1])))
+		if !strings.HasSuffix(next, ".json") && !fileIsRegular(next) {
+			next += ".json"
+		}
+		if !fileIsRegular(next) {
+			break
+		}
+		out = append(out, next)
+		cur = next
+	}
+	return out
 }
 
 // hashFile is the content digest of a small file, or a marker for one that

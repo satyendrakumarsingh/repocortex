@@ -3,6 +3,7 @@ package registry
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/satyendrakumarsingh/repocortex/pkg/model"
@@ -227,6 +228,18 @@ type ConfigKeyUsage struct {
 // ConfigReport lists declared keys and code-read keys, merged.
 func (r *Registry) ConfigReport(ctx context.Context, runID int64) ([]ConfigKeyUsage, error) {
 	out := map[string]*ConfigKeyUsage{}
+	// Memoised: a repository whose OpenAPI or JSON files are indexed as
+	// configuration has millions of declared keys over far fewer names, and
+	// the name test ran once per row (4.6 s of a 7 s report on one).
+	secret := map[string]bool{}
+	isSecret := func(name string) bool {
+		v, ok := secret[name]
+		if !ok {
+			v = isSecretKeyName(name)
+			secret[name] = v
+		}
+		return v
+	}
 
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT s.id, s.name, f.path, s.start_line
@@ -243,7 +256,7 @@ func (r *Registry) ConfigReport(ctx context.Context, runID int64) ([]ConfigKeyUs
 			return nil, err
 		}
 		u.Declared = true
-		u.Secret = isSecretKeyName(u.Name)
+		u.Secret = isSecret(u.Name)
 		cp := u
 		out[u.Name] = &cp
 	}
@@ -262,6 +275,14 @@ func (r *Registry) ConfigReport(ctx context.Context, runID int64) ([]ConfigKeyUs
 	}
 	defer func() { _ = useRows.Close() }()
 
+	// The entry that carries each symbol ID, for binding usages to it. This
+	// was a scan of every entry per usage group; the map holds exactly the
+	// entries that scan could find (one per name, the last declaration).
+	byID := make(map[int64]*ConfigKeyUsage, len(out))
+	for _, u := range out {
+		byID[u.SymbolID] = u
+	}
+
 	for useRows.Next() {
 		var (
 			key     string
@@ -274,11 +295,8 @@ func (r *Registry) ConfigReport(ctx context.Context, runID int64) ([]ConfigKeyUs
 			return nil, err
 		}
 		if boundID > 0 {
-			for _, u := range out {
-				if u.SymbolID == boundID {
-					u.Readers += count
-					break
-				}
+			if u, ok := byID[boundID]; ok {
+				u.Readers += count
 			}
 			continue
 		}
@@ -291,7 +309,7 @@ func (r *Registry) ConfigReport(ctx context.Context, runID int64) ([]ConfigKeyUs
 		}
 		out[key] = &ConfigKeyUsage{
 			Name: key, FilePath: path, Line: line, Readers: count,
-			Secret: isSecretKeyName(key), Declared: false,
+			Secret: isSecret(key), Declared: false,
 		}
 	}
 	if err := useRows.Err(); err != nil {
@@ -460,17 +478,18 @@ func isSecretKeyName(name string) bool {
 	return false
 }
 
+// sortConfigKeys orders undeclared keys first, then by name. It was an
+// insertion sort, which on a repository with thousands of keys spent 13 of the
+// command's 23 seconds swapping whole structs; a stable sort with the same
+// comparison gives the same order.
 func sortConfigKeys(list []ConfigKeyUsage) {
-	for i := 1; i < len(list); i++ {
-		for j := i; j > 0; j-- {
-			a, b := list[j-1], list[j]
-			// Undeclared keys first: a setting the code needs and nothing
-			// provides is the finding worth seeing before any inventory.
-			if (!b.Declared && a.Declared) || (b.Declared == a.Declared && b.Name < a.Name) {
-				list[j-1], list[j] = list[j], list[j-1]
-				continue
-			}
-			break
+	sort.SliceStable(list, func(i, j int) bool {
+		a, b := list[i], list[j]
+		// Undeclared keys first: a setting the code needs and nothing
+		// provides is the finding worth seeing before any inventory.
+		if a.Declared != b.Declared {
+			return !a.Declared
 		}
-	}
+		return a.Name < b.Name
+	})
 }

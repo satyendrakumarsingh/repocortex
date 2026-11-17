@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"context"
+	acqfs "github.com/satyendrakumarsingh/repocortex/internal/acquire/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -324,5 +325,88 @@ func TestCacheKeyMovesWithWhatTheIndexerReads(t *testing.T) {
 	}
 	if cacheKey(root, step, "1.0", "native", files) == base {
 		t.Error("a changed package.json must re-run it")
+	}
+}
+
+// In a workspace the inputs that decide what a package's indexer resolves sit
+// above the package: the lock file and hoisted node_modules at the root, a
+// tsconfig the package's own one extends, Gradle's settings and version
+// catalog. Reading only the package directory let a dependency upgrade reuse
+// an index built against the old dependencies.
+func TestCacheKeyFollowsWorkspaceInputsAboveTheProject(t *testing.T) {
+	root, _, _, _ := repoWith(t, map[string]string{
+		"pnpm-lock.yaml":            "lockfileVersion: 9\n",
+		"tsconfig.base.json":        `{"compilerOptions":{"strict":true}}`,
+		"packages/ui/package.json":  `{"name":"ui"}`,
+		"packages/ui/tsconfig.json": "{\n  // shared settings\n  \"extends\": \"../../tsconfig.base.json\"\n}\n",
+		"settings.gradle":           "include 'app'\n",
+		"gradle/libs.versions.toml": "[versions]\nkotlin = \"2.0.0\"\n",
+		"app/build.gradle":          "plugins {}\n",
+	})
+	files := []model.File{{Path: "packages/ui/a.ts", Language: "typescript", ContentHash: "h1"}}
+	ts := indexer.Step{Project: indexer.Project{Language: indexer.LangTypeScript, Dir: "packages/ui"}, Indexer: indexer.SCIPTypeScript}
+	base := cacheKey(root, ts, "1.0", "native", files)
+
+	for _, change := range []struct{ rel, content, why string }{
+		{"pnpm-lock.yaml", "lockfileVersion: 9\n# upgraded\n", "the workspace lock file"},
+		{"tsconfig.base.json", `{"compilerOptions":{"strict":false}}`, "a tsconfig the project extends"},
+	} {
+		before := cacheKey(root, ts, "1.0", "native", files)
+		if err := os.WriteFile(filepath.Join(root, change.rel), []byte(change.content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if cacheKey(root, ts, "1.0", "native", files) == before {
+			t.Errorf("changing %s did not change the key", change.why)
+		}
+	}
+	if err := os.MkdirAll(filepath.Join(root, "node_modules"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if cacheKey(root, ts, "1.0", "native", files) == base {
+		t.Error("a hoisted node_modules at the workspace root must be part of the key")
+	}
+
+	kt := indexer.Step{Project: indexer.Project{Language: indexer.LangJava, Dir: "app"}, Indexer: indexer.SCIPJava}
+	jfiles := []model.File{{Path: "app/A.kt", Language: "kotlin", ContentHash: "k1"}}
+	before := cacheKey(root, kt, "1.0", "native", jfiles)
+	if err := os.WriteFile(filepath.Join(root, "gradle", "libs.versions.toml"), []byte("[versions]\nkotlin = \"2.1.0\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if cacheKey(root, kt, "1.0", "native", jfiles) == before {
+		t.Error("the Gradle version catalog at the root must be part of the key")
+	}
+}
+
+// A second compiler pass while one is running (a hook's background pass and a
+// manual resolve) used to share the staging ledger and the .scip outputs; it
+// now leaves the work to the pass that holds the lock and runs nothing.
+func TestCompilerPassRunsOneAtATime(t *testing.T) {
+	ctx := context.Background()
+	root, reg, runID, _ := repoWith(t, map[string]string{
+		"package.json": `{"name":"proj"}`, "a.ts": "function hello() {\n}\n",
+	})
+	fake := &fakeIndexers{present: map[string]bool{"node": true, "scip-typescript": true}, leaveTsconfig: true}
+	opts := CompilerIndexOptions{Root: root, Config: autoConfig(), Runner: fake}
+
+	dir := filepath.Join(root, filepath.FromSlash(CompilerIndexDir))
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	held, err := acqfs.TryLock(filepath.Join(dir, "pass.lock"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	busy := RunCompilerIndexers(ctx, reg, runID, opts)
+	if busy.Err != nil || !strings.Contains(busy.Note, "another compiler pass") || len(busy.Steps) != 0 {
+		t.Fatalf("pass while locked = note %q, err %v, %d steps; want a note and nothing run", busy.Note, busy.Err, len(busy.Steps))
+	}
+	if fake.indexRuns("scip-typescript") != 0 {
+		t.Fatal("an indexer ran while another pass held the lock")
+	}
+	_ = held.Unlock()
+
+	free := RunCompilerIndexers(ctx, reg, runID, opts)
+	if free.Err != nil || len(free.Steps) != 1 || !free.Steps[0].Ran {
+		t.Fatalf("pass after release = %+v, want one indexer run", free.Steps)
 	}
 }
