@@ -280,6 +280,13 @@ func Resolve(
 	mounts.Mounts += jsMounts.Mounts
 	mounts.Renamed += jsMounts.Renamed
 	mounts.Ambiguous += jsMounts.Ambiguous
+	goMounts, err := MountGoRouters(ctx, reg, runID)
+	if err != nil {
+		return stats, fmt.Errorf("mount go routers: %w", err)
+	}
+	mounts.Mounts += goMounts.Mounts
+	mounts.Renamed += goMounts.Renamed
+	mounts.Ambiguous += goMounts.Ambiguous
 	if opts.OnRouteMounts != nil {
 		opts.OnRouteMounts(mounts)
 	}

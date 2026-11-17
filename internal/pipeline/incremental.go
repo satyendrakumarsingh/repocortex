@@ -54,6 +54,9 @@ type IncrementalStats struct {
 	// DefinitionsBackfilled is how many functions and methods were given
 	// definition text because the index was built before it was stored.
 	DefinitionsBackfilled int64
+	// CompilerProofRestored is how many exact edges from a cached SCIP index
+	// were put back after files were replaced; see RestoreCompilerProof.
+	CompilerProofRestored int64
 }
 
 // DiffOptions adjusts how the working tree is compared with the index.
@@ -371,6 +374,14 @@ func Incremental(
 		}
 		if hasGoChanges && opts.Root != "" {
 			_ = CheckGoTypes(ctx, reg, runID, GoTypesOptions{Root: opts.Root})
+		}
+		// The other languages' proof comes from SCIP indexes `resolve` cached.
+		// Replacing a file deleted every proven edge into it from files that
+		// did not change; read those indexes again for exactly those edges.
+		// Best effort, like the type check above: the heuristic edges stand.
+		if opts.Root != "" {
+			r := RestoreCompilerProof(ctx, reg, runID, opts.Root, changes)
+			stats.CompilerProofRestored = int64(r.Restored)
 		}
 	}
 	return stats, nil

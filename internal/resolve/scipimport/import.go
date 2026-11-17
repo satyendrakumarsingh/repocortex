@@ -316,6 +316,8 @@ type runMode struct {
 	language string
 	// proof, when set, collects coverage and out-of-repository sites.
 	proof *Proof
+	// restore, when set, limits the run to the edges Restore describes.
+	restore *RestoreSpec
 	// ingest streams the facts, given the repository's indexed paths.
 	ingest func(ctx context.Context, known []string, emit scip.EmitFunc) (scip.Stats, error)
 }
@@ -351,6 +353,51 @@ func (imp *Importer) ImportFacts(ctx context.Context, files []scip.FileFacts, si
 				}
 			}
 			return st, nil
+		},
+	})
+}
+
+// RestoreSpec says which documents of a cached index may be trusted again after
+// an incremental refresh replaced some files.
+type RestoreSpec struct {
+	// Fresh reports whether the document for path still describes the file as it
+	// is now: the file's content is what the index was built from. A document
+	// that is not fresh has moved positions and is never the evidence of an edge.
+	Fresh func(path string) bool
+}
+
+// Restore re-imports the index at path for the one purpose of putting back the
+// proven edges a file replacement deleted, and writes nothing else.
+//
+// WHY IT IS NOT Import. Replacing a changed file deletes its symbols, and every
+// edge into them goes with them, including the compiler-proven edges from files
+// that did not change. Running the whole index again would also be correct, but
+// it would write every edge of the project to learn that most are there. Here
+// an edge is written only when its source sits in a document that is still
+// fresh and its target is a definition in a document that is not: the edges the
+// replacement could have removed.
+//
+// The definitions of a stale document are still read, for one reason. They are
+// the targets. Each is matched to the file's current symbols as an import
+// matches any definition (path, name and line, else the name when it is unique
+// in the file), so a function that moved down a few lines is found and one that
+// was deleted matches nothing: the edge is left as the heuristic resolver
+// bound it. No other fact of a stale document is used: not its references (the
+// positions have moved), not its relationships.
+//
+// Nothing here is collected into a Proof: coverage rows belong to the pass that
+// ran the indexer, and a replaced file already lost its row with the file.
+func (imp *Importer) Restore(ctx context.Context, path string, spec RestoreSpec) (ImportResult, error) {
+	return imp.run(ctx, runMode{
+		label:   "scip restore",
+		promote: true,
+		restore: &spec,
+		ingest: func(ctx context.Context, known []string, emit scip.EmitFunc) (scip.Stats, error) {
+			opts := imp.opts
+			if opts.KnownPaths == nil {
+				opts.KnownPaths = known
+			}
+			return scip.New(opts).IngestFile(ctx, path, emit)
 		},
 	})
 }
@@ -502,6 +549,12 @@ func (imp *Importer) run(ctx context.Context, mode runMode) (ImportResult, error
 	// Pass 1: join compiler definitions to indexed symbols.
 	fqnToID := make(map[string]int64, tb.symbols)
 	checked := map[string]bool{}
+	// Restore only: the definitions of documents that are no longer fresh, which
+	// are the targets whose incoming edges may have been deleted.
+	var restoreDst map[int64]struct{}
+	if mode.restore != nil {
+		restoreDst = map[int64]struct{}{}
+	}
 	// Every definition the index makes, matched to the repository's symbols or
 	// not: an occurrence resolved to one is a use of repository code.
 	// Mapped to where it is defined and what it is.
@@ -551,6 +604,9 @@ func (imp *Importer) run(ctx context.Context, mode runMode) (ImportResult, error
 			}
 			res.SymbolsMatched++
 			fqnToID[s.FQN] = id
+			if restoreDst != nil && !mode.restore.Fresh(f.Path) {
+				restoreDst[id] = struct{}{}
+			}
 			if mode.proof != nil {
 				mode.proof.matchedSymbol(id)
 			}
@@ -595,6 +651,10 @@ func (imp *Importer) run(ctx context.Context, mode runMode) (ImportResult, error
 		written = make(map[registry.EdgeKey]struct{}, 1<<16)
 	}
 	_, err = mode.ingest(ctx, known, func(ctx context.Context, f *scip.FileFacts) error {
+		if mode.restore != nil && !mode.restore.Fresh(f.Path) {
+			// Its positions describe an earlier version of the file.
+			return nil
+		}
 		// Drop symbols that found no counterpart BEFORE resolving. FileFacts
 		// resolves intra-file relations through LocalIDs, which reads the ids
 		// on these very structs — and an unmatched symbol still carries its
@@ -711,6 +771,17 @@ func (imp *Importer) run(ctx context.Context, mode runMode) (ImportResult, error
 					edges[i].Kind = model.EdgeInstantiates
 				}
 			}
+		}
+		if restoreDst != nil {
+			// After promotion, which has to see the line's edges whole: keep the
+			// ones into a definition of a stale document, and no others.
+			kept := edges[:0]
+			for _, e := range edges {
+				if _, ok := restoreDst[e.DstID]; ok {
+					kept = append(kept, e)
+				}
+			}
+			edges = kept
 		}
 		if written != nil {
 			for i := range edges {

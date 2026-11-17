@@ -2,6 +2,7 @@ package infer
 
 import (
 	"fmt"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -640,11 +641,35 @@ func (r *Resolver) pickByName(
 				sameProj = append(sameProj, c)
 			}
 		}
-		if len(sameProj) == 1 {
+		// Not when a shared library defines the name too. A service that
+		// calls a name both it and libs/common (or packages/shared) define
+		// most likely means the library's, and only lost the import that
+		// would have said so; choosing the local one on folder alone would
+		// bind it to the wrong definition.
+		if len(sameProj) == 1 && !r.sharedLibraryAlsoDefines(cands, proj) {
 			return candidate{sameProj[0], model.ConfidenceLow, "unique name in service subproject"}, true
 		}
 	}
 	return candidate{}, false
+}
+
+// sharedLibraryFolders name the folders a monorepo keeps its shared code in.
+var sharedLibraryFolders = map[string]bool{"libs": true, "lib": true, "common": true, "shared": true, "packages": true}
+
+// sharedLibraryAlsoDefines reports whether a candidate outside the caller's
+// subproject sits in a shared-library folder.
+func (r *Resolver) sharedLibraryAlsoDefines(cands []registry.SymbolIndexEntry, proj string) bool {
+	for _, c := range cands {
+		if !c.Exported || r.subprojectOf(c.FilePath) == proj {
+			continue
+		}
+		for _, seg := range strings.Split(path.Dir(filepath.ToSlash(c.FilePath)), "/") {
+			if sharedLibraryFolders[seg] {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // subprojectOf returns the top-level service or package prefix for a file path in a monorepo,

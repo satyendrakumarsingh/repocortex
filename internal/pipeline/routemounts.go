@@ -3,6 +3,7 @@ package pipeline
 import (
 	"context"
 	"path"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -388,6 +389,12 @@ func MountExpressRouters(ctx context.Context, reg *registry.Registry, runID int6
 		mounted, st = resolveMountChains(incoming, st)
 	}
 
+	nest, nestAmbiguous, err := nestGlobalPrefixes(ctx, reg, runID, endpoints)
+	if err != nil {
+		return st, err
+	}
+	st.Ambiguous += nestAmbiguous
+
 	renames := map[int64]string{}
 	for _, e := range endpoints {
 		raw, ok := strings.CutPrefix(e.FQN, e.Path+"#")
@@ -397,6 +404,11 @@ func MountExpressRouters(ctx context.Context, reg *registry.Registry, runID int6
 		want := raw
 		if prefix, ok := expressPrefixFor(mounted, read, e); ok {
 			if method, p, ok := strings.Cut(raw, " "); ok {
+				want = method + " " + api.JoinRoutePath(prefix, p)
+			}
+		}
+		if prefix, ok := nest[e.Path]; ok {
+			if method, p, ok := strings.Cut(want, " "); ok {
 				want = method + " " + api.JoinRoutePath(prefix, p)
 			}
 		}
@@ -430,4 +442,102 @@ func mountedFile(mounted map[mountNode]string, file string) bool {
 		}
 	}
 	return false
+}
+
+// nestSetGlobalPrefix is app.setGlobalPrefix('api') or ('api', { ... }).
+var nestSetGlobalPrefix = regexp.MustCompile("\\.setGlobalPrefix\\(\\s*['\"`]([^'\"`]*)['\"`]\\s*([,)])")
+
+// nestGlobalPrefixes finds, for each NestJS controller file that declares
+// endpoints, the global prefix its application sets with app.setGlobalPrefix.
+//
+// The call is in the application's bootstrap (main.ts) and applies to every
+// controller of that application: the files under the directory of the
+// nearest package.json above it, or above the bootstrap's own src directory
+// when there is none. Composed in this pass and not in a second one, because
+// this pass recomputes every JS/TS endpoint's name from its route: a pass of
+// its own would undo this one's work and redo its own on every resolve.
+//
+// A call with options (`{ exclude: [...] }`) serves some routes without the
+// prefix, which the options decide and this does not read; it is counted as
+// ambiguous and applied to none. So is an application that sets two.
+func nestGlobalPrefixes(ctx context.Context, reg *registry.Registry, runID int64, endpoints []registry.EndpointRow) (map[string]string, int, error) {
+	boots, err := reg.JSFilesMatching(ctx, runID, `content : "setglobalprefix"`)
+	if err != nil || len(boots) == 0 {
+		return nil, 0, err
+	}
+	paths, err := reg.FilePaths(ctx, runID)
+	if err != nil {
+		return nil, 0, err
+	}
+	manifests := map[string]bool{}
+	for _, p := range paths {
+		if path.Base(p) == "package.json" {
+			manifests[path.Dir(p)] = true
+		}
+	}
+	appRoot := func(bootFile string) string {
+		for d := path.Dir(bootFile); ; d = path.Dir(d) {
+			if manifests[d] {
+				return d
+			}
+			if d == "." || d == "/" || d == "" {
+				break
+			}
+		}
+		d := path.Dir(bootFile)
+		if path.Base(d) == "src" {
+			d = path.Dir(d)
+		}
+		return d
+	}
+
+	ambiguous := 0
+	byRoot := map[string]string{}
+	bad := map[string]bool{}
+	for _, b := range boots {
+		if capability.IsTestPath(b.Path) {
+			continue
+		}
+		for _, m := range nestSetGlobalPrefix.FindAllStringSubmatch(b.Content, -1) {
+			root := appRoot(b.Path)
+			if m[2] == "," || (byRoot[root] != "" && byRoot[root] != m[1]) {
+				bad[root] = true
+				continue
+			}
+			byRoot[root] = m[1]
+		}
+	}
+	for root := range bad {
+		delete(byRoot, root)
+		ambiguous++
+	}
+	if len(byRoot) == 0 {
+		return nil, ambiguous, nil
+	}
+
+	out := map[string]string{}
+	checked := map[string]bool{}
+	for _, e := range endpoints {
+		if checked[e.Path] {
+			continue
+		}
+		checked[e.Path] = true
+		root, prefix := "", ""
+		for r, p := range byRoot {
+			if (r == "." || strings.HasPrefix(e.Path, r+"/")) && len(r) >= len(root) {
+				root, prefix = r, p
+			}
+		}
+		if prefix == "" {
+			continue
+		}
+		// Only controllers: an Express or Next route in the same package is
+		// not under Nest's prefix.
+		content, err := reg.FileContent(ctx, runID, e.Path)
+		if err != nil || !strings.Contains(content, "@Controller") {
+			continue
+		}
+		out[e.Path] = prefix
+	}
+	return out, ambiguous, nil
 }

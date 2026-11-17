@@ -436,7 +436,6 @@ var (
 	// mux.HandleFunc("GET /api/health", h). The optional host and the path
 	// follow the method, separated by a space.
 	goPatternMethod = regexp.MustCompile(`^([A-Z]+)\s+(\S*)$`)
-	goGroupDecl     = regexp.MustCompile(`\b(\w+)\s*(?::=|=)\s*(\w+)\.Group\s*\(\s*"([^"]*)"`)
 	// r.Get("/path", handler) — chi, gin, echo, fiber all share this shape.
 	goRouterVerb = regexp.MustCompile(`(?:^|[^\w.])(\w+)\s*\.\s*(Get|Post|Put|Patch|Delete|GET|POST|PUT|PATCH|DELETE)\s*\(\s*"([^"]*)"\s*,\s*([\w.]+)?`)
 	// mux.Handle("/path", ...).Methods("POST") — gorilla/mux.
@@ -445,26 +444,33 @@ var (
 
 func extractGo(lines []string) []Route {
 	var out []Route
-	groupPrefixes := make(map[string]string)
+	// Which router each registration is on, and the prefix that router
+	// carries within its function: groups (r.Group("/v1")), gorilla
+	// subrouters, and chi Route closures, whose parameter shadows the outer
+	// router's name. Prefixes a router gets from ANOTHER function are added
+	// by the pass that sees the whole run (pipeline.MountGoRouters).
+	sites := GoRouters([]byte(strings.Join(lines, "\n"))).Routes
 	for i, line := range lines {
 		trimmed := strings.TrimSpace(line)
 		if strings.HasPrefix(trimmed, "//") {
 			continue
 		}
 
-		if gm := goGroupDecl.FindStringSubmatch(trimmed); gm != nil {
-			newVar := gm[1]
-			parentVar := gm[2]
-			pfx := gm[3]
-			groupPrefixes[newVar] = joinRoutePath(groupPrefixes[parentVar], pfx)
-		}
-
 		if m := goRouterVerb.FindStringSubmatch(trimmed); m != nil {
-			receiver := m[1]
 			verb := strings.ToUpper(m[2])
 			routePath := m[3]
-			if pfx, ok := groupPrefixes[receiver]; ok && pfx != "" {
-				routePath = joinRoutePath(pfx, routePath)
+			if site, ok := sites[i+1]; ok {
+				switch {
+				case site.Var.Prefix != "":
+					routePath = joinRoutePath(site.Var.Prefix, routePath)
+				case routePath == "":
+					// rg.POST("", h): the root of the group this router is.
+					// The pattern only matches a literal, so an empty one was
+					// written, not built at run time (which withPath guards
+					// against); the prefix it is served under comes from the
+					// function that hands the router over.
+					routePath = "/"
+				}
 			}
 			if httpMethods[verb] {
 				out = append(out, Route{
@@ -890,8 +896,8 @@ func bracketDelta(s string) int {
 // `@Get(':id')` in a controller mounted at 'users' is `/users/:id`, and
 // reporting `/:id` names a route that does not exist. A verb decorator with
 // no @Controller in scope is not a route at all. A global prefix set with
-// app.setGlobalPrefix is as invisible from here as Spring's servlet context
-// path, and is treated the same way: not composed, not guessed.
+// app.setGlobalPrefix is in another file (the bootstrap), so it is composed
+// by the pass that sees the whole run (pipeline.nestGlobalPrefixes).
 func extractNest(lines []string) []Route {
 	var out []Route
 	prefix := ""

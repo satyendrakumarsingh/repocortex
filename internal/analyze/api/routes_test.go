@@ -1026,3 +1026,120 @@ api.get('/users', listUsers);
 		t.Fatalf("routes = %+v, want GET /api/users", routes)
 	}
 }
+
+// chi nests routes in closures whose parameter shadows the outer router; the
+// closure's prefix belongs to them, on one line or several.
+func TestExtractGoChiRouteClosures(t *testing.T) {
+	src := `package main
+
+func routes() http.Handler {
+	r := chi.NewRouter()
+	r.Get("/health", health)
+	r.Route("/api", func(r chi.Router) {
+		r.Get("/items", listItems)
+		r.Route("/admin", func(r chi.Router) {
+			r.Post("/reset", reset)
+		})
+		r.Group(func(r chi.Router) {
+			r.Get("/me", me)
+		})
+	})
+	r.Route("/v2", func(r chi.Router) { r.Get("/ping", ping) })
+	r.Get("/after", after)
+	return r
+}
+`
+	got := map[string]bool{}
+	for _, rt := range Extract("main.go", []byte(src)) {
+		got[rt.Method+" "+rt.Path] = true
+	}
+	for _, want := range []string{"GET /health", "GET /api/items", "POST /api/admin/reset", "GET /api/me", "GET /v2/ping", "GET /after"} {
+		if !got[want] {
+			t.Errorf("missing %q; got %v", want, got)
+		}
+	}
+}
+
+func TestGoRoutersReadsParamsReturnsAndCalls(t *testing.T) {
+	main := `package main
+
+import (
+	"example.com/shop/internal/users"
+	orders "example.com/shop/internal/orders/v2"
+	"github.com/gin-gonic/gin"
+)
+
+func main() {
+	r := gin.Default()
+	api := r.Group("/api")
+	users.RegisterRoutes(api.Group("/users"))
+	orders.Register(api)
+	r.Use(gin.Logger())
+}
+`
+	f := GoRouters([]byte(main))
+	if f.Package != "main" || f.Imports["users"] != "example.com/shop/internal/users" || f.Imports["orders"] != "example.com/shop/internal/orders/v2" {
+		t.Fatalf("package %q, imports %v", f.Package, f.Imports)
+	}
+	calls := map[string]GoRouterVar{}
+	for _, c := range f.Funcs["main"].Calls {
+		calls[c.Qual+"."+c.Func] = c.Arg
+	}
+	if v := calls["users.RegisterRoutes"]; v != (GoRouterVar{Root: "r", Prefix: "/api/users"}) {
+		t.Errorf("users.RegisterRoutes arg = %+v", v)
+	}
+	if v := calls["orders.Register"]; v != (GoRouterVar{Root: "r", Prefix: "/api"}) {
+		t.Errorf("orders.Register arg = %+v", v)
+	}
+	if _, ok := calls["r.Use"]; ok {
+		t.Error("a method of the router itself was read as handing it on")
+	}
+
+	users := `package users
+
+func RegisterRoutes(rg *gin.RouterGroup) {
+	rg.GET("/:id", get)
+	admin := rg.Group("/admin")
+	admin.DELETE("/:id", remove)
+}
+`
+	u := GoRouters([]byte(users))
+	if u.Funcs["RegisterRoutes"].Param != "rg" {
+		t.Fatalf("router param = %q", u.Funcs["RegisterRoutes"].Param)
+	}
+	if s := u.Routes[4]; s.Func != "RegisterRoutes" || s.Var != (GoRouterVar{Root: "rg"}) {
+		t.Errorf("site of line 4 = %+v", s)
+	}
+	if s := u.Routes[6]; s.Var != (GoRouterVar{Root: "rg", Prefix: "/admin"}) {
+		t.Errorf("site of line 6 = %+v", s)
+	}
+
+	chiPkg := `package billing
+
+func Routes() chi.Router {
+	r := chi.NewRouter()
+	r.Get("/invoices", list)
+	return r
+}
+`
+	b := GoRouters([]byte(chiPkg))
+	if b.Funcs["Routes"].Returns != "r" {
+		t.Errorf("returned router = %q", b.Funcs["Routes"].Returns)
+	}
+	mountSrc := "package main\n\nfunc routes() {\n\tr := chi.NewRouter()\n\tr.Mount(\"/billing\", billing.Routes())\n}\n"
+	m := GoRouters([]byte(mountSrc))
+	if c := m.Funcs["routes"].Calls; len(c) != 1 || !c[0].Mounted || c[0].Qual != "billing" || c[0].Arg.Prefix != "/billing" {
+		t.Errorf("mount calls = %+v", c)
+	}
+
+	mods := map[string]string{"example.com/shop": "backend"}
+	if d, ok := GoPackageDir("example.com/shop/internal/users", mods); !ok || d != "backend/internal/users" {
+		t.Errorf("package dir = %q, %v", d, ok)
+	}
+	if _, ok := GoPackageDir("github.com/gin-gonic/gin", mods); ok {
+		t.Error("a dependency resolved inside the repository")
+	}
+	if GoModulePath("module example.com/shop\n\ngo 1.22\n") != "example.com/shop" {
+		t.Error("module path not read")
+	}
+}

@@ -657,6 +657,26 @@ func TestSubprojectCandidateIsolation(t *testing.T) {
 	}
 }
 
+// A service calling a name it and a shared library both define most likely
+// means the library's and lost the import that would say so: the folder
+// alone does not choose the local one.
+func TestSubprojectPickDefersToASharedLibrary(t *testing.T) {
+	caller := "services/orders/handler.py"
+	idx := index(
+		pyFunc(1, "services/orders/money.py", "format_amount"),
+		pyFunc(2, "libs/common/money.py", "format_amount"),
+	)
+	fr := registry.FileRefs{
+		FileID:  fileIDOf(caller),
+		Path:    caller,
+		Symbols: scopeAt(caller, "handle"),
+		Refs:    []registry.Reference{pyCall(10, "format_amount", "", 15)},
+	}
+	if edge, ok := resolvePython(t, idx, nil, fr)[15]; ok && edge.DstID == 1 {
+		t.Fatalf("bound to the service's own format_amount on folder alone: %+v", edge)
+	}
+}
+
 func TestConftestFixtureResolution(t *testing.T) {
 	testCaller := "backend/services/auth/tests/integration/test_login.py"
 	idx := index(

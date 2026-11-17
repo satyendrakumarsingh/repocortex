@@ -236,6 +236,15 @@ func RunCompilerIndexers(ctx context.Context, reg *registry.Registry, runID int6
 			key := cacheKey(opts.Root, s, cs.Version, plan.Runner, files)
 			if cachedIndexValid(dir, s.Project, key) {
 				cs.Reused = true
+				// An index written before the sidecar recorded file hashes gets
+				// them now. The key matching means every source file is exactly
+				// what the index was built from, so today's hashes are the
+				// index's hashes (see RestoreCompilerProof).
+				if !sidecarHasHashes(dir, s.Project) {
+					if werr := writeCacheKey(dir, s.Project, key, files); werr != nil && opts.Logger != nil {
+						opts.Logger.Warn("could not record file hashes beside the cached index", "dir", dir, "error", werr)
+					}
+				}
 			} else {
 				toRun = append(toRun, pending{step: s, key: key, idx: len(out.Steps)})
 			}
@@ -300,7 +309,7 @@ func RunCompilerIndexers(ctx context.Context, reg *registry.Registry, runID int6
 			id := projectID(p.step.Project)
 			if e, ok := byKey[id]; ok {
 				cs.Ran, cs.RunTime = true, e.Duration
-				if werr := writeCacheKey(dir, p.step.Project, p.key); werr != nil && opts.Logger != nil {
+				if werr := writeCacheKey(dir, p.step.Project, p.key, files); werr != nil && opts.Logger != nil {
 					opts.Logger.Warn("could not record the indexer cache key", "dir", dir, "error", werr)
 				}
 				continue
@@ -671,9 +680,21 @@ func hashFile(path string) string {
 }
 
 // cacheSidecar is the record kept beside an index.
+//
+// Language, Dir and Files exist for RestoreCompilerProof, which re-imports a
+// cached index after an incremental refresh without running the indexer. Files
+// is the content hash of every source file of the project's languages at the
+// time the index was written (the same files and hashes the key is made of), so
+// a later pass can tell which documents of the index still describe the file on
+// disk. The key does not say that: it is one digest, and a digest cannot name
+// the file that changed. The list is about 100 bytes a file, 2.5 MB on a
+// 25,000-file project, read only on that path.
 type cacheSidecar struct {
-	Key  string `json:"key"`
-	Size int64  `json:"size"`
+	Key      string            `json:"key"`
+	Size     int64             `json:"size"`
+	Language string            `json:"language,omitempty"`
+	Dir      string            `json:"dir,omitempty"`
+	Files    map[string]string `json:"files,omitempty"`
 }
 
 func sidecarPath(dir string, p indexer.Project) string {
@@ -684,27 +705,61 @@ func indexPath(dir string, p indexer.Project) string {
 	return filepath.Join(dir, slugOf(p)+".scip")
 }
 
+func readSidecar(path string) (cacheSidecar, bool) {
+	raw, err := os.ReadFile(path) //nolint:gosec // G304: a name this package derives from the project, inside the repository's .repocortex directory
+	if err != nil {
+		return cacheSidecar{}, false
+	}
+	var sc cacheSidecar
+	if json.Unmarshal(raw, &sc) != nil {
+		return cacheSidecar{}, false
+	}
+	return sc, true
+}
+
 // cachedIndexValid reports whether the index on disk for p was written under
 // key and is still the file that was written.
 func cachedIndexValid(dir string, p indexer.Project, key string) bool {
-	raw, err := os.ReadFile(sidecarPath(dir, p)) //nolint:gosec // G304: a name this package derives from the project, inside the repository's .repocortex directory
-	if err != nil {
-		return false
-	}
-	var sc cacheSidecar
-	if json.Unmarshal(raw, &sc) != nil || sc.Key != key {
+	sc, ok := readSidecar(sidecarPath(dir, p))
+	if !ok || sc.Key != key {
 		return false
 	}
 	fi, err := os.Stat(indexPath(dir, p))
 	return err == nil && fi.Size() > 0 && fi.Size() == sc.Size
 }
 
-func writeCacheKey(dir string, p indexer.Project, key string) error {
+// sidecarHasHashes reports whether p's sidecar already records file hashes.
+func sidecarHasHashes(dir string, p indexer.Project) bool {
+	sc, ok := readSidecar(sidecarPath(dir, p))
+	return ok && sc.Files != nil
+}
+
+// projectFileHashes is the content hash of every indexed source file the
+// project's indexer reads: the files cacheKey is made of.
+func projectFileHashes(p indexer.Project, files []model.File) map[string]string {
+	family := languageFamily(p.Language)
+	prefix := ""
+	if p.Dir != "." && p.Dir != "" {
+		prefix = p.Dir + "/"
+	}
+	out := make(map[string]string)
+	for _, f := range files {
+		if (prefix == "" || strings.HasPrefix(f.Path, prefix)) && family[f.Language] {
+			out[f.Path] = f.ContentHash
+		}
+	}
+	return out
+}
+
+func writeCacheKey(dir string, p indexer.Project, key string, files []model.File) error {
 	fi, err := os.Stat(indexPath(dir, p))
 	if err != nil {
 		return err
 	}
-	raw, err := json.Marshal(cacheSidecar{Key: key, Size: fi.Size()})
+	raw, err := json.Marshal(cacheSidecar{
+		Key: key, Size: fi.Size(), Language: string(p.Language), Dir: p.Dir,
+		Files: projectFileHashes(p, files),
+	})
 	if err != nil {
 		return err
 	}

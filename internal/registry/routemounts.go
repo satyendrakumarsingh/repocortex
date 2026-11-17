@@ -183,3 +183,84 @@ func (r *Registry) RenameEndpoints(ctx context.Context, names map[int64]string) 
 	}
 	return tx.Commit()
 }
+
+// GoRouterFiles returns the indexed Go files that import a router package
+// (gin, chi, echo, fiber, gorilla/mux) or are a module's go.mod. Found
+// through the full-text index: an import path's parts are tokens, so a file
+// importing github.com/gin-gonic/gin holds the token "gin".
+func (r *Registry) GoRouterFiles(ctx context.Context, runID int64) ([]FileText, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT f.path, files_fts.content
+		  FROM files_fts
+		  JOIN files_fts_map m ON m.fts_rowid = files_fts.rowid
+		  JOIN files f         ON f.id = m.file_id
+		 WHERE files_fts MATCH ?
+		   AND f.index_run_id = ?
+		   AND (f.path LIKE '%.go' OR f.path = 'go.mod' OR f.path LIKE '%/go.mod')
+		 ORDER BY f.path`,
+		`content : "gin" OR content : "chi" OR content : "echo" OR content : "fiber" OR content : "mux" OR content : "module"`, runID)
+	if err != nil {
+		return nil, fmt.Errorf("registry: go router files: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var out []FileText
+	for rows.Next() {
+		var ft FileText
+		if err := rows.Scan(&ft.Path, &ft.Content); err != nil {
+			return nil, err
+		}
+		out = append(out, ft)
+	}
+	return out, rows.Err()
+}
+
+// GoEndpoints returns every endpoint the run's Go files declare.
+func (r *Registry) GoEndpoints(ctx context.Context, runID int64) ([]EndpointRow, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT s.id, s.name, s.fqn, f.path, s.start_line
+		  FROM symbols s
+		  JOIN files f ON f.id = s.file_id
+		 WHERE s.index_run_id = ? AND s.kind = ? AND f.path LIKE '%.go'
+		 ORDER BY f.path, s.start_line, s.id`,
+		runID, string(model.KindEndpoint))
+	if err != nil {
+		return nil, fmt.Errorf("registry: go endpoints: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var out []EndpointRow
+	for rows.Next() {
+		var e EndpointRow
+		if err := rows.Scan(&e.ID, &e.Name, &e.FQN, &e.Path, &e.Line); err != nil {
+			return nil, err
+		}
+		out = append(out, e)
+	}
+	return out, rows.Err()
+}
+
+// JSFilesMatching returns the run's JS/TS files a full-text query matches,
+// with their text.
+func (r *Registry) JSFilesMatching(ctx context.Context, runID int64, query string) ([]FileText, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT f.path, files_fts.content
+		  FROM files_fts
+		  JOIN files_fts_map m ON m.fts_rowid = files_fts.rowid
+		  JOIN files f         ON f.id = m.file_id
+		 WHERE files_fts MATCH ?
+		   AND f.index_run_id = ?
+		   AND `+jsPathSQL+`
+		 ORDER BY f.path`, query, runID)
+	if err != nil {
+		return nil, fmt.Errorf("registry: js files matching: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var out []FileText
+	for rows.Next() {
+		var ft FileText
+		if err := rows.Scan(&ft.Path, &ft.Content); err != nil {
+			return nil, err
+		}
+		out = append(out, ft)
+	}
+	return out, rows.Err()
+}
