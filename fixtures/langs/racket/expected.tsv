@@ -1,0 +1,40 @@
+# Racket definitions. Rule:
+#  - only forms at the top of the file or directly inside a module, module* or module+ form count; a define in a function body, let, when or for is a local;
+#  - module, module* and module+ are packages;
+#  - define with a parameter list is a function (curried, keyword and rest arguments included), and so are define/contract, define-inline, define-syntax, define-syntax-rule and (define f (lambda ..)) or (define f (λ ..)): macros are functions;
+#  - any other (define name value) is a variable; each name of define-values is a variable;
+#  - struct and define-struct are classes (accessors and fields are not held);
+#  - (define C (class ..)) is a class; the define/public, define/private, define/override ... forms directly in its body are methods, a plain define there (a field) is not;
+#  - define-generics is an interface and each method it lists is a method;
+#  - require, provide, define-logger and calls are not definitions.
+shapes.rkt	9	package	test
+shapes.rkt	11	variable	test-helper
+shapes.rkt	14	package	util
+shapes.rkt	16	function	twice
+shapes.rkt	18	variable	pi-approx
+shapes.rkt	20	variable	unit-name
+shapes.rkt	22	function	area
+shapes.rkt	26	function	perimeter
+shapes.rkt	28	function	curried
+shapes.rkt	31	function	variadic
+shapes.rkt	35	function	scaled-area
+shapes.rkt	38	function	fast-add
+shapes.rkt	40	function	square
+shapes.rkt	42	function	cube
+shapes.rkt	45	variable	left
+shapes.rkt	45	variable	right
+shapes.rkt	47	function	swap!
+shapes.rkt	52	function	my-unless
+shapes.rkt	56	function	my-when
+shapes.rkt	60	class	point
+shapes.rkt	62	class	point3d
+shapes.rkt	64	class	shape
+shapes.rkt	66	class	segment
+shapes.rkt	68	class	arc
+shapes.rkt	72	function	checked
+shapes.rkt	76	interface	drawable
+shapes.rkt	77	method	draw
+shapes.rkt	79	class	my-class%
+shapes.rkt	82	method	greet
+shapes.rkt	83	method	secret
+shapes.rkt	86	function	outer

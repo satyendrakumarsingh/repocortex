@@ -1,0 +1,40 @@
+# Agda definitions. Rule:
+#  - module M and module M = N are packages;
+#  - data and record are classes; the fields of a record are fields (every name of `py pz : Nat`);
+#  - a function is held once, at its type signature, however many equations follow, and an operator or mixfix function is named as its signature names it (_+++_, if_then_else_); signatures at top level, in a module, or under private, abstract, instance and mutual are functions, and so are the names of a postulate block;
+#  - data constructors, pattern synonyms, equations, open/import and let-bound names are not definitions.
+Shapes.agda	1	package	Shapes
+Shapes.agda	8	class	Color
+Shapes.agda	13	class	List
+Shapes.agda	17	class	Index
+Shapes.agda	20	class	Point
+Shapes.agda	23	field	px
+Shapes.agda	24	field	py
+Shapes.agda	24	field	pz
+Shapes.agda	26	class	Pair
+Shapes.agda	28	field	first
+Shapes.agda	29	field	second
+Shapes.agda	31	function	not
+Shapes.agda	35	function	length
+Shapes.agda	39	function	_+++_
+Shapes.agda	43	function	if_then_else_
+Shapes.agda	47	function	double
+Shapes.agda	50	function	unit
+Shapes.agda	53	function	apply
+Shapes.agda	56	function	compose
+Shapes.agda	60	function	magic
+Shapes.agda	61	function	Trust
+Shapes.agda	64	function	hidden
+Shapes.agda	68	function	secret
+Shapes.agda	72	function	natDefault
+Shapes.agda	75	package	Inner
+Shapes.agda	76	function	inner
+Shapes.agda	79	class	Flag
+Shapes.agda	82	class	Box
+Shapes.agda	84	field	content
+Shapes.agda	86	package	Param
+Shapes.agda	87	function	scaled
+Shapes.agda	90	package	Alias
+Shapes.agda	93	function	isEven
+Shapes.agda	97	function	isOdd
+Shapes.agda	103	function	last

@@ -1,0 +1,40 @@
+# Tcl definitions. Rule:
+#  - a definition counts at the top level of the file or directly in a namespace eval body (nested namespaces included); a proc inside another proc's body or inside an if is created only when that code runs and is not held;
+#  - proc is a function, named as written (::shapes::qualified keeps its qualification);
+#  - namespace eval NAME is a package, named as written (::absolute::path);
+#  - variable NAME and set NAME VALUE at those places are variables; a set that only reads (set count) is not;
+#  - oo::class create NAME is a class; in its body method, class method, constructor and destructor are methods and the names of `variable a b` are fields; a method inside oo::define CLASS {..} or oo::objdefine OBJ {..} is a method;
+#  - calls, package, namespace export, unexport, superclass, and a method whose name is a braced list are not definitions.
+shapes.tcl	6	variable	pi_approx
+shapes.tcl	7	variable	unit_name
+shapes.tcl	8	variable	top_var
+shapes.tcl	10	function	area
+shapes.tcl	15	function	perimeter
+shapes.tcl	17	function	with_defaults
+shapes.tcl	21	function	::shapes::qualified
+shapes.tcl	25	function	outer
+shapes.tcl	32	package	shapes
+shapes.tcl	33	variable	count
+shapes.tcl	34	variable	names
+shapes.tcl	35	variable	default_name
+shapes.tcl	37	function	make
+shapes.tcl	43	function	reset
+shapes.tcl	48	package	nested
+shapes.tcl	49	variable	depth
+shapes.tcl	50	function	descend
+shapes.tcl	56	package	::absolute::path
+shapes.tcl	57	function	helper
+shapes.tcl	60	class	Shape
+shapes.tcl	61	field	name
+shapes.tcl	61	field	sides
+shapes.tcl	63	method	constructor
+shapes.tcl	67	method	destructor
+shapes.tcl	71	method	describe
+shapes.tcl	75	method	area
+shapes.tcl	85	method	create_default
+shapes.tcl	90	class	Circle
+shapes.tcl	92	field	radius
+shapes.tcl	94	method	area
+shapes.tcl	100	method	extra
+shapes.tcl	105	method	only_here
+shapes.tcl	112	variable	handler

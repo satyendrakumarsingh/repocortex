@@ -1,0 +1,24 @@
+# Prolog definitions. Rule:
+#  - a predicate is a function named by its functor without the arity (area, not area/2); its clauses, facts and rules, are one symbol when they are consecutive and have the same arity, listed at the first clause: shape/1 (lines 8-10), area/2 (20-26) and name//0 (36-37) are one symbol each;
+#  - the same name with a different arity is a separate symbol (describe/1 at 31, describe/2 at 32);
+#  - clauses of one predicate separated by another predicate are separate symbols (alpha at 51 and 53);
+#  - a DCG rule (greeting --> ...) is a predicate; zero-arity predicates (ready, halt_check) are predicates;
+#  - :- module(Name, Exports) is a package;
+#  - other directives (use_module, dynamic, discontiguous, initialization) and the goals in a body are not definitions.
+shapes.pl	1	package	shapes
+shapes.pl	8	function	shape
+shapes.pl	12	function	colour
+shapes.pl	15	function	counter
+shapes.pl	17	function	pi_approx
+shapes.pl	20	function	area
+shapes.pl	28	function	perimeter
+shapes.pl	31	function	describe
+shapes.pl	32	function	describe
+shapes.pl	35	function	greeting
+shapes.pl	36	function	name
+shapes.pl	40	function	halt_check
+shapes.pl	41	function	ready
+shapes.pl	46	function	main
+shapes.pl	51	function	alpha
+shapes.pl	52	function	beta
+shapes.pl	53	function	alpha

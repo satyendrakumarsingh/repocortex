@@ -1,0 +1,32 @@
+# Emacs Lisp definitions. Rule:
+#  - only forms at the top level of the file count; a defun inside a function body, when, progn or eval-and-compile is not held;
+#  - defun, defsubst and defmacro are functions (macros are functions), and so are define-inline, cl-defun, cl-defmacro, cl-defgeneric, (defalias 'name ..), define-minor-mode, define-derived-mode and define-globalized-minor-mode;
+#  - cl-defmethod is a method, named by its generic function;
+#  - defvar, defvar-local, defcustom and defface are variables, defconst is a constant; a bare (defvar x) only declares the name and is not a definition;
+#  - cl-defstruct (name or (name options)) and defclass are classes;
+#  - defgroup, define-error, require, provide, setq and calls are not definitions.
+shapes.el	11	variable	shapes-default-sides
+shapes.el	16	constant	shapes-pi
+shapes.el	19	variable	shapes-scale
+shapes.el	28	variable	shapes-highlight
+shapes.el	32	variable	shapes-buffer-state
+shapes.el	34	function	shapes-area
+shapes.el	39	function	shapes--private-helper
+shapes.el	42	function	shapes-interactive
+shapes.el	46	function	shapes-with-scale
+shapes.el	51	function	shapes-fast
+shapes.el	54	function	shapes-inline
+shapes.el	57	function	shapes-alias
+shapes.el	59	function	shapes-keyword
+shapes.el	62	function	shapes-cl-macro
+shapes.el	65	function	shapes-describe
+shapes.el	68	method	shapes-describe
+shapes.el	71	class	shapes-circle
+shapes.el	73	class	shapes-rect
+shapes.el	76	class	shapes-box
+shapes.el	80	class	shapes-base
+shapes.el	84	function	shapes-mode
+shapes.el	88	function	shapes-view-mode
+shapes.el	91	function	global-shapes-mode
+shapes.el	96	function	shapes-chars
+shapes.el	100	function	shapes--outer

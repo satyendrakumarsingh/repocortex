@@ -1,0 +1,25 @@
+# Fennel definitions. Rule:
+#  - only forms at the top level of the file count; a fn, local or var inside a function, let, when or each is a local;
+#  - fn, lambda and λ with a name are functions, and so is macro (macros are functions); a dotted name (fn M.method) is named by its last part, as in Lua;
+#  - (local f (fn ..)), the same with var, global, lambda and λ, is a function; (set M.f (fn ..)) is a function named f;
+#  - any other (local x v), (var x v) or (global x v) binding one plain name is a variable; (set M.x 3) is not a definition;
+#  - destructuring bindings, the (macros {..}) table, import-macros, require and calls are not definitions.
+shapes.fnl	2	variable	fennel
+shapes.fnl	5	variable	pi-approx
+shapes.fnl	7	variable	unit-name
+shapes.fnl	9	variable	M
+shapes.fnl	11	variable	counter
+shapes.fnl	13	variable	shapes-global
+shapes.fnl	15	function	area
+shapes.fnl	20	function	perimeter
+shapes.fnl	22	function	variadic
+shapes.fnl	25	function	square
+shapes.fnl	27	function	named-lambda
+shapes.fnl	29	function	cube
+shapes.fnl	31	function	checked
+shapes.fnl	34	function	greek
+shapes.fnl	36	function	method
+shapes.fnl	39	function	deep
+shapes.fnl	41	function	assigned
+shapes.fnl	45	function	swap!
+shapes.fnl	55	function	outer

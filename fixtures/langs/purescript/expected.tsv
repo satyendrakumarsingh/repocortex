@@ -1,0 +1,34 @@
+# PureScript definitions. Rule:
+#  - module is a package;
+#  - a top-level equation is a function, once however many equations it has; the type signature is not a definition of its own, and a point-free value (total = sum <<< map area) is a function too;
+#  - foreign import names a function; foreign import data names a class;
+#  - data and newtype are classes; type synonyms are type aliases; class is an interface and the signatures in its body are methods; the fields of a record newtype and of a record type synonym are fields;
+#  - instance bodies, derive declarations, where/let bindings, data constructors and fixity declarations (infixl 6 addPoints as |+|) are not definitions.
+Shapes.purs	1	package	Shapes
+Shapes.purs	11	class	Handle
+Shapes.purs	13	function	sqrtImpl
+Shapes.purs	15	function	now
+Shapes.purs	17	class	Shape
+Shapes.purs	21	class	Color
+Shapes.purs	23	class	Wrapper
+Shapes.purs	23	field	unwrap
+Shapes.purs	25	class	Name
+Shapes.purs	27	type_alias	Point
+Shapes.purs	27	field	px
+Shapes.purs	27	field	py
+Shapes.purs	29	type_alias	Pair
+Shapes.purs	31	interface	Container
+Shapes.purs	32	method	empty
+Shapes.purs	33	method	insert
+Shapes.purs	34	method	size
+Shapes.purs	36	interface	Pretty
+Shapes.purs	37	method	pretty
+Shapes.purs	46	function	area
+Shapes.purs	50	function	perimeter
+Shapes.purs	56	function	scale
+Shapes.purs	59	function	unsignedHelper
+Shapes.purs	62	function	addPoints
+Shapes.purs	67	function	total
+Shapes.purs	70	function	origin
+Shapes.purs	73	function	withDefault
+Shapes.purs	77	function	main

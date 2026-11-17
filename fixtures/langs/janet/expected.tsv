@@ -1,0 +1,24 @@
+# Janet definitions. Rule:
+#  - only forms at the top level of the file count; a def, var or defn inside a function, let, when or each is a local;
+#  - defn, defn-, defmacro and defmacro- are functions (macros are functions); (def f (fn ..)) and (def- f (fn ..)) are functions;
+#  - any other def, def-, var, var-, defglobal, varglobal or defdyn binding one plain name is a variable (def is immutable in Janet, but is held as a variable like Clojure's def);
+#  - destructuring defs, import, use, calls and forms whose head only starts with def (def-macro-like-name) are not definitions.
+shapes.janet	5	variable	pi-approx
+shapes.janet	7	variable	unit-name
+shapes.janet	9	variable	private-value
+shapes.janet	11	variable	counter
+shapes.janet	13	variable	hidden-counter
+shapes.janet	15	function	area
+shapes.janet	21	function	perimeter
+shapes.janet	23	function	private-helper
+shapes.janet	26	function	variadic
+shapes.janet	29	function	square
+shapes.janet	31	function	named-fn
+shapes.janet	33	function	hidden-square
+shapes.janet	35	function	swap!
+shapes.janet	40	function	private-macro
+shapes.janet	45	variable	global-val
+shapes.janet	47	variable	global-var
+shapes.janet	49	variable	*shape-scale*
+shapes.janet	51	function	outer
+shapes.janet	73	function	with-docs
