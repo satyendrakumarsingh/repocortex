@@ -723,26 +723,25 @@ CALLS  handleCallback  src/main/java/com/pay/controller/CallbackController.java:
 
 ```console
 $ repocortex callees updateStatus
+updateStatus (src/main/java/com/pay/service/TransactionService.java:18) calls 5 symbol(s) the index could bind.
+
 updateStatus (method) at src/main/java/com/pay/service/TransactionService.java:18
 
-KIND   SYMBOL               EVIDENCE                                                  CONFIDENCE
-CALLS  findById             src/main/java/com/pay/service/TransactionService.java:19  high (source_code)
-CALLS  repository           src/main/java/com/pay/service/TransactionService.java:19  high (source_code)
-CALLS  isDuplicate          src/main/java/com/pay/service/TransactionService.java:20  high (source_code)
-CALLS  setStatus            src/main/java/com/pay/service/TransactionService.java:23  high (source_code)
-CALLS  repository           src/main/java/com/pay/service/TransactionService.java:24  high (source_code)
-CALLS  save                 src/main/java/com/pay/service/TransactionService.java:24  high (source_code)
-CALLS  notificationService  src/main/java/com/pay/service/TransactionService.java:25  high (source_code)
-CALLS  send                 src/main/java/com/pay/service/TransactionService.java:25  high (source_code)
+KIND   SYMBOL       EVIDENCE                                                  CONFIDENCE
+CALLS  findById     src/main/java/com/pay/service/TransactionService.java:19  high (source_code)
+CALLS  isDuplicate  src/main/java/com/pay/service/TransactionService.java:20  high (source_code)
+CALLS  save         src/main/java/com/pay/service/TransactionService.java:24  high (source_code)
+CALLS  send         src/main/java/com/pay/service/TransactionService.java:25  high (source_code)
+CALLS  setStatus    src/main/java/com/pay/service/TransactionService.java:23  medium (source_code)
 
-8 callee(s).
+5 callee(s).
 ```
 
 **How to read it:**
 
 - One row per call site, so a target called twice appears twice.
-- Field reads used as a call receiver (`repository`, `notificationService`) are
-  listed as `CALLS` too. Skip them; the method on the next row is the real call.
+- A field used as a receiver (`repository` in `repository.save(txn)`) is not a
+  callee; only the method called on it is listed.
 - Library calls (`status.equals`) are not listed. They count as unresolved.
 
 **Useful flags:** `--path`, `--min-confidence`, `-n, --limit`.
@@ -768,11 +767,15 @@ CALLS  handleCallback  src/main/java/com/pay/controller/CallbackController.java:
 1 reference(s).
 
 $ repocortex references TransactionRepository --path TransactionRepository.java
+AMBIGUOUS — 2 definitions share the name "TransactionRepository". What follows is about the first, src/main/java/com/pay/repository/TransactionRepository.java:3, and says nothing about the others. Pass --path to choose one; they are listed at the end.
+
 TransactionRepository (class) at src/main/java/com/pay/repository/TransactionRepository.java:3
 
-No references found.
+KIND        SYMBOL                                 EVIDENCE                                                  CONFIDENCE
+REFERENCES  TransactionService.repository          src/main/java/com/pay/service/TransactionService.java:9   high (source_code)
+REFERENCES  TransactionService.TransactionService  src/main/java/com/pay/service/TransactionService.java:12  high (source_code)
 
-68% of the 31 reference(s) that name something this index defines are bound to a definition; 10 remain too ambiguous to choose between. A further 32 reference(s) matched no definition here at all — mostly calls into libraries, which an index of this repository cannot bind. An empty result is a lower bound, not proof that nothing uses this symbol.
+2 reference(s).
 
 2 definitions share the name "TransactionRepository"; this answered for the first.
 Pass --path to choose another:
@@ -783,10 +786,12 @@ Pass --path to choose another:
 **How to read it:**
 
 - `KIND` can be `CALLS`, `IMPORTS`, `IMPLEMENTS`, `EXTENDS` or `REFERENCES`.
-- The empty result above is the case the closing paragraph warns about.
-  `TransactionService` uses `TransactionRepository` as a field type, but
-  type-position uses in Java were not recorded as references in this run.
-  Do not delete a class on an empty `references` result.
+- In Java, a type named as a field, parameter, local variable, return type or
+  type argument is a `REFERENCES` row: here the `repository` field (line 9) and
+  the constructor's parameter (line 12). A type name with no class of that
+  name in the index (`String`, `List`) is not counted as a blind spot.
+- An empty result is a lower bound. Do not delete a class on an empty
+  `references` result alone.
 - `--path` takes a substring. When two definitions live in the same file (class
   and constructor), the substring cannot tell them apart.
 
@@ -812,7 +817,7 @@ Blast radius of HEAD~1..HEAD
 
 1 file changed; 7 changed symbols found in the index, 7 analysed.
 1 symbol at risk through recorded references, plus 0 reachable only through dispatch.
-Riskiest change: src/main/java/com/pay/service/TransactionService.java:TransactionService — risk moderate (score 45, certainty low).
+Riskiest change: src/main/java/com/pay/service/TransactionService.java:TransactionService — risk moderate (45/100, certainty low).
   This is the MAXIMUM over the changed symbols, never a total: two risks of 40 do not make an 80.
 
 CHANGED FILES
@@ -987,9 +992,9 @@ VERIFY: PASS  (contract: /work/ledger-go/.repocortex/rename-contract.json)
   hand or `--apply` exits `3`.
 - After `--apply`, a `VERIFY:` block checks the change against a generated task
   contract. `[UNKNOWN]` lines are gaps, not failures.
-- Note: the definition site itself stays `high` even after a SCIP import, so the
-  default `--floor exact` refuses every rename in practice. Use `--floor high`
-  and read each site.
+- The definition site is `exact` once a compiler indexer has read its file or
+  bound a reference to it, so after a SCIP import the default `--floor exact`
+  applies. Without one, sites stay `high`; pass `--floor high` and read each.
 
 **Useful flags:** `--apply`; `--floor exact|high`; `--path`; `--max-sites N`.
 
@@ -1111,7 +1116,8 @@ runs recorded in /work/payment-platform/.repocortex/index.db:
 - One index file keeps one committed run. To compare two commits, keep a copy
   of the older index (or build one at that commit) and pass it with
   `--from-index`. Use `index --full` for the newer side; incremental updates do
-  not create a new run.
+  not create a new run. Two different refs that name the same run are refused
+  with the commands that build the older side.
 
 **Useful flags:** `--from`, `--to`, `--from-index`, `--to-index`,
 `--max-per-section N`.
@@ -1241,9 +1247,10 @@ spring.datasource.url                                  0        src/main/resourc
 - **READ BUT NOT DECLARED** is the urgent list. Here `@Value("${payment.events.topic-prefix}")`
   reads a key no file declares, so the service will fail to start unless the
   environment supplies it.
-- **Declared and never read** is mostly noise on real projects: parent YAML
-  keys, Compose keys and even `.repocortex.yml` are counted. Use it as a list to
-  scan, not to delete from.
+- **Declared and never read** leaves out keys that something other than the
+  code reads: `.repocortex.yml` (this tool) and Compose files (Docker). They
+  still appear under `--all` and in `--json` with `read_by`. Parent YAML keys
+  are still counted, so use the list to scan, not to delete from.
 - `SENSITIVE` is decided from the key name only. Values are never read.
 - Kubernetes, Helm, Terraform and CI files are not read here; use
   [`infra`](#repocortex-infra) for those.
@@ -1358,30 +1365,34 @@ This key is a credential by name or by source. Its VALUE was never read and is n
 
 ```console
 $ repocortex deps --all
-DECLARED BUT NOT IMPORTED (4)
+CANNOT TELL FROM THE COORDINATES (4)
   org.apache.commons:commons-lang3                  3.17.0  runtime  pom.xml:22
   org.postgresql:postgresql                         42.7.4  runtime  pom.xml:17
   org.springframework.boot:spring-boot-starter-web  3.3.4   runtime  pom.xml:7
   org.springframework.kafka:spring-kafka            3.2.4   runtime  pom.xml:12
 
-  Check before removing: a package can be loaded by reflection, required by a build plugin, or imported under a name that differs from its distribution name.
+  A Maven or Gradle coordinate does not name the packages inside the artifact, and no import starts with its groupId, so this says nothing about whether it is used.
 
 DEPENDENCY                                        VERSION  ECOSYSTEM  SCOPE    IMPORTED BY
-org.apache.commons:commons-lang3                  3.17.0   maven      runtime  nothing
-org.postgresql:postgresql                         42.7.4   maven      runtime  nothing
-org.springframework.boot:spring-boot-starter-web  3.3.4    maven      runtime  nothing
-org.springframework.kafka:spring-kafka            3.2.4    maven      runtime  nothing
+org.apache.commons:commons-lang3                  3.17.0   maven      runtime  unknown (groupId is not a package prefix of any import)
+org.postgresql:postgresql                         42.7.4   maven      runtime  unknown (groupId is not a package prefix of any import)
+org.springframework.boot:spring-boot-starter-web  3.3.4    maven      runtime  unknown (groupId is not a package prefix of any import)
+org.springframework.kafka:spring-kafka            3.2.4    maven      runtime  unknown (groupId is not a package prefix of any import)
 
 4 dependency(ies). No vulnerability data is reported — see --help.
 ```
 
 **How to read it:**
 
-- Without `--all`, only the first block prints.
-- `IMPORTED BY nothing` is a prompt to check, not a verdict. In this sample all
-  four show `nothing` because the fixture's Java files have no Spring imports,
-  and because Maven coordinates rarely match Java package names. Drivers like
-  `postgresql` are loaded by name at run time and are never imported.
+- Without `--all`, only the first blocks print.
+- **CANNOT TELL FROM THE COORDINATES** is Maven and Gradle only. A coordinate
+  names a group and an artifact, not the packages inside it
+  (`spring-boot-starter-web` is imported as `org.springframework.web.*`), so a
+  dependency counts as imported only when some import starts with its groupId,
+  and no match is not taken as evidence. Drivers like `postgresql` are loaded
+  by name at run time and are never imported.
+- **DECLARED BUT NOT IMPORTED** appears for ecosystems where the import names
+  the package (Go, npm, Python, Cargo). It is a prompt to check, not a verdict.
 - Manifests read: `go.mod`, `package.json`, `pom.xml`, `build.gradle`,
   `requirements.txt`, `pyproject.toml`, `Cargo.toml`. Lock files are not read.
 - There is no vulnerability data. Feed the versions to a real scanner.
@@ -1398,7 +1409,8 @@ exercised a route.
 
 **Run:** Against a three-span OpenTelemetry JSON file written for this guide:
 one `POST /payment/callback` server span with `http.route`, one child span with
-`code.function=updateStatus`, and one span named `handle`.
+`code.function=updateStatus` and `code.namespace=com.pay.service.TransactionService`,
+and one span named `handle`.
 
 **Output:**
 
@@ -1406,11 +1418,12 @@ one `POST /payment/callback` server span with `http.route`, one child span with
 $ repocortex trace ../trace.json
 otlp-json: 3 span(s) across 1 trace(s), service(s): payments
 
-EXERCISED (1)
+EXERCISED (2)
   ENTITY                  KIND      CALLS  ERRORS  P95   MATCHED BY
   POST /payment/callback  endpoint  1      0       45ms  route
+  updateStatus            method    1      0       25ms  code-attribute
 
-2 span operation(s) matched nothing indexed (e.g. TransactionService.updateStatus, handle).
+1 span operation(s) matched nothing indexed (e.g. handle).
 That means the correlation is weak here, not that the code is absent: most services do not set OpenTelemetry's code.* attributes, and without them a span name is all there is to match on.
 ```
 
@@ -1424,9 +1437,12 @@ That means the correlation is weak here, not that the code is absent: most servi
   attribute) is strongest, `route` (`http.route`) and `table`
   (`db.sql.table`) are strong, `name` (span name equals a unique symbol name)
   is weak.
-- The closing lines list spans that matched nothing. Here even the span with
-  `code.function=updateStatus` did not match, so a short list means "could not
-  match", not "did not run".
+- `code.filepath` with `code.lineno` picks the innermost function holding that
+  line. Otherwise `code.function` is matched by name, narrowed by
+  `code.namespace` (its last segment against the class, package or file). When
+  two symbols still tie, the span is listed as ambiguous rather than guessed.
+- The closing lines list spans that matched nothing. A short list means "could
+  not match", not "did not run".
 - A `NEVER REACHED` section, when present, lists indexed endpoints no span
   reached. That is true of this export only; check a wider time window before
   calling one dead.
@@ -1745,8 +1761,9 @@ Top Actionable Findings:
   receivers (`request`, `txn`). Use it as a measure of blindness, not a to-do
   list.
 - `high` findings (here, the undeclared config key) are the ones to act on.
-- `Total Blindspots` counts only what is shown under the current `--limit` per
-  kind, so it changes when you change `--limit`. Use `--json` for the full set.
+- When a kind reaches `--limit`, its count reads `2+ (stopped at the limit;
+  raise --limit to count more)` and the total reads `at least N`. A total
+  without "at least" is complete.
 
 **Useful flags:** `--kind <kind>`, `--limit N` per kind (default 50),
 `--fail-on high|medium|low`.
@@ -2504,7 +2521,7 @@ $ repocortex report pr --impact impact.json --arch arch.json --blindspots missed
 
 | Check | Result |
 |---|---|
-| Blast radius | **moderate** risk (score 45): 1 symbols reached from 7 changed symbols; 0% exact, 100% high, 0% medium |
+| Blast radius | **moderate** risk (45/100): 1 symbols reached from 7 changed symbols; 0% exact, 100% high, 0% medium |
 | Architecture | 1 rule violations, 0 data-rule violations, worst medium |
 | Blindspots | 43 (1 high) |
 
@@ -5361,7 +5378,7 @@ UNVERIFIED PROVENANCE
 
 13 files changed; 192 changed symbols found in the index, 192 analysed.
 144 symbols at risk through recorded references, plus 0 reachable only through dispatch.
-Riskiest change: internal/resolve/infer/language.go:For — risk moderate (score 59, certainty low).
+Riskiest change: internal/resolve/infer/language.go:For — risk moderate (59/100, certainty low).
   This is the MAXIMUM over the changed symbols, never a total: two risks of 40 do not make an 80.
 ```
 

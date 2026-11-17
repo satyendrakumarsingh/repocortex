@@ -259,14 +259,14 @@ func writeImpactDiff(out io.Writer, rep impact.DiffReport, limit int, coverage s
 			if rep.Risk.Partial != "" {
 				partial = "; " + rep.Risk.Partial
 			}
-			fmt.Fprintf(out, "Riskiest change: %s — risk %s or higher (score %d counts only the callers "+
+			fmt.Fprintf(out, "Riskiest change: %s — risk %s or higher (%d/100 counts only the callers "+
 				"that were bound%s, certainty %s).\n",
 				rep.RiskiestSeed, rep.Risk.Level, rep.Risk.Score, partial, rep.Risk.Certainty)
 		case rep.Risk.Partial != "":
-			fmt.Fprintf(out, "Riskiest change: %s — risk %s or higher (score %d; %s; certainty %s).\n",
+			fmt.Fprintf(out, "Riskiest change: %s — risk %s or higher (%d/100; %s; certainty %s).\n",
 				rep.RiskiestSeed, rep.Risk.Level, rep.Risk.Score, rep.Risk.Partial, rep.Risk.Certainty)
 		default:
-			fmt.Fprintf(out, "Riskiest change: %s — risk %s (score %d, certainty %s).\n",
+			fmt.Fprintf(out, "Riskiest change: %s — risk %s (%d/100, certainty %s).\n",
 				rep.RiskiestSeed, rep.Risk.Level, rep.Risk.Score, rep.Risk.Certainty)
 		}
 		fmt.Fprintln(out, "  This is the MAXIMUM over the changed symbols, never a total: "+

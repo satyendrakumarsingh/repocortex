@@ -205,3 +205,93 @@ func TestConfigAndDepsExplainEmptyResults(t *testing.T) {
 		t.Errorf("an empty deps report is unclear:\n%s", out)
 	}
 }
+
+// writeFixture writes files under root and runs init, index and resolve.
+func writeFixture(t *testing.T, files map[string]string) string {
+	t.Helper()
+	root := isolate(t)
+	for path, body := range files {
+		full := filepath.Join(root, filepath.FromSlash(path))
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, args := range [][]string{{"init"}, {"index"}, {"resolve"}} {
+		if out, err := run(t, root, args...); err != nil {
+			t.Fatalf("%v: %v\n%s", args, err, out)
+		}
+	}
+	return root
+}
+
+// Measured on a fixture: a repository with a .repocortex.yml and a
+// docker-compose.yml reported every key in both as "declared and never read".
+// The first file is this tool's own configuration and the second is read by
+// Docker; no application code is ever going to read either.
+func TestConfigDoesNotCallToolAndComposeKeysUnread(t *testing.T) {
+	root := writeFixture(t, map[string]string{
+		".repocortex.yml":       "project:\n  name: demo\nindex:\n  exclude:\n    - vendor\n",
+		"docker-compose.yml":    "services:\n  web:\n    image: nginx\n    restart: always\n",
+		"compose.override.yaml": "services:\n  web:\n    privileged: false\n",
+		".env":                  "TRULY_UNUSED=1\n",
+		"main.go":               "package main\n\nfunc main() {}\n",
+	})
+	out, err := run(t, root, "config")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "1 declared and never read") {
+		t.Errorf("only TRULY_UNUSED should count as never read:\n%s", out)
+	}
+	all, err := run(t, root, "config", "--all")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{"name", "restart"} {
+		if !strings.Contains(all, key) {
+			t.Errorf("key %q must stay listed in --all:\n%s", key, all)
+		}
+	}
+	js, err := run(t, root, "config", "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(js, "read_by") {
+		t.Errorf("JSON must say who reads the key:\n%s", js)
+	}
+}
+
+// A Maven groupId is a package prefix for most artifacts, but not for all;
+// when it matches no import the report must say "cannot tell", not
+// "not imported".
+func TestDepsMavenCoordinatesAreMatchedByGroupPrefix(t *testing.T) {
+	root := writeFixture(t, map[string]string{
+		"pom.xml": `<project><dependencies>
+<dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-web</artifactId><version>3.2.0</version></dependency>
+<dependency><groupId>com.google.guava</groupId><artifactId>guava</artifactId><version>33.0.0</version></dependency>
+</dependencies></project>`,
+		"src/main/java/App.java": `package app;
+
+import org.springframework.boot.SpringApplication;
+
+public class App {}
+`,
+	})
+	out, err := run(t, root, "deps")
+	if err != nil {
+		t.Fatal(err)
+	}
+	notImported := strings.SplitN(out, "CANNOT TELL", 2)[0]
+	if strings.Contains(notImported, "spring-boot-starter-web") {
+		t.Errorf("spring-boot-starter-web is imported (org.springframework.boot prefix) but was flagged:\n%s", out)
+	}
+	if strings.Contains(notImported, "guava") {
+		t.Errorf("guava must not be reported as not imported (coordinates cannot say):\n%s", out)
+	}
+	if !strings.Contains(out, "CANNOT TELL") || !strings.Contains(out, "guava") {
+		t.Errorf("guava should be listed under CANNOT TELL:\n%s", out)
+	}
+}

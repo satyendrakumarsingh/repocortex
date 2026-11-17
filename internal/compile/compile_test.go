@@ -698,3 +698,35 @@ func emptySections(md string) []string {
 	}
 	return empty
 }
+
+// TestConfigurationKeysDoNotCrowdOutTheCode: a request that names a setting
+// scores every key of that name as high as the class reading it. Cut by
+// relevance alone, a service with a few environment files filled the whole
+// scope with keys and dropped the class to change.
+func TestConfigurationKeysDoNotCrowdOutTheCode(t *testing.T) {
+	var items []devctx.Item
+	for i := 0; i < 14; i++ {
+		items = append(items, devctx.Item{Kind: "configuration", Name: "retry.limit",
+			Path: "config/application-" + string(rune('a'+i)) + ".yml", Relevance: 0.9, Why: "names the setting"})
+	}
+	items = append(items, devctx.Item{Kind: "class", Name: "RetryPolicy",
+		Path: "src/main/java/pay/RetryPolicy.java", Relevance: 0.8, Why: "reads retry.limit"})
+	c := compileOrFail(t, "make the retry limit configurable", devctx.Pack{Items: items}, Options{})
+
+	if len(c.Scope) != defaultMaxScope {
+		t.Fatalf("scope has %d items, want the full %d", len(c.Scope), defaultMaxScope)
+	}
+	found := false
+	for _, s := range c.Scope {
+		found = found || s.Symbol == "RetryPolicy"
+	}
+	if !found {
+		t.Fatalf("the class that reads the key was cut from the scope: %+v", c.Scope)
+	}
+
+	// With nothing else wanting the slots, keys still fill them.
+	only := compileOrFail(t, "make the retry limit configurable", devctx.Pack{Items: items[:14]}, Options{})
+	if len(only.Scope) != defaultMaxScope {
+		t.Fatalf("keys alone fill %d slots, want %d", len(only.Scope), defaultMaxScope)
+	}
+}

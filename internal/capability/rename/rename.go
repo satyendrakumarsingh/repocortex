@@ -196,8 +196,9 @@ func Collect(ctx context.Context, ix Index, runID int64, req Request) (Plan, err
 		hashes: make(map[string]string),
 	}
 	sites := make([]Site, 0, len(edges)+1)
+	defConf, defWhy := definitionConfidence(ctx, ix, runID, t, edges)
 	sites = append(sites, Site{Path: t.FilePath, Line: t.StartLine, Col: -1,
-		Confidence: model.Confidence(t.Confidence), Kind: KindDefinition, Why: "the definition itself"})
+		Confidence: defConf, Kind: KindDefinition, Why: defWhy})
 	for _, e := range edges {
 		sites = append(sites, Site{Path: e.EvidenceFile, Line: e.EvidenceLine, Col: e.EvidenceCol,
 			Confidence: model.Confidence(e.Confidence), Kind: e.Kind, Why: e.Detail})
@@ -328,4 +329,39 @@ func dedupe(sites []Site) []Site {
 		return a.Col < b.Col
 	})
 	return out
+}
+
+// CompilerCoverage is an optional capability of an Index: whether a compiler
+// indexer read the file a symbol is defined in.
+type CompilerCoverage interface {
+	DefinitionReadByCompiler(ctx context.Context, runID, symbolID int64) (bool, error)
+}
+
+// definitionConfidence is how sure the plan is that the definition site is
+// the definition being renamed.
+//
+// The parser found it, so it was extracted at high, and with the default
+// floor of exact that refused every rename, including the ones where a
+// compiler had proven every reference: a renamed definition is only as certain
+// as the evidence that it is the one the references mean. A compiler gives
+// that evidence two ways: it read the definition's file (compiler_coverage,
+// for an imported SCIP index), or it bound a reference to this very
+// definition (an exact edge into it, which the Go type check writes too).
+// Either makes the site exact; without both it stays as extracted.
+func definitionConfidence(ctx context.Context, ix Index, runID int64, t registry.SymbolHit, edges []registry.EdgeHit) (model.Confidence, string) {
+	conf := model.Confidence(t.Confidence)
+	if conf == model.ConfidenceExact {
+		return conf, "the definition itself"
+	}
+	for _, e := range edges {
+		if model.Confidence(e.Confidence) == model.ConfidenceExact {
+			return model.ConfidenceExact, "the definition itself; a compiler bound a reference to it"
+		}
+	}
+	if cc, ok := ix.(CompilerCoverage); ok {
+		if read, err := cc.DefinitionReadByCompiler(ctx, runID, t.ID); err == nil && read {
+			return model.ConfidenceExact, "the definition itself; a compiler indexer read its file"
+		}
+	}
+	return conf, "the definition itself"
 }

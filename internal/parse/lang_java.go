@@ -21,6 +21,14 @@ package parse
 // is bound only when that type is a class: `new Runnable() {}` names an
 // interface, which is never instantiated, so it binds to nothing. Its body's
 // methods are indexed as ordinary methods of the enclosing class.
+//
+// A type written where a value of it is declared is a use of that type too:
+// a field, a parameter, a local variable, a return type, a type argument
+// (`List<Order>`). They are `reference.type`, which binds only to a type
+// (resolve/infer typeCandidates) and, when the repository defines no such
+// type (String, List, a framework's class), is recorded as ignored rather
+// than unresolved. Without them a class that is only held and passed, never
+// constructed or called, had no reference at all.
 func init() {
 	registerDefinitions("java", `
 (object_creation_expression
@@ -31,5 +39,15 @@ func init() {
   type: (generic_type . (type_identifier) @name) @reference.call.new)
 (object_creation_expression
   type: (generic_type . (scoped_type_identifier (type_identifier) @name .)) @reference.call.new)
+
+(field_declaration type: (type_identifier) @name @reference.type)
+(field_declaration type: (generic_type . (type_identifier) @name) @reference.type)
+(formal_parameter type: (type_identifier) @name @reference.type)
+(formal_parameter type: (generic_type . (type_identifier) @name) @reference.type)
+(local_variable_declaration type: (type_identifier) @name @reference.type)
+(local_variable_declaration type: (generic_type . (type_identifier) @name) @reference.type)
+(method_declaration type: (type_identifier) @name @reference.type)
+(method_declaration type: (generic_type . (type_identifier) @name) @reference.type)
+(type_arguments (type_identifier) @name @reference.type)
 `, false)
 }

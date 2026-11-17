@@ -156,6 +156,11 @@ func receiverEdgesAt(t *testing.T, db *sql.DB, m receiverMarker) []receiverEdge 
 		  JOIN symbols s ON s.id = e.dst_id
 		  JOIN files f ON f.id = s.file_id
 		 WHERE e.source = 'source_code'
+		   -- Calls only. A call reference always becomes CALLS or INSTANTIATES;
+		   -- a REFERENCES edge on the same line is a type use ("Visitor j =
+		   -- new Visitor() {...}" names Visitor as j's type), which is right
+		   -- and not what this suite audits.
+		   AND e.kind IN ('CALLS', 'INSTANTIATES')
 		   AND e.evidence_file = ? AND e.evidence_line = ?
 		   AND (s.name = ? OR s.name = ? OR (s.name = 'apply' AND s.fqn LIKE '%:' || ? || '.apply'))
 		 ORDER BY e.id`, m.file, m.line, m.name, m.exported, m.name)

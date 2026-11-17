@@ -968,6 +968,9 @@ func (r *Resolver) bareByName(c call, reach []registry.SymbolIndexEntry, stats *
 		stats.CapDropped++
 		return ambiguousCall
 	}
+	if best, ok := r.pickTypeByClassImport(c.imports, c.ref, reach); ok {
+		return bound(best)
+	}
 	if best, ok := r.pickImported(c.imports, c.ref, reach); ok {
 		return bound(best)
 	}

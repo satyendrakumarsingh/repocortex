@@ -28,6 +28,8 @@ package runtime
 
 import (
 	"context"
+	"fmt"
+	"path"
 	"sort"
 	"strings"
 
@@ -147,6 +149,7 @@ func Correlate(ctx context.Context, reg Registry, runID int64, spans []trace.Spa
 		p95   int64
 	}
 	hits := map[int64]*agg{}
+	locator := newCodeLocator(symbols, pathOf)
 	unmatched := map[string]struct{}{}
 
 	record := func(s model.Symbol, kind MatchKind, op trace.Operation) {
@@ -174,14 +177,19 @@ func Correlate(ctx context.Context, reg Registry, runID int64, spans []trace.Spa
 
 		// Strongest first. Once an operation is tied to a symbol by an explicit
 		// code attribute, matching it again by name would double-count it.
-		if h.Function != "" {
-			for _, s := range byName[h.Function] {
-				if h.Namespace == "" || strings.Contains(s.FQN, h.Namespace) {
-					record(s, MatchCodeAttribute, op)
-					matched = true
-					break
-				}
-			}
+		//
+		// The old check was strings.Contains(symbol.FQN, namespace). Measured
+		// on a Java fixture: the FQN of a method is "path:name" (or a SCIP
+		// string), and a namespace is "com.shop.OrderService" with dots, so the
+		// namespace was never found and code.function never joined anything.
+		ambiguous := 0
+		if sym, n := locator.find(h); n == 1 {
+			record(sym, MatchCodeAttribute, op)
+			matched = true
+		} else if n > 1 {
+			// Two or more equally good symbols: picking one would attribute the
+			// calls to code that may not have run, so say so instead.
+			ambiguous = n
 		}
 		if !matched && h.Route != "" {
 			if s, ok := endpoints[h.Route]; ok {
@@ -206,7 +214,11 @@ func Correlate(ctx context.Context, reg Registry, runID int64, spans []trace.Spa
 			}
 		}
 		if !matched && len(unmatched) < maxUnmatchedSamples {
-			unmatched[op.Name] = struct{}{}
+			label := op.Name
+			if ambiguous > 1 {
+				label = fmt.Sprintf("%s (ambiguous: %d symbols match code.function)", op.Name, ambiguous)
+			}
+			unmatched[label] = struct{}{}
 		}
 	}
 
@@ -267,4 +279,153 @@ func matchRank(k MatchKind) int {
 		return 3
 	}
 	return 4
+}
+
+// codeLocator resolves the code.* attributes of a span to indexed symbols.
+type codeLocator struct {
+	byName map[string][]model.Symbol
+	byFile map[int64][]model.Symbol
+	pathOf map[int64]string
+	// filesFor caches which indexed files a span's code.filepath names: a
+	// trace repeats the same few paths thousands of times.
+	filesFor map[string][]int64
+}
+
+func newCodeLocator(symbols []model.Symbol, pathOf map[int64]string) *codeLocator {
+	l := &codeLocator{
+		byName:   map[string][]model.Symbol{},
+		byFile:   map[int64][]model.Symbol{},
+		pathOf:   pathOf,
+		filesFor: map[string][]int64{},
+	}
+	for _, s := range symbols {
+		if s.Kind == model.KindEndpoint || s.Kind == model.KindTable {
+			continue
+		}
+		l.byName[s.Name] = append(l.byName[s.Name], s)
+		l.byFile[s.FileID] = append(l.byFile[s.FileID], s)
+	}
+	return l
+}
+
+// find returns the symbol a hint names and how many symbols tie for it. A count
+// of 1 is a join; 0 is no evidence; more than 1 is ambiguous and the caller must
+// not pick one.
+func (l *codeLocator) find(h trace.CodeHint) (model.Symbol, int) {
+	// code.filepath + code.lineno is the most precise evidence: the line sits
+	// inside exactly one innermost definition.
+	if h.File != "" && h.Line > 0 {
+		if sym, ok := l.byLine(h); ok {
+			return sym, 1
+		}
+	}
+	if h.Function == "" {
+		return model.Symbol{}, 0
+	}
+	cands := l.byName[h.Function]
+	if h.Namespace != "" {
+		var narrowed []model.Symbol
+		for _, s := range cands {
+			if l.inNamespace(s, h.Namespace) {
+				narrowed = append(narrowed, s)
+			}
+		}
+		cands = narrowed
+	}
+	if len(cands) == 1 {
+		return cands[0], 1
+	}
+	return model.Symbol{}, len(cands)
+}
+
+// byLine finds the innermost function or method in the hinted file whose line
+// range holds the line. A function named by the hint must also match by name.
+func (l *codeLocator) byLine(h trace.CodeHint) (model.Symbol, bool) {
+	var best model.Symbol
+	found := false
+	bestSpan := 0
+	fids, seen := l.filesFor[h.File]
+	if !seen {
+		for fid := range l.byFile {
+			if samePath(l.pathOf[fid], h.File) {
+				fids = append(fids, fid)
+			}
+		}
+		l.filesFor[h.File] = fids
+	}
+	for _, fid := range fids {
+		for _, s := range l.byFile[fid] {
+			if s.Kind != model.KindFunction && s.Kind != model.KindMethod {
+				continue
+			}
+			if h.Function != "" && s.Name != h.Function {
+				continue
+			}
+			a, b := s.Range.Start.Line, s.Range.End.Line
+			if h.Line < a || h.Line > b {
+				continue
+			}
+			if span := b - a; !found || span < bestSpan {
+				best, found, bestSpan = s, true, span
+			}
+		}
+	}
+	return best, found
+}
+
+// inNamespace reports whether a symbol belongs to a namespace such as
+// "com.shop.OrderService", "shop::orders" or "pkg/payments". Only the last
+// segment is compared against names (the leading package part is spelled
+// differently per language), but the whole dotted path is also tried against
+// the file path.
+func (l *codeLocator) inNamespace(s model.Symbol, ns string) bool {
+	last := lastSegment(ns)
+	if last == "" {
+		return true
+	}
+	if strings.Contains(s.FQN, last) {
+		return true
+	}
+	// Owner: a class, interface, package or module in the same file whose range
+	// encloses the symbol and is named like the namespace.
+	for _, o := range l.byFile[s.FileID] {
+		if o.ID == s.ID || o.Name != last {
+			continue
+		}
+		switch o.Kind {
+		case model.KindClass, model.KindInterface, model.KindPackage, model.KindModule, model.KindTypeAlias:
+			if o.Range.Start.Line <= s.Range.Start.Line && o.Range.End.Line >= s.Range.End.Line {
+				return true
+			}
+		}
+	}
+	// File path: the namespace as a package path (com.shop -> com/shop), the
+	// file stem as the class name, or the directory as the Go/Python package.
+	p := strings.TrimSuffix(l.pathOf[s.FileID], path.Ext(l.pathOf[s.FileID]))
+	asPath := strings.NewReplacer(".", "/", "::", "/", "\\", "/", ":", "/").Replace(ns)
+	if strings.HasSuffix(p, asPath) || strings.Contains(p+"/", asPath+"/") {
+		return true
+	}
+	return path.Base(p) == last || path.Base(path.Dir(p)) == last
+}
+
+func lastSegment(ns string) string {
+	f := func(r rune) bool { return r == '.' || r == '/' || r == ':' || r == '\\' || r == '#' }
+	parts := strings.FieldsFunc(ns, f)
+	if len(parts) == 0 {
+		return ""
+	}
+	return parts[len(parts)-1]
+}
+
+// samePath compares an indexed repo-relative path with a span's code.filepath,
+// which is often absolute on the build machine: one must be a path suffix of the
+// other.
+func samePath(indexed, hinted string) bool {
+	a := strings.TrimPrefix(path.Clean(strings.ReplaceAll(indexed, "\\", "/")), "./")
+	b := strings.TrimPrefix(path.Clean(strings.ReplaceAll(hinted, "\\", "/")), "./")
+	if a == "" || b == "" {
+		return false
+	}
+	return a == b || strings.HasSuffix(b, "/"+a) || strings.HasSuffix(a, "/"+b)
 }

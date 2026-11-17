@@ -625,6 +625,9 @@ func (r *Resolver) pickByName(
 	if len(sameFile) == 1 {
 		return candidate{sameFile[0], model.ConfidenceHigh, "defined in the same file"}, true
 	}
+	if c, ok := r.pickTypeByClassImport(imports, ref, cands); ok {
+		return c, true
+	}
 	if c, ok := r.pickImported(imports, ref, cands); ok {
 		return c, true
 	}
@@ -1006,4 +1009,28 @@ func liesBeneath(importSegs, fileSegs []string) bool {
 		}
 	}
 	return false
+}
+
+// pickTypeByClassImport binds a type use written in a file that imports that
+// very class by name (`import com.pay.repository.TransactionRepository;`):
+// the import names the class, not merely a package that holds it, so the
+// binding is as strong as the import.
+func (r *Resolver) pickTypeByClassImport(imports importSet, ref registry.Reference, cands []registry.SymbolIndexEntry) (candidate, bool) {
+	if !isTypeUse(ref.Kind) || imports.spec.Calls.Imports != ImportsNameClasses {
+		return candidate{}, false
+	}
+	m, ok := r.classImport(imports, ref.Name)
+	if !ok || m.contains == nil {
+		return candidate{}, false
+	}
+	var named []registry.SymbolIndexEntry
+	for _, c := range cands {
+		if m.contains(c) {
+			named = append(named, c)
+		}
+	}
+	if len(named) != 1 {
+		return candidate{}, false
+	}
+	return candidate{named[0], model.ConfidenceHigh, "the class an import names"}, true
 }

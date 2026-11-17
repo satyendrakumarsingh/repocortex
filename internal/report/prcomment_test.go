@@ -59,7 +59,7 @@ func TestRenderPR(t *testing.T) {
 				RevisionMatchesRange: true, SeedsFound: 1, Impacted: impacted(25),
 				Risk: impact.Risk{Level: "high", Score: 80},
 			}},
-			want:    []string{"**high** risk (score 80): 25 symbols reached from 1 changed symbols", "Sym19", "…and 5 more"},
+			want:    []string{"**high** risk (80/100): 25 symbols reached from 1 changed symbols", "Sym19", "…and 5 more"},
 			notWant: []string{"Sym20"},
 		},
 		{

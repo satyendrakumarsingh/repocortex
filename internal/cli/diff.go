@@ -107,6 +107,19 @@ func runDiff(cmd *cobra.Command, g *Global, args []string) error {
 	if err != nil {
 		return err
 	}
+	// Two different refs that resolve to one run of one index. An
+	// incremental index updates its one committed run in place and stamps it
+	// with each new commit, so the run that was 8f3c1ab is now a19d7e0 too:
+	// the diff would compare a run with itself and report that nothing
+	// changed, which reads as an answer and is not one.
+	if base.RunID == head.RunID && filepath.Clean(fromPath) == filepath.Clean(toPath) && fromRef != toRef {
+		return fmt.Errorf("diff: %q and %q both name run %d of the same index. An incremental update rewrites "+
+			"its one run in place, so this index holds no separate run for the earlier commit. Index that commit "+
+			"in its own directory and diff across the two files, for example:\n"+
+			"  git worktree add ../at-%s %s && (cd ../at-%s && repocortex init && repocortex index)\n"+
+			"  repocortex diff --from-index ../at-%s/.repocortex/index.db --from %s --to %s",
+			fromRef, toRef, base.RunID, shortRef(fromRef), fromRef, shortRef(fromRef), shortRef(fromRef), fromRef, toRef)
+	}
 
 	var opts []diffgraph.Option
 	if n, _ := cmd.Flags().GetInt("max-per-section"); n > 0 {
@@ -432,4 +445,18 @@ func orDash(s string) string {
 		return "-"
 	}
 	return s
+}
+
+// shortRef is a ref fit for a directory name.
+func shortRef(ref string) string {
+	r := strings.Map(func(c rune) rune {
+		if c == '/' || c == ' ' || c == '~' || c == '^' {
+			return '-'
+		}
+		return c
+	}, ref)
+	if len(r) > 12 {
+		r = r[:12]
+	}
+	return r
 }

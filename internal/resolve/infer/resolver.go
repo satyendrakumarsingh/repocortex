@@ -584,6 +584,12 @@ func (r *Resolver) ResolveFile(
 			cands = withoutMacros(cands)
 		}
 
+		// A type written as a field's, a parameter's or a variable's type
+		// names a type, never the constructor indexed under the same name.
+		if isTypeUse(ref.Kind) {
+			cands = typeCandidates(cands)
+		}
+
 		// A type is not its own supertype. `class Flask(flask.Flask)` declares
 		// a Flask that extends ANOTHER Flask, and the name alone bound it to
 		// itself: the clause's qualifier is not captured, and the nearest
@@ -664,6 +670,15 @@ func (r *Resolver) ResolveFile(
 			cands = reachableFrom(fr, ref, scope, cands)
 		}
 
+		if len(cands) == 0 && isTypeUse(ref.Kind) {
+			// A type this repository does not define: String, List, a
+			// framework's class. Recording it as unresolved would put every
+			// field of every library type among "matched no definition here"
+			// and the blind spots, as if a call had gone unbound; it is not
+			// a reference to repository code at all.
+			outcomes = append(outcomes, registry.RefOutcome{RefID: ref.ID, Resolution: registry.ResolutionIgnored})
+			return
+		}
 		if len(cands) == 0 {
 			// The name resolves to nothing indexed. Usually a standard-library
 			// or third-party call — real, but outside this repository. Recording
@@ -1133,6 +1148,11 @@ func (r *Resolver) pick(
 		if c, ok := r.pickNamedImport(fr, imports, ref, cands); ok {
 			return c, true
 		}
+	}
+	// A type use whose class this file imports by name is that class, ahead
+	// of either order above: the import names the class itself.
+	if c, ok := r.pickTypeByClassImport(imports, ref, cands); ok {
+		return c, true
 	}
 	if spec.PackageIsDirectory {
 		if c, ok := r.pickSameDir(spec, fr, cands); ok {
@@ -2026,4 +2046,22 @@ func edgeKindFor(refKind string) model.EdgeKind {
 	default:
 		return model.EdgeReferences
 	}
+}
+
+// typeUseKind is the reference kind for a type written as a field's,
+// parameter's, local variable's or return type (parse/lang_java.go).
+const typeUseKind = "reference.type"
+
+func isTypeUse(refKind string) bool { return strings.HasSuffix(refKind, typeUseKind) }
+
+// typeCandidates keeps the definitions a type use can name.
+func typeCandidates(cands []registry.SymbolIndexEntry) []registry.SymbolIndexEntry {
+	out := cands[:0:0]
+	for _, c := range cands {
+		switch c.Kind {
+		case string(model.KindClass), string(model.KindInterface), string(model.KindTypeAlias):
+			out = append(out, c)
+		}
+	}
+	return out
 }

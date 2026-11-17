@@ -479,9 +479,11 @@ func riskSentence(r impact.Risk, reasonAlreadyGiven bool) string {
 		// A floor for a reason of its own: the walk stopped at a bound, or the
 		// name occurs where no call is recorded. A bare "low" there is the one
 		// word an agent acts on, and it is a lower bound.
-		return fmt.Sprintf("Risk %s or higher (score %d; %s).", r.Level, r.Score, r.Partial)
+		return fmt.Sprintf("Risk %s or higher (%d/100; %s).", r.Level, r.Score, r.Partial)
 	default:
-		return fmt.Sprintf("Risk %s (score %d).", r.Level, r.Score)
+		// "/100", as plan_change writes it: the two are one scale, and a bare
+		// "score 5" beside "5/100" read as two.
+		return fmt.Sprintf("Risk %s (%d/100).", r.Level, r.Score)
 	}
 }
 
@@ -965,7 +967,11 @@ func (s *Server) planChange(ctx stdctx.Context, req *sdk.CallToolRequest, args t
 			"Pass a non-empty symbol name, then call plan_change again.",
 			"symbol must not be empty")
 	}
-	minConf, err := parseMinConfidence(args.MinConfidence)
+	// The same floor analyze_impact walks by default: the plan's risk is the
+	// impact analysis's, and computed from different edges the two disagreed
+	// about one symbol (5/100 here, 0 there, with a low-confidence guess
+	// counted as a caller only by the plan).
+	minConf, err := parseImpactFloor(args.MinConfidence)
 	if err != nil {
 		return failFrom(err, "%v", err)
 	}

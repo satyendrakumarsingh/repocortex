@@ -837,7 +837,7 @@ UNVERIFIED PROVENANCE
 
 13 files changed; 192 changed symbols found in the index, 192 analysed.
 144 symbols at risk through recorded references, plus 0 reachable only through dispatch.
-Riskiest change: internal/resolve/infer/language.go:For — risk moderate (score 59, certainty low).
+Riskiest change: internal/resolve/infer/language.go:For — risk moderate (59/100, certainty low).
   This is the MAXIMUM over the changed symbols, never a total: two risks of 40 do not make an 80.
 ```
 

@@ -29,28 +29,16 @@ date; items move to the [CHANGELOG](../CHANGELOG.md) when they ship.
 | Item | Status | Why it matters |
 |---|---|---|
 | Vue 3 SFC SCIP indexing | **Shipped** | Synthesizes `.vue.ts` mirrors with whitespace masking to preserve 1:1 line/column coordinates for `scip-typescript`. |
-| Compact MCP frontdoor profile | **Shipped** | Exposes a single unified `repocortex` router tool (<300 tokens / 1.2 KB), saving ~25 KB of prompt context. |
+| Compact MCP frontdoor profile | **Shipped** | Exposes a single unified `repocortex` router tool, about 550 tokens of schema against 9,100 for the full profile (`repocortex tool list`). |
 | Temporal git coupling for impact | **Shipped** | Mines commit co-change history to boost PR blast-radius recall and discover coupled companion files. |
 | Test discovery through interface dispatch | Planned | `untested_critical` misses tests that reach a method through an interface or a shared method name. It is reported, not gated, until this lands. |
 | Declarative graph query (`search_graph`) | **Shipped** | Guarded read-only SQL graph query tool via MCP (`search_graph`), CLI (`repocortex query`) and compact frontdoor (`action: query`), matching GitNexus and codebase-memory-mcp. |
 | Call binding by column and name | **Shipped** | `PromoteCalls` pairs compiler occurrences with parser call columns via `pairsOneToOne` and `(line, name)` grouping. |
-| Incremental re-binding of cross-file handlers | Planned | `repocortex resolve` binds route handlers declared in another file; an incremental update does not re-run that pass. |
+| Incremental re-binding of cross-file handlers | **Shipped** | An incremental update runs the same resolve pass as `index --full`, so a route handler declared in another file is bound again after either file changes. |
 | Deeper resolution for more languages | Exploring | Eight languages are `typed` (C#, C++, Go, Java, Kotlin, Python, Scala, TypeScript), six are `resolved` (C, JavaScript, PHP, Ruby, Rust, TSX), 77 are `parsed` (definitions and search only) and 115 are text only. Python was promoted on a measurement against `scip-python` over four repositories ([accuracy.md](accuracy.md)); the others are typed by an arity query and were read by hand on one project each ([verification](verification/2026-11-13/README.md)), where their `low` tier measured poorly. Rust is next and its tier has no compiler-index measurement. See `repocortex languages`. |
 
 ## Known issues
 
-Found while writing the [CLI output guide](guides/cli-output-guide.md) and the [portal guide](guides/portal-guide.md) by running every command and screen.
-
-| Area | Issue |
-|---|---|
-| `rename` | Definition sites stay `high` after a compiler import, so the default `--floor exact` refuses every rename; only `--floor high` applies. |
-| `index` | An incremental index does not start a new run, so `diff` between two commits can compare a run with itself. `--full` works around it. |
-| `resolve` | After an incremental index it reports only what that pass wrote, and says so ("this pass found nothing new to bind" when it wrote none); the edge total beside it is the whole graph. |
-| `compile` / `verify` | The 12-entry scope can fill with configuration keys and push the changed class out, so `verify` reports the file as in neither scope. |
-| `references` | A type used as a field or constructor parameter is not found as a reference. |
-| `callees` / `missed` | Fields used as receivers are listed as calls; `missed` totals change with `--limit`. |
-| `config` / `deps` | Keys in `.repocortex.yml` and Compose files count as "declared and never read"; Maven coordinates never match Java package names, so every dependency reads "not imported". |
-| `trace` | A span matched by `code.function` and `code.namespace` is not joined to the method; only `http.route` matches. |
-| `plan-change` vs `impact` | The two report risk on different scales without saying so. |
+Found while writing the [CLI output guide](guides/cli-output-guide.md) and the [portal guide](guides/portal-guide.md) by running every command and screen. Every issue found then has been fixed; see the [CHANGELOG](../CHANGELOG.md). New ones go here.
 
 Suggestions and votes: [open a discussion](https://github.com/satyendrakumarsingh/repocortex/discussions).

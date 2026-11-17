@@ -330,3 +330,17 @@ func (r *Registry) SymbolsNamed(ctx context.Context, runID int64, path, name str
 	}
 	return ids, rows.Err()
 }
+
+// DefinitionReadByCompiler reports whether a compiler indexer this tool ran
+// read the file a symbol is defined in (compiler_coverage).
+func (r *Registry) DefinitionReadByCompiler(ctx context.Context, runID, symbolID int64) (bool, error) {
+	var read bool
+	err := r.db.QueryRowContext(ctx, `
+		SELECT EXISTS (SELECT 1 FROM symbols t
+		                JOIN compiler_coverage c ON c.file_id = t.file_id AND c.index_run_id = ?
+		               WHERE t.id = ?)`, runID, symbolID).Scan(&read)
+	if err != nil {
+		return false, fmt.Errorf("registry: was the file of symbol %d read by a compiler indexer: %w", symbolID, err)
+	}
+	return read, nil
+}

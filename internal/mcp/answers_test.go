@@ -342,7 +342,7 @@ func TestRiskStaysLowWhenEveryReferenceIsAccountedFor(t *testing.T) {
 	if strings.Contains(text, "Risk unknown") {
 		t.Errorf("a symbol with no unbound reference was reported undetermined:\n%s", text)
 	}
-	if !strings.Contains(firstLine(text), "Risk low (score") {
+	if !strings.Contains(firstLine(text), "Risk low (") || !strings.Contains(firstLine(text), "/100)") {
 		t.Errorf("first line = %q, want a determined low risk with its score", firstLine(text))
 	}
 }

@@ -516,6 +516,18 @@ func parseGradle(src string) []Dependency {
 
 // ---------------------------------------------------------------- matching
 
+// NoMatchIsAFinding reports whether "no import matched" shows the dependency is
+// unused. For Maven and Gradle it does not: a coordinate names a group and an
+// artifact, source imports a package, and the two agree only when the group
+// happens to be the package prefix (org.springframework.boot:spring-boot-starter-web
+// is imported as org.springframework.web.*, com.google.guava:guava as
+// com.google.common.*). Measured on a fixture, every Maven dependency whose
+// group was not a prefix read "not imported". Matches stays the way it is; this
+// only stops its silence from being read as a verdict.
+func NoMatchIsAFinding(eco Ecosystem) bool {
+	return eco != EcosystemMaven && eco != EcosystemGradle
+}
+
 // Matches reports whether an import path uses a declared dependency.
 //
 // The rule differs per ecosystem because the relationship between a package

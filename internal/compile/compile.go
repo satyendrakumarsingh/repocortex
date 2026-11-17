@@ -317,7 +317,38 @@ func selectItems(items []devctx.Item, maxScope int) ([]devctx.Item, int) {
 	if len(ranked) <= maxScope {
 		return ranked, 0
 	}
-	return ranked[:maxScope], len(ranked) - maxScope
+
+	// Configuration keys take at most a quarter of the scope while code waits.
+	// A request that names a setting ("make the retry limit configurable")
+	// scores every key of that name as highly as the class that reads it, and
+	// on a service with a few environment files the keys alone filled all 12
+	// slots: the class to change was cut, and `verify` then reported the
+	// edited file as in neither scope. Keys past the cap still fill slots
+	// nothing else wants.
+	configCap := max(2, maxScope/4)
+	out := make([]devctx.Item, 0, maxScope)
+	var overflow []devctx.Item
+	configs := 0
+	for _, it := range ranked {
+		if len(out) == maxScope {
+			break
+		}
+		if it.Kind == kindConfiguration {
+			if configs == configCap {
+				overflow = append(overflow, it)
+				continue
+			}
+			configs++
+		}
+		out = append(out, it)
+	}
+	for _, it := range overflow {
+		if len(out) == maxScope {
+			break
+		}
+		out = append(out, it)
+	}
+	return out, len(ranked) - len(out)
 }
 
 func scopeItems(items []devctx.Item) []ScopeItem {

@@ -310,3 +310,26 @@ func TestDiffRefSpellingErrors(t *testing.T) {
 		})
 	}
 }
+
+// An incremental index updates its one run in place, so two refs can name the
+// same run. Diffing it against itself would report that nothing changed;
+// the command says why and how to build the other side instead.
+func TestDiffRefusesTwoRefsThatNameOneRun(t *testing.T) {
+	root := isolate(t)
+	writeFiles(t, root, map[string]string{
+		"go.mod": "module example.com/d\n\ngo 1.22\n",
+		"a.go":   "package d\n\nfunc A() int { return 1 }\n",
+	})
+	for _, args := range [][]string{{"init"}, {"index"}} {
+		if out, err := run(t, root, args...); err != nil {
+			t.Fatalf("%v: %v\n%s", args, err, out)
+		}
+	}
+	_, err := run(t, root, "diff", "--from", "1")
+	if err == nil || !strings.Contains(err.Error(), "both name run 1") || !strings.Contains(err.Error(), "--from-index") {
+		t.Fatalf("diff of one run against itself: %v", err)
+	}
+	if out, err := run(t, root, "diff", "1..1"); err != nil {
+		t.Fatalf("the same ref on both sides is a deliberate no-op and stays allowed: %v\n%s", err, out)
+	}
+}

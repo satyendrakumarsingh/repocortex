@@ -238,3 +238,35 @@ func TestCollectKeepsTheStrongestClaimPerPosition(t *testing.T) {
 		t.Errorf("service.go:5:55 appears %d times, want once", n)
 	}
 }
+
+// coveredIndex is baseIndex where a compiler indexer read the definition's file.
+type coveredIndex struct{ *fakeIndex }
+
+func (coveredIndex) DefinitionReadByCompiler(context.Context, int64, int64) (bool, error) {
+	return true, nil
+}
+
+// A compiler that proved the references, or read the definition's file, proves
+// the definition too: the default floor no longer refuses it for having been
+// found by the parser.
+func TestACompilerProvenDefinitionIsExact(t *testing.T) {
+	proven := baseIndex()
+	proven.edges[4][0].Confidence = "exact"
+	p, err := Collect(context.Background(), proven, 1, req())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r := p.Refusals(DefaultFloor); len(r) != 0 {
+		t.Errorf("an exact reference left the definition refused: %+v", r)
+	}
+
+	p, err = Collect(context.Background(), coveredIndex{baseIndex()}, 1, req())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, s := range p.Sites {
+		if s.Kind == KindDefinition && (s.Confidence != model.ConfidenceExact || !strings.Contains(s.Why, "compiler indexer read its file")) {
+			t.Errorf("definition in a compiler-read file: %+v", s)
+		}
+	}
+}

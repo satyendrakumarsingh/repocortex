@@ -223,6 +223,31 @@ type ConfigKeyUsage struct {
 	// Declared is false for a key read by code that no configuration file
 	// declares — the case that breaks a deployment at start-up.
 	Declared bool
+	// ReadBy names who reads the key when it is not application code: "repocortex"
+	// for the tool's own configuration, "docker" for a Compose file. Empty for
+	// an ordinary key. A key with a ReadBy must never be reported as "declared
+	// and never read": no source line will ever read it, by design.
+	ReadBy string `json:"read_by,omitempty"`
+}
+
+// toolReader says who reads a configuration file other than the project's own
+// code. Measured on a fixture: .repocortex.yml and docker-compose.yml made every
+// one of their keys read "declared and never read", which is false twice over,
+// since this tool reads the first and Docker reads the second.
+func toolReader(path string) string {
+	base := strings.ToLower(path[strings.LastIndexAny(path, "/\\")+1:])
+	switch {
+	case base == ".repocortex.yml" || base == ".repocortex.yaml":
+		return "repocortex"
+	case strings.HasPrefix(base, "docker-compose.") || strings.HasPrefix(base, "docker-compose-") ||
+		strings.HasPrefix(base, "compose.") || strings.HasPrefix(base, "compose-"):
+		// docker-compose.yml, compose.yaml, compose.override.yaml; not
+		// components.yml or composer.yml, which are the application's own.
+		if strings.HasSuffix(base, ".yml") || strings.HasSuffix(base, ".yaml") {
+			return "docker"
+		}
+	}
+	return ""
 }
 
 // ConfigReport lists declared keys and code-read keys, merged.
@@ -256,6 +281,7 @@ func (r *Registry) ConfigReport(ctx context.Context, runID int64) ([]ConfigKeyUs
 			return nil, err
 		}
 		u.Declared = true
+		u.ReadBy = toolReader(u.FilePath)
 		u.Secret = isSecret(u.Name)
 		cp := u
 		out[u.Name] = &cp
@@ -343,6 +369,10 @@ type DependencyUsage struct {
 	// confused: reporting an unmeasured dependency as unused is exactly the
 	// false claim this codebase exists to avoid.
 	Importers int
+	// ImportStatus is "imported", "not_imported" or "unknown". "unknown" is for
+	// an ecosystem whose coordinates do not name what source imports (Maven
+	// and Gradle): no match there shows nothing. Empty when no matcher ran.
+	ImportStatus string `json:"import_status,omitempty"`
 }
 
 // ImportMatcher decides whether an import path uses a declared dependency.

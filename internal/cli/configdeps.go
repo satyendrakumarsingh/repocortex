@@ -75,7 +75,7 @@ Kubernetes, Helm, Terraform and CI definitions are NOT read.`,
 				switch {
 				case !k.Declared:
 					missing++
-				case k.Readers == 0:
+				case k.Readers == 0 && k.ReadBy == "":
 					unread++
 				}
 				if k.Secret {
@@ -187,10 +187,22 @@ match its distribution name.`,
 				return nil
 			}
 
-			var unused []int
-			for i, d := range list {
-				if d.Importers == 0 && !d.Indirect {
-					unused = append(unused, i)
+			var unused, unknown []int
+			for i := range list {
+				d := &list[i]
+				switch {
+				case d.Importers > 0:
+					d.ImportStatus = "imported"
+				case !deps.NoMatchIsAFinding(deps.Ecosystem(d.Ecosystem)):
+					d.ImportStatus = "unknown"
+					if !d.Indirect {
+						unknown = append(unknown, i)
+					}
+				default:
+					d.ImportStatus = "not_imported"
+					if !d.Indirect {
+						unused = append(unused, i)
+					}
 				}
 			}
 
@@ -208,6 +220,20 @@ match its distribution name.`,
 				fmt.Fprintln(out)
 			}
 
+			if len(unknown) > 0 {
+				fmt.Fprintf(out, "CANNOT TELL FROM THE COORDINATES (%d)\n", len(unknown))
+				tw := tabwriter.NewWriter(out, 0, 8, 2, ' ', 0)
+				for _, i := range unknown {
+					d := list[i]
+					fmt.Fprintf(tw, "  %s\t%s\t%s\t%s:%d\n", d.Name, d.Version, d.Scope, d.Manifest, d.Line)
+				}
+				_ = tw.Flush()
+				fmt.Fprintln(out, "\n  A Maven or Gradle coordinate does not name the packages inside the "+
+					"artifact, and no import starts with its groupId, so this says nothing about "+
+					"whether it is used.")
+				fmt.Fprintln(out)
+			}
+
 			if !showAll {
 				fmt.Fprintf(out, "%d dependency(ies) declared. Pass --all for the full list.\n", len(list))
 				return nil
@@ -219,6 +245,9 @@ match its distribution name.`,
 				importers := fmt.Sprintf("%d file(s)", d.Importers)
 				if d.Importers == 0 {
 					importers = "nothing"
+					if d.ImportStatus == "unknown" {
+						importers = "unknown (groupId is not a package prefix of any import)"
+					}
 					if d.Indirect {
 						importers = "nothing (marked indirect)"
 					}
