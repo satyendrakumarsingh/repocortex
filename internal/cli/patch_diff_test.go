@@ -77,4 +77,27 @@ func TestAnalyzePatchTakesADiffAndTypeChecksGo(t *testing.T) {
 	if !res.IsError || !strings.Contains(res.Text, "does not apply") {
 		t.Errorf("a diff that does not apply was not refused:\n%s", res.Text)
 	}
+
+	// A diff header is text the caller wrote. Nothing outside the files the
+	// index holds is read, whatever it names.
+	outside := filepath.Join(t.TempDir(), "secret.go")
+	if err := os.WriteFile(outside, []byte("package secret\n\nfunc Key() string { return \"hunter2\" }\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, a := range []map[string]string{
+		{"diff": "--- a/../../../../../../" + strings.TrimPrefix(outside, "/") + "\n+++ b/x.go\n@@ -1,1 +1,1 @@\n-package secret\n+package x\n"},
+		{"diff": "--- " + outside + "\n+++ " + outside + "\n@@ -1,1 +1,1 @@\n-package secret\n+package x\n"},
+		{"path": "../" + filepath.Base(outside), "content": "package x\n"},
+		{"path": outside, "content": "package x\n"},
+		{"diff": "--- /dev/null\n+++ b/../escape.go\n@@ -0,0 +1,1 @@\n+package x\n"},
+	} {
+		raw, _ := json.Marshal(a)
+		res, err := inv.Call(ctx, "analyze_patch", raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !res.IsError || strings.Contains(res.Text, "hunter2") || strings.Contains(res.Text, "Key") {
+			t.Errorf("%v was not refused:\n%s", a, res.Text)
+		}
+	}
 }

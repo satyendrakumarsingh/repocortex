@@ -130,14 +130,27 @@ func (s *Server) analyzePatch(ctx stdctx.Context, req *sdk.CallToolRequest, args
 	}
 	root := s.deps.Config.RepoRoot
 
+	// Every path a patch names is a path this server will read, parse and
+	// type-check, and the caller chose it: a diff header is text. Only files
+	// the index holds are read, so `--- a/../../etc/passwd` reads nothing; a
+	// new file must still lie inside the repository. Over `serve --http`
+	// the caller is anyone holding a token.
+	indexed, err := s.indexedPaths(ctx, runID)
+	if err != nil {
+		return failFrom(err, "dryrun: %v", err)
+	}
+
 	var patches []dryrun.FilePatch
 	switch {
 	case strings.TrimSpace(args.Diff) != "":
 		// Applied to the working tree, which is what an agent's diff is made
 		// against; the index's copy is the fallback for a file not on disk.
 		read := func(p string) (string, error) {
-			if root != "" {
-				if b, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(p))); err == nil { //nolint:gosec // a file of the repository being served
+			if !indexed[p] {
+				return "", fmt.Errorf("%s is not a file in the index", p)
+			}
+			if full, ok := insideRoot(root, p); ok {
+				if b, err := os.ReadFile(full); err == nil { //nolint:gosec // an indexed file, resolved inside the repository root
 					return string(b), nil
 				}
 			}
@@ -153,6 +166,19 @@ func (s *Server) analyzePatch(ctx stdctx.Context, req *sdk.CallToolRequest, args
 	default:
 		return failWith("invalid_argument", "Pass diff, or path and content, then call analyze_patch again.",
 			"nothing to dry-run: pass diff, or path and non-empty content")
+	}
+	for _, p := range patches {
+		if p.Added {
+			if _, ok := insideRoot(root, p.Path); !ok || !cleanRelative(p.Path) {
+				return failWith("invalid_argument", "Name files by their path inside the repository.",
+					"%s is outside the repository", p.Path)
+			}
+			continue
+		}
+		if !indexed[p.Path] {
+			return failWith("invalid_argument", "Name files the index holds, by their repository path; run 'repocortex index' for a new one.",
+				"%s is not a file in the index", p.Path)
+		}
 	}
 	if len(patches) > maxPatchFiles {
 		return failWith("invalid_argument", fmt.Sprintf("Split the patch: at most %d files are dry-run at once.", maxPatchFiles),
@@ -220,6 +246,51 @@ func (s *Server) analyzePatch(ctx stdctx.Context, req *sdk.CallToolRequest, args
 		}
 	}
 	return s.reply(ctx, req, resp)
+}
+
+// indexedPaths is the set of the run's file paths.
+func (s *Server) indexedPaths(ctx stdctx.Context, runID int64) (map[string]bool, error) {
+	files, err := s.deps.Registry.Files(ctx, runID)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]bool, len(files))
+	for _, f := range files {
+		out[f.Path] = true
+	}
+	return out, nil
+}
+
+// cleanRelative reports whether p is a relative, slash-separated path that
+// stays where it is named: no "..", not absolute, already clean.
+func cleanRelative(p string) bool {
+	if p == "" || path.IsAbs(p) || filepath.IsAbs(p) || strings.Contains(p, "\\") {
+		return false
+	}
+	c := path.Clean(p)
+	return c == p && c != ".." && !strings.HasPrefix(c, "../")
+}
+
+// insideRoot resolves a repository path against root, following symlinks,
+// and reports whether the result is still under root.
+func insideRoot(root, p string) (string, bool) {
+	if root == "" || !cleanRelative(p) {
+		return "", false
+	}
+	realRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return "", false
+	}
+	full := filepath.Join(realRoot, filepath.FromSlash(p))
+	if resolved, err := filepath.EvalSymlinks(full); err == nil {
+		full = resolved
+	} else if resolvedDir, derr := filepath.EvalSymlinks(filepath.Dir(full)); derr == nil {
+		full = filepath.Join(resolvedDir, filepath.Base(full)) // a new file: its directory must resolve inside
+	}
+	if full != realRoot && !strings.HasPrefix(full, realRoot+string(filepath.Separator)) {
+		return "", false
+	}
+	return full, true
 }
 
 // goPatchBreakage type-checks a Go patch over the patched packages and the
