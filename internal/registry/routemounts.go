@@ -264,3 +264,37 @@ func (r *Registry) JSFilesMatching(ctx context.Context, runID int64, query strin
 	}
 	return out, rows.Err()
 }
+
+// FilesImporting returns the run's files that import any of the given import
+// paths, sorted.
+func (r *Registry) FilesImporting(ctx context.Context, runID int64, importPaths []string) ([]string, error) {
+	if len(importPaths) == 0 {
+		return nil, nil
+	}
+	args := make([]any, 0, len(importPaths)+1)
+	args = append(args, runID)
+	marks := make([]string, len(importPaths))
+	for i, p := range importPaths {
+		marks[i] = "?"
+		args = append(args, p)
+	}
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT DISTINCT f.path
+		  FROM file_imports i
+		  JOIN files f ON f.id = i.file_id
+		 WHERE i.index_run_id = ? AND i.path IN (`+strings.Join(marks, ",")+`)
+		 ORDER BY f.path`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("registry: files importing: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var out []string
+	for rows.Next() {
+		var p string
+		if err := rows.Scan(&p); err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}

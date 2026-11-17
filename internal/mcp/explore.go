@@ -174,6 +174,9 @@ func (s *Server) exploreSymbol(ctx context.Context, req *sdk.CallToolRequest, ar
 		resp.Notes = append(resp.Notes,
 			"No callers found in index. Note that an empty caller result is ambiguous: unindexed callers, dynamic dispatch, or reflection may exist.")
 	}
+	if note := s.markedNote(ctx, runID, target.SymbolHit); note != "" {
+		resp.Notes = append(resp.Notes, note)
+	}
 
 	return s.reply(ctx, req, resp)
 }

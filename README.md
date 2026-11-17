@@ -67,7 +67,7 @@ One Go binary. A SQLite file in `.repocortex/`. Nothing leaves your machine.
 | Get started | Use it | Trust it | Reference | Go deeper |
 |---|---|---|---|---|
 | [Why RepoCortex](#why-repocortex) | [What it answers](#what-it-answers) | [How it works](#how-it-works) | [MCP tools](#mcp-tools) | [User guide](docs/USER_GUIDE.md) |
-| [Compared with other tools](#repocortex-compared-with-other-code-intelligence--graph-tools) | [How it compares to RAG](#how-repocortex-compares-to-rag) | [Token optimization](#token-optimization-metrics) | [Naming conventions](docs/reference/naming-conventions.md) | [Benchmarking](docs/BENCHMARKING.md) |
+| [Compared with other tools](#repocortex-compared-with-other-code-intelligence--graph-tools) | [How it compares to RAG](#how-repocortex-compares-to-rag) | [Token use](#token-use) | [Naming conventions](docs/reference/naming-conventions.md) | [Benchmarking](docs/BENCHMARKING.md) |
 | [Who it's for](#who-its-for) | [Recipes](#recipes) | [Confidence tiers](#confidence-tiers) | [Language support](#language-support) | [Portal guide](docs/guides/portal-guide.md) |
 | [Quickstart](#quickstart) | [How an agent uses it](#how-an-agent-uses-it) | [Accuracy](#accuracy) | [Guides and docs](#guides-and-documentation) | [CLI reference](docs/CLI.md) |
 | [Install options](#install-options) | [Blast radius in CI](#blast-radius-in-ci) | [Performance](#performance) | [FAQ](#faq) | [Architecture](docs/DESIGN_AND_ARCHITECTURE.md) |
@@ -403,7 +403,7 @@ Every tool's schema costs the agent context on every request, so the default pro
 | `get_session_stats` | What this session's tool calls cost: calls, answer sizes and an estimate in tokens. Usage, not a claimed saving | full |
 | `repocortex` | Unified compact front door: routes `action` (context, search, symbol, callers, callees, references, impact, tests, diff, overview) | compact / frontdoor |
 
-`compact` exposes 1 unified front door (under 300 tokens of schema, saving ~25 KB of prompt context), `minimal` exposes 7 tools (about 2,000 tokens of schema per request), `standard` 18 (about 5,000) and `full` 28 (about 8,400). `repocortex tool list` prints the cost of each. Every tool has one name of the form `<verb>_<noun>`, using the verbs other MCP servers use (`get`, `list`, `find`, `search`); see [naming conventions](docs/reference/naming-conventions.md).
+`compact` exposes 1 unified front door (about 550 tokens of schema per request), `minimal` 7 tools (about 2,100), `standard` 19 (about 5,400) and `full` 31 (about 9,100). `repocortex tool list` prints the cost of each. Every tool has one name of the form `<verb>_<noun>`, using the verbs other MCP servers use (`get`, `list`, `find`, `search`); see [naming conventions](docs/reference/naming-conventions.md).
 
 ## How it works
 
@@ -482,45 +482,6 @@ Below 30 of 30: TypeScript has 1 wrong edge, Ruby 1 wrong and 1 unclear, C++ 8 u
 > [!NOTE]
 > Many call sites can't be bound from syntax alone: call-site recall above runs from 55% to 100% on the sampled files, and was lower on the larger projects of 12 November (7% on leveldb). RepoCortex reports those gaps instead of returning an empty answer, and `repocortex scip import` closes many of them. Run `repocortex accuracy` on your own code. Method and every caveat: [docs/accuracy.md](docs/accuracy.md).
 
-### Production & Large-Scale Monorepo Benchmarks
-
-In addition to single-language benchmark fixtures, RepoCortex is continuously evaluated against large-scale enterprise polyglot monorepos and leading open-source projects. Recall is measured strictly against compiler ground-truth call sites (`repocortex accuracy`):
-
-#### 1. Real-World Framework Call-Site Accuracy
-Evaluated against compiler facts (SCIP / `go/types` / Roslyn) on full repositories:
-
-| Repository / Project | Language(s) | Files Indexed | References | Precision | Call-Site Recall | F1 Score |
-|---|---|---|---|---|---|---|
-| **Pulse Monorepo** | TS, Python, Go, Vue, JS | **24,323** | **1,543,170** | **100.0%** | **93.7%** | **96.7%** |
-| **facebook/react** | JS, TS, TSX, Flow | 7,190 | 189,412 | **100.0%** | **98.1%** | **99.1%** |
-| **django/django** | Python | 7,089 | 208,614 | **100.0%** | **88.0%** | **93.6%** |
-| **laravel/framework** | PHP | 3,516 | 214,198 | **99.8%** | **81.4%** | **89.7%** |
-| **gin-gonic/gin** | Go | 425 | 18,920 | **100.0%** | **98.4%** | **99.2%** |
-| **pallets/flask** | Python | 380 | 12,410 | **98.7%** | **89.2%** | **93.7%** |
-
-#### 2. Polyglot Monorepo Breakdown (Pulse — 24,323 Files, 1.54M References)
-Evaluated across 250,701 compiler-adjudicated call sites using RepoCortex's dynamic subproject candidate isolation:
-
-| Language | Adjudicated Sites | Correct Edges | False Positives | Precision | Recall | F1 Score |
-|---|---|---|---|---|---|---|
-| **JavaScript** | 1,148 | 1,146 | 0 | **100.0%** | **99.8%** | **99.9%** |
-| **TypeScript** | 124,731 | 121,071 | 4 | **100.0%** | **97.1%** | **98.5%** |
-| **Python** | 107,299 | 97,700 | 5 | **100.0%** | **91.1%** | **95.3%** |
-| **Vue (SFC)** | 6,258 | 5,500 | 0 | **100.0%** | **87.9%** | **93.6%** |
-| **Go** | 11,265 | 9,429 | 0 | **100.0%** | **83.7%** | **91.1%** |
-| **Total Monorepo** | **250,701** | **234,846** | **9** | **100.0%** | **93.7%** | **96.7%** |
-
-*Note: Filtering `--min-confidence high` keeps 92.8% of calls at 100.0% precision with zero wrong bindings.*
-
-#### 3. Token Efficiency & Agent Context Pack
-Compared to traditional file dumping or naive vector retrieval:
-
-| Task / Scenario | Raw Code Tokens | RepoCortex Context Pack | Token Savings | Recall |
-|---|---|---|---|---|
-| **Single Symbol Blast Radius** | ~8,500 tokens | **412 tokens** (`impact`) | **-95.1%** | 100% |
-| **End-to-End Task Context** | ~14,200 tokens | **1,428 tokens** (`get_task_context`) | **-90.0%** | 100% |
-| **Multi-File Diff Minimization** | ~6,800 tokens | **780 tokens** (`minimize-diff`) | **-88.5%** | 100% |
-
 ## Performance
 
 Indexed and resolved on an Apple M4 Pro, from a shallow clone:
@@ -578,33 +539,14 @@ Traditional vector Retrieval-Augmented Generation (RAG) splits source files into
 
 For an in-depth technical analysis, see [Why a Code Graph instead of Vector Search](docs/WHY_NOT_VECTOR_RAG.md).
 
-## Token Optimization Metrics
+## Token use
 
-AI coding agents have bounded context windows and degrade in reasoning quality as context fills up ("lost in the middle"). RepoCortex functions as an intelligent context and token optimizer, drastically compressing repository volume while maximizing semantic signal density:
+Two costs are measured in this repository, and each has a command that reproduces it.
 
-```text
-Raw Codebase (100,000 lines / ~1,000,000 tokens)
-   │
-   ▼
-[RepoCortex Deterministic Graph Indexing & Centrality Ranking]
-   │
-   ├─► MCP Compact Profile:      1 tool (<1.2 KB prompt schema vs 31 KB standard) ──► 75% prompt schema reduction
-   ├─► Task Context Assembly:    ~1,500 targeted tokens per request               ──► 98.5% token reduction vs whole files
-   ├─► Explore In-Degree Hubs:   Exact interface + callers in 1 turn              ──► 85% fewer exploration turns
-   └─► Stream Pack AI Bundling:  O(1) memory streaming with ASCII tree            ──► Zero heap blowup on 100MB+ repos
-```
+- **Tool schemas.** Every tool's schema is sent to the agent on every request. `repocortex tool list --profile <name>` prints the total: about 550 tokens for `compact`, 2,100 for `minimal`, 5,400 for `standard` and 9,100 for `full`. A smaller profile is the largest saving available.
+- **Context packs.** `get_task_context` assembles a pack within a token budget and reports what it spent. The five cases in `fixtures/bench/self.yml` used about 9,300 tokens each at 100% recall (`repocortex bench fixtures/bench/self.yml`).
 
-### Measured Context & Token Reductions
-
-| Metric / Scenario | Without RepoCortex (Grepping & Full Files) | With RepoCortex Code Graph | Optimization Gain |
-|---|:---:|:---:|:---:|
-| **MCP Tool Schema Overhead** | 28–30 distinct JSON schemas (~31 KB) | 1 unified action tool in `compact` profile (<1.2 KB) | **-75% prompt overhead** (~7,500 tokens saved/turn) |
-| **Task Context Token Footprint** | Reading full files: 12,000–45,000 tokens | `get_task_context` bounded budget: 1,200–2,000 tokens | **-85% to -95% context reduction** |
-| **Multi-Turn Discovery Hops** | 8–15 tool turns (`grep` $\to$ `find` $\to$ `read` $\to$ retry) | 1 single turn (`repocortex explore <symbol>`) | **-80% agent turn overhead** |
-| **Prompt Pack Memory Footprint** | Buffering 100 MB codebase: 250–350 MB heap | Streaming `StreamPack` to disk/stdout: < 15 MB heap | **$O(1)$ constant resident memory** |
-| **Golden Benchmark Token Budget** | Reading full implementation files: ~14,200 tokens | Payment callback idempotency pack: **1,428 tokens** | **-90% token consumption** (100% recall) |
-
-*Data verified on standard benchmarks and payment idempotency golden suite (`repocortex context`).*
+Whether an agent spends fewer tokens overall is a different question, and it has been measured once: on a simple lookup it did not. See the [FAQ](#faq) and the [agent benchmark](docs/BENCHMARKING.md#5-agent-benchmark).
 
 ## Blast radius in CI
 

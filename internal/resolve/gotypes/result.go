@@ -133,6 +133,17 @@ type Result struct {
 	Files []FileFact
 	Impls []Impl
 	Stats Stats
+	// TypeErrors are the hard type errors in repository files, when
+	// Options.CollectErrors was set.
+	TypeErrors []TypeError
+}
+
+// TypeError is one hard type error in a repository file.
+type TypeError struct {
+	Path string // repo-relative, slash-separated
+	Line int
+	Col  int
+	Msg  string
 }
 
 // Stats is what a run did, for the summary block and for the cost of the run.

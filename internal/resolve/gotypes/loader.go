@@ -45,6 +45,17 @@ type Options struct {
 	// dependency is loaded from source (the rest become stubs and the result
 	// says so). Zero means DefaultMemoryLimit.
 	MemoryLimit uint64
+
+	// Overlay replaces the content of repository files, keyed by their
+	// repo-relative slash-separated path, for this run only: a patch is
+	// type-checked without being written to disk. A file the overlay names
+	// must already exist; one it adds is not discovered.
+	Overlay map[string][]byte
+
+	// CollectErrors records every hard type error in a repository file in
+	// Result.TypeErrors, for a caller that needs to know what does not
+	// compile and where.
+	CollectErrors bool
 }
 
 const (
@@ -107,6 +118,13 @@ func Check(ctx context.Context, opts Options) (*Result, error) {
 		allPath:   map[string]*unit{},
 		out:       newBuilder(),
 	}
+	if len(opts.Overlay) > 0 {
+		l.overlay = make(map[string][]byte, len(opts.Overlay))
+		for rel, src := range opts.Overlay {
+			l.overlay[filepath.Join(root, filepath.FromSlash(rel))] = src
+		}
+	}
+	l.collect = opts.CollectErrors
 	l.host = build.Default
 	l.pure = build.Default
 	l.pure.CgoEnabled = false
@@ -144,6 +162,7 @@ func Check(ctx context.Context, opts Options) (*Result, error) {
 	l.stats.Elapsed = time.Since(start)
 	res := l.out.result()
 	res.Stats = l.stats
+	res.TypeErrors = l.typeErrs
 	return res, nil
 }
 
@@ -151,6 +170,10 @@ func Check(ctx context.Context, opts Options) (*Result, error) {
 type loader struct {
 	ctx      context.Context
 	root     string
+	overlay  map[string][]byte // by absolute path
+	collect  bool
+	typeErrs []TypeError
+	errMu    sync.Mutex
 	fset     *token.FileSet
 	env      func(string) string
 	limit    uint64
@@ -580,6 +603,14 @@ func (l *loader) checkVariant(u *unit, v variant, ov *override, extract bool) *v
 				return
 			}
 			hard++
+			if l.collect && extract && errors.As(err, &te) {
+				pos := te.Fset.Position(te.Pos)
+				if rel, rerr := filepath.Rel(l.root, pos.Filename); rerr == nil && !strings.HasPrefix(rel, "..") {
+					l.errMu.Lock()
+					l.typeErrs = append(l.typeErrs, TypeError{Path: filepath.ToSlash(rel), Line: pos.Line, Col: pos.Column, Msg: te.Msg})
+					l.errMu.Unlock()
+				}
+			}
 			if len(l.stats.ErrorSamples) < 8 && extract {
 				l.stats.ErrorSamples = append(l.stats.ErrorSamples, err.Error())
 			}
@@ -664,6 +695,9 @@ func (l *loader) parseAll(files []string, strip bool, data map[string][]byte) ([
 			defer wg.Done()
 			defer func() { <-sem }()
 			src, ok := data[f]
+			if !ok {
+				src, ok = l.overlay[f]
+			}
 			if !ok {
 				var err error
 				src, err = os.ReadFile(f) //nolint:gosec // a file of the repository or of the Go toolchain/module cache

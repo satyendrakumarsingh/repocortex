@@ -3,6 +3,9 @@ package mcp
 import (
 	stdctx "context"
 	"fmt"
+	"os"
+	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/satyendrakumarsingh/repocortex/internal/capability"
@@ -112,42 +115,149 @@ func (s *Server) registerCapabilities(allowed map[string]bool) {
 }
 
 type patchAnalysisArgs struct {
-	Path    string `json:"path" jsonschema:"File path of the file being modified, e.g. 'internal/service.go'."`
-	Content string `json:"content" jsonschema:"The proposed full file content to dry-run speculatively in memory."`
+	Path    string `json:"path,omitempty" jsonschema:"File path of the file being modified, e.g. 'internal/service.go'. With content; or pass diff instead."`
+	Content string `json:"content,omitempty" jsonschema:"The proposed full file content to dry-run speculatively in memory. With path; or pass diff instead."`
+	Diff    string `json:"diff,omitempty" jsonschema:"A unified diff (git diff, diff -u) of one or more files, applied in memory to the working tree. Use instead of path and content."`
 }
 
+// maxPatchFiles bounds the files one dry run analyses.
+const maxPatchFiles = 50
+
 func (s *Server) analyzePatch(ctx stdctx.Context, req *sdk.CallToolRequest, args patchAnalysisArgs) (*sdk.CallToolResult, *Response, error) {
-	if strings.TrimSpace(args.Path) == "" {
-		return failWith("invalid_argument", "Pass path and content, then call analyze_patch again.", "path must not be empty")
-	}
-	if strings.TrimSpace(args.Content) == "" {
-		return failWith("invalid_argument", "Pass non-empty content to dry-run, then call analyze_patch again.", "content must not be empty")
-	}
 	runID, status, err := s.currentRun(ctx)
 	if err != nil {
 		return s.noRun(ctx, req, err)
 	}
+	root := s.deps.Config.RepoRoot
 
-	rep, err := dryrun.AnalyzePatch(ctx, s.deps.Registry, s.deps.Graph, runID, args.Path, args.Content)
-	if err != nil {
-		return failFrom(err, "dryrun: %v", err)
+	var patches []dryrun.FilePatch
+	switch {
+	case strings.TrimSpace(args.Diff) != "":
+		// Applied to the working tree, which is what an agent's diff is made
+		// against; the index's copy is the fallback for a file not on disk.
+		read := func(p string) (string, error) {
+			if root != "" {
+				if b, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(p))); err == nil { //nolint:gosec // a file of the repository being served
+					return string(b), nil
+				}
+			}
+			return s.deps.Registry.FileExcerpt(ctx, runID, p, 1, 1<<20)
+		}
+		patches, err = dryrun.ApplyUnifiedDiff(args.Diff, read)
+		if err != nil {
+			return failWith("invalid_argument", "Pass a unified diff that applies to the working tree, or path and content.",
+				"the diff does not apply: %v", err)
+		}
+	case strings.TrimSpace(args.Path) != "" && strings.TrimSpace(args.Content) != "":
+		patches = []dryrun.FilePatch{{Path: strings.TrimPrefix(args.Path, "./"), Content: args.Content}}
+	default:
+		return failWith("invalid_argument", "Pass diff, or path and content, then call analyze_patch again.",
+			"nothing to dry-run: pass diff, or path and non-empty content")
+	}
+	if len(patches) > maxPatchFiles {
+		return failWith("invalid_argument", fmt.Sprintf("Split the patch: at most %d files are dry-run at once.", maxPatchFiles),
+			"%d files in the patch", len(patches))
 	}
 
-	resp := &Response{
-		IndexRevision: runID,
-		IndexStatus:   status,
-		Summary:       rep.Summary,
+	resp := &Response{IndexRevision: runID, IndexStatus: status}
+	var summaries []string
+	changed, broken := 0, 0
+	overlay := map[string]string{}
+	var goDirs []string
+	for _, p := range patches {
+		if strings.HasSuffix(p.Path, ".go") && !p.Added && !p.Deleted {
+			overlay[p.Path] = p.Content
+			goDirs = append(goDirs, path.Dir(p.Path))
+		}
+		if p.Added {
+			summaries = append(summaries, p.Path+": a new file, nothing indexed to compare with")
+			continue
+		}
+		rep, err := dryrun.AnalyzePatch(ctx, s.deps.Registry, s.deps.Graph, runID, p.Path, p.Content)
+		if err != nil {
+			summaries = append(summaries, fmt.Sprintf("%s: not analysed (%v)", p.Path, err))
+			continue
+		}
+		changed += rep.ChangedCount
+		broken += rep.BrokenCount
+		if len(patches) > 1 {
+			summaries = append(summaries, rep.Summary)
+		} else {
+			resp.Summary = rep.Summary
+		}
+		for _, c := range rep.BrokenCallers {
+			resp.Items = append(resp.Items, Item{
+				Kind: string(model.KindFunction),
+				Name: c.CallerName,
+				Path: c.CallerPath,
+				Line: c.CallerLine,
+				Why:  fmt.Sprintf("broken caller: target %s: %s", c.TargetName, c.Reason),
+			})
+		}
 	}
-	for _, c := range rep.BrokenCallers {
-		resp.Items = append(resp.Items, Item{
-			Kind: string(model.KindFunction),
-			Name: c.CallerName,
-			Path: c.CallerPath,
-			Line: c.CallerLine,
-			Why:  fmt.Sprintf("broken caller: target %s: %s", c.TargetName, c.Reason),
-		})
+	if len(patches) > 1 {
+		resp.Summary = fmt.Sprintf("Patch of %d files: %d definition(s) changed, %d caller(s) broken by name and arity.",
+			len(patches), changed, broken)
+		resp.Notes = append(resp.Notes, summaries...)
+	} else if len(summaries) > 0 {
+		resp.Summary = strings.Join(summaries, "; ")
+	}
+
+	// Go: what actually stops compiling. The checks above compare
+	// definitions by name and arity, for every language; the type checker
+	// knows the rest (a changed type, a removed method, an interface no
+	// longer satisfied).
+	if len(overlay) > 0 && root != "" {
+		if errs, note := s.goPatchBreakage(ctx, runID, root, overlay, goDirs); note != "" {
+			resp.Notes = append(resp.Notes, note)
+		} else {
+			for _, e := range errs {
+				resp.Items = append(resp.Items, Item{Kind: "compile_error", Path: e.Path, Line: e.Line,
+					Name: e.Path, Why: "stops compiling with the patch: " + e.Msg, Confidence: string(model.ConfidenceExact)})
+			}
+			resp.Notes = append(resp.Notes, fmt.Sprintf("Go: the patched packages and the packages importing them were "+
+				"type-checked with and without the patch; %d error(s) are new with it.", len(errs)))
+		}
 	}
 	return s.reply(ctx, req, resp)
+}
+
+// goPatchBreakage type-checks a Go patch over the patched packages and the
+// files that import them. It returns the new errors, or a note saying why it
+// could not run.
+func (s *Server) goPatchBreakage(ctx stdctx.Context, runID int64, root string, overlay map[string]string, dirs []string) ([]dryrun.GoBreakage, string) {
+	files, err := s.deps.Registry.Files(ctx, runID)
+	if err != nil {
+		return nil, "Go: not type-checked (" + err.Error() + ")."
+	}
+	inDir := map[string]bool{}
+	var imports []string
+	for _, d := range dirs {
+		if !inDir[d] {
+			inDir[d] = true
+			if ip := dryrun.GoImportPath(root, d); ip != "" {
+				imports = append(imports, ip)
+			}
+		}
+	}
+	importers, err := s.deps.Registry.FilesImporting(ctx, runID, imports)
+	if err != nil {
+		return nil, "Go: not type-checked (" + err.Error() + ")."
+	}
+	for _, f := range importers {
+		inDir[path.Dir(f)] = true
+	}
+	var scope []string
+	for _, f := range files {
+		if strings.HasSuffix(f.Path, ".go") && inDir[path.Dir(f.Path)] {
+			scope = append(scope, f.Path)
+		}
+	}
+	errs, err := dryrun.TypeCheckPatch(ctx, root, scope, overlay)
+	if err != nil {
+		return nil, "Go: not type-checked (" + err.Error() + ")."
+	}
+	return errs, ""
 }
 
 func (s *Server) impactAnalysis(ctx stdctx.Context, req *sdk.CallToolRequest, args impactArgs) (*sdk.CallToolResult, *Response, error) {
@@ -227,6 +337,7 @@ func (s *Server) impactAnalysis(ctx stdctx.Context, req *sdk.CallToolRequest, ar
 
 	// Show the risk score's inputs. A bare "Risk: HIGH" is unactionable — the
 	// factors are what tell a developer whether to slow down and why.
+	resp.Notes = append(resp.Notes, s.impactCoverageNotes(ctx, runID, rep)...)
 	if rep.Risk.Formula != "" {
 		resp.Notes = append(resp.Notes, "Risk = "+rep.Risk.Formula)
 	}
@@ -762,6 +873,9 @@ func (s *Server) findTests(ctx stdctx.Context, req *sdk.CallToolRequest, args te
 			"None of the tests listed is proven to call the symbol; they were matched by name or by file. "+
 				"Whether a test calls it could not be determined: "+strings.TrimSuffix(rep.Undetermined, ".")+".")
 	}
+	if n := s.testsCoverageNote(ctx, runID, rep.Target.SymbolID, rep.Target.Name); n != "" {
+		resp.Notes = append(resp.Notes, n)
+	}
 	for _, s := range tests.SuggestMissingScenarios(rep.Target, rep) {
 		resp.Notes = append(resp.Notes, "Possible gap: "+s.Scenario+" — "+s.Why)
 	}
@@ -890,6 +1004,10 @@ func (s *Server) planChange(ctx stdctx.Context, req *sdk.CallToolRequest, args t
 				"the set to rely on: "+strings.TrimSuffix(plan.TestsUndetermined, ".")+".")
 	}
 	if n := sel.note(q); n != "" {
+		resp.Notes = append(resp.Notes, n)
+	}
+	// What the source itself says not to break, in the plan for changing it.
+	if n := s.markedNote(ctx, runID, sel.Target.SymbolHit); n != "" {
 		resp.Notes = append(resp.Notes, n)
 	}
 	return s.reply(ctx, req, resp)

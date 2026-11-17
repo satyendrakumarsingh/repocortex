@@ -114,6 +114,18 @@ type SessionStats struct {
 	// CitedFiles is the one comparison this report makes. See CitedFiles.
 	CitedFiles *CitedFiles `json:"cited_files,omitempty"`
 
+	// EmptyAnswers counts answers with no rows. SearchAfterEmpty counts the
+	// ones the agent followed with search_code, and RetryAfterEmpty the ones
+	// it followed by asking the same tool again: the two moves of an agent
+	// that did not trust "nothing found" and went looking another way. A tool
+	// whose empty answers are often followed like this is one whose answer,
+	// or description, agents do not believe. An agent's own grep is outside
+	// the server and not counted; the audit log carries the same flag per
+	// call (`empty`) for that comparison to be made offline.
+	EmptyAnswers     int64 `json:"empty_answers"`
+	SearchAfterEmpty int64 `json:"search_after_empty"`
+	RetryAfterEmpty  int64 `json:"retry_after_empty"`
+
 	// DroppedSessions is how many idle sessions' counters this server has
 	// discarded to bound its memory. When it is not zero, a session that was
 	// idle for a long time may have had its counting restarted at Since.
@@ -138,6 +150,11 @@ type ToolUsage struct {
 	StructuredBytes       int64   `json:"structured_bytes"`
 	DurationMS            float64 `json:"duration_ms"`
 	SlowestMS             float64 `json:"slowest_ms"`
+	// EmptyAnswers is how many of this tool's answers had no rows, and
+	// FollowedUp how many of those the agent followed with search_code or
+	// the same tool again (see SessionStats.SearchAfterEmpty).
+	EmptyAnswers int64 `json:"empty_answers,omitempty"`
+	FollowedUp   int64 `json:"followed_up,omitempty"`
 }
 
 // ToolDefinitionCost is what the exposed tools cost a model's context.
@@ -191,6 +208,8 @@ type callMeasure struct {
 	structuredBytes int64
 	elapsed         time.Duration
 	started         time.Time
+	// empty is an answer that was given and had no rows.
+	empty bool
 }
 
 // Outcomes a call can have, shared with the audit log.
@@ -206,6 +225,7 @@ type toolCounters struct {
 	resultBytes, resultTokens         int64
 	structuredBytes                   int64
 	total, slowest                    time.Duration
+	empty, followedUp                 int64
 }
 
 // sessionUsage is one session's counters.
@@ -221,6 +241,11 @@ type sessionUsage struct {
 	citedFiles  int64
 	citedBytes  int64
 	citedCapped bool
+
+	// lastEmpty is the tool whose answer, the session's previous call, had no
+	// rows; "" when that answer had rows.
+	lastEmpty                      string
+	empty, searchAfter, retryAfter int64
 }
 
 func newSessionUsage() *sessionUsage {
@@ -261,7 +286,33 @@ func (u *sessionUsage) record(m callMeasure) {
 	if m.elapsed > c.slowest {
 		c.slowest = m.elapsed
 	}
+
+	// What the agent did next after an empty answer.
+	if prev := u.lastEmpty; prev != "" {
+		followed := false
+		switch {
+		case m.tool == searchCodeTool && prev != searchCodeTool:
+			u.searchAfter++
+			followed = true
+		case m.tool == prev:
+			u.retryAfter++
+			followed = true
+		}
+		if pc, ok := u.byTool[prev]; ok && followed {
+			pc.followedUp++
+		}
+	}
+	u.lastEmpty = ""
+	if m.empty {
+		c.empty++
+		u.empty++
+		u.lastEmpty = m.tool
+	}
 }
+
+// searchCodeTool is the text search an agent turns to when a structural
+// answer comes back empty.
+const searchCodeTool = "search_code"
 
 // pathFingerprint identifies a cited path in eight bytes, so remembering four
 // thousand of them costs kilobytes rather than their text. A collision makes
@@ -359,6 +410,8 @@ func (u *sessionUsage) snapshot() SessionStats {
 			StructuredBytes:       c.structuredBytes,
 			DurationMS:            milliseconds(c.total),
 			SlowestMS:             milliseconds(c.slowest),
+			EmptyAnswers:          c.empty,
+			FollowedUp:            c.followedUp,
 		})
 		out.Calls += c.calls
 		out.Failures += c.toolErrors + c.protocolErrors
@@ -368,6 +421,7 @@ func (u *sessionUsage) snapshot() SessionStats {
 		total += c.total
 	}
 	out.DurationMS = milliseconds(total)
+	out.EmptyAnswers, out.SearchAfterEmpty, out.RetryAfterEmpty = u.empty, u.searchAfter, u.retryAfter
 	sort.Slice(out.Tools, func(i, j int) bool {
 		if out.Tools[i].Calls != out.Tools[j].Calls {
 			return out.Tools[i].Calls > out.Tools[j].Calls
@@ -472,6 +526,10 @@ func (b *usageBook) forget(ss *sdk.ServerSession) {
 type callScratch struct {
 	citedFiles     int64
 	citedFileBytes int64
+	// answered and rows describe the Response the call returned, set by
+	// noteCitations, which every answer passes through.
+	answered bool
+	rows     int
 }
 
 type callScratchKey struct{}
@@ -521,6 +579,7 @@ func (s *Server) usageMiddleware(next sdk.MethodHandler) sdk.MethodHandler {
 			}
 		}
 
+		m.empty = m.outcome == outcomeOK && scratch.answered && scratch.rows == 0
 		counted := m
 		if !s.hasTool(counted.tool) {
 			counted.tool = unregisteredTool
@@ -555,6 +614,9 @@ func structuredSize(v any) int64 {
 // already correct, and refusing to send the answer because its size could not
 // be tallied would put the report above the thing it reports on.
 func (s *Server) noteCitations(ctx context.Context, req *sdk.CallToolRequest, r *Response) {
+	if sc := scratchFrom(ctx); sc != nil && r != nil {
+		sc.answered, sc.rows = true, len(r.Items)
+	}
 	ss := sessionOf(req)
 	if ss == nil || r == nil || r.IndexRevision <= 0 || len(r.Items) == 0 {
 		return
@@ -756,8 +818,16 @@ func renderSessionStats(st *SessionStats) string {
 			d.Profile, d.Tools, d.SchemaBytes, d.EstimatedTokensPerRequest)
 	}
 	for _, t := range st.Tools {
-		fmt.Fprintf(&b, "usage: %s calls=%d failed=%d answer_bytes=%d est_answer_tokens=%d time_ms=%.1f slowest_ms=%.1f\n",
+		fmt.Fprintf(&b, "usage: %s calls=%d failed=%d answer_bytes=%d est_answer_tokens=%d time_ms=%.1f slowest_ms=%.1f",
 			t.Tool, t.Calls, t.ToolErrors+t.ProtocolErrors, t.ResultBytes, t.EstimatedResultTokens, t.DurationMS, t.SlowestMS)
+		if t.EmptyAnswers > 0 {
+			fmt.Fprintf(&b, " empty=%d followed_up=%d", t.EmptyAnswers, t.FollowedUp)
+		}
+		b.WriteString("\n")
+	}
+	if st.EmptyAnswers > 0 {
+		fmt.Fprintf(&b, "empty_answers: %d, then search_code %d, then the same tool again %d\n",
+			st.EmptyAnswers, st.SearchAfterEmpty, st.RetryAfterEmpty)
 	}
 	if c := st.CitedFiles; c != nil {
 		fmt.Fprintf(&b, "cited_files: files=%d bytes=%d est_tokens=%d", c.Files, c.Bytes, c.EstimatedTokens)

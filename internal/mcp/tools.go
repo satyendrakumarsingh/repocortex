@@ -366,10 +366,10 @@ func toolDescriptions() map[string]string {
 			"BOUND: treat an empty or short result as 'nothing found', never as proof that changing " +
 			"the symbol is safe.",
 
-		"analyze_patch": "Speculatively test proposed file changes in memory before editing files on disk. " +
-			"Parses proposed code in memory, compares definitions with the index graph, and immediately " +
-			"identifies all upstream callers across the repo that would be broken by altered or deleted " +
-			"signatures.",
+		"analyze_patch": "Dry-run a change before writing it: pass a unified diff (one or more files), or one " +
+			"file's path and full new content. Lists the callers that removed or re-signed definitions " +
+			"would break, and for Go type-checks the patched packages and their importers in memory and " +
+			"names every line that would stop compiling. Nothing is written.",
 
 		"find_tests": "Find the tests covering a symbol, and which signal found each one — a proven " +
 			"call edge is far stronger evidence than a matching filename, and the response names which " +
@@ -943,6 +943,11 @@ func (s *Server) getSymbol(ctx context.Context, req *sdk.CallToolRequest, args s
 			// agent reads is what RepoCortex analysed.
 			Excerpt: s.symbolExcerpt(ctx, runID, sym),
 		})
+	}
+	for _, sym := range shown {
+		if note := s.markedNote(ctx, runID, sym); note != "" {
+			resp.Notes = append(resp.Notes, note)
+		}
 	}
 	if rest := len(syms) - len(shown); rest > 0 {
 		resp.markTruncated(fmt.Sprintf("%d more definition(s) named %q are not shown; pass path to narrow, "+

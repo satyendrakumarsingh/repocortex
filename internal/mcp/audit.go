@@ -58,6 +58,10 @@ type AuditEvent struct {
 	// and not a saving. See usage.go.
 	CitedFiles     int64 `json:"cited_files,omitempty"`
 	CitedFileBytes int64 `json:"cited_file_bytes,omitempty"`
+	// Empty is an answer with no rows. With the next event of the same
+	// session it shows whether the agent believed it (see
+	// SessionStats.SearchAfterEmpty).
+	Empty bool `json:"empty,omitempty"`
 }
 
 // auditArgBytes bounds the arguments kept per event. A task description or a
@@ -110,6 +114,7 @@ func (s *Server) auditEvent(call *sdk.CallToolRequest, m callMeasure, scratch *c
 		Tool:            clip(m.tool, auditToolBytes),
 		DurationMS:      m.elapsed.Milliseconds(),
 		Outcome:         m.outcome,
+		Empty:           m.empty,
 		ResultBytes:     m.resultBytes,
 		StructuredBytes: m.structuredBytes,
 	}

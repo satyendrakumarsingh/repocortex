@@ -2337,6 +2337,45 @@ counted on the first line and is not a row.
 Lists the tests that reach a symbol and how each was found. Flag:
 `--min-confidence`. Agent tool: `find_tests`.
 
+### `coverage import <file>`
+
+```
+repocortex coverage import coverage.out
+repocortex coverage import lcov.info --dry-run
+```
+
+Reads a coverage report (Go coverprofile, LCOV, Cobertura XML or JaCoCo XML,
+detected from the content) and stores, for each function, method and class in
+the index, how many of its instrumented lines ran, how many it has, and the
+highest hit count. It prints how many symbols received coverage and how many
+instrumented files matched no indexed file (a Go profile names files by import
+path and LCOV by absolute path; both are matched to the indexed path by their
+longest shared tail, and a short name that fits two files is left unmatched).
+
+It never runs tests: produce the report with your own test command first. One
+profile is kept per index; importing another replaces it, and it goes away with
+the index run it described. The import records the commit `HEAD` named at that
+moment and each matched file's content hash.
+
+A file that changes after the import (an edit, a re-index) is **stale**: its
+numbers describe other code, so they are not used and the answer says so.
+Importing again fixes it. `--dry-run` parses and prints the summary without
+touching the index, which is what the command did before it stored anything.
+
+What uses it, and only these two:
+
+- `analyze_impact` adds the target's covered share (`updateStatus: 12 of 14
+  instrumented lines covered in the coverage imported at 087b9cb on
+  2026-11-17`) and how many of the impacted callers have no covered lines,
+  naming up to five. Nothing is added when no profile is stored.
+- `find_tests` adds a note when the target has no covered line in a current
+  profile: no test executed it in that run, whatever the graph found.
+
+A coverage report holds the hit count per line for the whole run and never
+which test produced it, so nothing is ranked or attributed to a test. A symbol
+whose file is absent from the profile is "not known", not "zero": a package no
+test was run for looks the same.
+
 ### `query [sql]`
 
 Runs one read-only SELECT against the index.

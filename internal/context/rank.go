@@ -338,6 +338,11 @@ type candidate struct {
 	depth        int
 	lexical      float64
 	lexTerms     []string
+	// withheldShort is the per-item form of withheld; the allocation note
+	// states the rule once (see allocationNote). sigOnly marks an item whose
+	// one-line signature was shown in place of its source.
+	withheldShort string
+	sigOnly       bool
 	// bodyMatch names the member whose own text gave the unit its lexical
 	// evidence, when that is a method of the unit rather than the unit.
 	bodyMatch  string

@@ -194,6 +194,7 @@ func markBodyCliff(kept []*candidate, w Weights, th Thresholds) {
 			"source withheld: its relevance to the response budget is %.0f%% of the strongest "+
 				"item's, below this pack's %.0f%% cliff, so its bytes would cost more than they teach",
 			100*c.bodyWeight/top, 100*th.BodyCliffFraction)
+		c.withheldShort = fmt.Sprintf("source withheld: %.0f%% of the strongest item's relevance", 100*c.bodyWeight/top)
 	}
 }
 
@@ -236,6 +237,7 @@ func allocateBodies(cands []*candidate, th Thresholds, envelope int) []int {
 		n--
 	}
 	for _, i := range idx[n:] {
+		cands[i].withheldShort = "source withheld: past this pack's source budget"
 		cands[i].withheld = fmt.Sprintf(
 			"source withheld: this pack's ~%d-character source budget stretched to the %s "+
 				"above it, and splitting it further would leave every item under %d characters, "+

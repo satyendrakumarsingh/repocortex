@@ -686,3 +686,35 @@ func TestSessionStatsAnswerStaysSmall(t *testing.T) {
 		t.Errorf("the report was truncated:\n%s", text)
 	}
 }
+
+// An empty answer followed by search_code, or by the same tool asked again,
+// is an agent that did not believe "nothing found". The session counts both,
+// per tool, and an answer with rows clears the trail.
+func TestSessionStatsCountWhatAgentsDoAfterAnEmptyAnswer(t *testing.T) {
+	fs := newFullServer(t, seedChain)
+	sess := fs.sess
+	call := func(name string, args map[string]any) {
+		t.Helper()
+		callTool(t, sess, name, args)
+	}
+	call("find_callers", map[string]any{"name": "NoSuchThing"}) // empty
+	call("search_code", map[string]any{"query": "NoSuchThing"}) // -> search after empty
+	call("find_symbol", map[string]any{"name": "NoSuchThing"})  // empty
+	call("find_symbol", map[string]any{"name": "NoSuchOther"})  // -> retry after empty (and empty again)
+	call("find_symbol", map[string]any{"name": "leaf"})
+
+	st, text := sessionStatsOf(t, sess)
+	// The last find_symbol follows an empty find_symbol too: two retries.
+	if st.SearchAfterEmpty != 1 || st.RetryAfterEmpty != 2 {
+		t.Errorf("search after empty %d, retry after empty %d; want 1 and 2\n%s", st.SearchAfterEmpty, st.RetryAfterEmpty, text)
+	}
+	if !strings.Contains(text, "empty_answers: 4, then search_code 1, then the same tool again 2") {
+		t.Errorf("the text does not report it:\n%s", text)
+	}
+	if fc, _ := usageOf(st, "find_callers"); fc.EmptyAnswers != 1 || fc.FollowedUp != 1 {
+		t.Errorf("find_callers: %+v; want one empty answer, followed up", fc)
+	}
+	if fs, _ := usageOf(st, "find_symbol"); fs.EmptyAnswers != 2 || fs.FollowedUp != 2 {
+		t.Errorf("find_symbol: %+v; want two empty answers, both followed up", fs)
+	}
+}

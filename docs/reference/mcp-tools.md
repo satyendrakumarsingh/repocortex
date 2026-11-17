@@ -56,7 +56,7 @@ The counts are what `repocortex tool list --profile <name>` prints.
 | `list_blindspots` | standard | none | Audit the repository for code intelligence blindspots and hidden risks. |
 | `explore_symbol` | standard | `name` (required), `limit`, `line`, `min_confidence`, `path` | Deep-dive on a symbol in one call: returns its definition with verbatim line-numbered source excerpt, upstream callers, downstream callees, blast-radius impact summary, and linked HTTP routes. |
 | `analyze_change` | full | `base` (required), `head`, `min_confidence` | Find out what a range of commits puts at risk: the symbols the change touched, everything those can reach, and the tests among them. |
-| `analyze_patch` | full | `content` (required), `path` (required) | Speculatively test proposed file changes in memory before editing files on disk. |
+| `analyze_patch` | full | `content`, `diff`, `path` | Dry-run a change before writing it: pass a unified diff (one or more files), or one file's path and full new content. |
 | `find_owners` | full | `symbol` (required), `limit`, `line`, `path` | Find who has recent context on the code a change would touch: the people who have lately changed the symbols a change to this one can reach, ranked by how much of that code they have worked on. |
 | `find_callees` | full | `name` (required), `limit`, `line`, `min_confidence`, `offset`, `path` | List what a symbol calls: the definitions inside this repository that its body invokes, each with the file and line of the call and how the binding was established (exact, high, medium or low). |
 | `find_implementations` | full | `name` (required), `direct_only`, `limit`, `line`, `min_confidence`, `offset`, `path` | List a type's hierarchy in both directions: what implements or extends it, directly or through other subtypes, and what it implements or extends itself. |
@@ -278,12 +278,13 @@ Find out what a range of commits puts at risk: the symbols the change touched, e
 
 ### `analyze_patch`
 
-Speculatively test proposed file changes in memory before editing files on disk. Parses proposed code in memory, compares definitions with the index graph, and immediately identifies all upstream callers across the repo that would be broken by altered or deleted signatures.
+Dry-run a change before writing it: pass a unified diff (one or more files), or one file's path and full new content. Lists the callers that removed or re-signed definitions would break, and for Go type-checks the patched packages and their importers in memory and names every line that would stop compiling. Nothing is written.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `content` | string | yes | The proposed full file content to dry-run speculatively in memory. |
-| `path` | string | yes | File path of the file being modified, e.g. 'internal/service.go'. |
+| `content` | string | no | The proposed full file content to dry-run speculatively in memory. With path; or pass diff instead. |
+| `diff` | string | no | A unified diff (git diff, diff -u) of one or more files, applied in memory to the working tree. Use instead of path and content. |
+| `path` | string | no | File path of the file being modified, e.g. 'internal/service.go'. With content; or pass diff instead. |
 
 ### `find_owners`
 

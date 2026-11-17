@@ -866,7 +866,7 @@ func lastWithExcerpt(items []Item) int {
 func (b *builder) allocationNote(items []Item, chosen []*candidate, envelope int) []string {
 	withheld, carrying := 0, 0
 	for i, c := range chosen {
-		if items[i].Excerpt != "" {
+		if items[i].Excerpt != "" && !c.sigOnly {
 			carrying++
 		}
 		if c.withheld != "" {
@@ -878,10 +878,14 @@ func (b *builder) allocationNote(items []Item, chosen []*candidate, envelope int
 	}
 	return []string{fmt.Sprintf(
 		"Source was allocated by relevance, not evenly: %s of %s carry an excerpt inside a "+
-			"~%d-character source budget, and %s named without it. Each of those says why in "+
-			"its own reason; the paths and lines above fetch the rest.",
+			"~%d-character source budget, and %s named without it. An item marked \"%% of the "+
+			"strongest item's relevance\" fell below the cliff (%.0f%% of the strongest), where its "+
+			"bytes would cost more than they teach; one marked \"past this pack's source budget\" "+
+			"would have left every item under %d characters had it shared the budget. Items the task "+
+			"names, and those one call away, show their signature instead; the paths and lines above "+
+			"fetch the rest.",
 		plural(carrying, "item"), plural(len(items), "item"), envelope,
-		plural(withheld, "item"))}
+		plural(withheld, "item"), 100*b.tuning.BodyCliffFraction, b.tuning.MinBodyChars)}
 }
 
 func (b *builder) recordBudgetExclusion(excluded *[]Exclusion, c *candidate, which string) {
@@ -899,6 +903,7 @@ func (b *builder) recordBudgetExclusion(excluded *[]Exclusion, c *candidate, whi
 // reason for why to state.
 func (b *builder) addExcerpts(ctx context.Context, items []Item, chosen []*candidate) {
 	remaining := b.budget.MaxLines
+	defer b.addSignatures(ctx, items, chosen)
 	for i := range items {
 		if remaining <= 0 {
 			return
@@ -1061,7 +1066,15 @@ func (b *builder) why(c *candidate) string {
 	// item is still NAMED — an agent can open the file itself — and "we chose not
 	// to spend your budget here, for this reason" is a different product from an
 	// item that silently arrived without source.
-	if c.withheld != "" {
+	switch {
+	case c.sigOnly && c.withheldShort != "":
+		parts = append(parts, "signature only; "+strings.TrimPrefix(c.withheldShort, "source withheld: "))
+	case c.withheldShort != "":
+		// The full reason is stated once, in the allocation note: on a
+		// 25,000-file repository the same 230-character sentence was repeated
+		// on some forty items of one pack.
+		parts = append(parts, c.withheldShort)
+	case c.withheld != "":
 		parts = append(parts, c.withheld)
 	}
 	if len(parts) == 0 {
@@ -1163,4 +1176,79 @@ func (c *candidate) inBody() string {
 		return ""
 	}
 	return " (in " + c.bodyMatch + ")"
+}
+
+// maxSignatureChars bounds one signature line.
+const maxSignatureChars = 200
+
+// addSignatures gives an item without source its declaration's signature
+// when it is close to the task: named by it, or one call away. Detail falls
+// with distance: the strongest items carry source, their neighbours how to
+// call them, and anything further its name and place, which the path and line
+// fetch. A signature is a line; source for the same items would be the
+// budget this pack just declined to spend.
+func (b *builder) addSignatures(ctx context.Context, items []Item, chosen []*candidate) {
+	// A signature is a line of the pack like any other: it comes out of what
+	// the excerpts left of the line budget, never on top of it.
+	remaining := b.budget.MaxLines
+	for i := range items {
+		remaining -= itemLines(items[i])
+	}
+	for i := range items {
+		if remaining <= 0 {
+			return
+		}
+		c := chosen[i]
+		if items[i].Excerpt != "" || !c.canShowSource() {
+			continue
+		}
+		if c.via != admitNamed && (c.via != admitGraph || c.depth != 1) {
+			continue
+		}
+		sig := b.declarationLine(ctx, c)
+		if sig == "" {
+			continue
+		}
+		if len(sig) > maxSignatureChars {
+			sig = sig[:maxSignatureChars-1] + "…"
+		}
+		clean, _ := security.Redact(sig)
+		items[i].Excerpt = clean
+		c.sigOnly = true
+		items[i].Why = b.why(c) // written before excerpts; it now says "signature only"
+		remaining -= itemLines(items[i])
+	}
+}
+
+// declarationLine is a unit's own declaration, read from its source: the
+// first line at or after its start that is not an annotation, a decorator or
+// a comment, without a trailing "{". The parsers do not store a signature for
+// source symbols, and the declaration line is what one would be.
+func (b *builder) declarationLine(ctx context.Context, c *candidate) string {
+	sym := b.cat.symbols[c.unitID]
+	text, ok := b.content[sym.FileID]
+	if !ok {
+		var err error
+		if text, err = b.reg.FileExcerpt(ctx, b.runID, c.path, 1, maxExcerptWindow); err != nil {
+			return ""
+		}
+		b.content[sym.FileID] = text
+	}
+	for _, line := range strings.Split(sliceLines(text, sym.Range.Start.Line, 6), "\n") {
+		t := strings.TrimSpace(line)
+		if t == "" || isAnnotationOrComment(t) {
+			continue
+		}
+		return strings.TrimSpace(strings.TrimSuffix(t, "{"))
+	}
+	return ""
+}
+
+func isAnnotationOrComment(t string) bool {
+	for _, p := range []string{"@", "#[", "//", "/*", "*", "#", "--", "<!--"} {
+		if strings.HasPrefix(t, p) {
+			return true
+		}
+	}
+	return false
 }
