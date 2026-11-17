@@ -450,6 +450,9 @@ func deleteRunRows(ctx context.Context, tx *sql.Tx, runID int64) error {
 		         WHERE f.index_run_id = ?)`, runID); err != nil {
 		return fmt.Errorf("delete fts rows: %w", err)
 	}
+	if err := deleteDefinitionRows(ctx, tx, runID, ""); err != nil {
+		return err
+	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM index_runs WHERE id = ?`, runID); err != nil {
 		return fmt.Errorf("delete run: %w", err)
 	}

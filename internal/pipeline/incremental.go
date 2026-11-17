@@ -51,6 +51,9 @@ type IncrementalStats struct {
 	Deleted   int64
 	Unchanged int64
 	Symbols   int64
+	// DefinitionsBackfilled is how many functions and methods were given
+	// definition text because the index was built before it was stored.
+	DefinitionsBackfilled int64
 }
 
 // DiffOptions adjusts how the working tree is compared with the index.
@@ -414,6 +417,14 @@ func Refresh(
 	}
 	started := now().Unix()
 
+	// An index built before definition text was stored has none. Filled
+	// from the stored file text before any file is replaced: a replaced file
+	// writes its own rows, and the backfill runs only while there are none.
+	backfilled, err := reg.BackfillDefinitionText(ctx, runID)
+	if err != nil {
+		return IncrementalStats{}, err
+	}
+
 	changes, err := DiffWith(ctx, reg, runID, walker, opts.RunningAs, DiffOptions{Rehash: opts.Rehash})
 	if err != nil {
 		return IncrementalStats{}, fmt.Errorf("diff working tree: %w", err)
@@ -421,6 +432,7 @@ func Refresh(
 	stats, err := Incremental(ctx, reg, runID, walker, changes, IncrementalOptions{
 		Parsers: opts.Parsers, Resolve: true, Root: opts.Root,
 	})
+	stats.DefinitionsBackfilled = int64(backfilled)
 	if err != nil {
 		return stats, err
 	}

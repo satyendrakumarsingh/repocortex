@@ -107,7 +107,10 @@ func assemble(ctx context.Context, cache *catalogueCache, reg Registry, g Graph,
 	// Text evidence seeds the walk too. Without this the call graph is
 	// unreachable whenever the task is phrased in the user's vocabulary rather
 	// than the code's — see addLexicalSeeds.
-	seeds = addLexicalSeeds(cat, intent, seeds, lexical, tuning.Thresholds)
+	// And each function's and method's own text, which finds a definition
+	// deep in a long file that file-level text ranks out of reach.
+	defEvidence := definitionEvidence(cat, intent, searchDefinitions(ctx, reg, intent, tuning.Thresholds))
+	seeds = addLexicalSeeds(cat, intent, seeds, lexical, defEvidence, tuning.Thresholds)
 
 	reached, notes, err := expand(ctx, g, expansionRoots(cat, seeds), budget, tuning.Thresholds)
 	if err != nil {
@@ -120,6 +123,7 @@ func assemble(ctx context.Context, cache *catalogueCache, reg Registry, g Graph,
 	b.fromSeeds(seeds)
 	b.fromGraph(reached)
 	b.fromLexical(lexical)
+	b.fromDefinitions(defEvidence)
 	if err := b.fromData(ctx); err != nil {
 		return Pack{}, err
 	}
@@ -259,7 +263,7 @@ func (b *builder) fromSeeds(seeds []seed) {
 	for _, s := range seeds {
 		c := b.unitFor(s.symbolID)
 		if s.score > c.nameScore {
-			c.nameScore, c.nameTerms = s.score, s.matched
+			c.nameScore, c.nameTerms, c.nameFromText = s.score, s.matched, s.fromText
 		}
 		b.noteMember(c, s.symbolID, -1)
 		if _, ok := b.keyMember[c.unitID]; !ok {
@@ -351,6 +355,34 @@ func (b *builder) fromLexical(hits map[int64]*lexicalHit) {
 			// no parser. It still answers questions, so it becomes a file-level
 			// candidate rather than vanishing.
 			b.addFileCandidate(fileID, score, h.terms)
+		}
+	}
+}
+
+// fromDefinitions gives each unit the evidence of its best-matching function
+// or method. It is evidence of the unit itself, not of the file around it, so
+// it raises a unit above its siblings in a long file where file text gave them
+// all the same score, and reaches units in files file text never ranked.
+//
+// It only ever adds: a unit keeps its file evidence when that is stronger,
+// and the terms it shows are whichever set says more about the task.
+func (b *builder) fromDefinitions(ev map[int64]unitEvidence) {
+	units := make([]int64, 0, len(ev))
+	for u := range ev {
+		units = append(units, u)
+	}
+	sort.Slice(units, func(i, j int) bool { return units[i] < units[j] })
+	for _, u := range units {
+		e := ev[u]
+		c := b.unitFor(e.hit.symbolID)
+		if e.value > c.lexical {
+			c.lexical = e.value
+		}
+		if len(e.hit.terms) > len(c.lexTerms) {
+			c.lexTerms = e.hit.terms
+			if e.hit.symbolID != c.unitID {
+				c.bodyMatch = b.cat.symbols[e.hit.symbolID].Name
+			}
 		}
 	}
 }
@@ -996,7 +1028,11 @@ func (b *builder) why(c *candidate) string {
 
 	switch c.via {
 	case admitNamed:
-		parts = append(parts, "named by the task (matches "+quoteList(c.nameTerms)+")")
+		if c.nameFromText {
+			parts = append(parts, "its text matches the task ("+quoteList(c.nameTerms)+")"+c.inBody()+", so the search starts here")
+		} else {
+			parts = append(parts, "named by the task (matches "+quoteList(c.nameTerms)+")")
+		}
 	case admitGraph:
 		parts = append(parts, fmt.Sprintf("%s from what the task names, through the call graph (path confidence %s)",
 			plural(c.depth, "hop"), c.pathConf))
@@ -1006,7 +1042,7 @@ func (b *builder) why(c *candidate) string {
 	case admitData:
 		parts = append(parts, "persistence touched by "+c.tableOwner)
 	case admitLexical:
-		parts = append(parts, "matches "+quoteList(c.lexTerms)+" textually")
+		parts = append(parts, "matches "+quoteList(c.lexTerms)+" textually"+c.inBody())
 	}
 
 	if c.via == admitNamed && c.depth > 0 {
@@ -1018,8 +1054,8 @@ func (b *builder) why(c *candidate) string {
 	if len(c.tables) > 0 && c.via != admitData {
 		parts = append(parts, tableList(c.tables))
 	}
-	if c.via != admitLexical && len(c.lexTerms) > 0 {
-		parts = append(parts, "text also matches "+quoteList(c.lexTerms))
+	if c.via != admitLexical && len(c.lexTerms) > 0 && (c.via != admitNamed || !c.nameFromText) {
+		parts = append(parts, "text also matches "+quoteList(c.lexTerms)+c.inBody())
 	}
 	// A body the allocator withheld is reported on the item that lost it. The
 	// item is still NAMED — an agent can open the file itself — and "we chose not
@@ -1119,3 +1155,12 @@ func termTexts(in Intent) []string {
 // printing sixteen digits of float noise invites callers to read meaning into
 // differences that are not there.
 func round2(f float64) float64 { return float64(int64(f*100+0.5)) / 100 }
+
+// inBody says which member's text the lexical evidence came from, when it was
+// a method rather than the unit as a whole.
+func (c *candidate) inBody() string {
+	if c.bodyMatch == "" {
+		return ""
+	}
+	return " (in " + c.bodyMatch + ")"
+}

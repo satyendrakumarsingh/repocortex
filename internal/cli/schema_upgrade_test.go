@@ -56,6 +56,10 @@ func dropLatestMigration(t *testing.T, dbPath string) int {
 			drop = "DROP INDEX IF EXISTS " + fields[2]
 		case strings.EqualFold(fields[0], "CREATE") && strings.EqualFold(fields[1], "TABLE"):
 			drop = "DROP TABLE IF EXISTS " + fields[2]
+		case len(fields) >= 4 && strings.EqualFold(fields[0], "CREATE") && strings.EqualFold(fields[1], "VIRTUAL") &&
+			strings.EqualFold(fields[2], "TABLE"):
+			// CREATE VIRTUAL TABLE <name> USING fts5(...), added for 0021.
+			drop = "DROP TABLE IF EXISTS " + fields[3]
 		case strings.EqualFold(fields[0], "ALTER") && strings.EqualFold(fields[1], "TABLE"):
 			// ALTER TABLE <table> ADD [COLUMN] <name> ...
 			col, ok := addedColumn(fields)

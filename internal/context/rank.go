@@ -142,6 +142,11 @@ type Thresholds struct {
 	MaxQueryTerms int
 	LexicalLimit  int
 
+	// DefinitionLimit is how many functions and methods the whole-task text
+	// query over definitions returns (see searchDefinitions). 0 turns
+	// definition evidence off and the pack is assembled from file text alone.
+	DefinitionLimit int
+
 	// ExcerptLines caps how much source ANY ONE item may show. Source is the
 	// last thing added and the first thing cut: a symbol summary costs a line
 	// and tells the agent where to look, while a source range costs twenty and
@@ -262,6 +267,7 @@ func DefaultTuning() Tuning {
 			MaxGraphNodes:     2000,
 			MaxQueryTerms:     8,
 			LexicalLimit:      50,
+			DefinitionLimit:   200,
 			ExcerptLines:      14,
 			MaxExclusions:     12,
 			BodyShare:         0.06,
@@ -322,13 +328,19 @@ type candidate struct {
 	relates model.Confidence
 
 	// Signals, each normalised to [0,1] before weighting.
-	nameScore  float64
-	nameTerms  []string
-	proximity  float64
-	pathConf   model.Confidence
-	depth      int
-	lexical    float64
-	lexTerms   []string
+	nameScore float64
+	nameTerms []string
+	// nameFromText is true when the seed behind nameScore was chosen for its
+	// text, not its name (see seed.fromText).
+	nameFromText bool
+	proximity    float64
+	pathConf     model.Confidence
+	depth        int
+	lexical      float64
+	lexTerms     []string
+	// bodyMatch names the member whose own text gave the unit its lexical
+	// evidence, when that is a method of the unit rather than the unit.
+	bodyMatch  string
 	testFor    string
 	tables     []tableRef
 	tableOwner string

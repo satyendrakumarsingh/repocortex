@@ -32,7 +32,7 @@ func TestLexicalSeedPicksTheSymbolTheTaskNames(t *testing.T) {
 	th := DefaultTuning().Thresholds
 	hits := map[int64]*lexicalHit{fileID: {fileID: fileID, terms: []string{"redact", "secret"}, weight: 2}}
 
-	got := addLexicalSeeds(c, in, nil, hits, th)
+	got := addLexicalSeeds(c, in, nil, hits, nil, th)
 	if len(got) != 1 {
 		t.Fatalf("expected exactly one seed from one matching file, got %d", len(got))
 	}

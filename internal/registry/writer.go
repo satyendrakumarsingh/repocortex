@@ -65,6 +65,7 @@ type writerStmts struct {
 	edge   *sql.Stmt
 	fts    *sql.Stmt
 	ftsMap *sql.Stmt
+	defs   *sql.Stmt
 	ref    *sql.Stmt
 	imp    *sql.Stmt
 }
@@ -437,6 +438,9 @@ func prepareWriterStmts(ctx context.Context, tx *sql.Tx) (*writerStmts, error) {
 		return nil, err
 	}
 	if err := prep(&st.ftsMap, `INSERT INTO files_fts_map (fts_rowid, file_id) VALUES (?,?)`); err != nil {
+		return nil, err
+	}
+	if err := prep(&st.defs, insertDefSQL); err != nil {
 		return nil, err
 	}
 	// References and imports are by far the most numerous rows, and parsing the

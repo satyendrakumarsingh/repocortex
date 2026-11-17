@@ -30,6 +30,7 @@ import (
 func (r *Registry) Analyze(ctx context.Context) error {
 	// Optimize FTS5 index segments to merge b-trees and compact storage.
 	_, _ = r.db.ExecContext(ctx, `INSERT INTO files_fts(files_fts) VALUES('optimize')`)
+	_, _ = r.db.ExecContext(ctx, `INSERT INTO defs_fts(defs_fts) VALUES('optimize')`)
 
 	// Automatically reclaim empty freelist pages if fragmentation exceeds 4 MiB.
 	var freelist, pageSize int64

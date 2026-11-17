@@ -11,6 +11,10 @@ type seed struct {
 	symbolID int64
 	score    float64
 	matched  []string
+	// fromText marks a seed chosen for what its text says (addLexicalSeeds),
+	// not for its name: it ranks like the weakest name seed, but a reason that
+	// said "named by the task" would claim a match the name does not have.
+	fromText bool
 }
 
 // findSeeds finds the symbols whose names answer the task.
@@ -189,7 +193,7 @@ func contains(xs []string, x string) bool {
 // what separates evidence from coincidence, and that threshold has already been
 // measured. Seeds enter at exactly th.SeedName, the weakest admissible score,
 // so a text match can never outrank a symbol the task actually named.
-func addLexicalSeeds(c *catalogue, in Intent, seeds []seed, hits map[int64]*lexicalHit, th Thresholds) []seed {
+func addLexicalSeeds(c *catalogue, in Intent, seeds []seed, hits map[int64]*lexicalHit, ev map[int64]unitEvidence, th Thresholds) []seed {
 	// A RESERVED QUOTA, not leftover capacity. The first version of this took
 	// only slots the name seeds had not claimed, which sounded safe and was
 	// inert: measured on the self bench, every one of the five cases arrived
@@ -209,7 +213,7 @@ func addLexicalSeeds(c *catalogue, in Intent, seeds []seed, hits map[int64]*lexi
 	// marginal part-matches at the bottom. Unlike the first version this CAN
 	// regress, which is why it ships on a measurement rather than on the
 	// argument above.
-	if len(hits) == 0 {
+	if len(hits) == 0 && len(ev) == 0 {
 		return seeds
 	}
 	room := th.MaxSeeds - len(seeds)
@@ -223,20 +227,46 @@ func addLexicalSeeds(c *catalogue, in Intent, seeds []seed, hits map[int64]*lexi
 		return seeds
 	}
 
-	corroborated := make([]*lexicalHit, 0, len(hits))
+	// A definition whose own text corroborates the task is evidence for its
+	// file too, and the only evidence for a long file that file-level text
+	// ranks out of reach. defBest is each such file's strongest definition.
+	defBest := map[int64]unitEvidence{}
+	for _, e := range ev {
+		if len(e.hit.terms) < th.MinLexicalTerms || c.isDocUnit(e.hit.symbolID) || c.isTestUnit(e.hit.symbolID) {
+			continue
+		}
+		cur, ok := defBest[e.hit.fileID]
+		if !ok || e.hit.weight > cur.hit.weight || (e.hit.weight == cur.hit.weight && e.value > cur.value) ||
+			(e.hit.weight == cur.hit.weight && e.value == cur.value && e.hit.symbolID < cur.hit.symbolID) {
+			defBest[e.hit.fileID] = e
+		}
+	}
+
+	corroborated := make([]*lexicalHit, 0, len(hits)+len(defBest))
 	for _, h := range hits {
 		if len(h.terms) >= th.MinLexicalTerms {
 			corroborated = append(corroborated, h)
 		}
 	}
-	// Most of the task's intent first, then by id: two files with identical
+	for fileID, e := range defBest {
+		if h, ok := hits[fileID]; ok && len(h.terms) >= th.MinLexicalTerms {
+			continue
+		}
+		corroborated = append(corroborated, &lexicalHit{fileID: fileID, terms: e.hit.terms, weight: e.hit.weight})
+	}
+	// Most of the task's intent first; among equals, the file whose best
+	// definition says it most strongly; then by id: two files with identical
 	// evidence must not swap places between runs, for the same reason
 	// findSeeds sorts by id — the pack is part of the determinism contract.
 	sort.Slice(corroborated, func(i, j int) bool {
-		if corroborated[i].weight != corroborated[j].weight {
-			return corroborated[i].weight > corroborated[j].weight
+		a, b := corroborated[i], corroborated[j]
+		if a.weight != b.weight {
+			return a.weight > b.weight
 		}
-		return corroborated[i].fileID < corroborated[j].fileID
+		if va, vb := defBest[a.fileID].value, defBest[b.fileID].value; va != vb {
+			return va > vb
+		}
+		return a.fileID < b.fileID
 	})
 
 	seen := make(map[int64]struct{}, len(seeds))
@@ -262,9 +292,22 @@ func addLexicalSeeds(c *catalogue, in Intent, seeds []seed, hits map[int64]*lexi
 		// weak signals corroborate: a file the task matches textually, holding
 		// a symbol the task matches by name, is better evidence than either
 		// alone -- and neither would have seeded on its own here.
+		//
+		// A definition whose own text matches the task beats any name match:
+		// in a long file it is the one function the task is about, and the
+		// walk should radiate from it.
 		var best int64
 		var bestScore float64
+		fromDefinition := false
+		if e, ok := defBest[h.fileID]; ok {
+			if _, dup := seen[e.hit.symbolID]; !dup {
+				best, fromDefinition = e.hit.symbolID, true
+			}
+		}
 		for _, id := range c.unitsByFile[h.fileID] {
+			if fromDefinition {
+				break
+			}
 			// Tests and documentation never root the walk (see
 			// expansionRoots), so a slot spent on one is a slot wasted: the
 			// file's real code, or the next file, gets it instead.
@@ -280,7 +323,7 @@ func addLexicalSeeds(c *catalogue, in Intent, seeds []seed, hits map[int64]*lexi
 		}
 		if best != 0 {
 			seen[best] = struct{}{}
-			seeds = append(seeds, seed{symbolID: best, score: th.SeedName, matched: h.terms})
+			seeds = append(seeds, seed{symbolID: best, score: th.SeedName, matched: h.terms, fromText: true})
 			room--
 		}
 	}

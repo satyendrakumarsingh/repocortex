@@ -216,6 +216,9 @@ func (r *Registry) ReplaceFile(
 		if _, err := st.ftsMap.ExecContext(ctx, rowid, fileID); err != nil {
 			return fmt.Errorf("registry: ReplaceFile %q: map fts row: %w", file.Path, err)
 		}
+		if err := insertDefinitionTexts(ctx, st.defs, o.content, DefinitionSpansOf(symbols)); err != nil {
+			return fmt.Errorf("registry: ReplaceFile %q: %w", file.Path, err)
+		}
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -235,6 +238,9 @@ func deleteFileRows(ctx context.Context, tx *sql.Tx, runID int64, path string) e
 		         JOIN files f ON f.id = m.file_id
 		        WHERE f.index_run_id = ? AND f.path = ?)`, runID, path); err != nil {
 		return fmt.Errorf("delete fts rows: %w", err)
+	}
+	if err := deleteDefinitionRows(ctx, tx, runID, path); err != nil {
+		return err
 	}
 	if _, err := tx.ExecContext(ctx,
 		`DELETE FROM edges WHERE index_run_id = ? AND evidence_file = ?`, runID, path); err != nil {

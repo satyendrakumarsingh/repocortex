@@ -125,6 +125,7 @@ func (s *RegistrySink) writeFileRows(ctx context.Context, facts FileFacts) error
 	// fqnToID lets the exposure and access wiring below refer to symbols by
 	// name without a second query. Real row ids, filled in as each is written.
 	fqnToID := make(map[string]int64, len(symbols))
+	var defSpans []registry.DefinitionSpan
 
 	// Qualified names first, then collapse: identity is (fqn, line), so the
 	// duplicates cannot be seen until the names are assigned.
@@ -140,6 +141,9 @@ func (s *RegistrySink) writeFileRows(ctx context.Context, facts FileFacts) error
 			return fmt.Errorf("add symbol %s in %s: %w", sym.Name, f.Path, err)
 		}
 		fqnToID[sym.FQN] = id
+		if registry.HasDefinitionText(sym.Kind) {
+			defSpans = append(defSpans, registry.DefinitionSpan{ID: id, Name: sym.Name, Start: sym.Range.Start.Line, End: sym.Range.End.Line})
+		}
 		if sym.Name != "" {
 			// Also keyed by bare name, so a route naming its handler
 			// ("handleCallback") can find the method without knowing how the
@@ -208,6 +212,11 @@ func (s *RegistrySink) writeFileRows(ctx context.Context, facts FileFacts) error
 		s.secretsFound += len(findings)
 		if err := s.writer.IndexFileText(ctx, fileID, f.Path, text); err != nil {
 			return fmt.Errorf("index text for %s: %w", f.Path, err)
+		}
+		// Each function's and method's own text, so a definition deep in a
+		// long file can be found by what it does (migration 0021).
+		if err := s.writer.IndexDefinitionText(ctx, text, defSpans); err != nil {
+			return fmt.Errorf("index definition text for %s: %w", f.Path, err)
 		}
 	}
 	return nil
