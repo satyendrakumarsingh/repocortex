@@ -299,7 +299,9 @@ func (r *Resolver) moduleOf(spec LanguageSpec, fromPath, specifier string) modul
 	switch spec.Name {
 	case "lua":
 		return r.luaModule(spec, specifier)
-	case "dart":
+	case "dart", "zig":
+		// Both name one file by its repository path without the extension, which
+		// the parser has rewritten from the path written relative to the importer.
 		return r.dartModule(specifier)
 	}
 	return r.scriptModule(fromPath, specifier)

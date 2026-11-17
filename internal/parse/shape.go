@@ -232,6 +232,12 @@ func (p *genericParser) analyzeShapes(tree *ts.Tree, src []byte, tags []ts.Tag) 
 		switch {
 		case isCallTag(tag.Kind):
 			facts.calls[at] = w.typedShape(facts.calls[at], w.scopeOf(at), tag.Name)
+			if shadowLanguages[p.entry.Name] && facts.calls[at].kind == model.ReceiverBare &&
+				shadowedByLocal(p.entry.Name, tree.RootNode(), p.lang, src, at, tag.NameRange.EndByte, tag.Name) {
+				sh := facts.calls[at]
+				sh.indirect = true
+				facts.calls[at] = sh
+			}
 		case strings.HasPrefix(tag.Kind, "definition"):
 			if q := w.qualifiedName(tag, w.scopeOf(at)); q != "" && q != tag.Name {
 				facts.quals[at] = q
@@ -378,6 +384,9 @@ func (w *shWalker) textualShape(tag ts.Tag) callShape {
 	if w.language == "erlang" {
 		// `m:f(x)`: the colon is not a member operator in any other language.
 		return erlangShape(pre)
+	}
+	if w.language == "perl" {
+		return perlShape(pre)
 	}
 
 	if w.language == "r" && strings.HasSuffix(pre, ":::") {

@@ -96,6 +96,18 @@ func TestSingleFileComponentsAreResolved(t *testing.T) {
 	}
 }
 
+// Haskell, F#, OCaml, Perl and Zig read their imports, and so bind calls across files.
+func TestModuleLanguagesAreResolved(t *testing.T) {
+	for _, lang := range []string{"haskell", "fsharp", "ocaml", "perl", "zig"} {
+		if ImportQuery(lang) == "" {
+			t.Errorf("%s: no import query", lang)
+		}
+		if got := TierFor(lang); got != TierResolved {
+			t.Errorf("%s: want TierResolved, got %v", lang, got)
+		}
+	}
+}
+
 func TestTiersCoversEveryGrammar(t *testing.T) {
 	all := PureGoBackend().Languages()
 	tiers := Tiers()

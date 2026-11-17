@@ -11,6 +11,15 @@ from an actual run.
 
 ## [Unreleased]
 
+- **Haskell, F#, OCaml, Perl and Zig bind calls across files.**
+  - **Haskell:** reads every `import` form (qualified, aliased, with and without lists, `hiding`) and binds through modules.
+  - **OCaml:** a file is its module, and `open`, `include` and module aliases bring it into scope.
+  - **F#:** `open` and module aliases, with definitions qualified by namespace and module. The `.fsproj` compile order is not read.
+  - **Perl:** reads `use`, `require` and `use parent`, and binds package-qualified calls, `->` method calls on a package, `$self` or `__PACKAGE__`, and `SUPER::`. A plain `use A::B;` is read as importing every sub of `A::B`, because export lists are not read.
+  - **Zig:** binds `@import` of a file, relative to the importer.
+
+  A bare call whose name an enclosing parameter, lambda, pattern or local binding shadows is no longer read as a call of an imported function of that name (Haskell, OCaml, F#). On multi-file fixtures every edge was correct for all five (16 to 23 edges each). Main gaps: functions passed as arguments, F# type members, OCaml local opens, and Perl methods on variables.
+
 - **Vue, Svelte, Apex and Solidity bind calls across files.**
   - **Vue and Svelte:** script blocks were already read as TypeScript or JavaScript, and are now tiered as such. A component the script imports and the template uses (`<Foo />`, `<price-tag>`) is an `INSTANTIATES` edge to that component, including a default import under another name. Svelte `$lib/` imports resolve.
   - **Apex:** has no imports, and its classes are global by name, so a class the repository declares once binds at `high`. Standard namespaces such as `System` and `Database` are builtins.

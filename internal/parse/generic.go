@@ -543,6 +543,9 @@ func (p *genericParser) Parse(ctx context.Context, path string, src []byte) (*Re
 	if cerr := ctx.Err(); cerr != nil {
 		return nil, cerr
 	}
+	if adjust := tagAdjusters[by.entry.Name]; adjust != nil {
+		tags = adjust(src, tags)
+	}
 	hosted := unmarkHostedTags(tags)
 	res.Imports = fixImports(by.entry.Name, path, by.extractImports(tree, src))
 

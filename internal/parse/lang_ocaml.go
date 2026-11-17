@@ -3,6 +3,10 @@ package parse
 import (
 	"regexp"
 	"strings"
+
+	ts "github.com/odvcencio/gotreesitter"
+
+	"github.com/satyendrakumarsingh/repocortex/pkg/model"
 )
 
 // OCaml. What the index holds, see fixtures/langs/ocaml/expected.tsv.
@@ -34,9 +38,100 @@ import (
 // Not definitions: a let inside an expression (`let x = ... in`), a module
 // declared by `let module`, the constructors of a variant, the fields of a
 // record, and open/include.
+//
+// Calls. An application whose function is a path is a call: `f x`, `A.f x`,
+// `A.B.f x`; the tag spans the application, so the text before the name is what
+// shape.go reads the module from. The right of `|>` is a call too (`xs |> f`).
+// A name passed as an argument (`List.map pad xs`) is not tagged: without scopes
+// it cannot be told from a parameter of the same name.
+//
+// A module is the file (a.ml is `A`) and a `module M = struct ... end` inside it
+// is a module of its own, so each definition is qualified by the struct modules
+// around it (`Cart.Inner`, see ocamlOwners). The imports are `open`, `include`
+// and `module X = A.B`, read from the statement's text (ocamlImport).
 func init() {
-	registerDefinitions("ocaml", ocamlDefinitions(), true)
+	registerDefinitions("ocaml", ocamlCalls+ocamlDefinitions(), true)
+	definitionRefiners["ocaml"] = ocamlOwners
+	registerImportFix("ocaml", ocamlImport)
 }
+
+const ocamlCalls = `
+(application_expression function: (value_path . (value_name) @name .)) @reference.call
+(application_expression function: (value_path (module_path) (value_name) @name .)) @reference.call
+(infix_expression operator: (rel_operator) @_op right: (value_path (value_name) @name .) @reference.call
+  (#eq? @_op "|>"))
+`
+
+// ocamlOwners says which modules every definition is in: the names of the
+// `module M = struct ... end` blocks and module types around it, outermost
+// first, joined with dots. The file's own module is not in the list: it is the
+// file's name, and the resolver reads it from there.
+func ocamlOwners(root *ts.Node, lang *ts.Language, _ string, src []byte, tags []ts.Tag) map[uint32]definitionFix {
+	var fixes map[uint32]definitionFix
+	for _, tag := range tags {
+		if !strings.HasPrefix(tag.Kind, "definition.") {
+			continue
+		}
+		n := root.NamedDescendantForByteRange(tag.NameRange.StartByte, tag.NameRange.EndByte)
+		isModule := kindFromTag(tag.Kind) == model.KindPackage
+		var chain []string
+		for p := n; p != nil; p = p.Parent() {
+			var name *ts.Node
+			switch p.Type(lang) {
+			case "module_binding":
+				for i := 0; i < p.ChildCount() && name == nil; i++ {
+					if c := p.Child(i); c != nil && c.Type(lang) == "module_name" {
+						name = c
+					}
+				}
+			case "module_type_definition":
+				for i := 0; i < p.ChildCount() && name == nil; i++ {
+					if c := p.Child(i); c != nil && c.Type(lang) == "module_type_name" {
+						name = c
+					}
+				}
+			}
+			if name == nil || isModule && name.StartByte() == tag.NameRange.StartByte {
+				continue
+			}
+			chain = append([]string{name.Text(src)}, chain...)
+		}
+		if len(chain) == 0 {
+			continue
+		}
+		if fixes == nil {
+			fixes = map[uint32]definitionFix{}
+		}
+		fixes[tag.NameRange.StartByte] = definitionFix{owner: strings.Join(chain, ".")}
+	}
+	return fixes
+}
+
+// ocamlImport reads a statement that brings a module into the file.
+//
+//	open A.B   include A.B      A.B, import      the module's names are in scope bare
+//	module X = A.B              A.B, alias:X     `X.f` names A.B's f
+//
+// A local open (`let open A in`, `A.(f x)`) is not read: its names are in scope
+// in one expression and not in the file, and reading it as an `open` would bind
+// a name written elsewhere in the file to the module.
+func ocamlImport(_ string, imp Import) []Import {
+	text := strings.TrimSpace(imp.Path)
+	if m := ocamlOpenStmt.FindStringSubmatch(text); m != nil {
+		imp.Path, imp.Alias = m[1], ModuleImportAll
+		return []Import{imp}
+	}
+	if m := ocamlAliasStmt.FindStringSubmatch(text); m != nil {
+		imp.Path, imp.Alias = m[2], ModuleAliasPrefix+m[1]
+		return []Import{imp}
+	}
+	return nil
+}
+
+var (
+	ocamlOpenStmt  = regexp.MustCompile(`^(?:open|include)!?\s+([A-Z][A-Za-z0-9_']*(?:\.[A-Z][A-Za-z0-9_']*)*)\s*$`)
+	ocamlAliasStmt = regexp.MustCompile(`^module\s+([A-Z][A-Za-z0-9_']*)\s*=\s*([A-Z][A-Za-z0-9_']*(?:\.[A-Z][A-Za-z0-9_']*)*)\s*$`)
+)
 
 // ocamlItems are the patterns for one declaration. Each is one pattern, not an
 // alternation of them: when several siblings match (the bindings joined by

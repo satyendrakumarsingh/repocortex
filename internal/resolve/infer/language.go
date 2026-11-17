@@ -1225,6 +1225,36 @@ func NewSpecs() *Specs {
 	julia.ProximityIsEvidence = false
 	julia.MemberSeparators = sepDefault
 	add(julia)
+	// Haskell. A module is a file reached by the name `module A.B where` gives it
+	// (A/B.hs, under a source directory the code does not state), and a bare name
+	// reaches the module's own functions or what an `import` brings in: no
+	// neighbour is in scope, so proximity is no evidence, and the resolution is
+	// modules.go's. Hspec specs are `*Spec.hs`, Tasty and HUnit tests `*Test.hs` or
+	// `*Tests.hs`, under test/ (or tests/, spec/).
+	haskell := scopeSpec("haskell", []string{"haskell"}, TestFiles{
+		Suffixes:  []string{"spec.hs", "test.hs", "tests.hs"},
+		BaseNames: []string{"Spec.hs"},
+		Dirs:      []string{"test", "tests", "spec"},
+	})
+	haskell.ProximityIsEvidence = false
+	haskell.MemberSeparators = sepDefault
+	add(haskell)
+	// Zig. A file is a struct and sees nothing of its directory: what it uses it
+	// imports with `@import("x.zig")`, by a path relative to itself (rewritten by
+	// the parser to the file's repository path, so an import names one file and not
+	// whichever file has that ending). Proximity is therefore no evidence, as for
+	// Dart, and a type next door is not in scope until imported. `@import("std")`
+	// names no file of the repository. Tests are `test "..." {}` blocks in ordinary
+	// files, which a file convention cannot see; a file named for its tests
+	// (`foo_test.zig`) and the test/ directory are what is claimed.
+	zig := scopeSpec("zig", []string{"zig"}, TestFiles{
+		Suffixes: []string{"_test.zig", "_tests.zig"},
+		Dirs:     []string{"test", "tests"},
+	})
+	zig.ProximityIsEvidence = false
+	zig.TypesNeedImport = true
+	zig.MemberSeparators = sepDefault
+	add(zig)
 	// Dart. A file is a library and sees nothing of its directory: what it
 	// uses it imports, by a path relative to itself or `package:` (rewritten by
 	// the parser to the file's repository path, so an import names one file and

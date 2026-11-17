@@ -1152,3 +1152,414 @@ func TestApexNoImportsAndConstruction(t *testing.T) {
 		}
 	}
 }
+
+// importRows lists every import row as "path alias", for a language whose
+// directives keep several rows of one path.
+func importRows(res *Result) map[string]bool {
+	got := map[string]bool{}
+	for _, i := range res.Imports {
+		got[i.Path+" "+i.Alias] = true
+	}
+	return got
+}
+
+func wantRows(t *testing.T, res *Result, want []string) {
+	t.Helper()
+	got := importRows(res)
+	for _, w := range want {
+		if !got[w] {
+			t.Errorf("missing import row %q in %+v", w, res.Imports)
+		}
+	}
+	if len(res.Imports) != len(want) {
+		t.Errorf("import rows = %d, want exactly %d: %+v", len(res.Imports), len(want), res.Imports)
+	}
+}
+
+// Haskell: a module by its dotted name, and what the statement does with it. A
+// list names the functions it brings in (the lower-case entries, and a class's
+// methods under it), hiding names those it leaves out, and a qualified import
+// brings in no bare name.
+func TestHaskellImports(t *testing.T) {
+	res := parse(t, "src/Shop/Cart.hs", `module Shop.Cart (total) where
+
+import Data.List (sortBy, (\\))
+import qualified Data.Map.Strict as M
+import Shop.Util (slug, pad, Shape(area, perimeter), Config(..))
+import Shop.Tax hiding (apply)
+import Shop.Types
+import Shop.Money as Money
+import Shop.Fmt qualified as Fmt
+import {-# SOURCE #-} Shop.Loop
+import safe "pkg" Shop.Pkg (go)
+
+total :: Int
+total = 0
+`)
+	wantRows(t, res, []string{
+		"Data.List import:sortBy",
+		"Data.Map.Strict alias:M",
+		"Shop.Util import:slug,pad,area,perimeter",
+		"Shop.Tax hiding:apply",
+		"Shop.Types import",
+		"Shop.Money import;alias:Money",
+		"Shop.Fmt alias:Fmt",
+		"Shop.Loop import",
+		"Shop.Pkg import:go",
+	})
+}
+
+// Haskell calls: the function of an application, a qualified name wherever it is
+// written, a function beside an operator that applies or composes, and one in
+// backquotes. A name passed as an argument is not a call, and neither is a
+// constructor.
+func TestHaskellCallShapes(t *testing.T) {
+	refs, _ := shapeOf(t, "src/Shop/Cart.hs", `module Shop.Cart where
+
+f xs = Money.add (sum xs) (slug xs)
+g = map (Shop.Util.pad 3) . filter keep $ run 1
+h = fmap parse <$> load
+k a b = a `+"`plus`"+` b
+m = Just total
+`)
+	for name, want := range map[string]struct{ kind, recv string }{
+		"add":    {model.ReceiverName, "Money"},
+		"slug":   {model.ReceiverBare, ""},
+		"pad":    {model.ReceiverPath, "Shop.Util"},
+		"filter": {model.ReceiverBare, ""},
+		"plus":   {model.ReceiverBare, ""},
+	} {
+		got, ok := refs[name]
+		if !ok || got.ReceiverKind != want.kind || got.Receiver != want.recv {
+			t.Errorf("%s = %+v, want %s %q", name, got, want.kind, want.recv)
+		}
+	}
+	for _, name := range []string{"keep", "total", "Just"} {
+		if _, ok := refs[name]; ok {
+			t.Errorf("%q is passed or constructed, not called, and was recorded as a call", name)
+		}
+	}
+}
+
+// A name a function binds is not a call of the module's function: a parameter, a
+// lambda's argument, a case arm, a do binding and a where. The function that
+// calls itself is a call.
+func TestShadowedCallsAreIndirect(t *testing.T) {
+	cases := []struct{ file, src string }{
+		{"src/A.hs", "module A where\nf slug = slug 3\n"},
+		{"src/A.hs", "module A where\nf = \\slug -> slug 3\n"},
+		{"src/A.hs", "module A where\nf m = case m of\n  Just slug -> slug 3\n  Nothing -> 0\n"},
+		{"src/A.hs", "module A where\nf = do\n  slug <- load\n  slug 3\n"},
+		{"src/A.hs", "module A where\nf = slug 3\n  where slug = id\n"},
+		{"src/a.ml", "let f slug = slug 3\n"},
+		{"src/a.ml", "let f = fun slug -> slug 3\n"},
+		{"src/a.ml", "let f m = match m with Some slug -> slug 3 | None -> 0\n"},
+		{"src/a.ml", "let f x = let slug y = y in slug x\n"},
+		{"src/A.fsx", "module A\nlet f slug = slug 3\n"},
+		{"src/A.fsx", "module A\nlet f = fun slug -> slug 3\n"},
+		{"src/A.fsx", "module A\nlet f m =\n    match m with\n    | Some slug -> slug 3\n    | None -> 0\n"},
+		{"src/A.fsx", "module A\nlet f x =\n    let slug y = y\n    slug x\n"},
+	}
+	for _, c := range cases {
+		res := parse(t, c.file, c.src)
+		found := false
+		for _, r := range res.References {
+			if r.Name == "slug" {
+				found = true
+				if !strings.HasSuffix(r.Kind, IndirectCallSuffix) {
+					t.Errorf("%s: slug is a bound name and was recorded as a call (%s):\n%s", c.file, r.Kind, c.src)
+				}
+			}
+		}
+		if !found {
+			t.Errorf("%s: no reference to slug:\n%s", c.file, c.src)
+		}
+	}
+	for _, c := range []struct{ file, src string }{
+		{"src/A.hs", "module A where\nself n = self (n - 1)\n"},
+		{"src/a.ml", "let rec self n = self (n - 1)\n"},
+		{"src/A.fsx", "module A\nlet rec self n = self (n - 1)\n"},
+	} {
+		for _, r := range parse(t, c.file, c.src).References {
+			if r.Name == "self" && strings.HasSuffix(r.Kind, IndirectCallSuffix) {
+				t.Errorf("%s: a function calls itself, and it was marked a bound name:\n%s", c.file, c.src)
+			}
+		}
+	}
+}
+
+// OCaml: `open` and `include` bring a module's names in, `module X = A.B`
+// renames it, and a local open names a module for one expression and is not an
+// import. Each definition is qualified by the struct modules around it.
+func TestOCamlImports(t *testing.T) {
+	res := parse(t, "src/cart.ml", `open Util
+open! Shop.Fmt
+include Extra
+module M = Money
+module T = Shop.Tax
+module Inner = struct
+  let deep x = x
+end
+module F (X : S) = struct
+  let g x = x
+end
+
+let a = let open Money in zero ()
+let b = Money.(add 1 2)
+`)
+	wantRows(t, res, []string{
+		"Util import", "Shop.Fmt import", "Extra import", "Money alias:M", "Shop.Tax alias:T",
+	})
+	for _, s := range res.Symbols {
+		if s.Name == "deep" && !strings.HasSuffix(s.FQN, "cart.ml:Inner.deep") {
+			t.Errorf("deep = %q, want it qualified by Inner", s.FQN)
+		}
+		if s.Name == "g" && !strings.HasSuffix(s.FQN, "cart.ml:F.g") {
+			t.Errorf("g = %q, want it qualified by F", s.FQN)
+		}
+	}
+}
+
+// OCaml calls: the function of an application, however qualified, and the right
+// of `|>`. A name passed as an argument is not a call.
+func TestOCamlCallShapes(t *testing.T) {
+	refs, _ := shapeOf(t, "src/cart.ml", `let f xs =
+  let z = Money.zero () in
+  List.iter print_item xs;
+  Shop.Tax.rate z + helper z;
+  xs |> List.map pad |> sum
+`)
+	for name, want := range map[string]struct{ kind, recv string }{
+		"zero":   {model.ReceiverName, "Money"},
+		"iter":   {model.ReceiverName, "List"},
+		"rate":   {model.ReceiverPath, "Shop.Tax"},
+		"helper": {model.ReceiverBare, ""},
+		"sum":    {model.ReceiverBare, ""},
+	} {
+		got, ok := refs[name]
+		if !ok || got.ReceiverKind != want.kind || got.Receiver != want.recv {
+			t.Errorf("%s = %+v, want %s %q", name, got, want.kind, want.recv)
+		}
+	}
+	if _, ok := refs["print_item"]; ok {
+		t.Errorf("print_item is passed, not called, and was recorded as a call")
+	}
+}
+
+// F#: `open` brings a module's names in and `module X = A.B` renames it. A
+// definition is qualified by the namespaces and modules around it, whichever way
+// the file declares them, and a member of a type keeps the type's own name.
+func TestFSharpImports(t *testing.T) {
+	res := parse(t, "src/Cart.fsx", `namespace Shop
+
+open System
+open Shop.Util
+open type Shop.Types.Kind
+module M = Shop.Money
+
+module Cart =
+    let total x = x
+
+    module Inner =
+        let deep x = x
+
+type Order() =
+    member this.Run() = 1
+`)
+	wantRows(t, res, []string{"System import", "Shop.Util import", "Shop.Money alias:M"})
+	quals := map[string]string{}
+	for _, s := range res.Symbols {
+		quals[s.Name] = strings.TrimPrefix(s.FQN, "src/Cart.fsx:")
+	}
+	for name, want := range map[string]string{
+		"total": "Shop.Cart.total", "deep": "Shop.Cart.Inner.deep", "Inner": "Shop.Cart.Inner", "Order": "Shop.Order",
+	} {
+		if quals[name] != want {
+			t.Errorf("%s = %q, want %q", name, quals[name], want)
+		}
+	}
+
+	res = parse(t, "src/Money.fsx", "module Shop.Money\n\nlet zero () = 0\n")
+	for _, s := range res.Symbols {
+		if s.Name == "zero" && s.FQN != "src/Money.fsx:Shop.Money.zero" {
+			t.Errorf("zero = %q, want it qualified by the file's module", s.FQN)
+		}
+	}
+}
+
+// F# calls: the function of an application, however qualified; the grammar reads
+// `f a + g b` as `(f a + g) b` and the call of g is still found; and the right of
+// `|>`.
+func TestFSharpCallShapes(t *testing.T) {
+	refs, _ := shapeOf(t, "src/Cart.fsx", `module Cart
+
+let f xs =
+    let z = Money.zero ()
+    let t = Shop.Tax.rate z + helper z
+    xs |> List.map pad |> ignore
+    xs |> finish
+`)
+	for name, want := range map[string]struct{ kind, recv string }{
+		"zero":   {model.ReceiverName, "Money"},
+		"rate":   {model.ReceiverPath, "Shop.Tax"},
+		"helper": {model.ReceiverBare, ""},
+		"map":    {model.ReceiverName, "List"},
+		"finish": {model.ReceiverBare, ""},
+	} {
+		got, ok := refs[name]
+		if !ok || got.ReceiverKind != want.kind || got.Receiver != want.recv {
+			t.Errorf("%s = %+v, want %s %q", name, got, want.kind, want.recv)
+		}
+	}
+}
+
+// Perl: a package by its name, what a statement imports from it, and the package
+// a `use parent` inherits from. A pragma names no package.
+func TestPerlImports(t *testing.T) {
+	res := parse(t, "lib/Shop/Cart.pm", `package Shop::Cart;
+use strict;
+use warnings;
+use constant DEBUG => 0;
+use lib 'lib';
+use parent -norequire, 'Shop::Base', "Shop::Mixin";
+use base qw(Shop::Legacy);
+use Shop::Money;
+use Shop::Util qw(slug pad);
+use Shop::Fmt ('fmt', 'indent');
+use Shop::Tax ();
+use Shop::Flags qw(:all);
+use List::Util 1.45 qw(sum);
+require Shop::Extra;
+require "helpers.pl";
+
+sub total { 1 }
+`)
+	wantRows(t, res, []string{
+		"Shop::Base parent", "Shop::Mixin parent", "Shop::Legacy parent",
+		"Shop::Money import", "Shop::Util import:slug,pad", "Shop::Fmt import:fmt,indent",
+		"Shop::Tax ", "Shop::Flags import", "List::Util import:sum", "Shop::Extra ",
+	})
+}
+
+// Perl calls: a function by its package, a method by a class name, `$self`,
+// `$class` and `__PACKAGE__` by the package the call is written in, and
+// `SUPER::` by the one inherited from. Any other variable is a value and names
+// no package. The sigil of `&f()` is not part of the name.
+func TestPerlCallShapes(t *testing.T) {
+	refs, res := shapeOf(t, "lib/Shop/Cart.pm", `package Shop::Cart;
+
+sub total {
+    my ($self, $m) = @_;
+    Shop::Money::zero();
+    Shop::Tax->rate(1);
+    $self->checkout();
+    __PACKAGE__->helper();
+    $class->SUPER::build();
+    $m->fmt();
+    slug($m);
+    &pad(1);
+    main::go();
+}
+`)
+	for name, want := range map[string]struct{ kind, recv string }{
+		"zero":     {model.ReceiverScope, "Shop::Money"},
+		"rate":     {model.ReceiverScope, "Shop::Tax"},
+		"checkout": {model.ReceiverSelf, "$self"},
+		"helper":   {model.ReceiverSelf, "__PACKAGE__"},
+		"build":    {model.ReceiverSuper, "SUPER"},
+		"fmt":      {model.ReceiverValue, "$m"},
+		"slug":     {model.ReceiverBare, ""},
+		"pad":      {model.ReceiverBare, ""},
+		"go":       {model.ReceiverScope, "main"},
+	} {
+		got, ok := refs[name]
+		if !ok || got.ReceiverKind != want.kind || got.Receiver != want.recv {
+			t.Errorf("%s = %+v, want %s %q", name, got, want.kind, want.recv)
+		}
+	}
+	for _, s := range res.Symbols {
+		if s.Name == "total" && s.FQN != "lib/Shop/Cart.pm:Shop::Cart.total" {
+			t.Errorf("total = %q, want it qualified by its package", s.FQN)
+		}
+	}
+
+	// A package block and a package statement are both packages; code before
+	// either is main's and keeps its name.
+	res = parse(t, "bin/run.pl", "sub run { 1 }\npackage Foo { sub a { 1 } }\npackage Bar;\nsub b { 1 }\n")
+	owners := map[string]string{}
+	for _, s := range res.Symbols {
+		owners[s.Name] = s.FQN
+	}
+	for name, want := range map[string]string{"run": "", "a": "bin/run.pl:Foo.a", "b": "bin/run.pl:Bar.b"} {
+		if owners[name] != want {
+			t.Errorf("%s = %q, want %q", name, owners[name], want)
+		}
+	}
+}
+
+// Zig: `@import("x.zig")` names a file relative to the importer, bound to a local
+// name, to one of its members, or to nothing (`_ = @import`). The standard library
+// and the build's packages name no file here.
+func TestZigImports(t *testing.T) {
+	res := parse(t, "src/app/cart.zig", `const std = @import("std");
+const builtin = @import("builtin");
+const money = @import("money.zig");
+const util = @import("../lib/util.zig");
+const Money = @import("money.zig").Money;
+pub const add = @import("money.zig").add;
+const dep = @import("dep");
+comptime {
+    _ = @import("tax.zig");
+}
+
+pub fn total() void {}
+`)
+	wantRows(t, res, []string{
+		"src/app/money money", "src/lib/util util", "src/app/money .Money", "src/app/money .add", "src/app/tax ",
+	})
+
+	// A path that climbs out of the repository names no file in it.
+	res = parse(t, "cart.zig", "const o = @import(\"../outside.zig\");\n")
+	if len(res.Imports) != 0 {
+		t.Errorf("an import above the root was kept: %+v", res.Imports)
+	}
+}
+
+// Zig calls: a function by name, a member by the value or the file it is called
+// on. A builtin is not a call, and a member of a declared type is qualified by it.
+func TestZigCallShapes(t *testing.T) {
+	refs, res := shapeOf(t, "src/cart.zig", `const std = @import("std");
+const money = @import("money.zig");
+
+pub const Cart = struct {
+    n: i64,
+
+    pub fn init() Cart {
+        return .{ .n = money.zero() };
+    }
+};
+
+pub fn total(x: i64) i64 {
+    std.debug.print("{}", .{x});
+    return add(x, @as(i64, 1)) + helper(x);
+}
+`)
+	for name, want := range map[string]struct{ kind, recv string }{
+		"zero":  {model.ReceiverName, "money"},
+		"print": {model.ReceiverPath, "std.debug"},
+		"add":   {model.ReceiverBare, ""},
+	} {
+		got, ok := refs[name]
+		if !ok || got.ReceiverKind != want.kind || got.Receiver != want.recv {
+			t.Errorf("%s = %+v, want %s %q", name, got, want.kind, want.recv)
+		}
+	}
+	if _, ok := refs["as"]; ok {
+		t.Errorf("@as is a builtin, not a call")
+	}
+	for _, s := range res.Symbols {
+		if s.Name == "init" && s.FQN != "src/cart.zig:Cart.init" {
+			t.Errorf("init = %q, want it qualified by Cart", s.FQN)
+		}
+	}
+}

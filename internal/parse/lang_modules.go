@@ -18,6 +18,10 @@ import "strings"
 //	alias:b        the qualifier `b` names the module
 //	import         every function of the module is in scope under its own name
 //	import:f,g/2   only the listed names are (Erlang writes the arity: g/2)
+//	parent         Path names a package this one inherits from (Perl's
+//	               `use parent` and `use base`)
+//	hiding:f,g     every function of the module EXCEPT the listed (Haskell's
+//	               `import A hiding (f)`)
 //	include        Path names a FILE whose definitions join this file's module
 //	               (Julia's include)
 //
@@ -26,6 +30,8 @@ const (
 	ModuleAliasPrefix        = "alias:"
 	ModuleImportAll          = "import"
 	ModuleImportPrefix       = "import:"
+	ModuleParent             = "parent"
+	ModuleHidingPrefix       = "hiding:"
 	ModuleInclude            = "include"
 	ModuleDirectiveSeparator = ";"
 )
@@ -48,7 +54,7 @@ func moduleDirectives(parts ...string) string {
 // lose one. Groovy keeps both rows of `import a.b.C as D` (the class, and the
 // alias) for the same reason. Every other language keeps the behaviour it has
 // always had.
-var keepsEveryDirective = map[string]bool{"erlang": true, "clojure": true, "julia": true, "groovy": true}
+var keepsEveryDirective = map[string]bool{"erlang": true, "clojure": true, "julia": true, "groovy": true, "haskell": true, "ocaml": true, "perl": true, "zig": true, "fsharp": true}
 
 // dedupeDirectives drops only exact repeats of a row, in the order given.
 func dedupeDirectives(in []Import) []Import {

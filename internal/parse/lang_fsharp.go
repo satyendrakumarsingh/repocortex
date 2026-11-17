@@ -1,9 +1,12 @@
 package parse
 
 import (
+	"regexp"
 	"strings"
 
 	ts "github.com/odvcencio/gotreesitter"
+
+	"github.com/satyendrakumarsingh/repocortex/pkg/model"
 )
 
 // F#: modules, namespaces, types, exceptions, module-level lets and members.
@@ -27,6 +30,19 @@ import (
 //
 // Lets are definitions only directly inside a file, namespace or module;
 // a let in a function body or in a class (a private field) is not.
+//
+// Calls. F# applies by juxtaposition, so a call is an application whose function
+// is a name (`slug items`, `Money.zero ()`, `Shop.Money.add a b`), and the
+// function on the right of `|>` (`xs |> List.map f`: the grammar reads it as the
+// function of the application that follows). A name passed as an argument is not
+// tagged: without scopes it cannot be told from a parameter of the same name.
+// The grammar writes a lone name two ways, with and without a long_identifier
+// around it, and both are read.
+//
+// A module and a namespace are declarations, not files, so each definition that
+// is not a member of a type is qualified by the namespaces and modules around it
+// (`Shop.Cart.total`, see fsharpOwners). The imports are `open` and
+// `module X = A.B`, read from the statement's text (fsharpImport).
 func init() {
 	scopes := []string{
 		"(file %s)",
@@ -94,17 +110,148 @@ func init() {
 (member_defn (member_signature . (identifier) @name) @definition.field)
 (member_defn (member_signature . (identifier) @name (curried_spec (arguments_spec))) @definition.method)
 `)
+	b.WriteString(fsharpCalls)
 	registerDefinitions("fsharp", b.String(), true)
 	definitionRefiners["fsharp"] = refineFSharpDefinitions
+	registerImportFix("fsharp", fsharpImport)
 }
+
+const fsharpCalls = `
+(application_expression . (long_identifier_or_op . (identifier) @name .)) @reference.call
+(application_expression . (long_identifier_or_op . (long_identifier (identifier) @name .) .)) @reference.call
+(application_expression . (long_identifier_or_op (long_identifier) (identifier) @name .)) @reference.call
+; A name of three segments or more is a dot_expression: the module path is its base and
+; the function its field.
+(application_expression . (dot_expression field: (long_identifier_or_op . (identifier) @name .)) @reference.call)
+(application_expression . (dot_expression field: (long_identifier_or_op (long_identifier (identifier) @name .))) @reference.call)
+(application_expression . (infix_expression (dot_expression field: (long_identifier_or_op (long_identifier (identifier) @name .))) @reference.call .))
+; The grammar reads ` + "`f a + g b`" + ` as ` + "`(f a + g) b`" + `: the function of the application is an infix
+; expression whose last operand is the name that is called.
+(application_expression . (infix_expression (long_identifier_or_op . (identifier) @name .) @reference.call .))
+(application_expression . (infix_expression (long_identifier_or_op . (long_identifier (identifier) @name .) .) @reference.call .))
+(application_expression . (infix_expression (long_identifier_or_op (long_identifier) (identifier) @name .) @reference.call .))
+; The function on the right of |> when nothing is applied after it.
+((infix_expression (infix_op) @_op . (long_identifier_or_op . (identifier) @name .) @reference.call .) @_i
+  (#eq? @_op "|>") (#not-has-parent? @_i application_expression))
+((infix_expression (infix_op) @_op . (long_identifier_or_op . (long_identifier (identifier) @name .) .) @reference.call .) @_i
+  (#eq? @_op "|>") (#not-has-parent? @_i application_expression))
+((infix_expression (infix_op) @_op . (long_identifier_or_op (long_identifier) (identifier) @name .) @reference.call .) @_i
+  (#eq? @_op "|>") (#not-has-parent? @_i application_expression))
+`
+
+// fsharpOwners says which namespaces and modules every definition is in: their
+// names, outermost first, joined with dots. A member of a type keeps the type's
+// name as its qualifier (shape.go) and is left alone, and a module is qualified
+// by the ones around it and not by itself.
+func fsharpOwners(root *ts.Node, lang *ts.Language, src []byte, tags []ts.Tag) map[uint32]definitionFix {
+	var fixes map[uint32]definitionFix
+	for _, tag := range tags {
+		if !strings.HasPrefix(tag.Kind, "definition.") {
+			continue
+		}
+		n := root.NamedDescendantForByteRange(tag.NameRange.StartByte, tag.NameRange.EndByte)
+		isModule := kindFromTag(tag.Kind) == model.KindPackage
+		var chain []string
+		member := false
+		for p := n; p != nil; p = p.Parent() {
+			var name *ts.Node
+			switch p.Type(lang) {
+			case "member_defn", "anon_type_defn", "interface_type_defn", "record_type_defn", "union_type_defn":
+				// Inside a type; a type's own name is the definition's name, not a
+				// scope, and only a member sits inside the type.
+				if p.Type(lang) == "member_defn" || (!isTypeName(tag.Kind) && p.Type(lang) != "member_defn") {
+					member = true
+				}
+			case "namespace":
+				name = p.ChildByFieldName("name", lang)
+			case "named_module":
+				name = p.ChildByFieldName("name", lang)
+				if name == nil {
+					name = firstChildOfType(p, lang, "long_identifier")
+				}
+			case "module_defn":
+				name = firstChildOfType(p, lang, "identifier")
+			case "file":
+				// An indented namespace or module loses its header node, and its
+				// dotted name is the first thing in the file.
+				if first := p.NamedChild(0); first != nil && first.Type(lang) == "long_identifier" && !hasAncestorOfType(n, lang, "named_module", "namespace") {
+					name = first
+				}
+			}
+			if name == nil || (isModule && name.StartByte() == tag.NameRange.StartByte) {
+				continue
+			}
+			chain = append([]string{name.Text(src)}, chain...)
+		}
+		if member || len(chain) == 0 {
+			continue
+		}
+		if fixes == nil {
+			fixes = map[uint32]definitionFix{}
+		}
+		fixes[tag.NameRange.StartByte] = definitionFix{owner: strings.Join(chain, ".")}
+	}
+	return fixes
+}
+
+func isTypeName(kind string) bool {
+	return strings.HasSuffix(kind, ".class") || strings.HasSuffix(kind, ".interface") || strings.HasSuffix(kind, ".type_alias")
+}
+
+func firstChildOfType(n *ts.Node, lang *ts.Language, typ string) *ts.Node {
+	for i := 0; i < n.ChildCount(); i++ {
+		if c := n.Child(i); c != nil && c.Type(lang) == typ {
+			return c
+		}
+	}
+	return nil
+}
+
+func hasAncestorOfType(n *ts.Node, lang *ts.Language, types ...string) bool {
+	for p := n; p != nil; p = p.Parent() {
+		for _, t := range types {
+			if p.Type(lang) == t {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// fsharpImport reads a statement that brings a module in.
+//
+//	open A.B            A.B, import     the module's names are in scope bare
+//	module X = A.B      A.B, alias:X    `X.f` names A.B's f
+func fsharpImport(_ string, imp Import) []Import {
+	text := strings.TrimSpace(imp.Path)
+	if m := fsharpOpenStmt.FindStringSubmatch(text); m != nil {
+		if m[1] == "type" {
+			// `open type X.Y` brings a type's static members in; the grammar splits it
+			// from the type, so the statement names no module here.
+			return nil
+		}
+		imp.Path, imp.Alias = m[1], ModuleImportAll
+		return []Import{imp}
+	}
+	if m := fsharpAliasStmt.FindStringSubmatch(text); m != nil {
+		imp.Path, imp.Alias = m[2], ModuleAliasPrefix+m[1]
+		return []Import{imp}
+	}
+	return nil
+}
+
+var (
+	fsharpOpenStmt  = regexp.MustCompile(`^open\s+(?:type\s+)?([A-Za-z_][A-Za-z0-9_']*(?:\.[A-Za-z_][A-Za-z0-9_']*)*)\s*$`)
+	fsharpAliasStmt = regexp.MustCompile(`^module\s+(?:internal\s+|private\s+|public\s+)?([A-Za-z_][A-Za-z0-9_']*)\s*=\s*([A-Za-z_][A-Za-z0-9_']*(?:\.[A-Za-z_][A-Za-z0-9_']*)*)\s*$`)
+)
 
 // refineFSharpDefinitions repairs the name of a definition written with
 // `inline` behind an access modifier, or a module written `module rec`. The
 // grammar reads the keyword as an identifier, so `let private inline c x = ...`,
 // `static member private inline S(x) = ...` and `module rec Parent.Name` come
 // out named `inline` and `rec`; the name is the word after it.
-func refineFSharpDefinitions(_ *ts.Node, _ *ts.Language, _ string, src []byte, tags []ts.Tag) map[uint32]definitionFix {
-	var fixes map[uint32]definitionFix
+func refineFSharpDefinitions(root *ts.Node, lang *ts.Language, _ string, src []byte, tags []ts.Tag) map[uint32]definitionFix {
+	fixes := fsharpOwners(root, lang, src, tags)
 	for _, t := range tags {
 		if t.Name != "inline" && t.Name != "rec" || !strings.HasPrefix(t.Kind, "definition") {
 			continue
@@ -112,11 +259,13 @@ func refineFSharpDefinitions(_ *ts.Node, _ *ts.Language, _ string, src []byte, t
 		if fixes == nil {
 			fixes = map[uint32]definitionFix{}
 		}
+		fix := fixes[t.NameRange.StartByte]
 		if name := fsharpWordAfter(src, int(t.NameRange.EndByte)); name != "" {
-			fixes[t.NameRange.StartByte] = definitionFix{name: name}
+			fix.name = name
 		} else {
-			fixes[t.NameRange.StartByte] = definitionFix{drop: true}
+			fix.drop = true
 		}
+		fixes[t.NameRange.StartByte] = fix
 	}
 	return fixes
 }

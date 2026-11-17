@@ -4,6 +4,7 @@ import (
 	"sort"
 	"strings"
 
+	ts "github.com/odvcencio/gotreesitter"
 	"github.com/odvcencio/gotreesitter/grammars"
 )
 
@@ -177,3 +178,10 @@ func fixBindings(language, filePath string, in []Import) []Import {
 	}
 	return rewriteImports(fix, filePath, in)
 }
+
+// tagAdjusters holds, per language, a rewrite of the tags a file's queries
+// produced, made before anything reads their ranges. A query captures whole
+// nodes, and a grammar that reads `A::B::f` as one name leaves no node for the
+// last segment: the rewrite narrows the name to it, so that the text before it,
+// which shape.go reads the receiver from, is the package.
+var tagAdjusters = map[string]func(src []byte, tags []ts.Tag) []ts.Tag{}

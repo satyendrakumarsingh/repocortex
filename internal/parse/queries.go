@@ -987,6 +987,61 @@ var importQueries = map[string]string{
 (groovy_import (qualified_name) @path (identifier) @alias)
 `,
 
+	// Haskell: `import A.B`, `import qualified A.B as C`, `import A.B (f, g)` and
+	// `import A.B hiding (f)`. The whole statement is captured, because what it
+	// says (a qualifier, a list of names, hiding) is text that haskellImport
+	// (lang_haskell.go) reads, and each row names a module.
+	"haskell": `
+(import) @path
+`,
+
+	// OCaml: `open A`, `include A` and `module X = A.B`, each captured whole
+	// because what it says is text that ocamlImport (lang_ocaml.go) reads, and
+	// each row names a module. A file `a.ml` is the module `A`, so no statement
+	// is needed for `A.f` to be written: this one is for what brings a module's
+	// names in bare, or renames it.
+	//
+	// An `open` inside an expression (`let open A in`) is a different node under
+	// a different parent, and names a module for that expression alone: only the
+	// statements of a file or of a module's structure are read.
+	"ocaml": `
+(compilation_unit (open_module) @path)
+(compilation_unit (include_module) @path)
+(structure (open_module) @path)
+(structure (include_module) @path)
+(module_definition (module_binding (module_name) body: (module_path))) @path
+`,
+
+	// Perl: `use A::B qw(f g);`, `use parent 'A::B';` and `require A::B;`. The
+	// whole statement is captured, because what it says (a list of names, a
+	// parent) is text that perlImport (lang_perl.go) reads, and each row names a
+	// package. A pragma (`use strict`) names none and is dropped there.
+	"perl": `
+(use_statement) @path
+(require_expression (bareword)) @path
+`,
+
+	// Zig: `const x = @import("x.zig");`, `const f = @import("x.zig").f;` and a
+	// bare `_ = @import("x.zig");` name a file relative to the importing one. The
+	// whole declaration is captured, because which local name it binds, and
+	// whether it is the file or one member of it, is text that zigImport
+	// (lang_zig.go) reads.
+	"zig": `
+((variable_declaration) @path
+  (#match? @path "@import"))
+((assignment_expression) @path
+  (#match? @path "^_\\s*=\\s*@import"))
+`,
+
+	// F#: `open A.B` and `module X = A.B`, each captured whole because what it says
+	// is text that fsharpImport (lang_fsharp.go) reads, and each row names a module.
+	// A module is declared and not a file, so no statement is needed for `A.f` to be
+	// written: these are for what brings a module's names in bare, or renames it.
+	"fsharp": `
+(import_decl) @path
+(module_defn (identifier) block: (long_identifier_or_op)) @path
+`,
+
 	"c": `
 (preproc_include path: (system_lib_string) @path)
 (preproc_include path: (string_literal) @path)

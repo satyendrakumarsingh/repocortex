@@ -1,6 +1,13 @@
 package parse
 
-import "strings"
+import (
+	"path"
+	"regexp"
+	"strings"
+
+	ts "github.com/odvcencio/gotreesitter"
+	"github.com/satyendrakumarsingh/repocortex/pkg/model"
+)
 
 // Zig: functions, container types, constants, variables, fields and tests.
 //
@@ -33,6 +40,12 @@ import "strings"
 func init() {
 	var q strings.Builder
 	q.WriteString(`
+; Calls: f(x), a.f(x) and a.b.f(x). The call node begins at the receiver, so the text
+; before the name is how shape.go reads what the call was made on. A builtin
+; (@import, @as, @intCast) is its own node and is not a call.
+(call_expression function: (identifier) @name) @reference.call
+(call_expression function: (field_expression member: (identifier) @name)) @reference.call
+
 (function_declaration . (identifier) @name) @definition.function
 (function_declaration . (string) . (identifier) @name) @definition.function
 
@@ -75,7 +88,8 @@ func init() {
 		q.WriteString("(" + p + ` (variable_declaration . (identifier) @name . [(builtin_type) (function_signature) (pointer_type (function_signature))] .) @definition.type_alias` + "\n")
 		q.WriteString("  (#match? @definition.type_alias \"" + constRx + "\"))\n")
 		q.WriteString("(" + p + ` (variable_declaration . (identifier) @name . [(identifier) (field_expression) (call_expression)] .) @definition.type_alias` + "\n")
-		q.WriteString("  (#match? @name \"^[A-Z][a-z]\")\n  (#match? @definition.type_alias \"" + constRx + "\"))\n")
+		// `const Money = @import("money.zig").Money;` is an import and names nothing new.
+		q.WriteString("  (#match? @name \"^[A-Z][a-z]\")\n  (#not-match? @definition.type_alias \"@import\")\n  (#match? @definition.type_alias \"" + constRx + "\"))\n")
 		q.WriteString("(" + p + ` (variable_declaration . (identifier) @name) @definition.constant` + "\n")
 		q.WriteString("  (#match? @definition.constant \"" + constRx + "\")\n")
 		q.WriteString("  (#not-match? @definition.constant \"=\\\\s*@(import|This)\\\\b\"))\n")
@@ -84,7 +98,97 @@ func init() {
 	}
 	registerDefinitions("zig", q.String(), true)
 	registerNameFix("zig", zigName)
+	registerImportFix("zig", zigImport)
+	definitionRefiners["zig"] = zigOwners
 }
+
+// zigOwners qualifies a member of a container by the declared type it is in:
+// `init` in `pub const Money = struct { ... }` is `Money.init`, and one in a type
+// nested in another is `Outer.Inner.init`. Zig has no member syntax, so nothing
+// else says that `Money.init(5)` reaches it. A container that is no declaration's
+// value (the struct a generic function returns, a local type) names no owner and
+// its members keep the names they had.
+func zigOwners(root *ts.Node, lang *ts.Language, _ string, src []byte, tags []ts.Tag) map[uint32]definitionFix {
+	var fixes map[uint32]definitionFix
+	for _, tag := range tags {
+		kind := kindFromTag(tag.Kind)
+		if kind != model.KindMethod && kind != model.KindField && kind != model.KindConstant {
+			continue
+		}
+		n := root.NamedDescendantForByteRange(tag.NameRange.StartByte, tag.NameRange.EndByte)
+		var chain []string
+		for p := n; p != nil; p = p.Parent() {
+			switch p.Type(lang) {
+			case "struct_declaration", "union_declaration", "enum_declaration":
+			default:
+				continue
+			}
+			decl := p.Parent()
+			if decl == nil || decl.Type(lang) != "variable_declaration" {
+				chain = nil
+				break
+			}
+			var name *ts.Node
+			for i := 0; i < decl.ChildCount() && name == nil; i++ {
+				if c := decl.Child(i); c != nil && c.Type(lang) == "identifier" {
+					name = c
+				}
+			}
+			if name == nil || name.StartByte() == tag.NameRange.StartByte {
+				continue
+			}
+			chain = append([]string{name.Text(src)}, chain...)
+		}
+		if len(chain) == 0 {
+			continue
+		}
+		if fixes == nil {
+			fixes = map[uint32]definitionFix{}
+		}
+		fixes[tag.NameRange.StartByte] = definitionFix{owner: strings.Join(chain, ".")}
+	}
+	return fixes
+}
+
+// zigImport reads `const x = @import("x.zig");` into the repository path of the
+// file it names, without the extension (what the resolver compares with a
+// file's), and the local name x. The same file imported for one member
+// (`const f = @import("x.zig").f;`) is a row whose alias is `.f`, the way a
+// JavaScript named import is.
+//
+//	@import("money.zig")         relative to the importing file
+//	@import("../lib/util.zig")   likewise, cleaned
+//	@import("std")               the standard library, no file here: dropped
+//	@import("lib")               a package the build names, no path: dropped
+//
+// The build's own module names (`b.addModule`, build.zig.zon) are not read, so a
+// package import is dropped and the calls made through it bind to nothing.
+func zigImport(filePath string, imp Import) []Import {
+	m := zigImportStmt.FindStringSubmatch(imp.Path)
+	if m == nil {
+		return nil
+	}
+	local, uri, member := m[1], m[2], m[3]
+	if !strings.HasSuffix(uri, ".zig") {
+		return nil
+	}
+	target := path.Clean(path.Join(path.Dir(filePath), strings.TrimSuffix(uri, ".zig")))
+	if target == "" || target == "." || strings.HasPrefix(target, "..") {
+		return nil
+	}
+	imp.Path = target
+	switch {
+	case local == "" || local == "_":
+		imp.Alias = ""
+	case member != "":
+		imp.Alias = memberAliasPrefix + local
+	default:
+		imp.Alias = local
+	}
+	return []Import{imp}
+}
+
+var zigImportStmt = regexp.MustCompile(`^(?:pub\s+)?(?:const\s+(\w+)\s*=\s*|usingnamespace\s+|_\s*=\s*)@import\(\s*"([^"]+)"\s*\)(\.\w+)?\s*;?`)
 
 // zigName reduces a captured test block (`test "title" { ... }`) to
 // `test "title"`. Every other captured name is an identifier.

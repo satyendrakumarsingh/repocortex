@@ -326,6 +326,78 @@ func buildCoreFunctions() map[string]map[string]struct{} {
 		bytes13 bytes14 bytes15 bytes16 bytes17 bytes18 bytes19 bytes20 bytes21 bytes22 bytes23
 		bytes24 bytes25 bytes26 bytes27 bytes28 bytes29 bytes30 bytes31 bytes32`)
 
+	// Haskell: the Prelude, which every module imports, and the handful of Data.List,
+	// Data.Maybe and Control.Monad names that code imports unqualified without a
+	// list. A bare call of one is the language's unless the file defines it or an
+	// import brings a repository definition of that name in (modules.go).
+	out["haskell"] = words(`
+		abs acos acosh all and any appendFile asTypeOf asin asinh atan atan2 atanh break ceiling compare
+		concat concatMap const cos cosh curry cycle decodeFloat div divMod drop dropWhile either elem
+		encodeFloat enumFrom enumFromThen enumFromThenTo enumFromTo error errorWithoutStackTrace even exp
+		exponent fail filter flip floatDigits floor fmap foldMap foldl foldl1 foldr foldr1 fromEnum
+		fromInteger fromIntegral fromRational fst gcd getChar getContents getLine head id init interact
+		ioError isInfinite isNaN iterate last lcm length lex lines log logBase lookup map mapM mapM_
+		mappend max maxBound maximum maybe mconcat mempty min minBound minimum mod negate not notElem
+		null odd or otherwise pi pred print product properFraction pure putChar putStr putStrLn quot
+		quotRem read readFile readIO readList readLn readParen reads readsPrec realToFrac recip rem
+		repeat replicate return reverse round scaleFloat scanl scanl1 scanr scanr1 seq sequence
+		sequenceA sequence_ show showChar showList showParen showString shows showsPrec significand
+		signum sin sinh snd span splitAt sqrt subtract succ sum tail take takeWhile tan tanh toEnum
+		toInteger toRational traverse truncate uncurry undefined unlines until unwords unzip unzip3
+		userError words writeFile zip zip3 zipWith zipWith3
+		catMaybes fromJust fromMaybe isJust isNothing listToMaybe mapMaybe maybeToList
+		forM forM_ when unless void forever replicateM replicateM_ foldM zipWithM zipWithM_ guard
+		liftA2 liftM liftM2 join mapAndUnzipM filterM mplus mzero ap
+		sort sortBy sortOn nub nubBy group groupBy partition intercalate intersperse transpose
+		isPrefixOf isSuffixOf isInfixOf foldl' find findIndex elemIndex insert delete union intersect
+		tails inits zip4 unfoldr genericLength on comparing bool
+		throwIO throw catch try evaluate bracket bracket_ finally handle
+		newIORef readIORef writeIORef modifyIORef modifyIORef' atomicModifyIORef'
+		hPutStrLn hPutStr hGetLine hClose hFlush withFile exitWith exitFailure exitSuccess getArgs getProgName
+		describe it context specify shouldBe shouldSatisfy shouldReturn shouldThrow shouldNotBe
+		property forAll testCase testGroup assertEqual assertBool assertFailure defaultMain
+		hspec before after around beforeAll afterAll pending pendingWith`)
+
+	// OCaml: the Stdlib module, which is opened in every file, and Stdlib's pervasive
+	// operators written as names. A bare call of one is the language's unless the
+	// file defines it or an `open` brings a repository definition of that name in.
+	out["ocaml"] = words(`
+		abs abs_float acos asin atan atan2 at_exit bool_of_string ceil char_of_int classify_float close_in
+		close_out compare copysign cos cosh decr do_at_exit epsilon_float exit exp expm1 failwith float
+		float_of_int float_of_string floor flush flush_all fmod frexp fst hypot ignore in_channel_length
+		incr infinity input input_char input_line int_of_char int_of_float int_of_string invalid_arg ldexp
+		lnot log log10 log1p max max_float max_int min min_float min_int mod_float modf nan not open_in
+		open_out open_out_bin pred prerr_endline prerr_float prerr_int prerr_newline prerr_string print_char
+		print_endline print_float print_int print_newline print_string raise raise_notrace read_float
+		read_int read_line really_input ref seek_in set_binary_mode_in sin sinh snd sqrt string_of_bool
+		string_of_float string_of_int succ tan tanh truncate`)
+
+	// F#: FSharp.Core, whose operators and functions are opened in every file, and
+	// the Expecto, xUnit and NUnit forms a test file calls bare. A bare call of one
+	// is the language's unless the file defines it or an `open` brings a repository
+	// definition of that name in.
+	out["fsharp"] = words(`
+		abs acos asin atan atan2 box byte ceil char compare cos cosh decimal defaultArg double enum exit
+		exp failwith failwithf float float32 floor fst id ignore int int16 int32 int64 int8 invalidArg
+		invalidOp isNull lock log log10 max min nameof not nullArg printf printfn raise reraise round
+		seq sign sin sinh snd sqrt stderr stdin stdout string tan tanh truncate typeof typedefof uint16
+		uint32 uint64 uint8 unbox ref sprintf eprintf eprintfn failwith async task lazy
+		testCase testList testAsync testProperty`)
+
+	// Perl: the functions the interpreter provides, which a bare call names whatever
+	// a `use`d module also defines (the module's is `Module::name(...)`).
+	out["perl"] = words(`
+		abs accept alarm atan2 bind binmode bless caller chdir chmod chomp chop chown chr chroot close
+		closedir connect cos crypt defined delete die do each eof eval exec exists exit exp fcntl fileno
+		flock fork format getc getppid glob gmtime goto grep hex index int ioctl join keys kill last lc
+		lcfirst length link listen local localtime log lstat map mkdir my next no oct open opendir ord our
+		pack pipe pop pos print printf prototype push quotemeta rand read readdir readline readlink recv
+		redo ref rename require reset return reverse rewinddir rindex rmdir say scalar seek seekdir select
+		send shift sin sleep socket sort splice split sprintf sqrt srand stat study sub substr symlink
+		syscall sysopen sysread sysseek system syswrite tell telldir tie tied time times truncate uc
+		ucfirst umask undef unlink unpack unshift untie use utime values vec wait waitpid wantarray warn
+		write`)
+
 	// ECMAScript: the platform's own constructors and namespaces, which a bare
 	// `new URL(...)` or `Response(...)` names whether or not the repository
 	// declares a class of the same name elsewhere.
