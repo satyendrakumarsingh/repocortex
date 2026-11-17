@@ -39,7 +39,7 @@ end
 		"reference.call initialize recv=super/super args=?",
 		// `super.merge(1)` is a call of merge on the result; it is not a super call
 		// of other.
-		"reference.call merge recv=super/super args=?",
+		"reference.call merge recv=super/super args=1",
 		"reference.call run recv=super/super args=?",
 	})
 }

@@ -18,8 +18,8 @@ fn main() {
 }
 `)
 	wantList(t, "references", refRows(res), []string{
-		"reference.call format recv=/bare args=?",
-		"reference.call format recv=obj/name args=?",
+		"reference.call format recv=/bare args=0",
+		"reference.call format recv=obj/name args=0",
 		"reference.call.macro format recv=/bare args=?",
 		"reference.call.macro print_error recv=/bare args=?",
 		"reference.call.macro println recv=std/scope args=?",

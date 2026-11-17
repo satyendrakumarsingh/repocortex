@@ -155,3 +155,17 @@ func scoreEdges(t *testing.T, got []langEdge, wants []want, forbid []want, extra
 	}
 	t.Logf("precision %d/%d = %.0f%%, recall %d/%d = %.0f%%", good, len(got), prec*100, correct, len(wants), rec*100)
 }
+
+// capped fails for an edge that matches one of the weaker entries at a higher
+// confidence than the entry allows. scoreEdges only checks that an edge is
+// expected; a decoy the resolver may bind, but never as `high`, needs this.
+func capped(t *testing.T, got []langEdge, weaker []want) {
+	t.Helper()
+	for _, e := range got {
+		for _, w := range weaker {
+			if strings.HasSuffix(e.Src, w.Src) && strings.HasSuffix(e.Dst, w.Dst) && !w.Min.AtLeast(e.Confidence) {
+				t.Errorf("edge %s -> %s is %s, allowed at most %s (%s)", e.Src, e.Dst, e.Confidence, w.Min, e.Reason)
+			}
+		}
+	}
+}

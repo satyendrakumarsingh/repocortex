@@ -11,6 +11,11 @@ from an actual run.
 
 ## [Unreleased]
 
+- **JavaScript, PHP, Ruby and Rust are `typed`.** Each now has an arity dialect, published only when the parameter count is exact. Defaults, rest and splat parameters, keyword arguments and Ruby block parameters leave the count unknown, and Rust skips `&self`. Ruby `x = Foo.new`, PHP `$x = new Foo()` and Rust `let x = Foo::new()` (through `?`, `.unwrap()` and similar tails) now state the receiver's class. A receiver named after a class but declared without a stated type no longer binds at `high` by its name alone: `money = load(x); money.format()` and a loop variable `order` are `medium` in Ruby, PHP and Rust.
+  - **How each was measured:** JavaScript against `scip-typescript` on npm's source (1,228 files), where 4,926 of 4,932 `high` edges were right, 99.88%. PHP, Ruby and Rust on multi-file fixtures only (46 to 51 `high` edges each, none wrong); no compiler indexer for them was available, so their real-code precision is unmeasured.
+  - **Trade-off:** on Ruby's standard library about 1,060 edges moved from `high` to `medium` under the naming rule, many of them probably correct.
+  - **Known defect:** in PHP, a method an interface declares and a base class defines binds to the interface declaration.
+
 - **Groovy, Julia, Erlang and Clojure bind calls across files.**
   - **Groovy:** reads Java-style imports, including static, wildcard and aliased imports.
   - **Erlang:** binds `m:f()` to the module the file is named after, and `-import` lists. A call whose argument count contradicts the function's arity is ruled out.

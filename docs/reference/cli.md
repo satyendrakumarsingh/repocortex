@@ -613,15 +613,15 @@ actually yields was checked by hand; see
 ```
 $ repocortex languages
 TIER              COUNT  WHAT YOU GET
-typed             8      definitions, imports, receiver discrimination by arity or class — references can reach 'high'
-resolved          18     definitions and imports — references bind across files
+typed             12     definitions, imports, receiver discrimination by arity or class — references can reach 'high'
+resolved          14     definitions and imports — references bind across files
 parsed            89     definitions and search only — no cross-file references claimed
 with definitions  115
 text only         91     no definition query: full-text search only, no symbols
 total             206    
 
-typed:    [c_sharp cpp go java kotlin python scala typescript]
-resolved: [bash c clojure dart elixir erlang groovy javascript julia lua objc php powershell r ruby rust swift tsx]
+typed:    [c_sharp cpp go java javascript kotlin php python ruby rust scala typescript]
+resolved: [bash c clojure dart elixir erlang groovy julia lua objc powershell r swift tsx]
 
 (89 parsed-tier and 91 text-only languages not listed; pass --verbose)
 ```

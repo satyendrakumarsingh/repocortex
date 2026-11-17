@@ -446,8 +446,8 @@ flowchart LR
 
 | Tier | Languages | What you get |
 |---|---|---|
-| typed (8) | C#, C++, Go, Java, Kotlin, Python, Scala, TypeScript | Definitions, imports and receiver matching by argument count or class; references can reach `high` |
-| resolved (18) | Bash, C, Clojure, Dart, Elixir, Erlang, Groovy, JavaScript, Julia, Lua, Objective-C, PHP, PowerShell, R, Ruby, Rust, Swift, TSX | Definitions and imports; references bind across files |
+| typed (12) | C#, C++, Go, Java, JavaScript, Kotlin, PHP, Python, Ruby, Rust, Scala, TypeScript | Definitions, imports and receiver matching by argument count or class; references can reach `high` |
+| resolved (14) | Bash, C, Clojure, Dart, Elixir, Erlang, Groovy, Julia, Lua, Objective-C, PowerShell, R, Swift, TSX | Definitions and imports; references bind across files |
 | parsed (89) | Ada, Apex, F#, Haskell, OCaml, Perl, Prolog, Solidity, Svelte, Tcl, Vue, Zig and 77 more | Definitions and search only. Quality varies: of 36 of them checked by hand on 13 November, 27 found at least 90% of the definitions sampled with at least 90% precision, and F#, Make and Groovy were far lower before later fixes |
 | text only (91) | Mostly data formats (CSV, XML, diffs), files whose names another analyser already reads (Dockerfile, `.properties`), and rarely used languages | The grammar is bundled but has no definition query: files are searchable by text and yield no symbols |
 

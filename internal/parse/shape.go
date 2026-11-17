@@ -801,6 +801,14 @@ func classifyNodeType(language, typ string) shFlags {
 	if language == "dart" && (typ == "declaration" || typ == "formal_parameter" || typ == "initialized_variable_definition") {
 		return shMaybeDecl
 	}
+	if (language == "ruby" && typ == "assignment") || (language == "php" && typ == "assignment_expression") {
+		// `order = Order.new` and `$order = new Order()` declare a local, but
+		// neither grammar writes a declaration: the assignment is the first
+		// mention. Gated to the two languages, because in the others an
+		// assignment is not a declaration and `x = new Foo()` may well be a
+		// field or a variable declared elsewhere.
+		return shMaybeDecl
+	}
 	if language == "objc" && typ == "method_parameter" {
 		// Its name says "method", which reads as a function; it is a declaration.
 		return shMaybeDecl
@@ -1031,6 +1039,9 @@ func (w *shWalker) declare(n *ts.Node, scope int, isField bool) {
 		// A function prototype or a nested definition, not a variable.
 		return
 	}
+	if !w.plainAssignmentTarget(n) {
+		return
+	}
 	var names []shName
 	for i := 0; i < n.ChildCount(); i++ {
 		c := n.Child(i)
@@ -1107,6 +1118,29 @@ func (w *shWalker) hasAccessModifier(n *ts.Node) bool {
 	return false
 }
 
+// plainAssignmentTarget reports whether a Ruby or PHP assignment writes a
+// local variable by its plain name. An instance variable (`@order = ...`), a
+// member (`$this->order = ...`, `obj.order = ...`), an index and a destructuring
+// target are not locals the function declares, and reading them as such would
+// type a name that another method also writes. Every other node, and every
+// other language, passes.
+func (w *shWalker) plainAssignmentTarget(n *ts.Node) bool {
+	typ := n.Type(w.lang)
+	if (w.language != "ruby" || typ != "assignment") && (w.language != "php" || typ != "assignment_expression") {
+		return true
+	}
+	left := w.field(n, "left")
+	if left == nil {
+		return false
+	}
+	switch w.language {
+	case "ruby":
+		return left.Type(w.lang) == "identifier"
+	default:
+		return left.Type(w.lang) == "variable_name"
+	}
+}
+
 // declaredNames appends the identifiers a declarator binds.
 func (w *shWalker) declaredNames(n *ts.Node, out []shName, depth int) []shName {
 	if n == nil || depth > 5 {
@@ -1180,6 +1214,12 @@ func (w *shWalker) constructedType(value *ts.Node) string {
 	text = strings.TrimPrefix(text, "&")
 	text = strings.TrimSpace(text)
 	switch {
+	case w.language == "ruby":
+		// `Queue.new`, `Rack::Mutex.new(arg)`: the same reading a receiver gets.
+		return constructedReceiver("ruby", text)
+	case w.language == "rust" && rustConstructorCall(text) != "":
+		// `let x = Cart::new(...)` is a Cart by the language's own convention.
+		return rustConstructorCall(text)
 	case strings.HasPrefix(text, "new "):
 		return normalizeType(leadingTypeName(strings.TrimSpace(text[len("new "):])))
 	case strings.HasPrefix(text, "new("):
@@ -1210,6 +1250,94 @@ func (w *shWalker) constructedType(value *ts.Node) string {
 		return normalizeType(name)
 	}
 	return ""
+}
+
+// rustConstructorCall returns the type of a value that is exactly one call of
+// the conventional constructor, `Cart::new(...)` or `Cart::default()`, and "" for anything else:
+// another associated function (whose return type nothing in this file states),
+// a call followed by any tail but the ones below, and a call whose qualifier is
+// a module (`cart::new()`, lower case) rather than a type.
+//
+// The tails that keep the type are the ones that unwrap a fallible `new`:
+// `?`, `.unwrap()`, `.expect(..)`, `.context(..)` and `.with_context(..)`.
+// `let t = Tracker::new().context("open")?;` holds a Tracker whichever of
+// Tracker, Result<Tracker> or Option<Tracker> `new` returns.
+func rustConstructorCall(text string) string {
+	name := leadingTypeName(text)
+	typ, ok := strings.CutSuffix(name, "::new")
+	if !ok {
+		// `Default::default` is Self by the trait that names it.
+		if typ, ok = strings.CutSuffix(name, "::default"); !ok {
+			return ""
+		}
+	}
+	last := typ
+	if i := strings.LastIndex(typ, "::"); i >= 0 {
+		last = typ[i+len("::"):]
+	}
+	if !isCapitalised(last) || last == "Default" || last == "Self" {
+		// `Default::default()` names the trait and `Self::new()` the enclosing
+		// type, neither of which is a type to bind the variable to.
+		return ""
+	}
+	rest := strings.TrimSpace(text[len(name):])
+	end := rustGroupEnd(rest)
+	if end < 0 {
+		return ""
+	}
+	rest = strings.TrimSpace(rest[end:])
+	for rest != "" {
+		if rest[0] == '?' {
+			rest = strings.TrimSpace(rest[1:])
+			continue
+		}
+		matched := false
+		for _, m := range []string{".unwrap", ".expect", ".context", ".with_context"} {
+			tail, ok := strings.CutPrefix(rest, m)
+			if !ok {
+				continue
+			}
+			tail = strings.TrimSpace(tail)
+			end := rustGroupEnd(tail)
+			if end < 0 {
+				return ""
+			}
+			rest, matched = strings.TrimSpace(tail[end:]), true
+			break
+		}
+		if !matched {
+			return ""
+		}
+	}
+	return normalizeType(typ)
+}
+
+// rustGroupEnd returns the index just past the parenthesis group that text
+// opens with, reading a string literal as one token, or -1 when text does not
+// begin with a balanced group.
+func rustGroupEnd(text string) int {
+	if text == "" || text[0] != '(' {
+		return -1
+	}
+	depth := 0
+	for i := 0; i < len(text); i++ {
+		switch text[i] {
+		case '"':
+			for i++; i < len(text) && text[i] != '"'; i++ {
+				if text[i] == '\\' {
+					i++
+				}
+			}
+		case '(':
+			depth++
+		case ')':
+			depth--
+			if depth == 0 {
+				return i + 1
+			}
+		}
+	}
+	return -1
 }
 
 // leadingTypeName returns the dotted or scoped identifier text begins with.

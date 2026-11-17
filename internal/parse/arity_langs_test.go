@@ -280,3 +280,116 @@ int main() {
 		"baz":      "2",
 	})
 }
+
+func TestJavaScriptArity(t *testing.T) {
+	res := parse(t, "a.js", `function plain(a, b) {}
+function dflt(a, b = 1) {}
+function rest(a, ...r) {}
+function destructured({ x }, [y], z) {}
+function none() {}
+const arrow = (a, b, c) => a;
+const shorthand = x => x;
+const fexpr = function (a) {};
+class K {
+  method(a, b) { plain(1, 2); this.method(1); dflt(1); rest(1, 2, 3); none(); }
+}
+exports.exported = function (a, b) {};
+plain(...xs);
+plain(1, 2);
+arrow(1, 2, 3);
+`)
+	checkArity(t, res,
+		map[string]string{
+			"plain": "2", "dflt": "?", "rest": "?", "destructured": "3", "none": "0",
+			"arrow": "3", "shorthand": "?", "fexpr": "1", "method": "2", "exported": "2",
+		},
+		map[string]string{
+			"plain": "2,?,2", "method": "1", "dflt": "1", "rest": "3", "none": "0", "arrow": "3",
+		})
+}
+
+func TestRubyArity(t *testing.T) {
+	res := parse(t, "a.rb", `class A
+  def plain(a, b); end
+  def dflt(a, b = 1); end
+  def kw(a, k:); end
+  def splat(*xs); end
+  def blk(a, &b); end
+  def self.build(a); end
+  def bare; end
+  def run
+    plain(1, 2)
+    plain(1, k: 2)
+    plain(*xs)
+    other.plain(1, 2)
+    blk(1) { }
+    blk(1, &fn)
+    build(1)
+  end
+end
+`)
+	checkArity(t, res,
+		map[string]string{
+			"plain": "2", "dflt": "?", "kw": "?", "splat": "?", "blk": "1", "build": "1", "bare": "?",
+		},
+		map[string]string{
+			"plain": "2,?,?,2", "blk": "1,1", "build": "1",
+		})
+}
+
+func TestPHPArity(t *testing.T) {
+	res := parse(t, "a.php", `<?php
+function plain($a, $b) {}
+function dflt($a, $b = 1) {}
+function variadic($a, ...$r) {}
+class A {
+    public function __construct(private int $a, int $b) {}
+    public function method(int $a, B $b) {}
+    public static function make($a) {}
+    public function run() {
+        plain(1, 2);
+        plain(...$xs);
+        plain(a: 1, b: 2);
+        $this->method(1, 2);
+        self::make(1);
+        \App\plain(1, 2);
+        $x?->method(1);
+    }
+}
+`)
+	checkArity(t, res,
+		map[string]string{
+			"plain": "2", "dflt": "?", "variadic": "?", "__construct": "2", "method": "2", "make": "1",
+		},
+		map[string]string{
+			"plain": "2,?,?,2", "method": "2,1", "make": "1",
+		})
+}
+
+func TestRustArity(t *testing.T) {
+	res := parse(t, "a.rs", `struct A;
+impl A {
+    fn new(a: i32) -> A { A }
+    fn method(&self, a: i32, b: &str) {}
+    fn typed_self(self: &Self, a: i32) {}
+    fn gen<T>(x: T, (a, b): (i32, i32)) {}
+    fn none() {}
+}
+fn plain(a: i32, b: i32) {}
+fn run() {
+    plain(1, 2);
+    A::new(1);
+    A::none();
+    a.method(1, "x");
+    A::gen::<i32>(1, (1, 2));
+    println!("{}", 1);
+}
+`)
+	checkArity(t, res,
+		map[string]string{
+			"plain": "2", "new": "1", "method": "2", "typed_self": "?", "gen": "2", "none": "0",
+		},
+		map[string]string{
+			"plain": "2", "new": "1", "none": "0", "method": "2",
+		})
+}

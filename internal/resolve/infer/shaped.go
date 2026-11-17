@@ -1782,6 +1782,16 @@ func (r *Resolver) memberByName(c call, limit model.Confidence, stats *Stats) de
 		}
 		if o, ok := oneDeclaration(c.spec, c.ref, named); ok && !r.callsTestHelper(c, o.first) {
 			tier := weaker(c.spec.Calls.Measured.namedAfterType(), limit)
+			if namedAfterTypeIsHint(c.spec.Name, c.ref.ReceiverKind) {
+				// The receiver is a variable the source declared without saying
+				// what it holds (`money = load(id)`), or a name no declaration
+				// the parser reads binds (a loop variable, a method), so a name
+				// that happens to match a type is the only evidence. In these
+				// languages every type the source states is already read from
+				// its declaration (shape.go), which makes the name a hint and
+				// not a measurement: medium, not high.
+				tier = weaker(tier, model.ConfidenceMedium)
+			}
 			reason := ruleNamedAfterType
 			if o.overloaded() {
 				tier, reason = weaker(tier, model.ConfidenceLow), overloadedReason(ruleNamedAfterType, hint, o)
@@ -1880,6 +1890,25 @@ func namingHint(ref registry.Reference) string {
 		return ""
 	}
 	return hint
+}
+
+// namedAfterTypeIsHint reports whether a receiver named after a type is only a
+// hint in a language, for the kinds of receiver below.
+//
+// A variable the source declared and did not give a type (ReceiverValue) is a
+// hint in Ruby, PHP and Rust. A name no declaration binds (ReceiverName: a
+// loop variable, a closure parameter, a method used as a receiver) is a hint
+// in Ruby and Rust; PHP keeps its measured tier for it. Gated by language
+// because every other language's naming rule was measured as it is (see
+// ruleTiers.NamedAfterType) and is left alone.
+func namedAfterTypeIsHint(language string, kind string) bool {
+	switch language {
+	case "ruby", "rust":
+		return kind == model.ReceiverValue || kind == model.ReceiverName
+	case "php":
+		return kind == model.ReceiverValue
+	}
+	return false
 }
 
 // weaker returns the lower of two confidences.

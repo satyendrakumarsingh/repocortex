@@ -110,6 +110,11 @@ func init() {
 		opaque: csharpOpaqueParameter,
 	}
 
+	registerScriptArity()
+	registerRubyArity()
+	registerPHPArity()
+	registerRustArity()
+
 	cppParams := `
 (function_declarator declarator: [(identifier) (field_identifier)] @name parameters: (parameter_list) @params)
 (function_declarator declarator: (qualified_identifier name: (identifier) @name) parameters: (parameter_list) @params)
@@ -167,4 +172,143 @@ func csharpOpaqueParameter(n *ts.Node, lang *ts.Language, src []byte) bool {
 	}
 	// A parameter is a type and a name. Anything more is `= default`.
 	return body > 2
+}
+
+// Arity for JavaScript, Ruby, PHP and Rust, under the same contract: a count is
+// published only when it is exact, and anything the count cannot state makes it
+// unknown.
+//
+// What is counted, per language:
+//
+//	JavaScript  parameters: plain identifiers and destructuring patterns, one
+//	            each. A default value (`a = 1`) and a rest parameter make the
+//	            count unknown, as TypeScript's optional parameter cannot be told
+//	            from a required one by this dialect. A function written
+//	            `x => x`, with no parenthesised list, carries no count.
+//	            arguments: the arguments of the call; a spread makes it unknown.
+//	Ruby        parameters: plain and destructured parameters, one each. An
+//	            optional, keyword, splat, hash-splat or forwarding parameter
+//	            makes the count unknown, and a block parameter (`&blk`) is not
+//	            counted because a call passes its block outside the list. A
+//	            method written with no list at all carries no count.
+//	            arguments: the positional arguments of the call. A keyword or
+//	            hash argument, a splat and a hash splat make the count unknown,
+//	            because they fill an unknown number of parameters; a block
+//	            argument (`&blk`) is not counted.
+//	PHP         parameters: simple and promoted constructor parameters, one
+//	            each. A default value and a variadic parameter make the count
+//	            unknown.
+//	            arguments: the arguments of the call; a named argument and an
+//	            unpacking (`...$xs`) make the count unknown.
+//	Rust        parameters: the typed parameters, not the receiver: a method's
+//	            `&self` is written in its parameter list and not at a call made
+//	            with `.`. A parameter that names `self` with a type
+//	            (`self: &Self`) makes the count unknown.
+//	            arguments: the arguments of the call.
+//
+// The match between a declaration and its count is by line and name, as for
+// every other language (see callSite).
+func registerScriptArity() {
+	paramCountQueries["javascript"] = `
+(function_declaration name: (identifier) @name parameters: (formal_parameters) @params)
+(generator_function_declaration name: (identifier) @name parameters: (formal_parameters) @params)
+(method_definition name: (property_identifier) @name parameters: (formal_parameters) @params)
+(variable_declarator name: (identifier) @name value: (function_expression parameters: (formal_parameters) @params))
+(variable_declarator name: (identifier) @name value: (arrow_function parameters: (formal_parameters) @params))
+(assignment_expression left: (member_expression property: (property_identifier) @name) right: (function_expression parameters: (formal_parameters) @params))
+(assignment_expression left: (member_expression property: (property_identifier) @name) right: (arrow_function parameters: (formal_parameters) @params))
+`
+	argCountQueries["javascript"] = `
+(call_expression function: (identifier) @name arguments: (arguments) @args)
+(call_expression function: (member_expression property: (property_identifier) @name) arguments: (arguments) @args)
+`
+	arityDialects["javascript"] = arityDialect{
+		items:    map[string]bool{"identifier": true, "object_pattern": true, "array_pattern": true},
+		closedIn: map[string]bool{"formal_parameters": true},
+		variadic: map[string]bool{"rest_pattern": true, "spread_element": true},
+	}
+}
+
+func registerRubyArity() {
+	paramCountQueries["ruby"] = `
+(method name: (identifier) @name parameters: (method_parameters) @params)
+(singleton_method name: (identifier) @name parameters: (method_parameters) @params)
+`
+	argCountQueries["ruby"] = `
+(call method: (identifier) @name arguments: (argument_list) @args)
+`
+	arityDialects["ruby"] = arityDialect{
+		items:    map[string]bool{"identifier": true, "destructured_parameter": true},
+		closedIn: map[string]bool{"method_parameters": true},
+		skip:     map[string]bool{"block_parameter": true, "block_argument": true},
+		variadic: map[string]bool{"pair": true, "splat_argument": true, "hash_splat_argument": true},
+	}
+}
+
+func registerPHPArity() {
+	paramCountQueries["php"] = `
+(function_definition name: (name) @name parameters: (formal_parameters) @params)
+(method_declaration name: (name) @name parameters: (formal_parameters) @params)
+`
+	argCountQueries["php"] = `
+(function_call_expression function: (name) @name arguments: (arguments) @args)
+(function_call_expression function: (qualified_name (name) @name .) arguments: (arguments) @args)
+(member_call_expression name: (name) @name arguments: (arguments) @args)
+(nullsafe_member_call_expression name: (name) @name arguments: (arguments) @args)
+(scoped_call_expression name: (name) @name arguments: (arguments) @args)
+`
+	arityDialects["php"] = arityDialect{
+		items:    map[string]bool{"simple_parameter": true, "property_promotion_parameter": true, "argument": true},
+		closedIn: map[string]bool{"formal_parameters": true},
+		variadic: map[string]bool{"variadic_parameter": true, "variadic_unpacking": true},
+		opaque:   phpOpaqueItem,
+	}
+}
+
+// phpOpaqueItem reports a parameter with a default value and an argument passed
+// by name, neither of which lines up positionally with the other side.
+func phpOpaqueItem(n *ts.Node, lang *ts.Language, _ []byte) bool {
+	switch n.Type(lang) {
+	case "simple_parameter", "property_promotion_parameter":
+		for i := 0; i < n.ChildCount(); i++ {
+			if n.FieldNameForChild(i, lang) == "default_value" {
+				return true
+			}
+		}
+	case "argument":
+		for i := 0; i < n.ChildCount(); i++ {
+			if n.FieldNameForChild(i, lang) == "name" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func registerRustArity() {
+	paramCountQueries["rust"] = `
+(function_item name: (identifier) @name parameters: (parameters) @params)
+(function_signature_item name: (identifier) @name parameters: (parameters) @params)
+`
+	argCountQueries["rust"] = `
+(call_expression function: (identifier) @name arguments: (arguments) @args)
+(call_expression function: (field_expression field: (field_identifier) @name) arguments: (arguments) @args)
+(call_expression function: (scoped_identifier name: (identifier) @name) arguments: (arguments) @args)
+(call_expression function: (generic_function function: (identifier) @name) arguments: (arguments) @args)
+(call_expression function: (generic_function function: (field_expression field: (field_identifier) @name)) arguments: (arguments) @args)
+(call_expression function: (generic_function function: (scoped_identifier name: (identifier) @name)) arguments: (arguments) @args)
+`
+	arityDialects["rust"] = arityDialect{
+		items:    map[string]bool{"parameter": true},
+		closedIn: map[string]bool{"parameters": true},
+		skip:     map[string]bool{"self_parameter": true, "attribute_item": true},
+		opaque: func(n *ts.Node, lang *ts.Language, _ []byte) bool {
+			// `self: &Self` is a receiver the grammar writes as a parameter.
+			if n.Type(lang) != "parameter" || n.ChildCount() == 0 {
+				return false
+			}
+			first := n.Child(0)
+			return first != nil && first.Type(lang) == "self"
+		},
+	}
 }
