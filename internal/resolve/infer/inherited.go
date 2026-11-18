@@ -277,7 +277,8 @@ func (r *Resolver) ResolveDeferred(ctx context.Context, stats *Stats) ([]model.E
 	// What an earlier drain learned about the hierarchy is not carried into
 	// this one: edges may have been written in between.
 	r.supertypes = nil
-	defer func() { r.supertypes = nil }()
+	r.interfaces = nil
+	defer func() { r.supertypes, r.interfaces = nil, nil }()
 
 	if r.ancestry == nil || len(queued) == 0 {
 		return nil, nil, nil
@@ -332,7 +333,7 @@ func (r *Resolver) drainChunk(
 			// could say whether a subtype overrides the member.
 			best, ok = settleOverride(d, known), true
 		} else {
-			best, ok, ambiguous = inheritedBinding(d, cands, known)
+			best, ok, ambiguous = inheritedBinding(d, cands, known, r.interfaceNamed(ctx))
 			fromAncestry = ok
 		}
 		if d.static {
@@ -546,9 +547,14 @@ func inheritedBinding(
 	d deferredRef,
 	cands []registry.SymbolIndexEntry,
 	known map[string][]string,
+	isInterface func(name string) bool,
 ) (candidate, bool, bool) {
 	seen := map[string]struct{}{d.receiver: {}}
 	frontier := []string{d.receiver}
+	// declaration is what an interface at a nearer level declared, held while
+	// the walk looks further up for a class that implements it. See below.
+	var declaration candidate
+	haveDeclaration := false
 
 	for depth := 1; depth <= MaxAncestryDepth && len(frontier) > 0; depth++ {
 		var next []string
@@ -566,6 +572,9 @@ func inheritedBinding(
 			}
 		}
 		if len(next) == 0 {
+			if haveDeclaration {
+				return declaration, true, false
+			}
 			return candidate{}, false, false
 		}
 
@@ -590,6 +599,52 @@ func inheritedBinding(
 			}
 		}
 
+		// # An implementation beats a declaration
+		//
+		// An interface only DECLARES a member; a class in the same ancestry
+		// that defines it is what a call runs. `Cart extends Order implements
+		// Describable` calling `$this->describe()` reaches Order's (or its
+		// parent's) describe, and stopping at the nearer level bound the call to
+		// the interface's declaration. So an interface's owner does not end the
+		// walk: it is held, and a class owner at this level or further up
+		// replaces it. Only when no class defines the member does the
+		// declaration stand, as before. Two classes at one level are still
+		// ambiguous: the rule only ever discards a declaration.
+		if isInterface != nil {
+			var classes []registry.SymbolIndexEntry
+			var classNames []string
+			for i, o := range owners {
+				if !isInterface(ownerNames[i]) {
+					classes = append(classes, o)
+					classNames = append(classNames, ownerNames[i])
+				}
+			}
+			if len(classes) != len(owners) {
+				if len(classes) == 0 {
+					// Only interfaces here: the nearest declaration is the one
+					// held, a farther one never replaces it.
+					if len(owners) == 1 && !haveDeclaration {
+						declaration = candidate{
+							entry:      owners[0],
+							confidence: inheritedConfidence(d, depth),
+							reason: fmt.Sprintf(
+								"not defined on %s; defined on %s, %d level(s) up its inheritance chain",
+								d.receiver, ownerNames[0], depth),
+						}
+						haveDeclaration = true
+						frontier = next
+						continue
+					}
+					if haveDeclaration {
+						frontier = next
+						continue
+					}
+				} else {
+					owners, ownerNames = classes, classNames
+				}
+			}
+		}
+
 		switch len(owners) {
 		case 0:
 			frontier = next
@@ -604,6 +659,9 @@ func inheritedBinding(
 		default:
 			return candidate{}, false, true
 		}
+	}
+	if haveDeclaration {
+		return declaration, true, false
 	}
 	return candidate{}, false, false
 }
@@ -734,4 +792,36 @@ func deferredNames(chunk []deferredRef) []string {
 		out = append(out, d.name)
 	}
 	return out
+}
+
+// interfaceNamed answers whether a type name is an interface, from the index.
+//
+// A name is an interface only when every type of that name the repository
+// defines is one: two types sharing a name, one a class, are not told apart
+// here, and the answer is then "no", which is what the walk did before it
+// asked. Answers are kept for the length of one drain, like the hierarchy.
+func (r *Resolver) interfaceNamed(ctx context.Context) func(string) bool {
+	return func(name string) bool {
+		if v, ok := r.interfaces[name]; ok {
+			return v
+		}
+		got, err := r.candidates.Candidates(ctx, []string{name})
+		if err != nil {
+			return false
+		}
+		iface := false
+		for _, c := range got[name] {
+			if c.Kind == string(model.KindInterface) {
+				iface = true
+			} else if isTypeKind(c.Kind) {
+				iface = false
+				break
+			}
+		}
+		if r.interfaces == nil {
+			r.interfaces = map[string]bool{}
+		}
+		r.interfaces[name] = iface
+		return iface
+	}
 }

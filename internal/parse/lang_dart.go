@@ -173,6 +173,13 @@ func dartImport(filePath string, imp Import) []Import {
 		return nil
 	}
 	imp.Path = uri
+	switch imp.Directive {
+	case "export":
+		imp.Alias = moduleDirectives(imp.Alias, ModuleExport)
+	case "part":
+		imp.Alias = moduleDirectives(imp.Alias, ModuleInclude)
+	}
+	imp.Directive = ""
 	return []Import{imp}
 }
 

@@ -110,6 +110,12 @@ type Import struct {
 	// Alias is the local binding, when the language supports renaming.
 	Alias string
 
+	// Directive is the keyword that introduced the row when the import query
+	// captured one (@directive): Dart's `export` and `part`, which name a file
+	// and are not imports of it. A language's import fix reads it and turns it
+	// into what the row stores; it is never persisted itself.
+	Directive string
+
 	Range model.Range
 }
 

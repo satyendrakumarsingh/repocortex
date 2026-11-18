@@ -29,6 +29,13 @@ func TestPowerShellResolution(t *testing.T) {
 		{"scripts/deploy.ps1:(top level)", "scripts/deploy.ps1:Invoke-Deploy", high},
 		{"scripts/lib/net.ps1:Get-Remote", "scripts/lib/log.ps1:Write-Log", high},
 		{"scripts/modules/Billing.psm1:Get-Total", "scripts/modules/Billing.psm1:Format-Invoice", high},
+		// A command written in another case is the same command.
+		{"scripts/deploy.ps1:Invoke-Lower", "scripts/lib/log.ps1:Write-Log", high},
+		{"scripts/deploy.ps1:Invoke-Lower", "scripts/lib/net.ps1:Get-Remote", high},
+		// Both spellings are defined and both files sourced: the call's own
+		// spelling is the one it reaches.
+		{"scripts/caser.ps1:Lower-Case", "scripts/lib/case_b.ps1:show-it", high},
+		{"scripts/caser.ps1:Upper-Case", "scripts/lib/case_a.ps1:Show-It", high},
 		// The class, by `using module`, and its members.
 		{"scripts/deploy.ps1:Invoke-Deploy", "scripts/lib/Types.psm1:Account.Create", high},
 		{"scripts/lib/Types.psm1:Account.Do", "scripts/lib/Types.psm1:Account.Save", high},
@@ -43,6 +50,11 @@ func TestPowerShellResolution(t *testing.T) {
 		{Src: "scripts/lib/net.ps1", Dst: "scripts/lib/legacy.ps1"},
 		// Get-Date is the cmdlet.
 		{Src: "scripts/deploy.ps1", Dst: "legacy.ps1:Get-Date"},
+		// The shell's commands, written in lower case, are still the shell's.
+		{Src: "scripts/deploy.ps1:Invoke-Lower", Dst: "legacy.ps1"},
+		// Each call is its own spelling's, not the other's.
+		{Src: "scripts/caser.ps1:Lower-Case", Dst: "case_a.ps1"},
+		{Src: "scripts/caser.ps1:Upper-Case", Dst: "case_b.ps1"},
 		// Nothing imports Secret.
 		{Src: "scripts/", Dst: "scripts/modules/Secret.psm1"},
 	}
@@ -85,6 +97,13 @@ function Invoke-Deploy {
   $thing.Save()
 }
 
+function Invoke-Lower {
+  write-log "lower case"
+  GET-REMOTE -Url "x"
+  get-date
+  get-childitem
+}
+
 Invoke-Deploy -Target prod
 `,
 		"scripts/lib/log.ps1": `function Write-Log {
@@ -111,6 +130,25 @@ function Get-Date {
 
 function Get-ChildItem {
   return @()
+}
+`,
+		"scripts/caser.ps1": `. ./lib/case_a.ps1
+. ./lib/case_b.ps1
+
+function Lower-Case {
+  show-it
+}
+
+function Upper-Case {
+  Show-It
+}
+`,
+		"scripts/lib/case_a.ps1": `function Show-It {
+  return 1
+}
+`,
+		"scripts/lib/case_b.ps1": `function show-it {
+  return 2
 }
 `,
 		"scripts/status.ps1": `. ./lib/legacy.ps1

@@ -154,6 +154,15 @@ type Candidates interface {
 	Candidates(ctx context.Context, names []string) (map[string][]registry.SymbolIndexEntry, error)
 }
 
+// Spelled is the optional port a Candidates source offers for a language whose
+// names are case-insensitive (LanguageSpec.FoldNames). A source without it
+// resolves such a language by exact name, as it always did.
+type Spelled interface {
+	// Spellings groups the names the language's definitions are written under
+	// by their lower-cased form, each group sorted.
+	Spellings(ctx context.Context, language string) (map[string][]string, error)
+}
+
 // Resolver binds references for one index run.
 //
 // A Resolver carries the queue of references parked for the inherited-dispatch
@@ -180,6 +189,14 @@ type Resolver struct {
 	// ResolveDeferred, so a chunk does not ask again what an earlier one
 	// learned. Nil outside a drain. See ancestryClosure.
 	supertypes map[string][]string
+
+	// interfaces remembers which type names are interfaces, for one drain.
+	interfaces map[string]bool
+
+	// reexportGraph is the run's export and part directives, read on the first
+	// file that needs them. See reexport.go.
+	reexportGraph  *reexportGraph
+	reexportLoaded bool
 
 	// guide is the candidate source's guided port, nil when it has none; gfiles
 	// is the run's file index built from it on first use. See guided.go.
@@ -220,6 +237,24 @@ func (m mapCandidates) Candidates(_ context.Context, names []string) (map[string
 		if c := m[n]; len(c) > 0 {
 			out[n] = c
 		}
+	}
+	return out, nil
+}
+
+// Spellings groups the preloaded index's names for one language.
+func (m mapCandidates) Spellings(_ context.Context, language string) (map[string][]string, error) {
+	out := map[string][]string{}
+	for name, cs := range m {
+		for _, c := range cs {
+			if languageOfCandidate(c) == language {
+				key := strings.ToLower(name)
+				out[key] = append(out[key], name)
+				break
+			}
+		}
+	}
+	for _, names := range out {
+		sort.Strings(names)
 	}
 	return out, nil
 }
@@ -411,7 +446,11 @@ func (r *Resolver) ResolveFile(
 	spec := r.specs.For(languageOfFile(fr))
 
 	// Index this file's imports once; every reference in the file consults them.
-	imports := buildImportSet(spec, fr.Imports)
+	fileImports := fr.Imports
+	if spec.ReExports {
+		fileImports = r.reexports(ctx, spec, fileImports)
+	}
+	imports := buildImportSet(spec, fileImports)
 	imports.layout = r.layout
 	if spec.QualifiedMembers {
 		imports.base = pathSegments(path.Dir(fr.Path))
@@ -424,6 +463,12 @@ func (r *Resolver) ResolveFile(
 	symbols, err := r.candidates.Candidates(ctx, r.AppendNames(nil, nil, fr))
 	if err != nil {
 		return nil, nil, fmt.Errorf("candidates for %s: %w", fr.Path, err)
+	}
+
+	if spec.FoldNames {
+		if err := r.foldCandidates(ctx, spec, fr, symbols); err != nil {
+			return nil, nil, fmt.Errorf("spellings for %s: %w", fr.Path, err)
+		}
 	}
 
 	edges := make([]model.Edge, 0, len(fr.Refs))
@@ -1479,7 +1524,7 @@ func buildImportSet(spec LanguageSpec, imports []registry.Import) importSet {
 				i = len(s.imports)
 				byPath[imp.Path] = i
 				s.imports = append(s.imports, importEntry{
-					segments: pathSegments(p), relative: leadingDots(imp.Path), raw: imp.Path})
+					segments: importSegments(spec, p), relative: leadingDots(imp.Path), raw: imp.Path})
 			}
 			if s.members == nil {
 				s.members = make(map[string][]int, len(imports))
@@ -1498,7 +1543,7 @@ func buildImportSet(spec LanguageSpec, imports []registry.Import) importSet {
 		if p == "" {
 			continue
 		}
-		e := importEntry{alias: imp.Alias, segments: pathSegments(p), relative: leadingDots(imp.Path), raw: imp.Path}
+		e := importEntry{alias: imp.Alias, segments: importSegments(spec, p), relative: leadingDots(imp.Path), raw: imp.Path}
 		if len(e.segments) == 0 {
 			continue
 		}
@@ -2104,4 +2149,49 @@ func typeCandidates(cands []registry.SymbolIndexEntry) []registry.SymbolIndexEnt
 		}
 	}
 	return out
+}
+
+// foldCandidates gives a name written in another case the candidates of the
+// spellings the repository defines it under, for a language whose names are
+// case-insensitive: PowerShell's `write-log` is `Write-Log`.
+//
+// Exact case stays preferred, and by construction: a name that has candidates
+// as written is left alone, so a repository defining both spellings binds each
+// call to the spelling it wrote. Only a name with none borrows, from every
+// other spelling, in path order (declaredBefore) and never in id order, which
+// follows the order files were indexed in. The scoping rules that decide which
+// of those a call can reach (what was dot-sourced, what was imported) run
+// afterwards, unchanged, over the larger set.
+func (r *Resolver) foldCandidates(ctx context.Context, spec LanguageSpec, fr registry.FileRefs, symbols map[string][]registry.SymbolIndexEntry) error {
+	src, ok := r.candidates.(Spelled)
+	if !ok {
+		return nil
+	}
+	var table map[string][]string
+	for _, ref := range fr.Refs {
+		if len(symbols[ref.Name]) > 0 {
+			continue
+		}
+		if table == nil {
+			var err error
+			if table, err = src.Spellings(ctx, spec.Name); err != nil {
+				return err
+			}
+		}
+		spellings := table[strings.ToLower(ref.Name)]
+		if len(spellings) == 0 {
+			continue
+		}
+		got, err := r.candidates.Candidates(ctx, spellings)
+		if err != nil {
+			return err
+		}
+		var merged []registry.SymbolIndexEntry
+		for _, name := range spellings {
+			merged = append(merged, got[name]...)
+		}
+		sort.Slice(merged, func(i, j int) bool { return declaredBefore(merged[i], merged[j]) })
+		symbols[ref.Name] = merged
+	}
+	return nil
 }

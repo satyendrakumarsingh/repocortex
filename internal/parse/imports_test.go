@@ -408,6 +408,16 @@ class Cart {}
 	if alias, ok := importAlias(res, "lib/src/util"); !ok || alias != "u" {
 		t.Errorf("`as u` alias = %q, want u", alias)
 	}
+	// An export and a part name a file without importing it: the row says so.
+	if alias, ok := importAlias(res, "lib/src/api"); !ok || alias != ModuleExport {
+		t.Errorf("`export` alias = %q, want %q", alias, ModuleExport)
+	}
+	if alias, ok := importAlias(res, "lib/src/cart.g"); !ok || alias != ModuleInclude {
+		t.Errorf("`part` alias = %q, want %q", alias, ModuleInclude)
+	}
+	if alias, ok := importAlias(res, "lib/src/models/item"); !ok || alias != "" {
+		t.Errorf("a plain import has alias %q, want none", alias)
+	}
 }
 
 // A quoted include names a header of the repository; a framework header and an

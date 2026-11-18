@@ -880,8 +880,8 @@ var importQueries = map[string]string{
 	"dart": `
 (import_specification (configurable_uri (uri (string_literal) @path)) (identifier) @alias)
 (import_specification (configurable_uri (uri (string_literal) @path)))
-(library_export (configurable_uri (uri (string_literal) @path)))
-(part_directive (uri (string_literal) @path))
+(library_export "export" @directive (configurable_uri (uri (string_literal) @path)))
+(part_directive "part" @directive (uri (string_literal) @path))
 (part_of_directive (uri (string_literal) @path))
 `,
 

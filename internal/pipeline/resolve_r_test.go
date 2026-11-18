@@ -43,6 +43,9 @@ func TestRResolution(t *testing.T) {
 		// A package's tests call its functions, which testthat attaches.
 		{"tests/testthat/test-account.R:(top level)", "R/account.R:deposit", high},
 		{"tests/testthat/test-account.R:(top level)", "R/account.R:balance", high},
+		// pkg::f() where pkg is this repository's own package (DESCRIPTION's
+		// Package: field) is a call into R/.
+		{"scripts/run.R:main", "R/validate.R:validate", high},
 	}
 	forbid := []want{
 		// scripts/lib/other.R is not sourced by run.R.
@@ -52,6 +55,11 @@ func TestRResolution(t *testing.T) {
 		// filter, print and message are the language's.
 		{Src: "scripts/run.R:main", Dst: "filter"},
 		{Src: "R/log.R:log_event", Dst: "scripts/"},
+		// Decoys for the own-package rule: `ledger::validate` is R/'s, never the
+		// script directory's namesake; `otherpkg::validate` is another
+		// package's; `ledger::no_such_fn` is nobody's.
+		{Src: "scripts/run.R:main", Dst: "scripts/lib/other.R:validate"},
+		{Src: "scripts/run.R:main", Dst: "no_such_fn"},
 	}
 	scoreEdges(t, got, wants, forbid, nil)
 }
@@ -132,6 +140,9 @@ main <- function() {
   out <- filter(data, y > 1)
   out <- dplyr::mutate(out, z = 1)
   s <- stats::sd(out$z)
+  ledger::validate(s)
+  otherpkg::validate(s)
+  ledger::no_such_fn(s)
   summarise_all(tidy(out))
 }
 
@@ -160,7 +171,11 @@ summarise_all <- function(df) {
   summary(df)
 }
 `,
-		"scripts/lib/other.R": `summarise_all <- function(df) {
+		"scripts/lib/other.R": `validate <- function(x) {
+  x
+}
+
+summarise_all <- function(df) {
   df
 }
 

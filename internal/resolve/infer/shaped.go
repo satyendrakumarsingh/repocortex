@@ -1551,6 +1551,14 @@ func (r *Resolver) callScoped(c call, stats *Stats) decision {
 	}
 	last := segs[len(segs)-1]
 
+	// `ledger::deposit()` in a package named ledger: a call into the
+	// repository's own package, whose functions are the files of its R/.
+	if len(segs) == 1 && len(c.spec.NamespaceDirs) > 0 {
+		if dirs := r.layout.OwnPackageDirs(last); len(dirs) > 0 {
+			return c.ownPackageCall(last, dirs)
+		}
+	}
+
 	// Rust's path keywords: this module, its parent, the crate root.
 	switch last {
 	case "self", "super":

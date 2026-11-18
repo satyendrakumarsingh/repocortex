@@ -338,6 +338,19 @@ type LanguageSpec struct {
 	// directory, which is what the language does with no better evidence.
 	ModuleDirs []string
 
+	// FoldNames reports that the language does not tell two spellings of a name
+	// apart by case: PowerShell command names, where `write-log` calls
+	// `Write-Log`. Candidate lookup is by exact name, so a call written in
+	// another case finds nothing; with this set it falls back to the spellings
+	// the repository defines (Resolver.foldCandidates).
+	FoldNames bool
+
+	// ReExports reports that a file's import rows include `export` and `part`
+	// directives, which bring a library's names in without an import: a Dart
+	// barrel's `export 'src/x.dart'`, a library's `part 'x.g.dart'`. See
+	// reexport.go.
+	ReExports bool
+
 	// NamespaceDirs names the only directories whose files share a namespace
 	// with no import: an R package's `R/`, where every file's functions are the
 	// package's and every other file of the directory calls them by name. Empty
@@ -1179,6 +1192,7 @@ func NewSpecs() *Specs {
 	powershell.ProximityIsEvidence = false
 	powershell.TypesNeedImport = true
 	powershell.MemberSeparators = sepDefault
+	powershell.FoldNames = true
 	add(powershell)
 	// R. A file is a script that loads nothing it does not `source()`, except
 	// inside a package's `R/`, whose files are one namespace (NamespaceDirs). An
@@ -1267,6 +1281,7 @@ func NewSpecs() *Specs {
 	})
 	dart.ProximityIsEvidence = false
 	dart.TypesNeedImport = true
+	dart.ReExports = true
 	dart.MemberSeparators = sepDefault
 	add(dart)
 	// Objective-C. A quoted #import names a header, and the header's methods are

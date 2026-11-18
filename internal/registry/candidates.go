@@ -90,6 +90,14 @@ type CandidateCache struct {
 	// lookups. See guided.go.
 	files []FileRec
 
+	// spellings holds, per language, each lower-cased name with the distinct
+	// spellings the run defines it under. Read once on first use. See Spellings.
+	spellings map[string]map[string][]string
+
+	// directives holds, per language, each file's export and part rows. Read
+	// once on first use. See Directives.
+	directives map[string]map[string]FileDirectives
+
 	hits, misses, evictions int
 }
 
@@ -304,6 +312,50 @@ func (c *CandidateCache) fetch(ctx context.Context, names []string) (map[string]
 		}
 		_ = rows.Close()
 	}
+	return out, nil
+}
+
+// maxSpellings bounds the names one language's spelling table holds. A
+// language whose names are case-insensitive is a scripting language, and a
+// repository of one has thousands of definitions, not millions; past the bound
+// the table is cut at the names that sort first and the rest keep exact-case
+// lookup, which is what they had.
+const maxSpellings = 200_000
+
+// Spellings returns the names a language's definitions are written under,
+// grouped by lower-cased name and each group sorted, for the languages that
+// do not tell `Write-Log` from `write-log`. It is read on first use and kept
+// for the life of the cache: a run's symbols do not change under a resolver,
+// and asking per name would scan the run for every command a script calls,
+// most of which (the shell's own) the repository does not define at all.
+func (c *CandidateCache) Spellings(ctx context.Context, language string) (map[string][]string, error) {
+	if got, ok := c.spellings[language]; ok {
+		return got, nil
+	}
+	rows, err := c.reg.db.QueryContext(ctx,
+		`SELECT DISTINCT s.name FROM symbols s JOIN files f ON f.id = s.file_id
+		  WHERE s.index_run_id = ? AND f.language = ? ORDER BY s.name LIMIT ?`,
+		c.runID, language, maxSpellings)
+	if err != nil {
+		return nil, fmt.Errorf("registry: load spellings: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	out := map[string][]string{}
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		key := strings.ToLower(name)
+		out[key] = append(out[key], name)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if c.spellings == nil {
+		c.spellings = map[string]map[string][]string{}
+	}
+	c.spellings[language] = out
 	return out, nil
 }
 

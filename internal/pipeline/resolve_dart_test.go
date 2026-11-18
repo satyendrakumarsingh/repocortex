@@ -38,11 +38,24 @@ func TestDartResolution(t *testing.T) {
 		{"test/cart_test.dart:main", "lib/src/cart.dart:Cart", high},
 		{"test/cart_test.dart:main", "lib/src/cart.dart:Cart.recalc", high},
 		{"test/cart_test.dart:main", "lib/src/store.dart:Store", high},
+		// A barrel re-exports: app.dart imports lib/shop.dart alone, which
+		// exports pricing.dart, and more.dart, which exports deep.dart (and
+		// shop.dart again, a cycle).
+		{"lib/app.dart:run", "lib/src/pricing.dart:discount", high},
+		{"lib/app.dart:run", "lib/src/deep.dart:rebate", high},
+		// A generated part is part of the library that names it.
+		{"lib/src/model.dart:Model.toJson", "lib/src/model.g.dart:_$ModelToJson", high},
+		{"lib/src/model.dart:Model.from", "lib/src/model.g.dart:_$ModelFromJson", high},
+		{"lib/src/model.g.dart:_$ModelFromJson", "lib/src/model.dart:Model", high},
 	}
 	forbid := []want{
 		{Src: "lib/src/", Dst: "lib/other/util.dart"},
 		{Src: "lib/src/cart.dart", Dst: "lib/ui/text.dart:format"},
 		{Src: "lib/src/cart.dart:Cart.total", Dst: "lib/src/cache.dart:Cache.save"},
+		// internal.dart is exported by no barrel, and legacy.g.dart is a part of
+		// another library.
+		{Src: "lib/app.dart", Dst: "lib/src/internal.dart"},
+		{Src: "lib/src/model.dart", Dst: "lib/src/legacy.g.dart"},
 	}
 	scoreEdges(t, got, wants, forbid, nil,
 		want{Src: "lib/src/cart.dart:Cart.build", Dst: "lib/ui/text.dart:Text"})
@@ -128,6 +141,59 @@ class Cart {
 
   Widget build(BuildContext context) => Text('cart');
 }
+`,
+		"lib/shop.dart": `library shop;
+
+export 'src/pricing.dart';
+export 'src/more.dart';
+`,
+		"lib/src/more.dart": `export 'deep.dart';
+export '../shop.dart';
+
+double bonus() => 1;
+`,
+		"lib/src/deep.dart": `double rebate(double d) => d * 0.5;
+`,
+		"lib/src/internal.dart": `double rebate(double d) => d;
+
+void secret() {}
+`,
+		"lib/app.dart": `import 'package:shop/shop.dart';
+
+void run() {
+  discount(null);
+  rebate(2.0);
+}
+`,
+		"lib/src/model.dart": `part 'model.g.dart';
+
+class Model {
+  Map toJson() {
+    return _$ModelToJson(this);
+  }
+
+  static Model from(Map j) {
+    return _$ModelFromJson(j);
+  }
+}
+`,
+		"lib/src/model.g.dart": `part of 'model.dart';
+
+Map _$ModelToJson(Model m) {
+  return {};
+}
+
+Model _$ModelFromJson(Map j) {
+  return Model();
+}
+`,
+		"lib/src/legacy.dart": `part 'legacy.g.dart';
+
+class Legacy {}
+`,
+		"lib/src/legacy.g.dart": `part of 'legacy.dart';
+
+Map _$ModelToJson(Object m) => {};
 `,
 		"lib/ui/text.dart": `class Text {
   final String data;
