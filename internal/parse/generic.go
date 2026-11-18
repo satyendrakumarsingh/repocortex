@@ -790,6 +790,7 @@ func (p *genericParser) Parse(ctx context.Context, path string, src []byte) (*Re
 			sym.ReturnType = returnTypes[tag.NameRange.StartByte]
 			f := defFlags[tag.NameRange.StartByte]
 			sym.Private, sym.Trait = f&model.SymbolFlagPrivate != 0, f&model.SymbolFlagTrait != 0
+			sym.Conditional, sym.RefImpl = f&model.SymbolFlagConditional != 0, f&model.SymbolFlagRefImpl != 0
 			if py != nil {
 				// A nested definition is qualified by what encloses it, so that
 				// two classes' `save` are two names. Module-level definitions

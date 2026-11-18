@@ -805,10 +805,8 @@ var importQueries = map[string]string{
 (export_statement source: (string (string_fragment) @path)) @import
 ` + scriptRequireImports,
 
-	"rust": `
-(use_declaration argument: (scoped_identifier) @path)
-(use_declaration argument: (identifier) @path)
-`,
+	// Rust: no query. A `use` is a tree of paths (a list, a rename, a glob), and
+	// rustUses (lang_rust_uses.go) writes one row per leaf from the tree.
 
 	// Ruby has no import statement; `require` and `require_relative` are
 	// ordinary method calls, so the query matches the call shape and the

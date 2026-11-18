@@ -45,6 +45,9 @@ func (p *genericParser) importedBindings(tree *ts.Tree, src []byte) (out []Impor
 	if tree != nil && p.entry.Name == "php" {
 		return p.phpUses(tree, src)
 	}
+	if tree != nil && p.entry.Name == "rust" {
+		return p.rustUses(tree, src)
+	}
 	if tree != nil && p.entry.Name == "scala" {
 		return p.scalaImports(tree, src)
 	}

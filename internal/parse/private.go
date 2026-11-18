@@ -47,6 +47,13 @@ var privateDefNodes = map[string]map[string]bool{
 	},
 	"c":       {"function_definition": true},
 	"clojure": {"list_lit": true},
+	// Rust marks nothing private here; what it reads is #[cfg(...)]
+	// (rustConditional), on any item a call can reach.
+	"rust": {
+		"function_item": true, "function_signature_item": true, "struct_item": true,
+		"enum_item": true, "trait_item": true, "type_item": true, "const_item": true,
+		"static_item": true, "mod_item": true,
+	},
 }
 
 // definitionFlags returns, keyed by the start byte of a definition's name, the
@@ -80,7 +87,14 @@ func (p *genericParser) definitionFlags(tree *ts.Tree, src []byte, tags []ts.Tag
 			continue
 		}
 		flags := 0
-		if p.entry.Name == "php" && def.Type(p.lang) == "trait_declaration" {
+		if p.entry.Name == "rust" {
+			if p.rustConditional(def, src) {
+				flags |= model.SymbolFlagConditional
+			}
+			if p.rustRefImpl(def) {
+				flags |= model.SymbolFlagRefImpl
+			}
+		} else if p.entry.Name == "php" && def.Type(p.lang) == "trait_declaration" {
 			flags = model.SymbolFlagTrait
 		} else if p.privateMarker(def, name, src) {
 			flags = model.SymbolFlagPrivate

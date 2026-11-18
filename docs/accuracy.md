@@ -2734,6 +2734,46 @@ Each is stated with the figure that measured it, from the record or from the com
 - **Eight languages have no definition query on purpose:** Perl, Haskell, Pascal, COBOL, Elm, Nix, Verilog and Assembly. `repocortex languages --verbose` lists each under text only: searchable, with no symbols.
 - **Platforms and assets.** `install.ps1` has not been run on Windows (commit `d28e6a4`); no result of the test suite on Windows or Linux for the work in this document is in the record. The demo images in `docs/assets` were last regenerated at v1.0.1 and the portal screenshots on 11 November, before these changes.
 
+## Rust against rust-analyzer (2026-11-19)
+
+Rust was measured against `rust-analyzer scip` 1.99.1 with the method of this document: `index --full --accuracy fast`, `resolve --no-scip`, `scip import`, `accuracy`, and the wrong and missed call sites read edge by edge from the index (the pre-import copy gives each rule's own precision).
+
+**Corpora.** Three crates with no network: rtk (`rtk-develop`, 130 files, a command-line tool, 1,639 adjudicated sites), regex-syntax 0.8.11 (1,511 sites) and sqlparser 0.53.0 (2,966 sites). Each is one crate indexed with `CARGO_NET_OFFLINE=true`.
+
+| `high`, raw | Before: right / judged | Before: precision, recall | After: right / judged | After: precision, recall |
+|---|---:|---:|---:|---:|
+| rtk | 1,467 / 1,539 | 95.3%, 87.4% | 1,531 / 1,603 | 95.5%, 91.2% |
+| regex-syntax | 1,440 / 1,456 | 98.9%, 87.1% | 1,446 / 1,462 | 98.9%, 87.4% |
+| sqlparser | 2,869 / 2,873 | 99.9%, 90.3% | 2,876 / 2,876 | 100.0%, 90.5% |
+
+| `medium`, raw | Before | After |
+|---|---:|---:|
+| rtk | 46 / 49 (93.9%) | 36 / 36 (100%) |
+| regex-syntax | 42 / 44 (95.5%) | 36 / 36 (100%) |
+| sqlparser | 70 / 73 (95.9%) | 64 / 68 (94.1%) |
+
+Recall over all tiers: rtk 90.1% to 93.3%, regex-syntax 90.0% to 90.3%, sqlparser 93.1% unchanged.
+
+**The caveat: raw precision understates RepoCortex.** `rust-analyzer scip` names a private item by its path, and two same-named private items that rust-analyzer cannot tell apart collapse to one symbol: the `tests/*.rs` files of one crate (each is its own crate, and a `fn helper` in two of them is one symbol), and functions nested in functions (`fn imp` inside `perl_word` and inside `sb` is one `sb.<locals>.imp`). A call that RepoCortex binds to the nested function it is written in is then judged wrong. Every one of the `high` disagreements was read:
+
+| `high` | Raw wrong | Of them, rust-analyzer collapsing same-named items | Real wrong | Adjusted precision |
+|---|---:|---:|---:|---:|
+| rtk | 72 | 72 | 0 | 1,531 / 1,531 |
+| regex-syntax | 16 | 16 | 0 | 1,446 / 1,446 |
+| sqlparser | 0 | 0 | 0 | 2,876 / 2,876 |
+
+The adjusted figure is the one a user would see against a compiler that kept the items apart; the raw one is what the tool reports, and is the one the bar is set on (95% on every corpus).
+
+**What changed, and what each fix did on these corpora.**
+
+1. **`use` lists, renames and globs are stored, and read.** `use a::{b, c::d}`, `use a::b as c`, `{self}` and `use a::*` had no import row (the query matched a plain path only). Each leaf is now a row (`internal/parse/lang_rust_uses.go`), and a bare call is bound to the module a `use` names, a module being `<src>/a/b.rs` or `<src>/a/b/mod.rs` (`infer/rustuse.go`). A path that starts `core::`, `std::` or `alloc::` beside a `mod core;` is that module and not the standard library, and `utils::f()` after `use crate::core::utils;` is the function of that file, not of any file called `utils`. `self::` and `super::` are not placed (an inline `mod tests` makes the file's path wrong about them). Measured on rtk: `high` right 1,467 to 1,537 (recall 87.4% to 91.5%), wrong unchanged at 72, `medium` wrong 3 to 0 (the three "same directory, but the language requires an import" edges, `gain.rs:488` among them, now bind to `core/display_helpers.rs`), 91 missed sites to 40 (`resolved_command` 9 to 0, `decode_process_output` 4 to 0, `truncate` 3 to 0). regex-syntax: 1,440 to 1,446 right. sqlparser: 2,869 to 2,876. No `high` edge was added that is wrong.
+2. **Definitions under `#[cfg(...)]`.** The parser records that a Rust item, or an item enclosing it, has a `cfg` attribute (`symbols.flags`, bit 4, no migration). A call that binds `high` to a conditional definition with a conditional twin of the same qualified name is held at `medium` and says why (`infer/rustcfg.go`). sqlparser's `try_decrease` at `parser/mod.rs:95` and `:138` (`mod recursion` for `std` and for `not(std)`): 3 wrong `high` edges, now `medium`. rtk: 7 edges to `#[cfg(unix)]` / `#[cfg(not(unix))]` twins (`set_owner_only`, `output_codepage`), all right, move from `high` to `medium`, which is why rtk's `high` recall is 91.2% and not 91.5%. A function nested in the function the call is written in is exempt, since its twin is the other alternative's own.
+3. **One trait for `T` and for `&T`.** A method of an `impl Trait for &T` is marked (bit 8), and a `high` binding to a method that has a same-named twin differing in that mark is held at `medium` (`ours.into_iter()` on an owned value bound to `impl<'a, T> IntoIterator for &'a T`, `ast/mod.rs:7911`). The receiver is not read to choose between the two: the source rarely says, and the cap is the honest answer where it does not.
+4. **A variable's name against what it was assigned.** `let mut class = self.convert_unicode_class_error(..)?; class.negate()` was bound to `Class.negate` at `medium` because the variable is named `class`; the call that assigned it is declared to return `Result<hir::ClassUnicode>`. Where the call that assigned a variable declares a return type that is not a type of the repository, the name no longer decides (`infer/rustnamed.go`). The per-rule figures, from the pre-import index: "receiver is named after the type that declares it" on a path or scope receiver 4 of 4 at `high`; on a name no declaration binds 35 of 35 at `medium`; on a variable declared without a type 10 of 15 at `medium` (regex-syntax 6 of 8, sqlparser 4 of 7). The last is now held at `low`. `NamedAfterType: High` stays for Rust: it applies only to the receivers that measured 4 of 4, and the weak case was the one capped by `namedAfterTypeIsHint`. Measured: `medium` wrong on regex-syntax 2 to 0 and on sqlparser 3 (`query.span()` on a `Select`) to 0 of that kind.
+5. **Not done:** closure parameter types from iterator adapters (`.map(|i| i.span())`, 83 missed sites in sqlparser) and enum tuple-variant constructors (`ParserError::ParserError(..)`, 31). Both need a type for a binding the parser does not read, and neither could be shown not to add a wrong `high` edge in the time.
+
+The `high` bar (95% raw on every corpus) holds on all three, with rtk the narrowest at 95.5%: its 72 are all the collapse above, and the margin is that arithmetic and not a loosened rule.
+
 ## Reproducing
 
 The numbers above came from:

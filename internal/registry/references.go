@@ -412,6 +412,14 @@ type SymbolIndexEntry struct {
 	// not read as private. Trait is true for a PHP trait, indexed as an
 	// interface. See migration 0024_symbol_flags.
 	Private, Trait bool
+
+	// Conditional is true for a Rust definition under a `#[cfg(...)]`. See
+	// model.Symbol.Conditional.
+	Conditional bool
+
+	// RefImpl is true for a Rust method of an impl for a reference type. See
+	// model.Symbol.RefImpl.
+	RefImpl bool
 }
 
 // LoadSymbolIndex returns every symbol in a run, keyed by name.
@@ -459,6 +467,7 @@ func (r *Registry) LoadSymbolIndex(ctx context.Context, runID int64) (map[string
 		}
 		e.Exported = exported == 1
 		e.Private, e.Trait = flags&model.SymbolFlagPrivate != 0, flags&model.SymbolFlagTrait != 0
+		e.Conditional, e.RefImpl = flags&model.SymbolFlagConditional != 0, flags&model.SymbolFlagRefImpl != 0
 		e.ParamCount = model.Arity(paramCount)
 		e.FilePath = intern(paths, e.FilePath)
 		e.Kind = intern(kinds, e.Kind)
