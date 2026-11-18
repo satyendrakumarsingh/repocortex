@@ -1,0 +1,36 @@
+# D. A class, struct, union and enum are class, an interface is interface, `alias X = T` is
+# type_alias. A function is function at the module level (nested ones too) and method in the body of
+# a class, struct, union or interface; a constructor is the method `this`. A variable at the top of the
+# module is variable, one in an aggregate is field.
+# Not definitions: parameters, locals, enum members, a destructor, `unittest` blocks, import and module.
+sample.d	7	variable	limit
+sample.d	8	variable	greeting
+sample.d	9	variable	hidden
+sample.d	11	type_alias	Id
+sample.d	13	function	add
+sample.d	18	function	helper
+sample.d	20	function	identity
+sample.d	22	class	Color
+sample.d	24	class	Point
+sample.d	25	field	x
+sample.d	26	field	y
+sample.d	28	method	this
+sample.d	33	method	sum
+sample.d	36	interface	Shape
+sample.d	37	method	area
+sample.d	40	class	Base
+sample.d	41	field	id
+sample.d	42	method	run
+sample.d	45	class	Cart
+sample.d	46	field	total
+sample.d	47	field	count
+sample.d	49	method	this
+sample.d	55	method	run
+sample.d	60	method	area
+sample.d	62	method	make
+sample.d	66	class	Item
+sample.d	67	field	price
+sample.d	68	method	cost
+sample.d	72	class	Number
+sample.d	73	field	i
+sample.d	74	field	f

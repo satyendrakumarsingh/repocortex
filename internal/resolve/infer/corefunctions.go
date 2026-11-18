@@ -84,6 +84,15 @@ func buildCoreFunctions() map[string]map[string]struct{} {
 		block_given? binding freeze at_exit gets sleep rand srand exit abort warn fail
 		open system exec fork trap Integer Float String Array Hash Rational Complex`)
 
+	// Crystal: Kernel and the class-body macros, called with no receiver. A bare call
+	// of one is the language's, whatever a type of the repository declares of that name.
+	out["crystal"] = words(`
+		include extend getter setter property getter? property? class_getter class_property
+		private_getter protected_getter require raise puts print p pp printf sprintf loop spawn sleep
+		rand gets exit abort at_exit typeof sizeof pointerof uninitialized with_a yield assert_responds_to
+		describe it context before_each after_each should expect pending fail
+		def_equals def_hash def_clone delegate forward_missing_to record annotation`)
+
 	// Swift: the standard library's free functions. A call of one with no
 	// receiver is the library's unless the file or an import names a definition,
 	// and a repository's own `max` or `print` helper in some other module says
@@ -382,6 +391,45 @@ func buildCoreFunctions() map[string]map[string]struct{} {
 		print_endline print_float print_int print_newline print_string raise raise_notrace read_float
 		read_int read_line really_input ref seek_in set_binary_mode_in sin sinh snd sqrt string_of_bool
 		string_of_float string_of_int succ tan tanh truncate`)
+
+	// GDScript: the utility functions and the keywords written as calls, which a bare
+	// name reaches before any script's member of the same name.
+	out["gdscript"] = words(`
+		abs absf absi acos asin atan atan2 bytes_to_var ceil clamp clampf clampi cos cosh deg_to_rad
+		ease exp floor fmod fposmod hash instance_from_id inverse_lerp is_equal_approx is_inf is_instance_valid
+		is_nan is_zero_approx lerp lerp_angle lerpf load log max maxf maxi min minf mini move_toward
+		nearest_po2 pingpong posmod pow preload print print_debug print_rich print_verbose printerr printraw
+		prints printt push_error push_warning rad_to_deg rand_from_seed randf randf_range randfn randi randi_range
+		randomize range round roundf roundi seed sign signf signi sin sinh smoothstep snapped sqrt step_decimals
+		str str_to_var tan tanh type_string typeof var_to_bytes var_to_str weakref wrapf wrapi
+		assert float int len bool is_instance_of`)
+
+	// Nim: the `system` module, which every module imports. A bare call of one is the
+	// language's unless the file defines it (an overload of it, which the argument's
+	// type chooses: not read) or an import brings a repository definition of that name.
+	out["nim"] = words(`
+		abs add addr airlock assert card cast chr cmp contains copy dec declared defined del delete
+		deepCopy doAssert echo excl find getCurrentException getCurrentExceptionMsg high inc incl
+		insert isNil items len low max min new newSeq newSeqOfCap newString newStringOfCap ord pairs
+		pop pred quit readAll readFile readLine repr reset setLen shallowCopy sizeof succ swap
+		toFloat toInt typeof writeFile writeLine write zip`)
+
+	// D: object.d, which every module imports, and the std.stdio and std.conv calls
+	// that nearly every module has in scope. A bare call of one is the language's unless
+	// the file defines it or an import brings a repository definition of that name.
+	out["d"] = words(`
+		assert enforce format iota map filter reduce readln sort text to write writef writefln writeln`)
+
+	// ReScript: Pervasives, which is opened in every file, and the compiler's own
+	// `assert`, `panic` and `ignore`. A bare call of one is the language's unless
+	// the file defines it or an `open` brings a repository definition of that name in.
+	out["rescript"] = words(`
+		abs abs_float acos asin atan atan2 ceil char_of_int classify_float compare copysign cos cosh
+		decr exit exp expm1 failwith float float_of_int float_of_string floor fmod frexp fst hypot
+		ignore incr infinity int_of_char int_of_float int_of_string invalid_arg ldexp lnot log log10
+		log1p max max_float max_int min min_float min_int mod_float modf nan not panic raise ref snd
+		sqrt string_of_bool string_of_float string_of_int truncate
+		describe test it expect assertion`)
 
 	// F#: FSharp.Core, whose operators and functions are opened in every file, and
 	// the Expecto, xUnit and NUnit forms a test file calls bare. A bare call of one

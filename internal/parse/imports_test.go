@@ -1905,3 +1905,406 @@ func TestIncludeImports(t *testing.T) {
 		t.Errorf("a kernel launch was not recorded as a call of kern: %+v", got)
 	}
 }
+
+// Nim: a module is a file, written by its path. A relative path is the repository path of
+// the file it names, a module of the standard library or a package is no file here, a
+// list in brackets is several modules, `as` names a qualifier, `except` hides names, and
+// `from m import f` lists the names it brings.
+func TestNimImports(t *testing.T) {
+	res := parse(t, "src/app/cart.nim", `import std/[strutils, os], tables
+import money, ./util as u, ../lib/fmt
+import shop/[tax, base]
+import a except f, g
+from shop/cart import add, total
+from shop/stack import nil
+from shop/other import f as g
+include extras
+export money
+`)
+	wantRows(t, res, []string{
+		"tables import", "money import", "src/app/util alias:u;import", "src/lib/fmt import",
+		"shop/tax import", "shop/base import", "a hiding:f,g", "shop/cart import:add,total",
+		"extras include", "money export",
+	})
+
+	// A name without the export marker is the module's own.
+	res = parse(t, "m.nim", "proc shown*(a: int): int = a\nproc own(a: int): int = a\ntype\n  Pub* = object\n  Priv = object\nlet hidden = 1\nvar open* = 2\n")
+	private := map[string]bool{}
+	for _, s := range res.Symbols {
+		private[s.Name] = s.Private
+	}
+	for name, want := range map[string]bool{"shown": false, "own": true, "Pub": false, "Priv": true, "hidden": true, "open": false} {
+		if got, ok := private[name]; !ok || got != want {
+			t.Errorf("%s: private = %v (present %v), want %v", name, got, ok, want)
+		}
+	}
+}
+
+// Nim calls: `f(x)`, `x.f()` and `f x` are one node, and the text before the name is the
+// receiver; a constructor call and a generic call are calls of the name.
+func TestNimCallShapes(t *testing.T) {
+	refs, _ := shapeOf(t, "src/cart.nim", `import money, ./util as u
+
+proc total*(c: Cart): int =
+  let m = Money(cents: 1)
+  echo helper(3)
+  c.items.add(4)
+  c.fmt()
+  u.slug "x"
+  printAll c
+  var s = newSeq[int](3)
+`)
+	for name, want := range map[string]struct{ kind, recv string }{
+		"Money":    {model.ReceiverBare, ""},
+		"helper":   {model.ReceiverBare, ""},
+		"add":      {model.ReceiverPath, "c.items"},
+		"fmt":      {model.ReceiverValue, "c"},
+		"slug":     {model.ReceiverName, "u"},
+		"printAll": {model.ReceiverBare, ""},
+		"newSeq":   {model.ReceiverBare, ""},
+	} {
+		got, ok := refs[name]
+		if !ok || got.ReceiverKind != want.kind || got.Receiver != want.recv {
+			t.Errorf("%s = %+v, want %s %q", name, got, want.kind, want.recv)
+		}
+	}
+}
+
+// D: a module by its dotted name, written with slashes, and what the statement does with
+// it. The standard library and the runtime are no file here.
+func TestDImports(t *testing.T) {
+	res := parse(t, "src/shop/cart.d", `module shop.cart;
+
+import std.stdio;
+import core.thread;
+import shop.money, shop.util : slug, pad;
+import fmt = shop.format;
+import shop.rename : q = r;
+public import shop.base;
+static import shop.stat;
+private import shop.priv;
+`)
+	wantRows(t, res, []string{
+		"shop/money import", "shop/util import:slug,pad", "shop/format alias:fmt", "shop/rename static",
+		"shop/base import", "shop/base export", "shop/stat static", "shop/priv import",
+	})
+
+	// A `private` name is the module's own, written on the declaration or as a section.
+	res = parse(t, "m.d", "int a() { return 1; }\nprivate int b() { return 2; }\nclass C {\n    private int c;\n    int d() { return 3; }\n}\nprivate:\nint e() { return 4; }\n")
+	private := map[string]bool{}
+	for _, s := range res.Symbols {
+		private[s.Name] = s.Private
+	}
+	for name, want := range map[string]bool{"a": false, "b": true, "c": true, "d": false, "e": true} {
+		if got, ok := private[name]; !ok || got != want {
+			t.Errorf("%s: private = %v (present %v), want %v", name, got, ok, want)
+		}
+	}
+}
+
+// D definitions and calls: a member is qualified by its aggregate, a constructor is
+// `this`, and a call is a free function, a method or a member of a module.
+func TestDCallShapes(t *testing.T) {
+	refs, res := shapeOf(t, "src/shop/cart.d", `module shop.cart;
+import shop.money;
+
+class Cart {
+    this(int t) {}
+    int total(Money m) {
+        auto z = zero();
+        shop.util.slug("a");
+        Cart c = make();
+        c.again();
+        return new Cart(1).pub();
+    }
+}
+`)
+	for name, want := range map[string]struct{ kind, recv string }{
+		"zero":  {model.ReceiverBare, ""},
+		"slug":  {model.ReceiverPath, "shop.util"},
+		"make":  {model.ReceiverBare, ""},
+		"again": {model.ReceiverType, "Cart"},
+		"pub":   {model.ReceiverType, "Cart"},
+	} {
+		got, ok := refs[name]
+		if !ok || got.ReceiverKind != want.kind || got.Receiver != want.recv {
+			t.Errorf("%s = %+v, want %s %q", name, got, want.kind, want.recv)
+		}
+	}
+	for _, s := range res.Symbols {
+		if s.Name == "total" && s.FQN != "src/shop/cart.d:Cart.total" {
+			t.Errorf("total = %q, want it qualified by Cart", s.FQN)
+		}
+	}
+}
+
+// Crystal: a `require` names a file by a path relative to this one, a glob, or a lookup.
+func TestCrystalImports(t *testing.T) {
+	res := parse(t, "src/shop/cart.cr", `require "json"
+require "./money"
+require "../lib/util.cr"
+require "./shop/*"
+require "shop/util"
+`)
+	wantRows(t, res, []string{"json ", "src/shop/money ", "src/lib/util ", "src/shop/shop/* ", "shop/util "})
+}
+
+// Crystal definitions and calls: a type is qualified by the namespaces around it, a
+// method by the type, a private method is flagged, and a typed local is a call on its type.
+func TestCrystalCallShapes(t *testing.T) {
+	refs, res := shapeOf(t, "src/shop/cart.cr", `module Shop
+  class Cart
+    def total(other : Money)
+      x : Fmt = Fmt.new
+      x.pad(3)
+      other.plus(1)
+      Util::Strings.slug("a")
+      helper(1)
+      puts "hi"
+      self.again
+    end
+
+    private def helper(x)
+      x
+    end
+  end
+end
+
+class Shop::Item
+  def price
+    1
+  end
+end
+`)
+	for name, want := range map[string]struct{ kind, recv string }{
+		"pad":    {model.ReceiverType, "Fmt"},
+		"plus":   {model.ReceiverType, "Money"},
+		"slug":   {model.ReceiverScope, "Util::Strings"},
+		"helper": {model.ReceiverBare, ""},
+		"puts":   {model.ReceiverBare, ""},
+		"again":  {model.ReceiverSelf, "self"},
+	} {
+		got, ok := refs[name]
+		if !ok || got.ReceiverKind != want.kind || got.Receiver != want.recv {
+			t.Errorf("%s = %+v, want %s %q", name, got, want.kind, want.recv)
+		}
+	}
+	quals := map[string]string{}
+	private := map[string]bool{}
+	for _, s := range res.Symbols {
+		quals[s.Name] = s.FQN
+		private[s.Name] = s.Private
+	}
+	for name, want := range map[string]string{
+		"total": "src/shop/cart.cr:Shop.Cart.total", "Cart": "src/shop/cart.cr:Shop.Cart",
+		"Item": "src/shop/cart.cr:Shop.Item", "price": "src/shop/cart.cr:Shop.Item.price",
+	} {
+		if quals[name] != want {
+			t.Errorf("%s = %q, want %q", name, quals[name], want)
+		}
+	}
+	if !private["helper"] || private["total"] {
+		t.Errorf("private: helper = %v, total = %v", private["helper"], private["total"])
+	}
+}
+
+// ReScript: `open`, `include` and `module X = A.B` bring a module in or rename it, and a
+// call is made on a module path; the right of a pipe is a call, and a parameter that
+// the function applies is a call of a value.
+func TestReScriptImports(t *testing.T) {
+	res := parse(t, "src/Cart.res", `open Money
+open! Util.Strings
+include Base
+module M = Money
+module Fmt = Util.Format
+module Inner = {
+  open Hidden
+  let go = () => 1
+}
+
+let apply = (f, x) => f(x)
+let total = items => {
+  let z = Money.zero()
+  items->Belt.Array.length->ignore
+  z->Money.fmt
+  Util.slug("a")
+}
+`)
+	wantRows(t, res, []string{
+		"Money import", "Util.Strings import", "Base import", "Money alias:M", "Util.Format alias:Fmt",
+	})
+	refs, _ := shapeOf(t, "src/Cart.res", `let apply = (f, x) => f(x)
+let total = items => {
+  let z = Money.zero()
+  items->Belt.Array.length->ignore
+  z->Money.fmt
+  helper(1)
+}
+`)
+	for name, want := range map[string]struct{ kind, recv string }{
+		"zero":   {model.ReceiverName, "Money"},
+		"length": {model.ReceiverPath, "Belt.Array"},
+		"fmt":    {model.ReceiverName, "Money"},
+		"ignore": {model.ReceiverBare, ""},
+		"helper": {model.ReceiverBare, ""},
+	} {
+		got, ok := refs[name]
+		if !ok || got.ReceiverKind != want.kind || got.Receiver != want.recv {
+			t.Errorf("%s = %+v, want %s %q", name, got, want.kind, want.recv)
+		}
+	}
+	if got, ok := refs["f"]; !ok || !strings.HasSuffix(got.Kind, IndirectCallSuffix) {
+		t.Errorf("f(x) where f is a parameter should be an indirect call: %+v", got)
+	}
+}
+
+// GDScript: what names another script. A res:// path is the path beneath the project, a
+// path relative to the script is its repository path, and `extends` by a class_name is
+// kept by the name. Every definition is qualified by its script.
+func TestGDScriptImports(t *testing.T) {
+	res := parse(t, "scripts/player.gd", `class_name Player
+extends Base
+
+const Weapon = preload("res://scripts/weapon.gd")
+const Local = preload("./local.gd")
+const Scene = preload("res://scenes/main.tscn")
+var Enemy = load("res://enemies/enemy.gd")
+@onready var Hud = preload("res://ui/hud.gd")
+
+class Inner:
+	func ping():
+		pass
+
+func helper():
+	pass
+`)
+	wantRows(t, res, []string{
+		"class:Base include", "scripts/weapon alias:Weapon", "scripts/local alias:Local",
+		"enemies/enemy alias:Enemy", "ui/hud alias:Hud",
+	})
+	quals := map[string]string{}
+	for _, s := range res.Symbols {
+		quals[s.Name] = s.FQN
+	}
+	for name, want := range map[string]string{
+		"helper": "scripts/player.gd:Player.helper", "Inner": "scripts/player.gd:Player.Inner",
+		"ping": "scripts/player.gd:Player.Inner.ping", "Player": "",
+	} {
+		if quals[name] != want {
+			t.Errorf("%s = %q, want %q", name, quals[name], want)
+		}
+	}
+
+	// A script with no class_name is qualified by its file's name, and extends a path.
+	res = parse(t, "scripts/weapon.gd", "extends \"res://scripts/base.gd\"\n\nfunc _init():\n\tpass\n\nfunc fire():\n\tpass\n")
+	wantRows(t, res, []string{"scripts/base include"})
+	got := map[string]string{}
+	for _, s := range res.Symbols {
+		got[s.Name] = s.FQN
+	}
+	if got["fire"] != "scripts/weapon.gd:weapon.fire" || got["_init"] != "scripts/weapon.gd:weapon._init" {
+		t.Errorf("members of a script with no class_name: %+v", got)
+	}
+}
+
+// GDScript calls: a member is called bare, on self, on super, on a type by its name or on
+// a value whose type the source states.
+func TestGDScriptCallShapes(t *testing.T) {
+	refs, _ := shapeOf(t, "scripts/player.gd", `class_name Player
+extends Base
+
+const Weapon = preload("res://scripts/weapon.gd")
+var hp: Health
+
+func _ready(other: Player):
+	var w := Weapon.new()
+	w.fire()
+	hp.hurt(1)
+	other.helper(1)
+	helper(1)
+	self.helper(2)
+	super._ready()
+	Util.slug("a")
+`)
+	for name, want := range map[string]struct{ kind, recv string }{
+		"new":    {model.ReceiverName, "Weapon"},
+		"fire":   {model.ReceiverType, "Weapon"},
+		"hurt":   {model.ReceiverType, "Health"},
+		"helper": {model.ReceiverType, "Player"},
+		"_ready": {model.ReceiverSuper, "super"},
+		"slug":   {model.ReceiverName, "Util"},
+	} {
+		got, ok := refs[name]
+		if !ok || got.ReceiverKind != want.kind || got.Receiver != want.recv {
+			t.Errorf("%s = %+v, want %s %q", name, got, want.kind, want.recv)
+		}
+	}
+}
+
+// HCL: a reference is the traversal's address, and a module block is a row of its source.
+func TestHCLReferencesAndModules(t *testing.T) {
+	res := parse(t, "infra/main.tf", `module "net" {
+  source = "./modules/net"
+  cidr   = var.cidr
+}
+
+module "up" {
+  source = "../shared"
+}
+
+module "vpc" {
+  source = "terraform-aws-modules/vpc/aws"
+}
+
+module "out" {
+  source = "../../../outside"
+}
+
+resource "aws_instance" "web" {
+  ami       = data.aws_ami.ubuntu.id
+  subnet_id = module.net.subnet_id
+  tags      = merge(local.tags, { Name = "${var.name}-${each.key}" })
+  sgs       = [aws_security_group.web.id, aws_security_group.db[0].id]
+  count     = length(var.names)
+  provider  = aws.west
+
+  dynamic "ebs" {
+    for_each = var.disks
+    content {
+      size = ebs.value.size
+      name = "${count.index}-${self.id}-${path.module}"
+    }
+  }
+}
+`)
+	got := map[string]bool{}
+	for _, r := range res.References {
+		got[r.Name] = true
+	}
+	for _, want := range []string{
+		"var.cidr", "data.aws_ami.ubuntu", "module.net", "module.net.subnet_id", "local.tags", "var.name",
+		"aws_security_group.web", "aws_security_group.db", "var.names", "provider.aws.west", "var.disks",
+	} {
+		if !got[want] {
+			t.Errorf("no reference %q in %v", want, got)
+		}
+	}
+	for _, not := range []string{"each.key", "count.index", "self.id", "path.module", "ebs.value", "aws_instance.web"} {
+		if got[not] {
+			t.Errorf("%q is no address and was read", not)
+		}
+	}
+	wantRows(t, res, []string{
+		"net=infra/modules/net include", "up=shared include", "vpc=remote:terraform-aws-modules/vpc/aws include",
+	})
+
+	// A .tfvars sets the variables of its own directory.
+	res = parse(t, "envs/prod/terraform.tfvars", "region = \"eu\"\nsize   = 3\n")
+	got = map[string]bool{}
+	for _, r := range res.References {
+		got[r.Name] = true
+	}
+	if !got["var.region"] || !got["var.size"] {
+		t.Errorf("tfvars references = %v, want var.region and var.size", got)
+	}
+}

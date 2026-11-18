@@ -63,6 +63,14 @@ import (
 //	          procedure written in no module is an external one, called by its name from
 //	          anywhere in the program. Names do not tell cases apart. A call is bare
 //	          (`call f(x)`, `f(x)`): a type-bound `obj%f(x)` is a call on a value.
+//	ReScript  OCaml's model with another extension: a file Foo.res (or Foo.resi,
+//	          its interface) IS the module Foo, global to the project with no import,
+//	          and `module M = { ... }` is a module of its own whose definitions the
+//	          parser qualifies (parse.rescriptOwners). `open Foo` and `include Foo`
+//	          bring Foo's names in, `module X = Foo.Bar` binds a qualifier, and
+//	          `x->f` and `x->Foo.f` are calls of f and Foo.f. It shares ocamlDefines
+//	          and preferOCamlImplementation with OCaml, which is why `.resi` is read
+//	          as `.mli` there. Js, Belt and the standard library are external.
 //	Perl      a package is a declaration too (`package Shop::Cart;` or a block),
 //	          qualified onto each sub by the parser (parse.perlOwners).
 //	          `use A::B qw(f g)` brings f and g in, a plain `use A::B;` whatever
@@ -90,7 +98,7 @@ import (
 // modularLanguages are the languages callModular resolves.
 var modularLanguages = map[string]bool{
 	"erlang": true, "clojure": true, "julia": true,
-	"haskell": true, "ocaml": true, "fsharp": true, "perl": true, "fortran": true,
+	"haskell": true, "ocaml": true, "fsharp": true, "perl": true, "fortran": true, "rescript": true,
 }
 
 // ownedLanguages are those whose parser writes the module a definition is in
@@ -98,7 +106,7 @@ var modularLanguages = map[string]bool{
 // module is a declaration in a file and not the file itself.
 func ownedLanguage(lang string) bool {
 	switch lang {
-	case "julia", "ocaml", "fsharp", "perl", "fortran":
+	case "julia", "ocaml", "fsharp", "perl", "fortran", "rescript":
 		return true
 	}
 	return false
@@ -117,6 +125,13 @@ func (r *Resolver) callModular(c call, _ *Stats) decision {
 	case model.ReceiverSuper:
 		if c.spec.Name == "perl" {
 			return r.callPerlSuper(c, dirs, home)
+		}
+	case model.ReceiverValue:
+		// ReScript writes a module with a capital and a value without one, and the
+		// parser's scope walk calls a module the file declares itself (`module Fmt =
+		// Util.Format`) a local name. A capitalised qualifier is a module.
+		if c.spec.Name == "rescript" && c.ref.Receiver != "" && c.ref.Receiver[0] >= 'A' && c.ref.Receiver[0] <= 'Z' {
+			return r.callModularQualified(c, dirs, home)
 		}
 	}
 	// A call on a value, an expression, a variable module (`Mod:f()`): the
@@ -270,12 +285,15 @@ func (r *Resolver) moduleExists(lang, module string) bool {
 	case "clojure":
 		segs := strings.Split(module, ".")
 		return r.layout.HasStem(strings.ReplaceAll(segs[len(segs)-1], "-", "_"))
-	case "haskell", "ocaml":
+	case "haskell", "ocaml", "rescript":
 		segs := strings.Split(module, ".")
 		return r.layout.HasStem(segs[len(segs)-1])
 	case "perl":
 		segs := strings.Split(module, "::")
 		return r.layout.HasStem(segs[len(segs)-1])
+	case "nim", "d":
+		// A module is a file, written by its path (parse.nimImport, parse.dImport).
+		return r.layout.HasStem(path.Base(module))
 	}
 	return true
 }
@@ -299,7 +317,7 @@ func pickModular(c call, among []registry.SymbolIndexEntry, reason string, confi
 	if len(fits) == 0 {
 		return unresolvedCall
 	}
-	if c.spec.Name == "ocaml" {
+	if c.spec.Name == "ocaml" || c.spec.Name == "rescript" {
 		fits = preferOCamlImplementation(fits)
 	}
 	// A function before a method of the same name: Clojure's `defmulti` is the
@@ -378,7 +396,7 @@ func moduleDefines(lang string, s registry.SymbolIndexEntry, module string) bool
 		return owner != "" && (owner == module || strings.HasSuffix(owner, "."+module))
 	case "haskell":
 		return pathNamesModule(s.FilePath, module, ".", ".hs", ".lhs", ".hsc")
-	case "ocaml":
+	case "ocaml", "rescript":
 		return ocamlDefines(s, module)
 	case "perl":
 		owner := juliaOwner(s)
@@ -464,7 +482,7 @@ func ocamlDefines(s registry.SymbolIndexEntry, module string) bool {
 // called by its bare name from code in the module home.
 func ownerVisibleFrom(lang, owner, home string) bool {
 	switch lang {
-	case "ocaml", "fsharp":
+	case "ocaml", "fsharp", "rescript":
 		// The file's top level, the module the call is in, and the ones around it.
 		return owner == "" || owner == home || strings.HasPrefix(home, owner+".")
 	case "fortran":
@@ -518,7 +536,7 @@ func moduleHome(c call, facts *fileFacts) string {
 	switch c.spec.Name {
 	case "erlang":
 		return fileBaseName(c.fr.Path)
-	case "julia", "ocaml", "fsharp", "fortran":
+	case "julia", "ocaml", "fsharp", "fortran", "rescript":
 		return facts.juliaModuleAt(c.ref.Line)
 	case "perl":
 		return facts.perlPackageAt(c.ref.Line)
@@ -679,7 +697,7 @@ func moduleDirectivesOf(imports []registry.Import) moduleDirectiveSet {
 func preferOCamlImplementation(in []registry.SymbolIndexEntry) []registry.SymbolIndexEntry {
 	var impl []registry.SymbolIndexEntry
 	for _, s := range in {
-		if path.Ext(s.FilePath) != ".mli" {
+		if ext := path.Ext(s.FilePath); ext != ".mli" && ext != ".resi" {
 			impl = append(impl, s)
 		}
 	}

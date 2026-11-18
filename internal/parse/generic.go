@@ -671,6 +671,7 @@ func (p *genericParser) Parse(ctx context.Context, path string, src []byte) (*Re
 	var shapes *shapeFacts
 	if py == nil {
 		shapes = by.analyzeShapes(tree, src, tags)
+		by.applyStatedTypes(tree, src, tags, shapes)
 		// The names an import binds are written with the path the statement wrote,
 		// so a language that rewrites its paths (langreg.go) rewrites these too.
 		// No language that has bindings and a rewrite had both before Solidity.

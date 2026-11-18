@@ -1065,6 +1065,59 @@ var importQueries = map[string]string{
 (module_defn (identifier) block: (long_identifier_or_op)) @path
 `,
 
+	// HCL: a `module` block, captured whole, because its `source` is an attribute of
+	// the block that hclImport (lang_hcl.go) reads, and the label is the name the
+	// module's outputs are referred to by.
+	"hcl": `
+(config_file (body (block . (identifier) @_k . (string_lit) (block_start) (#eq? @_k "module")) @path))
+`,
+
+	// GDScript: a script's `extends`, and a top-level const or var that preloads or
+	// loads another script. Captured whole, because the path is a string that
+	// gdscriptImport (lang_gdscript.go) maps to the script it names.
+	"gdscript": `
+(source (extends_statement) @path)
+(source (const_statement) @path)
+(source (variable_statement) @path)
+`,
+
+	// Crystal: `require "./x"`, `require "x"` and `require "./dir/*"`. Captured
+	// whole, because the path is a string the importing file's own path rewrites
+	// (crystalImport, lang_crystal.go).
+	"crystal": `
+(require) @path
+`,
+
+	// D: `import a.b;`, `import a.b : f;`, `import x = a.b;`, `static import a.b;` and
+	// `public import a.b;`, each captured whole because what it says (a list of
+	// modules, a binding list, an alias, a visibility) is text that dImport
+	// (lang_d.go) reads, and each row names a module.
+	"d": `
+(import_declaration) @path
+`,
+
+	// Nim: `import a/b`, `from a import f`, `include x` and `export a`, each captured
+	// whole because what it says (a list of modules, aliases, names, an `except`)
+	// is text that nimImport (lang_nim.go) reads, and each row names a module.
+	"nim": `
+(import_statement) @path
+(import_from_statement) @path
+(include_statement) @path
+(export_statement) @path
+`,
+
+	// ReScript: `open Foo`, `include Foo` and `module X = Foo.Bar` at the top of a
+	// file, each captured whole because what it says is text that rescriptImport
+	// (lang_rescript.go) reads, and each row names a module. A file is a module with
+	// no import, so no statement is needed for `Foo.f` to be written: these are for
+	// what brings a module's names in bare, or renames it. One inside a module's
+	// block is in scope in that block alone and is not read.
+	"rescript": `
+(source_file (open_statement) @path)
+(source_file (include_statement) @path)
+(source_file (module_declaration (module_binding (module_identifier) [(module_identifier) (module_identifier_path)])) @path)
+`,
+
 	// MATLAB: `import pkg.sub.*` and `import pkg.sub.f` bring the functions of a
 	// package folder (+pkg/+sub) in under their own names. The argument is
 	// captured whole and matlabImport (lang_matlab.go) reads it. Every other

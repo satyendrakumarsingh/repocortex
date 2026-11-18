@@ -35,3 +35,7 @@ player.gd	74	variable	legacy_node
 player.gd	75	variable	legacy_plain
 player.gd	77	variable	callback
 player.gd	80	function	uses_lambda
+player.gd	84	function	_init
+player.gd	87	class	Bag
+player.gd	88	field	size
+player.gd	90	method	_init

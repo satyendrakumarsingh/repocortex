@@ -403,6 +403,40 @@ var (
 		"Queue", "ConditionVariable", "Monitor", "Fiber", "ObjectSpace", "GC", "Signal", "ENV",
 		"ARGV", "Numeric", "NilClass", "TrueClass", "FalseClass", "Data", "Enumerator",
 	}
+	crystalBuiltins = []string{
+		"String", "Array", "Hash", "Mutex", "Time", "File", "Int", "Int8", "Int16", "Int32", "Int64",
+		"Int128", "UInt8", "UInt16", "UInt32", "UInt64", "UInt128", "Float", "Float32", "Float64",
+		"Bool", "Nil", "Char", "Symbol", "Range", "Regex", "Tuple", "NamedTuple", "Proc", "Pointer",
+		"Slice", "StaticArray", "Set", "Deque", "Enum", "Struct", "Class", "Object", "Reference",
+		"Value", "Number", "Comparable", "Enumerable", "Iterable", "Indexable", "Iterator", "Exception",
+		"IO", "Dir", "Path", "Process", "Channel", "Fiber", "Math", "Random", "BigInt", "BigFloat",
+		"BigDecimal", "JSON", "YAML", "XML", "CSV", "HTTP", "URI", "Log", "Colorize", "Spec", "STDOUT",
+		"STDERR", "STDIN", "ARGV", "ENV", "ARGF", "Atomic", "Socket", "TCPSocket", "TCPServer",
+		"OpenSSL", "Base64", "Digest", "Crypto", "Compress", "Benchmark", "Signal", "System", "Crystal",
+		"GC", "Intrinsics", "Mutex", "WaitGroup", "UUID", "Unicode", "Time",
+	}
+	// gdscriptBuiltins are the engine's own classes and singletons, which a script
+	// names without declaring.
+	gdscriptBuiltins = []string{
+		"Object", "RefCounted", "Resource", "Node", "Node2D", "Node3D", "Control", "CanvasItem", "CanvasLayer",
+		"Sprite2D", "Sprite3D", "AnimatedSprite2D", "AnimationPlayer", "AnimationTree", "AudioStreamPlayer",
+		"AudioStreamPlayer2D", "AudioStreamPlayer3D", "Area2D", "Area3D", "CharacterBody2D", "CharacterBody3D",
+		"RigidBody2D", "RigidBody3D", "StaticBody2D", "StaticBody3D", "CollisionShape2D", "CollisionShape3D",
+		"Camera2D", "Camera3D", "Timer", "Label", "Button", "TextureRect", "Panel", "Container", "HBoxContainer",
+		"VBoxContainer", "GridContainer", "LineEdit", "TextEdit", "ProgressBar", "Tween", "SceneTree", "Viewport",
+		"Window", "PackedScene", "Texture2D", "Image", "Mesh", "MeshInstance3D", "Material", "Shader", "Font",
+		"Theme", "InputEvent", "InputEventKey", "InputEventMouse", "InputEventMouseButton", "InputEventAction",
+		"Vector2", "Vector2i", "Vector3", "Vector3i", "Vector4", "Rect2", "Rect2i", "Transform2D", "Transform3D",
+		"Basis", "Quaternion", "AABB", "Plane", "Color", "Array", "Dictionary", "String", "StringName", "NodePath",
+		"RID", "Callable", "Signal", "PackedByteArray", "PackedStringArray", "PackedInt32Array", "PackedFloat32Array",
+		"PackedVector2Array", "PackedVector3Array", "PackedColorArray", "RandomNumberGenerator", "FileAccess",
+		"DirAccess", "JSON", "HTTPRequest", "HTTPClient", "WebSocketPeer", "ConfigFile", "Time", "OS", "Engine",
+		"Input", "InputMap", "ProjectSettings", "ResourceLoader", "ResourceSaver", "AudioServer", "DisplayServer",
+		"RenderingServer", "PhysicsServer2D", "PhysicsServer3D", "Performance", "ClassDB", "Marshalls", "Crypto",
+		"Thread", "Mutex", "Semaphore", "GDScript", "Variant", "Math", "Geometry2D", "Geometry3D", "Expression",
+		"RegEx", "EditorPlugin", "EditorInterface", "UndoRedo", "TileMap", "TileSet", "NavigationAgent2D",
+		"NavigationAgent3D", "GutTest", "GUT",
+	}
 	rustBuiltins = []string{
 		"String", "Vec", "Box", "Option", "Result", "Some", "Ok", "Err", "Rc", "Arc", "Cell",
 		"RefCell", "HashMap", "HashSet", "BTreeMap", "BTreeSet", "VecDeque", "Path", "PathBuf",
@@ -495,7 +529,16 @@ var callTraitsByLanguage = map[string]CallTraits{
 	"fsharp":     {ExternalRoots: []string{"System", "Microsoft", "FSharp", "List", "Seq", "Array", "Map", "Set", "String", "Option", "Result", "Async", "Task", "Printf", "Console", "Math", "File", "Path", "Directory", "Environment", "Char", "Int32", "Int64", "Double", "Decimal", "Convert", "DateTime", "DateTimeOffset", "TimeSpan", "Guid", "Lazy", "Object", "Seq", "Expecto", "Xunit", "NUnit", "FsCheck", "Newtonsoft", "Thoth", "Giraffe", "Fable", "Browser", "Feliz", "Elmish", "Swensen", "Unchecked", "Operators", "Checked", "ValueOption", "Nullable", "Regex", "Assert", "Tuple", "Unit", "Json", "Text", "IO", "Linq", "Collections", "Threading"}},
 	"perl":       {ExternalRoots: []string{"CORE", "List", "Scalar", "Data", "File", "POSIX", "Carp", "Cwd", "Time", "Test", "Getopt", "IO", "Storable", "Encode", "JSON", "Text", "Term", "Sys", "Socket", "Fcntl", "Benchmark", "Digest", "MIME", "LWP", "HTTP", "URI", "DBI", "Moose", "Moo", "Try", "Path", "Exporter", "Math", "Hash", "Tie", "Env", "Errno", "English", "FindBin", "UNIVERSAL", "Config", "Devel", "Mojo", "Mojolicious", "Dancer", "Plack", "Cpanel", "Class", "B", "DB", "Safe", "Symbol", "Unicode", "Pod", "Params", "Module"}},
 	"zig":        {Imports: ImportsNameModules, ExternalRoots: []string{"std", "builtin", "root"}},
-	"groovy":     {ImportAliases: true, WildcardImports: true, NewConstructs: true, Measured: ruleTiers{NamedAfterType: model.ConfidenceLow, UniqueTypeName: model.ConfidenceLow}, ImplicitSelf: true, Overloads: true, TypesAreCapitalised: true, Imports: ImportsNameClasses, ExternalRoots: []string{"java", "javax", "groovy"}, Builtins: javaBuiltins},
+	// Crystal is Ruby's shape with static types: open types, a bare name in a type may
+	// be a member of it, and a type is global by name once a file that declares it is
+	// compiled in (`require`), so a type the repository declares once is that type.
+	"crystal":  {Measured: ruleTiers{NamedAfterType: model.ConfidenceHigh, UniqueTypeName: model.ConfidenceHigh}, ImplicitSelf: true, OpenTypes: true, TypesAreCapitalised: true, TypesAreGlobal: true, Builtins: crystalBuiltins},
+	"gdscript": {TypesAreCapitalised: true, Builtins: gdscriptBuiltins},
+	"hcl":      {},
+	"nim":      {CallConstructs: true, ExternalRoots: []string{"system", "strutils", "sequtils", "os", "ospaths", "osproc", "tables", "sets", "json", "times", "math", "strformat", "algorithm", "options", "streams", "random", "re", "parseutils", "unicode", "sugar", "strtabs", "parseopt", "httpclient", "asyncdispatch", "asyncnet", "net", "uri", "base64", "hashes", "heapqueue", "deques", "lists", "intsets", "bitops", "macros", "typetraits", "terminal", "logging", "unittest", "tempfiles", "monotimes", "locks", "threadpool", "rdstdin", "colors", "md5", "sha1", "htmlparser", "xmltree", "cgi", "enumerate", "std", "pkg"}},
+	"d":        {NewConstructs: true, CallConstructs: true, TypesAreCapitalised: true, ExternalRoots: []string{"std", "core", "etc", "object"}},
+	"rescript": {ExternalRoots: []string{"Js", "Belt", "Array", "List", "String", "Int", "Float", "Option", "Result", "Promise", "Dict", "Console", "Math", "JSON", "Date", "Map", "Set", "Pervasives", "Stdlib", "Exn", "Lazy", "Obj", "Null", "Nullable", "Type", "Error", "Symbol", "BigInt", "Intl", "RegExp", "Iterator", "Bool", "Char", "Bytes", "Buffer", "Webapi", "Dom", "React", "ReactDOM", "ReactEvent", "RescriptCore", "Core", "RescriptReactRouter", "Node", "Fs", "Path", "Process", "Global", "Jest", "Vitest", "RescriptMocha", "RescriptTest", "Zora", "Ava", "Test"}},
+	"groovy":   {ImportAliases: true, WildcardImports: true, NewConstructs: true, Measured: ruleTiers{NamedAfterType: model.ConfidenceLow, UniqueTypeName: model.ConfidenceLow}, ImplicitSelf: true, Overloads: true, TypesAreCapitalised: true, Imports: ImportsNameClasses, ExternalRoots: []string{"java", "javax", "groovy"}, Builtins: javaBuiltins},
 }
 
 // callTraitsFor returns a language's row with its family filled in.

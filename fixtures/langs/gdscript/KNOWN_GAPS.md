@@ -1,17 +1,5 @@
 # GDScript: known gaps
 
-## Constructors: `func _init()`
-
-The grammar parses `_init` as a `constructor_definition`, which has no name node:
-
-```
-(constructor_definition (parameters) (body ...))
-```
-
-A definition needs a name capture, and `_init` is a keyword here, not an
-identifier, so there is nothing to capture. Every script that defines `_init`
-loses that one symbol (seen in Linguist `example.gd`).
-
 ## Anonymous enums
 
 `enum { SMALL, LARGE }` is an `enum_definition` with an `enumerator_list` and no
