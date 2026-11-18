@@ -746,6 +746,8 @@ func writeIncrementalReferences(
 			ArgCount:     ref.ArgCount,
 			Line:         ref.Range.Start.Line,
 			Col:          ref.Range.Start.Col,
+			ValueLine:    ref.Value.Line,
+			ValueCol:     ref.Value.Col,
 		})
 	}
 	imports := make([]registry.Import, 0, len(facts.Imports))

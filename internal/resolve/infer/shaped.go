@@ -125,6 +125,11 @@ type call struct {
 	scope  string
 	class  string
 	within int64
+
+	// produced and typesNamed serve callReturned (returned.go); nil where the
+	// caller has neither, which leaves that rule out.
+	produced   producedBy
+	typesNamed func(name string) []registry.SymbolIndexEntry
 }
 
 // isConstructorDelegation reports whether the call is `this(...)` written in a
@@ -241,6 +246,14 @@ func (r *Resolver) resolveCall(c call, stats *Stats) decision {
 			if _, _, ok := r.scriptQualifier(c.fr, c.imports, c.ref.Receiver); ok {
 				return r.callNamed(c, stats)
 			}
+		}
+		// A value assigned from a call whose definition declares what it
+		// returns has that type (returned.go). Asked before the name rules,
+		// whose naming cap (namedAfterTypeIsHint) is about a name that happens
+		// to match a type; a declared return type is not that kind of hint.
+		// A stated type never reaches here: it is a model.ReceiverType call.
+		if d, ok := r.callReturned(c, stats); ok {
+			return d
 		}
 		return r.memberByName(c, model.ConfidenceHigh, stats)
 	default:

@@ -239,6 +239,13 @@ type Symbol struct {
 	// design.
 	ParamCount Arity `json:"param_count,omitempty"`
 
+	// ReturnType is the plain type name a function or method declares it
+	// returns, where internal/parse read one: `Order` for `Order find(...)`,
+	// `fun find(): Order`, `fn find() -> Order`. Empty for anything else,
+	// including a generic or wrapped type the parser does not unwrap. Read by
+	// internal/resolve/infer to type a variable assigned from a call to it.
+	ReturnType string `json:"return_type,omitempty"`
+
 	// Confidence describes how reliably this symbol was extracted. Symbols are
 	// usually high or exact; a Tier-1 generic extraction may be medium.
 	Confidence Confidence `json:"confidence"`

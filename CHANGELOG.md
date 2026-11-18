@@ -11,6 +11,14 @@ from an actual run.
 
 ## [Unreleased]
 
+- **A local assigned from a call takes the type that call returns.** `order = repo.find(id); order.save()` stated nothing about `order`, so `save` bound by name alone, at `medium` or `low`, or not at all. When the bound function declares a plain return type, the resolver now looks `save` up on that type.
+  - **Confidence:** the edge is never stronger than the weaker of the two bindings it rests on, and never `exact`.
+  - **Stated types win:** a stated or constructed type always takes precedence.
+  - **What it doesn't do:** chains, `Self`, and wrappers like `Optional<T>`, `Promise<T>` or `Result<T, E>` are not followed.
+  - **Languages:** Java, C#, Swift, Rust, PHP and TypeScript. Kotlin, Scala, Dart and Python are left out, for reasons recorded in the code.
+  - **Measured** against `scip-typescript` on rxjs, ajv and scip-typescript's own source: the case covers about 1% of calls on untyped locals. All 21 edges it adds or raises are correct, and `high` precision did not change.
+  - **Migration:** `0023_return_types` adds `symbols.return_type` and the producing call's position on each reference. Files gain the data on their next re-parse.
+
 - **A file's top-level caller is handled everywhere it can appear.** Calls made outside every definition have had a caller since 14 November: a synthetic `(top level of <path>)` symbol, created only for files that need one (10 of this repository's 13,391 symbols). Four consumers still mishandled it, and each is fixed with a test:
   - **Test-gap analysis** failed with "target symbol not found in index" whenever one was in the blast radius.
   - **Architecture checks** could not see a forbidden call made at the top level of a file. A new registry reader returns those edges with the caller's file, and the report names the caller `(top level of …)`.

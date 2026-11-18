@@ -141,7 +141,7 @@ func (w *Writer) AddSymbol(ctx context.Context, s *model.Symbol) (int64, error) 
 		w.runID, s.FileID, string(s.Kind), s.Name, s.FQN,
 		s.Range.Start.Line, s.Range.Start.Col, s.Range.End.Line, s.Range.End.Col,
 		nullString(s.Signature), nullString(s.Doc), boolToInt(s.Exported),
-		string(s.Confidence), string(s.Source), int(s.ParamCount))
+		string(s.Confidence), string(s.Source), int(s.ParamCount), s.ReturnType)
 	if err != nil {
 		return 0, w.fail(fmt.Errorf("registry: insert symbol %q: %w", s.FQN, err))
 	}
@@ -424,8 +424,8 @@ func prepareWriterStmts(ctx context.Context, tx *sql.Tx) (*writerStmts, error) {
 	if err := prep(&st.symbol, `
 		INSERT INTO symbols (index_run_id, file_id, kind, name, fqn,
 		                     start_line, start_col, end_line, end_col,
-		                     signature, doc, exported, confidence, source, param_count)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`); err != nil {
+		                     signature, doc, exported, confidence, source, param_count, return_type)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`); err != nil {
 		return nil, err
 	}
 	if err := prep(&st.edge, `
@@ -447,8 +447,9 @@ func prepareWriterStmts(ctx context.Context, tx *sql.Tx) (*writerStmts, error) {
 	// same INSERT for each of them was a measurable share of the sink.
 	if err := prep(&st.ref, `
 		INSERT INTO symbol_references
-			(index_run_id, file_id, name, kind, receiver, receiver_kind, start_line, start_col, arg_count, resolution)
-		VALUES (?,?,?,?,?,?,?,?,?, 'pending')`); err != nil {
+			(index_run_id, file_id, name, kind, receiver, receiver_kind, start_line, start_col, arg_count,
+			 value_line, value_col, resolution)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?, 'pending')`); err != nil {
 		return nil, err
 	}
 	if err := prep(&st.imp, `

@@ -583,6 +583,10 @@ func (p *genericParser) Parse(ctx context.Context, path string, src []byte) (*Re
 	argCounts := by.extractCounts(by.argCountQuery, "args", tree, src)
 	paramCounts := by.extractCounts(by.paramCountQuery, "params", tree, src)
 
+	// The type each function declares it returns, read from the same tree for
+	// the same reason. See returns.go.
+	returnTypes := by.definitionReturnTypes(tree, src, tags)
+
 	// Constructor delegation (`this(...)`, `super(...)`, `: base(...)`) has no
 	// name to tag and is built from the tree. See delegation.go.
 	delegations := by.constructorDelegations(tree, src)
@@ -607,6 +611,18 @@ func (p *genericParser) Parse(ctx context.Context, path string, src []byte) (*Re
 	// across every parsing goroutine.
 	tree = nil
 	_ = tree
+
+	// callStarts maps the start byte of a call's name to where its reference
+	// is recorded, for the calls a receiver's value came from (shape.go).
+	var callStarts map[uint32]model.Position
+	if shapes != nil && shapes.producers {
+		callStarts = make(map[uint32]model.Position, len(tags))
+		for _, tag := range tags {
+			if isCallTag(tag.Kind) {
+				callStarts[tag.NameRange.StartByte] = toRange(tag.Range).Start
+			}
+		}
+	}
 
 	// objectDropped remembers where a call's object has already been dropped;
 	// see the reference case below.
@@ -658,6 +674,7 @@ func (p *genericParser) Parse(ctx context.Context, path string, src []byte) (*Re
 			// attribute above the declaration starts the range a line or more earlier
 			// than the name the arity query captured.
 			sym.ParamCount = paramCounts[callSite{line: int(tag.NameRange.StartPoint.Row) + 1, name: sym.Name}]
+			sym.ReturnType = returnTypes[tag.NameRange.StartByte]
 			if py != nil {
 				// A nested definition is qualified by what encloses it, so that
 				// two classes' `save` are two names. Module-level definitions
@@ -752,6 +769,11 @@ func (p *genericParser) Parse(ctx context.Context, path string, src []byte) (*Re
 						r.Receiver, r.ReceiverKind = shape.receiver, shape.kind
 						if shape.indirect {
 							r.Kind += IndirectCallSuffix
+						}
+						if shape.from != 0 {
+							// The call the receiver's value came from, by the
+							// position its own reference is recorded at.
+							r.Value = callStarts[shape.from]
 						}
 					}
 				}

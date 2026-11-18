@@ -1,6 +1,7 @@
 package parse
 
 import (
+	"sort"
 	"strings"
 
 	"github.com/satyendrakumarsingh/repocortex/pkg/model"
@@ -81,6 +82,11 @@ type callShape struct {
 	// parameter, a variable — and so names no definition. See
 	// IndirectCallSuffix.
 	indirect bool
+
+	// from is, for a call on a local value (model.ReceiverValue), the start
+	// byte of the name of the call whose result initialised that value; 0 when
+	// none. See producerOf.
+	from uint32
 }
 
 // shapeFacts is everything the walk reports about one file.
@@ -91,6 +97,10 @@ type shapeFacts struct {
 	// quals holds the qualified name of each definition that is nested in
 	// something, keyed the same way. A top-level definition is absent.
 	quals map[uint32]string
+
+	// producers is true when some call's shape names the call its receiver's
+	// value came from (callShape.from).
+	producers bool
 }
 
 type shScopeKind uint8
@@ -106,6 +116,11 @@ const (
 // than once with types that differ.
 type shBinding struct {
 	typ string
+
+	// from is the start byte of the name of the one call whose result the
+	// declaration assigns, when it states no type; 0 otherwise. Withdrawn, as
+	// typ is, by a second declaration that disagrees. See producerOf.
+	from uint32
 }
 
 type shScope struct {
@@ -151,6 +166,14 @@ type shWalker struct {
 	// flags caches what a node type's NAME says about it. The name is read
 	// once per distinct node type in the grammar, not once per node.
 	flags map[ts.Symbol]shFlags
+
+	// callEnds maps the start byte of each call tag's name to its end byte,
+	// for the languages whose return types are read (returns.go); nil for
+	// the rest, which is what keeps producerOf from linking anything there.
+	callEnds map[uint32]uint32
+
+	// callStarts holds callEnds' keys in order.
+	callStarts []uint32
 }
 
 type shFlags uint8
@@ -214,6 +237,16 @@ func (p *genericParser) analyzeShapes(tree *ts.Tree, src []byte, tags []ts.Tag) 
 	for _, tag := range tags {
 		w.want[tag.NameRange.StartByte] = struct{}{}
 	}
+	if returnsTypes(w.language) {
+		w.callEnds = make(map[uint32]uint32, len(tags))
+		for _, tag := range tags {
+			if isCallTag(tag.Kind) {
+				w.callEnds[tag.NameRange.StartByte] = tag.NameRange.EndByte
+				w.callStarts = append(w.callStarts, tag.NameRange.StartByte)
+			}
+		}
+		sort.Slice(w.callStarts, func(i, j int) bool { return w.callStarts[i] < w.callStarts[j] })
+	}
 	w.scopes = append(w.scopes, shScope{parent: -1, kind: shFile})
 
 	// The textual half first: it cannot fail on a strange tree, and a call
@@ -232,6 +265,9 @@ func (p *genericParser) analyzeShapes(tree *ts.Tree, src []byte, tags []ts.Tag) 
 		switch {
 		case isCallTag(tag.Kind):
 			facts.calls[at] = w.typedShape(facts.calls[at], w.scopeOf(at), tag.Name)
+			if facts.calls[at].from != 0 {
+				facts.producers = true
+			}
 			if shadowLanguages[p.entry.Name] && facts.calls[at].kind == model.ReceiverBare &&
 				shadowedByLocal(p.entry.Name, tree.RootNode(), p.lang, src, at, tag.NameRange.EndByte, tag.Name) {
 				sh := facts.calls[at]
@@ -1104,14 +1140,23 @@ func (w *shWalker) declare(n *ts.Node, scope int, isField bool) {
 		}
 		typ = w.constructedType(value)
 	}
-
 	target := w.bindingScope(scope, isField)
+	var from uint32
+	if typ == "" && value != nil && w.scopes[target].kind == shFunc {
+		// Only a local: a field may be assigned again by any method.
+		from = w.producerOf(value)
+	}
 	for _, name := range names {
 		if _, done := w.declared[name.at]; done {
 			continue
 		}
 		w.declared[name.at] = struct{}{}
-		w.bind(target, name.text, typ)
+		if len(names) == 1 {
+			w.bindFrom(target, name.text, typ, from)
+		} else {
+			// `let (a, b) = pair()`: neither name holds what the call returns.
+			w.bind(target, name.text, typ)
+		}
 		if w.scopes[target].kind == shClass && (isField || w.scopes[scope].kind == shClass) {
 			w.bindField(w.scopes[target].name, name.text, typ)
 		}
@@ -1393,16 +1438,24 @@ func (w *shWalker) enclosingClass(scope int) int {
 
 // bind records one declaration of a name. A second declaration that states a
 // different type, or none, withdraws the first.
-func (w *shWalker) bind(scope int, name, typ string) {
+func (w *shWalker) bind(scope int, name, typ string) { w.bindFrom(scope, name, typ, 0) }
+
+// bindFrom is bind for a declaration that may assign the result of a call. A
+// second declaration of the name withdraws the call as it withdraws a type,
+// unless both name the same call (one declaration met twice).
+func (w *shWalker) bindFrom(scope int, name, typ string, from uint32) {
 	s := &w.scopes[scope]
 	if s.decls == nil {
 		s.decls = make(map[string]shBinding, 8)
 	}
-	if prev, seen := s.decls[name]; seen && prev.typ != typ {
-		s.decls[name] = shBinding{}
+	if prev, seen := s.decls[name]; seen && (prev.typ != typ || prev.from != from) {
+		s.decls[name] = shBinding{typ: prev.typ}
+		if prev.typ != typ {
+			s.decls[name] = shBinding{}
+		}
 		return
 	}
-	s.decls[name] = shBinding{typ: typ}
+	s.decls[name] = shBinding{typ: typ, from: from}
 }
 
 func (w *shWalker) bindField(class, name, typ string) {
@@ -1426,16 +1479,22 @@ func (w *shWalker) bindField(class, name, typ string) {
 // without a type is a value of unknown type, not an undeclared name. local is
 // true when that declaration is in a function — a parameter or a variable.
 func (w *shWalker) lookup(scope int, name string) (typ string, found, local bool) {
+	b, found, local := w.lookupBinding(scope, name)
+	return b.typ, found, local
+}
+
+// lookupBinding is lookup returning the whole binding.
+func (w *shWalker) lookupBinding(scope int, name string) (b shBinding, found, local bool) {
 	for s := scope; s >= 0; s = w.scopes[s].parent {
 		sc := &w.scopes[s]
 		if sc.kind == shClass && !implicitThisLanguages[w.language] {
 			continue
 		}
 		if b, ok := sc.decls[name]; ok {
-			return b.typ, true, sc.kind == shFunc
+			return b, true, sc.kind == shFunc
 		}
 	}
-	return "", false, false
+	return shBinding{}, false, false
 }
 
 // typedShape replaces a variable with the type the source states for it.
@@ -1448,14 +1507,21 @@ func (w *shWalker) typedShape(shape callShape, scope int, name string) callShape
 			shape.indirect = true
 		}
 	case model.ReceiverName:
-		typ, found, _ := w.lookup(scope, strings.TrimLeft(shape.receiver, "$@"))
+		b, found, local := w.lookupBinding(scope, strings.TrimLeft(shape.receiver, "$@"))
 		switch {
-		case typ != "":
-			return callShape{kind: model.ReceiverType, receiver: typ}
+		case b.typ != "":
+			return callShape{kind: model.ReceiverType, receiver: b.typ}
 		case found:
 			// Declared, with no type the source states: a value, which rules
-			// out reading the name as an import, a module or a type.
-			return callShape{kind: model.ReceiverValue, receiver: shape.receiver}
+			// out reading the name as an import, a module or a type. A local
+			// assigned one call's result carries that call, whose return type
+			// the resolver may know (returned.go). A field does not: another
+			// method may assign it.
+			sh := callShape{kind: model.ReceiverValue, receiver: shape.receiver}
+			if local {
+				sh.from = b.from
+			}
+			return sh
 		}
 	case model.ReceiverPath:
 		segments := strings.Split(shape.receiver, ".")

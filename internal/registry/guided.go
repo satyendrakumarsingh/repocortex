@@ -110,7 +110,7 @@ func (c *CandidateCache) inFilesChunk(ctx context.Context, names []string, fileI
 	for _, id := range fileIDs {
 		args = append(args, id)
 	}
-	q := `SELECT s.id, s.name, s.fqn, s.kind, s.file_id, f.path, s.exported, s.param_count, f.language
+	q := `SELECT s.id, s.name, s.fqn, s.kind, s.file_id, f.path, s.exported, s.param_count, f.language, s.return_type
 	        FROM symbols s INDEXED BY idx_symbols_file_name
 	        JOIN files f ON f.id = s.file_id
 	       WHERE s.index_run_id = ?
@@ -125,7 +125,7 @@ func (c *CandidateCache) inFilesChunk(ctx context.Context, names []string, fileI
 		var e SymbolIndexEntry
 		var exported, paramCount int
 		if err := rows.Scan(&e.ID, &e.Name, &e.FQN, &e.Kind, &e.FileID, &e.FilePath,
-			&exported, &paramCount, &e.Language); err != nil {
+			&exported, &paramCount, &e.Language, &e.ReturnType); err != nil {
 			return err
 		}
 		e.Exported = exported == 1
@@ -133,6 +133,7 @@ func (c *CandidateCache) inFilesChunk(ctx context.Context, names []string, fileI
 		e.FilePath = c.internPath(e.FilePath)
 		e.Kind = c.internKind(e.Kind)
 		e.Language = c.internKind(e.Language)
+		e.ReturnType = c.internKind(e.ReturnType)
 		out[e.Name] = append(out[e.Name], e)
 	}
 	return rows.Err()

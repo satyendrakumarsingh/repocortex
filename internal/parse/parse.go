@@ -88,6 +88,14 @@ type Reference struct {
 	// count are the same failure one field over.
 	ArgCount model.Arity
 
+	// Value is, for a call made on a local variable the source declares
+	// without a type, the start of the call whose result initialised the
+	// variable: the Range.Start of that call's own Reference in this file.
+	// Zero when the variable was not initialised by one plain call. The
+	// resolver binds that call and reads the return type of what it reaches.
+	// See returnedValue in shape.go.
+	Value model.Position
+
 	Range model.Range
 }
 

@@ -134,6 +134,10 @@ type Stats struct {
 	// silent — the same reason CapDropped exists.
 	CrossLanguageDropped int64
 
+	// ReturnTyped counts calls bound through the type the call that assigned
+	// their receiver declares it returns. See returned.go.
+	ReturnTyped int64
+
 	ByConfidence map[model.Confidence]int64
 }
 
@@ -425,6 +429,24 @@ func (r *Resolver) ResolveFile(
 	edges := make([]model.Edge, 0, len(fr.Refs))
 	outcomes := make([]registry.RefOutcome, 0, len(fr.Refs))
 
+	// produced is what each call in this file was bound to, so a call on a
+	// variable initialised from one can be typed by what it returns; and
+	// typesNamed finds the types a return type names, which the file itself
+	// may never mention. See returned.go.
+	produced := producedBy{}
+	typesNamed := func(name string) []registry.SymbolIndexEntry {
+		if got, ok := symbols[name]; ok {
+			return got
+		}
+		more, err := r.candidates.Candidates(ctx, []string{name})
+		if err != nil {
+			// A failed lookup is no type: the call is bound as it was before.
+			return nil
+		}
+		symbols[name] = more[name]
+		return more[name]
+	}
+
 	// implementer is the type a supertype reference was declared for, when the
 	// parser recorded one (Rust's `impl Trait for Type`); set per reference.
 	implementer := ""
@@ -451,6 +473,9 @@ func (r *Resolver) ResolveFile(
 			SymbolID:   best.entry.ID,
 			Resolution: registry.ResolutionResolved,
 		})
+		if edgeKindFor(ref.Kind) == model.EdgeCalls {
+			produced[[2]int{ref.Line, ref.Col}] = best
+		}
 
 		// Attribute the call site to the symbol containing it. A reference
 		// outside any indexed symbol (a package-level initialiser, a
@@ -639,6 +664,7 @@ func (r *Resolver) ResolveFile(
 		if edgeKind == model.EdgeCalls && ref.ReceiverKind != "" && !spec.QualifiedMembers {
 			d := r.resolveCall(call{
 				spec: spec, fr: fr, imports: imports, ref: ref, cands: cands, symbols: symbols,
+				produced: produced, typesNamed: typesNamed,
 			}, stats)
 			switch {
 			case d.verdict == verdictBound && d.best.confidence.AtLeast(r.opts.MinConfidence):

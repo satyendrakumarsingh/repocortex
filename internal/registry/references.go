@@ -32,6 +32,13 @@ type Reference struct {
 	// model.ArityUnknown when the parser could not say. See migration
 	// 0010_arity for why unknown and zero must not share a representation.
 	ArgCount model.Arity
+
+	// ValueLine and ValueCol are, for a call made on a local variable whose
+	// type the source does not state, the Line and Col of the call in the same
+	// file whose result initialised that variable. Zero when there is none.
+	// See migration 0023_return_types.
+	ValueLine int
+	ValueCol  int
 }
 
 // Import is a dependency declared by a file.
@@ -64,6 +71,7 @@ func (w *Writer) AddReference(ctx context.Context, fileID int64, r Reference) er
 	}
 	if _, err := w.st.ref.ExecContext(ctx,
 		w.runID, fileID, r.Name, r.Kind, r.Receiver, r.ReceiverKind, r.Line, r.Col, int(r.ArgCount),
+		r.ValueLine, r.ValueCol,
 	); err != nil {
 		return w.fail(fmt.Errorf("registry: add reference %q: %w", r.Name, err))
 	}
@@ -102,9 +110,11 @@ func (r *Registry) ReplaceFileReferences(
 	for _, ref := range refs {
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO symbol_references
-				(index_run_id, file_id, name, kind, receiver, receiver_kind, start_line, start_col, arg_count, resolution)
-			VALUES (?,?,?,?,?,?,?,?,?, 'pending')`,
+				(index_run_id, file_id, name, kind, receiver, receiver_kind, start_line, start_col, arg_count,
+				 value_line, value_col, resolution)
+			VALUES (?,?,?,?,?,?,?,?,?,?,?, 'pending')`,
 			runID, fileID, ref.Name, ref.Kind, ref.Receiver, ref.ReceiverKind, ref.Line, ref.Col, int(ref.ArgCount),
+			ref.ValueLine, ref.ValueCol,
 		); err != nil {
 			return fmt.Errorf("registry: re-add reference %q: %w", ref.Name, err)
 		}
@@ -337,7 +347,8 @@ func (r *Registry) importsForFile(ctx context.Context, fileID int64) ([]Import, 
 
 func (r *Registry) refsForFile(ctx context.Context, fileID int64) ([]Reference, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT id, name, kind, receiver, receiver_kind, start_line, start_col, arg_count
+		SELECT id, name, kind, receiver, receiver_kind, start_line, start_col, arg_count,
+		       value_line, value_col
 		  FROM symbol_references
 		 WHERE file_id = ? AND resolution = 'pending'
 		 ORDER BY start_line, start_col, name`, fileID)
@@ -351,7 +362,7 @@ func (r *Registry) refsForFile(ctx context.Context, fileID int64) ([]Reference, 
 		ref := Reference{FileID: fileID}
 		var argCount int
 		if err := rows.Scan(&ref.ID, &ref.Name, &ref.Kind, &ref.Receiver, &ref.ReceiverKind,
-			&ref.Line, &ref.Col, &argCount); err != nil {
+			&ref.Line, &ref.Col, &argCount, &ref.ValueLine, &ref.ValueCol); err != nil {
 			return nil, err
 		}
 		ref.ArgCount = model.Arity(argCount)
@@ -384,6 +395,10 @@ type SymbolIndexEntry struct {
 	// model.ArityUnknown. Carried here because A4 compares it against a
 	// reference's argument count to PREFER a candidate — never to remove one.
 	ParamCount model.Arity
+
+	// ReturnType is the plain type name the symbol declares it returns, or "".
+	// See model.Symbol.ReturnType.
+	ReturnType string
 }
 
 // LoadSymbolIndex returns every symbol in a run, keyed by name.
@@ -403,7 +418,7 @@ type SymbolIndexEntry struct {
 func (r *Registry) LoadSymbolIndex(ctx context.Context, runID int64) (map[string][]SymbolIndexEntry, error) {
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT s.id, s.name, s.fqn, s.kind, s.file_id, f.path, s.exported, s.param_count,
-		       f.language
+		       f.language, s.return_type
 		  FROM symbols s
 		  JOIN files f ON f.id = s.file_id
 		 WHERE s.index_run_id = ?`, runID)
@@ -426,7 +441,7 @@ func (r *Registry) LoadSymbolIndex(ctx context.Context, runID int64) (map[string
 		var e SymbolIndexEntry
 		var exported, paramCount int
 		if err := rows.Scan(&e.ID, &e.Name, &e.FQN, &e.Kind, &e.FileID, &e.FilePath,
-			&exported, &paramCount, &e.Language); err != nil {
+			&exported, &paramCount, &e.Language, &e.ReturnType); err != nil {
 			return nil, err
 		}
 		e.Exported = exported == 1
@@ -434,6 +449,7 @@ func (r *Registry) LoadSymbolIndex(ctx context.Context, runID int64) (map[string
 		e.FilePath = intern(paths, e.FilePath)
 		e.Kind = intern(kinds, e.Kind)
 		e.Language = intern(kinds, e.Language)
+		e.ReturnType = intern(kinds, e.ReturnType)
 		// The name is already this bucket's key; reuse that copy rather than
 		// keeping one more per candidate.
 		if bucket, ok := index[e.Name]; ok {

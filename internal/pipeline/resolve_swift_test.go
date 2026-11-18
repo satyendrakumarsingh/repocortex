@@ -39,11 +39,20 @@ func TestSwiftResolution(t *testing.T) {
 		{"Billing/Invoice.swift:render", "Billing/Money.swift:formatMoney", high},
 		// A declared type states the receiver.
 		{"App/Cart.swift:Cart.persist", "Core/Store.swift:Store.save", high},
+		// Two classes declare save, and `thing` states no type, but makeCache
+		// declares that it returns a Cache (returned.go).
+		{"App/Cart.swift:Cart.persist", "Core/Cache.swift:Cache.save", high},
 		// The test target imports the module under test.
 		{"CartTests.swift:CartTests.testCheckout", "App/Cart.swift:Cart", high},
 		{"CartTests.swift:CartTests.testCheckout", "App/Cart.swift:Cart.checkout", high},
 		{"CartTests.swift:CartTests.testCheckout", "App/Router.swift:track", high},
 		{"App/Router.swift:post", "App/Router.swift:track", high},
+		// A call on a value of unstated type: `t = order.total()` and
+		// `sum = Money.zero()`, each assigned from a function declared to
+		// return Money, so the receiver is a Money (returned.go). Before return
+		// types were read these were bound at low, by the name alone.
+		{"Core/Models/Order.swift:Order.total", "Core/Money.swift:Money.adding", high},
+		{"App/Cart.swift:Cart.checkout", "Core/Money.swift:Money.adding", high},
 	}
 	forbid := []want{
 		// Billing is not imported by App.
@@ -53,14 +62,8 @@ func TestSwiftResolution(t *testing.T) {
 		{Src: "Billing/Invoice.swift", Dst: "Core/"},
 		// max is the standard library's.
 		{Src: "App/Cart.swift:Cart.checkout", Dst: "Billing/Invoice.swift:max"},
-		// Two classes declare save and nothing says which one cache is.
-		{Src: "App/Cart.swift:Cart.persist", Dst: "Core/Cache.swift:Cache.save"},
 	}
-	// A call on a value of unstated type that exactly one type declares is
-	// bound at low and no higher.
 	extraOK := []want{
-		{"Core/Models/Order.swift:Order.total", "Core/Money.swift:Money.adding", model.ConfidenceLow},
-		{"App/Cart.swift:Cart.checkout", "Core/Money.swift:Money.adding", model.ConfidenceLow},
 		{"Core/Money.swift:Money.adding", "Core/Money.swift:Money", high},
 	}
 	scoreEdges(t, got, wants, forbid, extraOK)
