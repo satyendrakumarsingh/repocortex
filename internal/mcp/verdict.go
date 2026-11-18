@@ -49,7 +49,21 @@ const (
 	VerdictUnreliable VerdictStatus = "unreliable"
 	// VerdictEmpty: nothing was returned, which is ambiguous.
 	VerdictEmpty VerdictStatus = "empty"
+	// VerdictBreaksBuild: a proposed patch makes the type checker report new
+	// errors. It outranks every other status.
+	VerdictBreaksBuild VerdictStatus = "breaks_build"
 )
+
+// compileErrors counts the items that are new compile errors.
+func (r *Response) compileErrors() int {
+	n := 0
+	for _, it := range r.Items {
+		if it.Kind == "compile_error" {
+			n++
+		}
+	}
+	return n
+}
 
 // actionable reports whether a status tells the agent it may act on the rows
 // as the answer. Exactly two do, and OverallSignal never returns either unless
@@ -253,6 +267,13 @@ func (r *Response) gradeSelf() {
 	v := verdictFor(r.Items, r.Reliability, r.Truncated)
 	if r.Provenance != nil && !r.Provenance.HeadMatchesBuild {
 		softenForStaleIndex(v)
+	}
+	// A patch the type checker rejects is not safe or proven, however sure
+	// each row is: the rows are the errors.
+	if n := r.compileErrors(); n > 0 {
+		v.Status = VerdictBreaksBuild
+		v.Signals = append(v.Signals, fmt.Sprintf("the patch adds %d compile error(s)", n))
+		v.NextStep = "The patch breaks the build. Fix the compile errors listed before applying it."
 	}
 	r.Verdict = v
 }

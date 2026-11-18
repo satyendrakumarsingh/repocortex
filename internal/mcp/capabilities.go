@@ -237,6 +237,17 @@ func (s *Server) analyzePatch(ctx stdctx.Context, req *sdk.CallToolRequest, args
 		if errs, note := s.goPatchBreakage(ctx, runID, root, overlay, goDirs); note != "" {
 			resp.Notes = append(resp.Notes, note)
 		} else {
+			if len(errs) > 0 {
+				// The name-and-arity headline cannot stand beside errors the
+				// type checker found.
+				const safe = "✓ SAFE: 0 broken callers."
+				const repl = "No caller broken by name and arity, but the type check found errors."
+				resp.Summary = strings.ReplaceAll(resp.Summary, safe, repl)
+				for i := range resp.Notes {
+					resp.Notes[i] = strings.ReplaceAll(resp.Notes[i], safe, repl)
+				}
+				resp.Summary = fmt.Sprintf("BREAKS THE BUILD: %d new compile error(s) listed below.\n%s", len(errs), resp.Summary)
+			}
 			for _, e := range errs {
 				resp.Items = append(resp.Items, Item{Kind: "compile_error", Path: e.Path, Line: e.Line,
 					Name: e.Path, Why: "stops compiling with the patch: " + e.Msg, Confidence: string(model.ConfidenceExact)})

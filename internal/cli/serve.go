@@ -220,9 +220,10 @@ someone other than you.`,
 			// as a fatal transport error, which meant one stray line from a
 			// client — a debug print, a truncated write — ended the session and
 			// every request after it went unanswered. See jsonLineFilter.
+			sess := newStdioSession(os.Stdout)
 			transport := &sdk.IOTransport{
-				Reader: io.NopCloser(newJSONLineFilter(os.Stdin, g.Log())),
-				Writer: nopWriteCloser{os.Stdout},
+				Reader: io.NopCloser(newSessionFilter(os.Stdin, sess, g.Log())),
+				Writer: nopWriteCloser{sess.Writer()},
 			}
 			if err := srv.Run(ctx, transport); err != nil {
 				if errors.Is(err, context.Canceled) {

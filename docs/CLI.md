@@ -23,6 +23,29 @@ Available on every command.
 Every query command takes `--json`. That is deliberate: a git hook or a CI check
 should not have to speak JSON-RPC to ask the same questions the MCP tools answer.
 
+**A failing command with `--json` still prints JSON on stdout**, so a consumer
+that parses stdout never reads empty input. The exit code stays 1 and the text
+error is still printed on stderr:
+
+```
+$ repocortex --json callers nonexistent
+{
+  "error": {
+    "message": "no symbol named \"nonexistent\" in the index; ...",
+    "code": "error"
+  }
+}
+```
+
+`code` is `invalid_argument` for a wrong flag value or argument, `error`
+otherwise. An empty result is not an error: `symbol nonexist --json` is
+`"symbols": []`.
+
+**Limits.** Wherever a command takes `-n` / `--limit`, a given value must be a
+positive number. `0` and negative values are rejected with an error (`0` does
+not mean "no limit" or "the default"); leave the flag out for the command's
+default.
+
 ## The provenance warning
 
 Every index run records the build that wrote it. When a query command opens an
@@ -59,7 +82,7 @@ safely interpret the rows at all:
 
 ```
 $ repocortex callers Redact
-error: index schema is v7 but this build of repocortex expects v8 — run 'repocortex index' to upgrade it
+error: index schema is v22 but this build of repocortex expects v23 — run 'repocortex index' to upgrade it
 ```
 
 ## Exit codes
@@ -478,7 +501,7 @@ read from the registry; nothing is estimated. No flags beyond the global ones.
 $ repocortex status
 Project:        nj
 Index:          READY
-Schema:         v18
+Schema:         v23
 Revision:       52fa3aef1f2cadcd3a3f874251eddc98d3efbbaa
 Files:          1176
 Symbols:        10534
@@ -761,7 +784,13 @@ use `symbol`.
 
 | Flag | Effect |
 |---|---|
-| `-n`, `--limit N` | maximum files to report (default 20) |
+| `-n`, `--limit N` | maximum files to report (default 20; must be at least 1) |
+
+The query is built as the MCP `search_code` tool builds it: punctuation
+separates words, so `a.go`, `main()`, `hello-world` and `x:y` search for those
+words side by side and never reach the full-text parser as syntax. `AND`, `OR`
+and `NOT` between two terms, a trailing `*` and a quoted phrase keep their
+meaning. `--json` keys are `file_id`, `path` and `score`.
 
 ```
 $ repocortex search callback -n 5

@@ -22,9 +22,13 @@ import (
 
 	"errors"
 	"fmt"
+	"io"
 	"os"
+	"path"
 	"path/filepath"
+	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -463,7 +467,7 @@ func loadUserConfig(path string) (UserConfig, bool, error) {
 		return uc, false, err
 	}
 	if err := yaml.Unmarshal(b, &uc); err != nil {
-		return uc, false, fmt.Errorf("parse: %w", err)
+		return uc, false, fmt.Errorf("parse: %w", friendlyYAMLError(err, b))
 	}
 	return uc, true, nil
 }
@@ -505,9 +509,107 @@ func loadRepoConfig(path string) (RepoConfig, bool, error) {
 	dec := yaml.NewDecoder(strings.NewReader(string(b)))
 	dec.KnownFields(true)
 	if err := dec.Decode(&rc); err != nil {
-		return rc, false, fmt.Errorf("parse %s: %w", RepoConfigName, err)
+		// An empty or comment-only file has no YAML document, which the
+		// decoder reports as EOF. That is a config that sets nothing, i.e.
+		// the defaults, not a parse failure.
+		if errors.Is(err, io.EOF) {
+			return RepoConfig{}, true, nil
+		}
+		return rc, false, fmt.Errorf("parse %s: %w", RepoConfigName, friendlyYAMLError(err, b))
 	}
 	return rc, true, nil
+}
+
+// yamlTypeRe matches the decoder's "cannot unmarshal !!int `5` into
+// config.X" wording.
+var yamlTypeRe = regexp.MustCompile("^(line \\d+): cannot unmarshal !!(\\w+) (?:`(.*)` )?into (.+)$")
+
+// friendlyYAMLError rewrites a yaml.TypeError so it no longer names Go struct
+// types. The decoder only knows the Go type, so the message says what value
+// was found and what kind of value the key wants.
+func friendlyYAMLError(err error, src []byte) error {
+	var te *yaml.TypeError
+	if !errors.As(err, &te) {
+		return err
+	}
+	msgs := make([]string, 0, len(te.Errors))
+	for _, m := range te.Errors {
+		sm := yamlTypeRe.FindStringSubmatch(m)
+		if sm == nil {
+			msgs = append(msgs, m)
+			continue
+		}
+		found := yamlKindNames[sm[2]]
+		if found == "" {
+			found = sm[2]
+		}
+		want := goTypeWant(sm[4])
+		where := sm[1]
+		if k := yamlKeyAtLine(src, sm[1]); k != "" {
+			where += ", key " + k
+		}
+		if sm[3] != "" {
+			msgs = append(msgs, fmt.Sprintf("%s: got %s (%s), want %s", where, found, sm[3], want))
+		} else {
+			msgs = append(msgs, fmt.Sprintf("%s: got %s, want %s", where, found, want))
+		}
+	}
+	return errors.New("invalid value: " + strings.Join(msgs, "; "))
+}
+
+var yamlKindNames = map[string]string{
+	"int": "a number", "float": "a number", "str": "a string", "bool": "a boolean",
+	"seq": "a list", "map": "a mapping", "null": "null",
+}
+
+// yamlKeyAtLine returns the mapping key written on a "line N" location, or "".
+func yamlKeyAtLine(src []byte, loc string) string {
+	n, err := strconv.Atoi(strings.TrimPrefix(loc, "line "))
+	lines := strings.Split(string(src), "\n")
+	if err != nil || n < 1 || n > len(lines) {
+		return ""
+	}
+	key, _, ok := strings.Cut(strings.TrimSpace(lines[n-1]), ":")
+	key = strings.Trim(strings.TrimPrefix(key, "- "), `"' `)
+	if !ok || key == "" {
+		return ""
+	}
+	return key
+}
+
+// goTypeWant describes a Go target type in config terms.
+func goTypeWant(t string) string {
+	switch {
+	case strings.HasPrefix(t, "[]"):
+		return "a list"
+	case strings.HasPrefix(t, "map["):
+		return "a mapping"
+	case t == "string" || t == "config.AccuracyMode" || t == "config.MCPProfile" || t == "config.ProvisionPolicy":
+		return "a string"
+	case strings.HasPrefix(t, "int") || strings.HasPrefix(t, "uint") || strings.HasPrefix(t, "float"):
+		return "a number"
+	case t == "bool":
+		return "true or false"
+	default:
+		return "a mapping of nested keys"
+	}
+}
+
+// checkGlob reports a malformed glob component, such as an unclosed "[". The
+// walker matches each path component with path.Match and treats a pattern it
+// cannot parse as never matching, so without this check a typo excludes
+// nothing and says nothing.
+func checkGlob(g string) error {
+	g = strings.TrimPrefix(g, "!")
+	for _, part := range strings.Split(g, "/") {
+		if part == "**" {
+			continue
+		}
+		if _, err := path.Match(part, ""); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func applyUser(cfg *Config, uc UserConfig) {
@@ -619,6 +721,16 @@ func (c Config) Validate() error {
 	}
 	if c.MaxGraphDepth < 1 || c.MaxGraphDepth > 10 {
 		return fmt.Errorf("context.max_graph_depth %d: want 1..10 (unbounded traversal is a DoS on large repos)", c.MaxGraphDepth)
+	}
+	for _, key := range []struct {
+		name string
+		list []string
+	}{{"index.include", c.Include}, {"index.exclude", c.Exclude}} {
+		for _, g := range key.list {
+			if err := checkGlob(g); err != nil {
+				return fmt.Errorf("%s %q: not a valid glob (%w)", key.name, g, err)
+			}
+		}
 	}
 	if c.MaxFiles < 1 {
 		return fmt.Errorf("context.max_files %d: must be >= 1", c.MaxFiles)

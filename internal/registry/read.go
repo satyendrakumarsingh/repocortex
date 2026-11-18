@@ -145,7 +145,8 @@ func (r *Registry) Symbols(ctx context.Context, runID int64) ([]model.Symbol, er
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT s.id, s.file_id, s.kind, s.name, s.fqn,
 		       s.start_line, s.start_col, s.end_line, s.end_col,
-		       COALESCE(s.signature,''), COALESCE(s.doc,''), s.exported, s.confidence, s.source
+		       COALESCE(s.signature,''), COALESCE(s.doc,''), s.exported, s.confidence, s.source,
+		       s.param_count
 		  FROM symbols s JOIN files f ON f.id = s.file_id
 		 WHERE s.index_run_id = ? AND s.kind <> 'file'
 		 ORDER BY f.path, s.start_line, s.fqn`, runID)
@@ -158,12 +159,14 @@ func (r *Registry) Symbols(ctx context.Context, runID int64) ([]model.Symbol, er
 	for rows.Next() {
 		var s model.Symbol
 		var kind, conf, src string
-		var exported int
+		var exported, params int
 		if err := rows.Scan(&s.ID, &s.FileID, &kind, &s.Name, &s.FQN,
 			&s.Range.Start.Line, &s.Range.Start.Col, &s.Range.End.Line, &s.Range.End.Col,
-			&s.Signature, &s.Doc, &exported, &conf, &src); err != nil {
+			&s.Signature, &s.Doc, &exported, &conf, &src, &params); err != nil {
 			return nil, fmt.Errorf("registry: list symbols: scan: %w", err)
 		}
+		// The stored value is the Arity encoding itself (zero = unknown).
+		s.ParamCount = model.Arity(params)
 		s.Kind = model.EntityKind(kind)
 		s.Confidence = model.Confidence(conf)
 		s.Source = model.SourceType(src)
@@ -361,9 +364,9 @@ func (r *Registry) supertypeChunkInto(
 
 // FileMatch is one full-text hit.
 type FileMatch struct {
-	FileID int64
-	Path   string
-	Score  float64 // FTS5 bm25; more negative is a better match
+	FileID int64   `json:"file_id"`
+	Path   string  `json:"path"`
+	Score  float64 `json:"score"` // FTS5 bm25; more negative is a better match
 }
 
 // SearchFiles runs a full-text query against the committed run only.

@@ -593,7 +593,11 @@ func (s *Server) reply(ctx context.Context, req *sdk.CallToolRequest, r *Respons
 	// The tool's own summary, kept so the lead can be recomputed in front of
 	// it. What the lead says depends on what Bound cuts, and what Bound cuts
 	// depends on how long the summary is.
-	base := r.Summary
+	base := clipEchoed(r.Summary)
+	r.Summary = base
+	for i := range r.Notes {
+		r.Notes[i] = clipEchoed(r.Notes[i])
+	}
 	r.attachWeakConfidenceNote()
 	r.Bound(s.limits)
 

@@ -87,6 +87,10 @@ func ftsQuery(raw string) (match string, rewritten []string) {
 	return strings.Join(parts, " "), rewritten
 }
 
+// FTSQuery is ftsQuery for callers outside this package, so the command line
+// and the search_code tool turn what was typed into the same MATCH expression.
+func FTSQuery(raw string) (match string, rewritten []string) { return ftsQuery(raw) }
+
 type queryField struct {
 	text   string
 	quoted bool

@@ -5,9 +5,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/satyendrakumarsingh/repocortex/internal/config"
 	"github.com/satyendrakumarsingh/repocortex/internal/observe"
@@ -166,6 +168,9 @@ a heuristic guess.`,
 }
 
 func (g *Global) setup(cmd *cobra.Command) error {
+	if err := checkLimitFlags(cmd); err != nil {
+		return err
+	}
 	level := "info"
 	if g.Verbose {
 		level = "debug"
@@ -207,6 +212,45 @@ func (g *Global) setup(cmd *cobra.Command) error {
 	return nil
 }
 
+// errInvalidArgument marks an error as the caller's argument being wrong.
+var errInvalidArgument = errors.New("invalid argument")
+
+// checkLimitFlags enforces one rule for every command's -n/--limit: when the
+// flag is given it must be a positive number. Zero used to mean "the default"
+// in one command and "no limit" in another, and a negative number was passed
+// to a query as it was. An unset flag keeps the command's own default.
+func checkLimitFlags(cmd *cobra.Command) error {
+	f := cmd.Flags().Lookup("limit")
+	if f == nil || !f.Changed || f.Value.Type() != "int" {
+		return nil
+	}
+	n, err := strconv.Atoi(f.Value.String())
+	if err != nil || n < 1 {
+		return fmt.Errorf("%w: --limit must be positive, got %s (omit it for the default)", errInvalidArgument, f.Value.String())
+	}
+	return nil
+}
+
+// jsonError is the object a failing command prints on stdout under --json.
+type jsonError struct {
+	Error jsonErrorBody `json:"error"`
+}
+
+type jsonErrorBody struct {
+	Message string `json:"message"`
+	Code    string `json:"code"`
+}
+
+// writeJSONError prints err as a JSON object so a consumer reading stdout gets
+// a document, not empty input.
+func writeJSONError(w io.Writer, err error) {
+	code := "error"
+	if errors.Is(err, errInvalidArgument) {
+		code = "invalid_argument"
+	}
+	_ = emitJSON(w, jsonError{Error: jsonErrorBody{Message: err.Error(), Code: code}})
+}
+
 // ExitCodeError is an error that carries the process exit code it wants.
 //
 // It exists so a command whose exit code IS its output — `verify`, whose four
@@ -234,16 +278,29 @@ func (e *ExitCodeError) Unwrap() error { return e.Err }
 
 // Execute runs the CLI, returning a process exit code.
 func Execute(ctx context.Context) int {
-	root := NewRoot()
+	return executeRoot(ctx, NewRoot(), os.Stdout, os.Stderr)
+}
+
+// executeRoot runs root and reports its error as text on stderr and, under
+// --json, as a JSON object on stdout too, so a consumer parsing stdout is
+// never handed empty input.
+func executeRoot(ctx context.Context, root *cobra.Command, stdout, stderr io.Writer) int {
 	if err := root.ExecuteContext(ctx); err != nil {
+		asJSON, _ := root.PersistentFlags().GetBool("json")
 		var ec *ExitCodeError
 		if errors.As(err, &ec) {
 			if !ec.Silent {
-				fmt.Fprintln(os.Stderr, "error:", err)
+				fmt.Fprintln(stderr, "error:", err)
+				if asJSON {
+					writeJSONError(stdout, err)
+				}
 			}
 			return ec.Code
 		}
-		fmt.Fprintln(os.Stderr, "error:", err)
+		fmt.Fprintln(stderr, "error:", err)
+		if asJSON {
+			writeJSONError(stdout, err)
+		}
 		return 1
 	}
 	return 0
