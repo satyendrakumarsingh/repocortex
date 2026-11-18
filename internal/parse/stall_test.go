@@ -57,7 +57,7 @@ func TestFirstParseAllowance(t *testing.T) {
 		{"no source", defaultParserConfig, "c", 0, 2000 * ms * probeScale},
 		{"a megabyte of C#", defaultParserConfig, "c_sharp", 1 << 20, min(60*1000, (2*1000+10*1024)*probeScale) * ms},
 		{"capped by the ceiling", defaultParserConfig, "c", 100 << 20, uint64(DefaultParseCeiling.Microseconds())},
-		{"a language without a mask gets the ceiling", defaultParserConfig, "go", 10 << 10, uint64(DefaultParseCeiling.Microseconds())},
+		{"a language without a mask gets the size-scaled allowance", defaultParserConfig, "go", 10 << 10, uint64((budgetBase + 10*budgetPerKiB).Microseconds())},
 		{"a short ceiling is the allowance", parserConfig{ceiling: 500 * time.Millisecond}, "cpp", 10 << 10, 500 * ms},
 	}
 	for _, tc := range cases {

@@ -46,6 +46,38 @@ import (
 // another is found.
 const DefaultParseCeiling = 60 * time.Second
 
+// The wall-clock allowance of one file's parse is not the ceiling for every
+// file: it scales with the file's size, and the ceiling is only its upper
+// bound. A 120 KB file of text a grammar cannot read used to hold a worker for
+// the whole 60 s in css, dart, elixir, less, bicep, ada and make (measured:
+// every one of them was still parsing at 15 s), and 10,000 nested calls held an
+// Erlang worker for over 30 s; a file of ordinary source takes about 2 ms a
+// KiB (the slowest measured, 1.9 MB of C#, 4 s). So the allowance is
+// budgetBase plus budgetPerKiB a KiB: 4 s for a small file, a hundred times
+// what one needs, 7 s for the 120 KB file above, and 51 s for the 1.9 MB C#
+// file against its 4.
+//
+// A file the allowance stops is recorded as partial, with the allowance named
+// in its parse note, exactly as one stopped by the ceiling was.
+const (
+	budgetBase   = 4 * time.Second
+	budgetPerKiB = 25 * time.Millisecond
+)
+
+// slowGrammarBudgets are the allowances of grammars whose parse time grows
+// faster than their input and whose pathological inputs also cost memory in
+// proportion. Haskell is the measured case: a `do` block of 500 statements
+// (12 KB) parses in 0.7 s and 166 MB, 19 KB in 8 s and 619 MB, and a 30 KB
+// one was still going at 15 s with 924 MB allocated, where a file of top-level
+// declarations of the same size takes milliseconds. Its allowance is a
+// quarter of the default's: three seconds is more than four times what the
+// 12 KB block needs, and the memory a stopped parse has allocated is bounded
+// with it. Another grammar belongs here when a measurement like that one says
+// so.
+var slowGrammarBudgets = map[string]struct{ base, perKiB time.Duration }{
+	"haskell": {3 * time.Second, 15 * time.Millisecond},
+}
+
 // PoolReturnLimit is the largest source a parser may have read and still be
 // returned to the pool. See putParser for why.
 const PoolReturnLimit = 128 << 10
@@ -379,6 +411,43 @@ func buildGenericParser(entry grammars.LangEntry, cfg parserConfig, lang *ts.Lan
 	return p
 }
 
+// maxQueryDepth is the nesting depth of a syntax tree beyond which its
+// definition query is not run.
+//
+// Executing a query checks each candidate node's ancestors, so its time grows
+// with the square of the depth, and unlike the parse it has no clock to stop
+// it. 10,000 nested calls in one Erlang file (30 KB, parsed in well under a
+// second) took 28 s inside the query: 25 s of it comparing ancestor types. The
+// cost is about 0.25 microseconds times the depth squared, so 1,500 levels is
+// half a second, and hand-written code does not nest that deep. A file past it is recorded as partial, with the reason in
+// its parse note, and indexed for text search.
+const maxQueryDepth = 1500
+
+// deeper reports whether the tree under root has more than limit levels.
+func deeper(root *ts.Node, limit int) bool {
+	if root == nil {
+		return false
+	}
+	type level struct {
+		n     *ts.Node
+		depth int
+	}
+	stack := []level{{root, 1}}
+	for len(stack) > 0 {
+		top := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		if top.depth > limit {
+			return true
+		}
+		for i, n := 0, top.n.ChildCount(); i < n; i++ {
+			if c := top.n.Child(i); c != nil && c.ChildCount() > 0 {
+				stack = append(stack, level{c, top.depth + 1})
+			}
+		}
+	}
+	return false
+}
+
 // getParser takes a pooled Parser or builds one.
 func (p *genericParser) getParser() *ts.Parser {
 	select {
@@ -501,6 +570,16 @@ func (p *genericParser) Parse(ctx context.Context, path string, src []byte) (*Re
 			res.Err = err
 			return nil, nil, stop, nil, nil, true, nil //nolint:nilerr // deliberate: recorded on the result, see above
 		}
+		if deeper(tree.RootNode(), maxQueryDepth) {
+			// The definition query is quadratic in nesting depth, and has no
+			// clock; see maxQueryDepth. What was read is not queried.
+			res.Status = StatusPartial
+			res.Reason = model.ParseReasonBudgetExceeded
+			res.Err = errors.New(model.FormatParseError(res.Reason, fmt.Sprintf(
+				"the syntax tree nests more than %d levels deep, past what the definition query reads in bounded time; "+
+					"no definitions or references are extracted from this file", maxQueryDepth)))
+			return nil, nil, stop, nil, nil, true, nil
+		}
 		tags, implementers, err = by.tagTree(tree, src)
 		if err != nil {
 			res.Status = StatusFailed
@@ -514,6 +593,7 @@ func (p *genericParser) Parse(ctx context.Context, path string, src []byte) (*Re
 	// The first parse of a file in a language the masks apply to gets a
 	// shorter wall-clock allowance than the ceiling; see probeMicros.
 	probe := p.cfg.probeMicros(p.entry.Name, len(src))
+	ceil := p.cfg.budgetMicros(p.entry.Name, len(src))
 	// From here on "by" is the parser whose tree this is: p, or p's alternate
 	// when the second recovery route was the one that read the file. Its
 	// queries are the ones compiled against the tree's own Language.
@@ -528,11 +608,11 @@ func (p *genericParser) Parse(ctx context.Context, path string, src []byte) (*Re
 	// answer is every file with nothing to mask and every file that parsed
 	// cleanly. The two masks share that one retry.
 	mp := by.retryMaskedWithin(ctx, tree, stop, src, tags, probe)
-	outran := probe < p.cfg.ceilingMicros() && stop.early && stop.reason == ts.ParseStopTimeout
+	outran := probe < ceil && stop.early && stop.reason == ts.ParseStopTimeout
 	if mp == nil && outran && ctx.Err() == nil {
 		// The first parse ran out of its shorter allowance and no mask
 		// rescued it: it gets the whole ceiling, as every file does.
-		if by, tree, stop, tags, implementers, done, cerr = readTree(p.cfg.ceilingMicros()); done {
+		if by, tree, stop, tags, implementers, done, cerr = readTree(ceil); done {
 			return doneResult(res, cerr)
 		}
 	}
@@ -546,17 +626,20 @@ func (p *genericParser) Parse(ctx context.Context, path string, src []byte) (*Re
 		// the decision is made as it is on a fast machine: against a complete
 		// plain parse, by the same guard. A parse that does not finish inside
 		// it is one the parser does not finish, and the masked reading stands.
-		second := min(p.cfg.ceilingMicros(), probe*probeSecondLook)
+		second := min(ceil, probe*probeSecondLook)
 		by2, tree2, stop2, tags2, implementers2, done2, cerr2 := readTree(second)
 		if done2 {
 			return doneResult(res, cerr2)
 		}
 		if !stop2.early || stop2.reason != ts.ParseStopTimeout {
 			by, tree, stop, tags, implementers = by2, tree2, stop2, tags2, implementers2
-			mp = by.retryMaskedWithin(ctx, tree, stop, src, tags, p.cfg.ceilingMicros())
+			mp = by.retryMaskedWithin(ctx, tree, stop, src, tags, ceil)
 		}
 	}
 	if mp != nil {
+		// The plain tree is replaced; its arena goes back before the rest of the
+		// file is read from the masked one.
+		tree.Release()
 		tree, stop, src, tags, implementers = mp.tree, mp.stop, mp.src, mp.tags, mp.implementers
 		res.MacrosMasked = mp.count
 		res.BranchesBlanked = mp.branches
@@ -737,6 +820,11 @@ func (p *genericParser) Parse(ctx context.Context, path string, src []byte) (*Re
 			}
 			res.Symbols = append(res.Symbols, sym)
 		case strings.HasPrefix(tag.Kind, "reference"):
+			if tag.Name == "" && isSupertypeRef(tag.Kind) {
+				// An `extends ,` the grammar recovered into a clause with no
+				// name: there is no supertype to point an edge at.
+				continue
+			}
 			r := Reference{
 				Name:  tag.Name,
 				Kind:  tag.Kind,
@@ -887,6 +975,32 @@ func (c parserConfig) wallClockCeiling() time.Duration {
 	return c.ceiling
 }
 
+// budget is how long one parse of srcLen bytes of language may run: the
+// size-scaled allowance (see budgetBase), never more than the ceiling. A
+// ceiling the caller set below the default is the allowance, which is what a
+// test wants of a one-millisecond one; one set above it is honoured as
+// written, since an operator who raised it meant every file to have it.
+func (c parserConfig) budget(language string, srcLen int) time.Duration {
+	ceiling := c.wallClockCeiling()
+	if ceiling != DefaultParseCeiling {
+		return ceiling
+	}
+	base, perKiB := budgetBase, budgetPerKiB
+	if slow, ok := slowGrammarBudgets[language]; ok {
+		base, perKiB = slow.base, slow.perKiB
+	}
+	return min(ceiling, base+time.Duration(srcLen>>10)*perKiB)
+}
+
+// budgetMicros is budget in the unit the parser takes it in, never zero.
+func (c parserConfig) budgetMicros(language string, srcLen int) uint64 {
+	us := c.budget(language, srcLen).Microseconds()
+	if us < 1 {
+		return 1
+	}
+	return uint64(us)
+}
+
 // The first parse of a file in a language the masks apply to is given
 // probeBase plus probePerKiB for each KiB of source, when that is less than
 // the ceiling.
@@ -935,7 +1049,7 @@ const probeSecondLook = 2
 // answer to it: a masked reading that still has errors is not kept on the
 // strength of the short allowance alone.
 func (c parserConfig) probeMicros(language string, srcLen int) uint64 {
-	full := c.ceilingMicros()
+	full := c.budgetMicros(language, srcLen)
 	if !maskedLanguages[language] && !condLanguages[language] || language == "fsharp" {
 		// F# reads conditional compilation through the same mask but keeps
 		// the whole ceiling for its first parse: with a short allowance the
@@ -950,17 +1064,6 @@ func (c parserConfig) probeMicros(language string, srcLen int) uint64 {
 		us = 1
 	}
 	return min(full, uint64(us))
-}
-
-// ceilingMicros is the ceiling in the unit the parser takes it in, never zero:
-// zero means "no timeout" to the parser, so a ceiling below a microsecond must
-// round up, not away.
-func (c parserConfig) ceilingMicros() uint64 {
-	us := c.wallClockCeiling().Microseconds()
-	if us < 1 {
-		return 1
-	}
-	return uint64(us)
 }
 
 // stopInfo is what the parser reported about a parse that ended before the end
@@ -995,7 +1098,7 @@ type stopInfo struct {
 // A parse stopped by the wall-clock ceiling is NOT retried. The ceiling exists
 // to bound the time one file can take, and a second attempt would double it.
 func (p *genericParser) parseTree(ctx context.Context, src []byte) (*genericParser, *ts.Tree, stopInfo, error) {
-	return p.parseTreeWithin(ctx, src, p.cfg.ceilingMicros())
+	return p.parseTreeWithin(ctx, src, p.cfg.budgetMicros(p.entry.Name, len(src)))
 }
 
 // parseTreeWithin is parseTree with the wall-clock allowance given in
@@ -1126,7 +1229,7 @@ func (p *genericParser) alternate() *genericParser {
 // execution has its own per-pattern work budget in the library but no clock.
 // Both are bounded in practice by the size limit on the source.
 func (p *genericParser) parseOnce(ctx context.Context, src []byte) (tree *ts.Tree, stop stopInfo, err error) {
-	return p.parseOnceWithin(ctx, src, p.cfg.ceilingMicros())
+	return p.parseOnceWithin(ctx, src, p.cfg.budgetMicros(p.entry.Name, len(src)))
 }
 
 // parseOnceCalls counts every tree-sitter parse started by parseOnceWithin.
@@ -1143,7 +1246,7 @@ func (p *genericParser) parseOnceWithin(ctx context.Context, src []byte, micros 
 		return nil, stop, fmt.Errorf("parser unavailable for %q", p.entry.Name)
 	}
 	if micros == 0 {
-		micros = p.cfg.ceilingMicros()
+		micros = p.cfg.budgetMicros(p.entry.Name, len(src))
 	}
 
 	// A fresh flag per parse, never one stored on the pooled parser: the
@@ -1302,7 +1405,7 @@ func (p *genericParser) describeParse(res *Result, tree *ts.Tree, stop stopInfo,
 		line := 1 + bytes.Count(src[:stop.parsedBytes], []byte{'\n'})
 		res.Err = errors.New(model.FormatParseError(res.Reason, fmt.Sprintf(
 			"parser stopped at byte %d of %d (line %d) on %s; definitions after that point are missing",
-			stop.parsedBytes, len(src), line, stop.describe(p.cfg.wallClockCeiling()))))
+			stop.parsedBytes, len(src), line, stop.describe(p.cfg.budget(p.entry.Name, len(src))))))
 		return
 	}
 
@@ -1351,7 +1454,7 @@ func (s stopInfo) describe(ceiling time.Duration) string {
 		}
 		return "its memory budget"
 	case ts.ParseStopTimeout:
-		return fmt.Sprintf("the %s wall-clock ceiling (a safety net that depends on machine speed; the result can differ between runs)", ceiling)
+		return fmt.Sprintf("the %s wall-clock ceiling for a file of this size (a safety net that depends on machine speed; the result can differ between runs)", ceiling)
 	default:
 		return fmt.Sprintf("parser stop reason %q", s.reason)
 	}

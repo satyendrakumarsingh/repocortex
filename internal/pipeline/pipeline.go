@@ -224,6 +224,12 @@ type Options struct {
 	// OnProgress, when set, is called as files complete. It must be cheap and
 	// safe for concurrent use.
 	OnProgress func(done, total int64)
+
+	// OnDiscovered, when set, is called once discovery has finished and
+	// before any file is parsed, with the number of files found and their
+	// total size in bytes. The caller may use it to tune the process for the
+	// size of the run (the soft memory limit does).
+	OnDiscovered func(files int, sourceBytes int64)
 }
 
 // Runner executes indexing runs.
@@ -236,15 +242,17 @@ type Runner struct {
 	// released. See maybeDrain.
 	drainThreshold int64
 	onProg         func(done, total int64)
+	onDiscovered   func(files int, sourceBytes int64)
 }
 
 // NewRunner builds a Runner over an existing walker.
 func NewRunner(walker *fs.Walker, opts Options) *Runner {
 	r := &Runner{
-		walker:  walker,
-		parsers: opts.Parsers,
-		workers: opts.Workers,
-		onProg:  opts.OnProgress,
+		walker:       walker,
+		parsers:      opts.Parsers,
+		workers:      opts.Workers,
+		onProg:       opts.OnProgress,
+		onDiscovered: opts.OnDiscovered,
 	}
 	if r.parsers == nil {
 		// The walker's limit, so discovery and parsing agree on what "too
@@ -276,6 +284,15 @@ func (r *Runner) Run(ctx context.Context, sink Sink) (Stats, error) {
 		return stats, fmt.Errorf("discovery: %w", err)
 	}
 	stats.FilesDiscovered = int64(len(discovered))
+	if r.onDiscovered != nil {
+		var total int64
+		for _, d := range discovered {
+			if !d.Skipped {
+				total += d.SizeBytes
+			}
+		}
+		r.onDiscovered(len(discovered), total)
+	}
 
 	// Deterministic ordering. The registry digest that backs the determinism
 	// gate must not depend on scheduling, so work is dispatched in a stable

@@ -25,6 +25,7 @@ func newIndexCmd(g *Global) *cobra.Command {
 		accuracy string
 		full     bool
 		rehash   bool
+		memLimit string
 	)
 
 	cmd := &cobra.Command{
@@ -66,6 +67,12 @@ revision in place.`,
 				return fmt.Errorf("--workers %d: must be zero (use the default) or positive", workers)
 			}
 
+			limiter, err := newIndexMemoryLimit(memLimit, g.Log())
+			if err != nil {
+				return fmt.Errorf("--memory-limit: %w", err)
+			}
+			defer limiter.Restore()
+
 			if full && rehash {
 				return fmt.Errorf("--rehash applies to an incremental update; --full already reads every file")
 			}
@@ -91,12 +98,14 @@ revision in place.`,
 				}
 				// No committed revision to update — fall through to a full build.
 			}
-			return runIndex(cmd, g, workers, showDig, accuracy)
+			return runIndex(cmd, g, workers, showDig, accuracy, limiter)
 		},
 	}
 
 	cmd.Flags().IntVar(&workers, "workers", 0,
 		"parse concurrency (default 4; peak memory scales with this, not with repository size)")
+	cmd.Flags().StringVar(&memLimit, "memory-limit", "",
+		"soft heap limit for this run, such as 1GiB, or off (default 768MiB; GOMEMLIMIT and REPOCORTEX_MEMORY_LIMIT also set it)")
 	cmd.Flags().BoolVar(&showDig, "digest", false, "print the registry digest (determinism gate)")
 	cmd.Flags().StringVar(&accuracy, "accuracy", "", "override accuracy mode: fast|auto|exact")
 	cmd.Flags().BoolVar(&full, "full", false,
@@ -254,7 +263,7 @@ func writeIndexGaps(out io.Writer, s registry.ParseSummary) {
 	}
 }
 
-func runIndex(cmd *cobra.Command, g *Global, workers int, showDigest bool, accuracyOverride string) error {
+func runIndex(cmd *cobra.Command, g *Global, workers int, showDigest bool, accuracyOverride string, limiter *indexMemoryLimit) error {
 	ctx := cmd.Context()
 	cfg := g.Config()
 	log := g.Log()
@@ -363,7 +372,8 @@ func runIndex(cmd *cobra.Command, g *Global, workers int, showDigest bool, accur
 
 	var lastPct int64 = -1
 	runner := pipeline.NewRunner(walker, pipeline.Options{
-		Workers: workers,
+		Workers:      workers,
+		OnDiscovered: limiter.Discovered,
 		OnProgress: func(done, total int64) {
 			if total == 0 || g.Quiet || g.JSON {
 				return

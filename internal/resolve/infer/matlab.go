@@ -57,7 +57,7 @@ func (r *Resolver) callMatlab(c call, _ *Stats) decision {
 
 func (r *Resolver) callMatlabBare(c call) decision {
 	var here, imported, onPath []registry.SymbolIndexEntry
-	dirs := moduleDirectivesOf(c.fr.Imports)
+	dirs := c.factsOf().moduleDirectives()
 	for _, s := range c.cands {
 		switch {
 		case s.FileID == c.fr.FileID:

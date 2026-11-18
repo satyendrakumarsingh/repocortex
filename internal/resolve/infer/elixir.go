@@ -44,8 +44,9 @@ import (
 // A qualified call whose module the repository does not define (Enum, Logger,
 // a dependency) leaves the repository.
 func (r *Resolver) callElixir(c call, _ *Stats) decision {
-	module := elixirEnclosingModule(c.fr, c.ref.Line)
-	dirs := elixirDirectives(c.fr.Imports)
+	facts := c.factsOf()
+	module := facts.elixirEnclosingModule(c.ref.Line)
+	dirs := facts.elixirDirectives()
 
 	if c.ref.ReceiverKind != model.ReceiverBare {
 		target := elixirQualifier(c, module, dirs)

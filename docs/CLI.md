@@ -180,6 +180,7 @@ that found nothing to change.
 | `--rehash` | incremental, but read and hash every file instead of trusting an unchanged size and modification time |
 | `--accuracy fast\|auto\|exact` | override the accuracy mode (full path only) |
 | `--workers N` | parse concurrency (default 4). Peak memory scales with this, not with repository size |
+| `--memory-limit SIZE` | soft heap limit for this run, such as `1GiB`, or `off` (default 768 MiB for a run that finds up to 64 MiB of source: 18% less peak memory for no measured time on 561 C files; a larger run keeps none, since the limit cost 11% there). `GOMEMLIMIT` takes precedence; `REPOCORTEX_MEMORY_LIMIT` also sets it |
 | `--digest` | print the registry digest — the determinism gate |
 
 `--workers` and `--accuracy` take effect only on the `--full` path, but are

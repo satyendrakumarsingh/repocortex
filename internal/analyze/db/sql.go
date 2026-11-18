@@ -764,6 +764,21 @@ var sqlKeywords = map[string]bool{
 	"CONSTRAINT": true, "DEFAULT": true, "UNIQUE": true, "CHECK": true,
 }
 
+// clauseWords are the sqlKeywords that open or join a clause, and so cannot be
+// a table even when quoted. The rest of sqlKeywords (order, group, table, key)
+// are words real schemas do use as table names, and quoting is how they say so.
+var clauseWords = map[string]bool{
+	"SELECT": true, "FROM": true, "WHERE": true, "JOIN": true, "INNER": true,
+	"LEFT": true, "RIGHT": true, "FULL": true, "OUTER": true, "CROSS": true,
+	"ON": true, "AS": true, "AND": true, "OR": true, "NOT": true, "IN": true,
+	"INSERT": true, "INTO": true, "VALUES": true, "UPDATE": true, "SET": true,
+	"DELETE": true, "CREATE": true, "ALTER": true, "DROP": true, "BY": true,
+	"HAVING": true, "UNION": true, "ALL": true, "DISTINCT": true, "WITH": true,
+	"WHEN": true, "THEN": true, "ELSE": true, "END": true, "IS": true,
+	"EXISTS": true, "USING": true, "RETURNING": true, "DO": true, "IF": true,
+	"ONLY": true, "TRUNCATE": true, "MERGE": true,
+}
+
 // unqualifiedIdent is unqualify plus the keyword check applied to the RESULT.
 //
 // isIdentifier runs on the whole token, so a qualified name passes it whenever
@@ -778,7 +793,12 @@ func unqualifiedIdent(t string) string {
 		return ""
 	}
 	if parts, ok := nameParts(t); ok && parts[len(parts)-1].quoted {
-		// "order" is a name; the quotes say so.
+		// "order" is a name; the quotes say so. "in" is not one: a word that
+		// joins or opens a clause is not a table whatever it is wrapped in
+		// (`INSERT INTO"IN"` read the keyword `in` as the table).
+		if clauseWords[upperASCII(name)] {
+			return ""
+		}
 		return name
 	}
 	if sqlKeywords[upperASCII(name)] {

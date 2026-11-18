@@ -4,7 +4,6 @@ import (
 	"path"
 	"strings"
 
-	"github.com/satyendrakumarsingh/repocortex/internal/parse"
 	"github.com/satyendrakumarsingh/repocortex/internal/registry"
 	"github.com/satyendrakumarsingh/repocortex/pkg/model"
 )
@@ -49,6 +48,7 @@ func (r *Resolver) callCMake(c call, _ *Stats) decision {
 		return unresolvedCall
 	}
 	var here, ran, above []registry.SymbolIndexEntry
+	runs := c.factsOf().cmakeRunSet()
 	for _, s := range c.cands {
 		if !isCallableKind(s.Kind) {
 			continue
@@ -56,7 +56,7 @@ func (r *Resolver) callCMake(c call, _ *Stats) decision {
 		switch {
 		case s.FileID == c.fr.FileID:
 			here = append(here, s)
-		case cmakeRuns(c.fr.Imports, s.FilePath):
+		case runs.runs(s.FilePath):
 			ran = append(ran, s)
 		case cmakeAbove(c.fr.Path, s.FilePath):
 			above = append(above, s)
@@ -100,28 +100,6 @@ func (r *Resolver) callCMake(c call, _ *Stats) decision {
 		return bound(candidate{only[0], model.ConfidenceLow, "the only command of that name in the repository, no include to say it ran first"})
 	}
 	return unresolvedCall
-}
-
-// cmakeRuns reports whether a file's own commands name the file at path as one
-// they run.
-func cmakeRuns(imports []registry.Import, filePath string) bool {
-	for _, imp := range imports {
-		switch imp.Alias {
-		case parse.ModuleInclude:
-			if filePath == imp.Path {
-				return true
-			}
-		case parse.CMakeIncludeEnd:
-			if filePath == imp.Path || strings.HasSuffix(filePath, "/"+imp.Path) {
-				return true
-			}
-		case parse.CMakeModule:
-			if path.Ext(filePath) == ".cmake" && fileBaseName(filePath) == imp.Path {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 // cmakeAbove reports whether a file is the CMakeLists.txt of the directory a

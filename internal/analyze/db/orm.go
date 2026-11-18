@@ -125,7 +125,14 @@ func emit(framework, verb string, access Access, line int, certain bool, tables 
 	st.Verb = verb
 	st.Access = access
 	st.Certain = certain
-	st.Tables = dedupeLower(tables)
+	// A name an ORM scan lifted from source carries no white space of any
+	// kind, Unicode included: an ideographic space (U+3000) after a type name
+	// (`JpaRepository<A　`) is not part of the table's name.
+	trimmed := make([]string, len(tables))
+	for i, t := range tables {
+		trimmed[i] = strings.TrimSpace(t)
+	}
+	st.Tables = dedupeLower(trimmed)
 	if len(st.Tables) == 0 || access == "" {
 		return ORMStatement{}, false
 	}
