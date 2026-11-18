@@ -54,15 +54,15 @@ class U {
 }
 `})
 		// `void I.M()` is reached through an I, never by a plain `M()`; and
-		// Base.M is private, so neither is bound.
+		// Base.M is private, so neither is bound. The explicit member's
+		// qualified name is Impl.M (its own name is I.M), which is what the
+		// assertions below name.
 		forbidEdge(t, got, "a.cs:Impl.T", "a.cs:Impl.M")
-		forbidEdge(t, got, "a.cs:Impl.T", "a.cs:Impl.I.M")
 		forbidEdge(t, got, "a.cs:Impl.T", "a.cs:Base.M")
 		requireEdge(t, got, "a.cs:Impl.T", "a.cs:Base.K", atLeastLow)
 		requireEdge(t, got, "a.cs:Impl2.T", "a.cs:Impl2.M", atLeastLow)
 		requireEdge(t, got, "a.cs:U.u", "a.cs:Impl2.M", atLeastLow)
 		forbidEdge(t, got, "a.cs:U.u", "a.cs:Impl.M")
-		forbidEdge(t, got, "a.cs:U.u", "a.cs:Impl.I.M")
 	})
 }
 
