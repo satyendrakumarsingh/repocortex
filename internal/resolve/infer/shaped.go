@@ -5,6 +5,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/satyendrakumarsingh/repocortex/internal/capability"
 	"github.com/satyendrakumarsingh/repocortex/internal/registry"
 	"github.com/satyendrakumarsingh/repocortex/pkg/model"
 )
@@ -126,6 +127,13 @@ type call struct {
 	class  string
 	within int64
 
+	// inMethod is true where the definition the call is written in is a Ruby
+	// method, and inSingleton where that method is on the class itself
+	// (`def self.x`). A bare call or a call on self reaches a method of the
+	// same kind: an instance method calls instance methods. Set only for
+	// languages whose methods have two kinds under one name (DynamicSelf).
+	inMethod, inSingleton bool
+
 	// produced and typesNamed serve callReturned (returned.go); nil where the
 	// caller has neither, which leaves that rule out.
 	produced   producedBy
@@ -177,11 +185,78 @@ func (c call) otherConstructors() []registry.SymbolIndexEntry {
 	return narrowByArity(c.ref, kept)
 }
 
-// resolveCall binds one call by its shape.
+// resolveCall binds one call by its shape, and says no more than the
+// preprocessor allows.
 func (r *Resolver) resolveCall(c call, stats *Stats) decision {
+	return c.capVariants(r.resolveShaped(c, stats))
+}
+
+// capVariants lowers a binding to a name that has alternative definitions to
+// low. Where a language has a preprocessor, `#if _WIN32 ... #else ... #endif`
+// defines one function twice, in one file or across `compat_win.c` and
+// `compat_posix.c`, and which a build sees depends on flags the source does not
+// carry. Binding to the first at high, or to one of several at medium, is a
+// coin toss written as a fact: on codebase-memory-mcp 976 of the 1,018 wrong
+// bindings at medium were variants of one function, and medium was 6.2% right.
+//
+// Two things make a name a set of alternatives: one of its definitions was
+// written under a preprocessor conditional (the parser's Conditional flag), or
+// the same file defines it twice. C++ overloads are two definitions of one name
+// and are not alternatives, so there only the conditional counts.
+func (c call) capVariants(d decision) decision {
+	if !c.spec.Calls.PreprocessedVariants || d.verdict != verdictBound || d.best.confidence == model.ConfidenceLow {
+		return d
+	}
+	if !isCallableKind(d.best.entry.Kind) {
+		// A construction binds to the type, and a constructor written under an
+		// `#if` is a variant of the constructor, not of the type.
+		return d
+	}
+	name := d.best.entry.Name
+	_, boundIsMember := memberOwner(d.best.entry)
+	conditional := false
+	perFile := map[[2]string]int{}
+	for _, s := range c.cands {
+		if s.Name != name || !isCallableKind(s.Kind) {
+			continue
+		}
+		if boundIsMember && s.FQN != d.best.entry.FQN {
+			// A member is one of a type's; another type's `run` is not a variant.
+			continue
+		}
+		conditional = conditional || s.Conditional
+		perFile[[2]string{s.FilePath, s.FQN}]++
+	}
+	several := false
+	if !c.spec.Calls.Overloads {
+		for _, n := range perFile {
+			several = several || n > 1
+		}
+	}
+	// Several imported files each define the name: `cbm_fopen` in a header's
+	// implementation for each platform. The first by path is an arbitrary one.
+	// pickImported says medium and C and C++ measured 6.2% right at that tier.
+	among := strings.HasPrefix(d.best.reason, "multiple matches among imports")
+	if conditional || several || among {
+		d.best.confidence = model.ConfidenceLow
+		d.best.reason += "; one of several definitions the preprocessor chooses between"
+	}
+	return d
+}
+
+// resolveShaped is resolveCall before the preprocessor's caveat.
+func (r *Resolver) resolveShaped(c call, stats *Stats) decision {
 	c.scope = enclosingScope(c.fr, c.ref.Line)
 	c.class = enclosingClass(c.scope)
 	c.within, _ = enclosing(c.fr.Symbols, c.ref.Line)
+	if c.spec.Calls.DynamicSelf && c.within != 0 {
+		for _, s := range c.fr.Symbols {
+			if s.ID == c.within {
+				c.inMethod, c.inSingleton = isCallableKind(s.Kind), s.Singleton
+				break
+			}
+		}
+	}
 	if c.class == "" && c.spec.Calls.ClassBodyCode && c.scope != "" && declaresMembers(c.fr, c.scope) {
 		c.class = c.scope
 	}
@@ -693,6 +768,15 @@ func (c call) bindMember(t typeRef, rule string) (decision, bool) {
 	if len(group) == 0 {
 		return decision{}, false
 	}
+	// A Ruby class has `def self.start` and `def start` under one qualified
+	// name. A bare call, or a call on self, written in an instance method
+	// reaches the instance one, and in a class method the class one. Measured
+	// on the standard library: `start` in net/http.rb and `each_address` in
+	// resolv.rb were bound to the other kind, 17 times in all.
+	crossKind := false
+	if rule == ruleEnclosingType && c.inMethod {
+		group, crossKind = ofKind(group, c.inSingleton)
+	}
 	o, ok := oneDeclaration(c.spec, c.ref, group)
 	if !ok {
 		return ambiguousCall, true
@@ -711,6 +795,21 @@ func (c call) bindMember(t typeRef, rule string) (decision, bool) {
 	case !t.strong:
 		confidence = c.spec.Calls.Measured.uniqueTypeName()
 		reason = rule + ", the only type of that name (" + t.name + ")"
+	case crossKind:
+		// Only the other kind of method of that name is declared here: a
+		// class method called from an instance method, or the reverse. Ruby
+		// does not let one reach the other, so the name is more likely a method
+		// the type gets from elsewhere (an included module, a DSL) than this one.
+		confidence = model.ConfidenceLow
+		reason = rule + ", but only as a method of the other kind (" + t.name + ")"
+	case c.spec.Calls.DynamicSelf && redefined(group):
+		// The type defines the name more than once and the call does not say
+		// which: a method redefined, or reopened in another file. The first is
+		// what a compiler index attaches the name to, and it is a choice. Capped
+		// at `medium` it was 0 right of 12 on the standard library, so it is
+		// `low`, as the same name defined twice in one file is.
+		confidence = model.ConfidenceLow
+		reason = rule + ", one of several definitions (" + t.name + ")"
 	case rank == 2:
 		// Declared on a type of this name somewhere else. One such type is
 		// evidence; it is not a statement — and in a language whose types are
@@ -723,6 +822,36 @@ func (c call) bindMember(t typeRef, rule string) (decision, bool) {
 		reason = rule + ", declared in another directory (" + t.name + ")"
 	}
 	return bound(candidate{first, confidence, reason}), true
+}
+
+// redefined reports whether the group holds two members of one kind: the same
+// method written twice, or in two files. A class method and an instance method
+// of one name are not a redefinition.
+func redefined(group []registry.SymbolIndexEntry) bool {
+	var singleton, instance int
+	for _, s := range group {
+		if s.Singleton {
+			singleton++
+		} else {
+			instance++
+		}
+	}
+	return singleton > 1 || instance > 1
+}
+
+// ofKind keeps the members of one kind, singleton or instance. When the group
+// holds only the other kind it is returned whole, with crossed set: the name is
+// declared, but not as anything the call can reach.
+func ofKind(group []registry.SymbolIndexEntry, singleton bool) (kept []registry.SymbolIndexEntry, crossed bool) {
+	for _, s := range group {
+		if s.Singleton == singleton {
+			kept = append(kept, s)
+		}
+	}
+	if len(kept) == 0 {
+		return group, true
+	}
+	return kept, false
 }
 
 // inherit parks a call for the ancestry pass: the type is known and does not
@@ -819,6 +948,24 @@ func (r *Resolver) callBare(c call, stats *Stats) decision {
 				// than the helper recurses.
 				return bound(candidate{first, model.ConfidenceLow, rule + ", the function the call is written in"})
 			}
+			if c.spec.Calls.DynamicSelf && rule == ruleSameFile {
+				if len(near) > 1 {
+					// The same name defined twice in one file at the same
+					// level, as rspec examples do with helpers of one name in
+					// separate `describe` blocks. The first is a choice.
+					return bound(candidate{first, model.ConfidenceLow, rule + ", one of several definitions"})
+				}
+				if c.ref.Block && c.shadowsLibraryMethod(first) {
+					// `patch do ... end` in a spec that also defines a helper
+					// `def patch`: the block is the DSL method of the class the
+					// block is run against, far more often than the helper,
+					// which does not take one. Homebrew: 35 of the 52 wrong
+					// bindings of this rule were calls that pass a block. Capped
+					// at `medium` they were still 0 right of 23, so they are
+					// `low`; the same helper called without a block stays `high`.
+					return bound(candidate{first, model.ConfidenceLow, rule + ", but the call passes a block and a class defines the name"})
+				}
+			}
 			return bound(candidate{first, model.ConfidenceHigh, rule})
 		}
 		// Several definitions of one name in one file: conditional
@@ -862,6 +1009,35 @@ func (r *Resolver) callBare(c call, stats *Stats) decision {
 		return r.bareBeyondType(c, reach, stats)
 	}
 	return r.bareByName(c, reach, stats)
+}
+
+// shadowsLibraryMethod reports whether a name defined as a function in the
+// call's own file is also a method of a class in a file that is not a test: the
+// local definition may shadow a method the call was meant for.
+func (c call) shadowsLibraryMethod(local registry.SymbolIndexEntry) bool {
+	for _, s := range c.cands {
+		if s.ID == local.ID || s.FileID == c.fr.FileID || !isCallableKind(s.Kind) {
+			continue
+		}
+		if _, isMember := memberOwner(s); isMember && !isSpecPath(s.FilePath) {
+			return true
+		}
+	}
+	return false
+}
+
+// isSpecPath reports whether a path is test code, by the conventions Ruby
+// projects use: `spec/`, `test/`, `*_spec.rb`, `test_*.rb`.
+func isSpecPath(p string) bool {
+	if capability.IsTestPath(p) {
+		return true
+	}
+	for _, seg := range strings.Split(path.Dir(p), "/") {
+		if seg == "spec" || seg == "specs" {
+			return true
+		}
+	}
+	return false
 }
 
 // nestedType binds a constructing call to a type declared inside the type with
@@ -943,11 +1119,15 @@ func (r *Resolver) bareOnOtherType(c call, stats *Stats) decision {
 		return ambiguousCall
 	}
 	if best, ok := r.pickImported(c.imports, c.ref, methods); ok {
-		if best.confidence != model.ConfidenceHigh {
-			// Several required files each define one: a preference among
-			// them, and labelled as the least.
-			best.confidence = model.ConfidenceLow
-		}
+		// One required file defining the name, or several of them, is a
+		// preference, and labelled as the least. That a file is required says
+		// nothing about the object a bare DSL call in a block runs against
+		// (`depends_on`, `conflicts`, `resource`, `desc`, `gem`): it goes to
+		// whichever required file has the name. Measured against scip-ruby on
+		// Homebrew this rule at `high` was 71.8% right (956 of 1,332), and
+		// capped at `medium` it was 0.5% right (2 of 378), so it is `low`. On
+		// the standard library, where it is a module's own helper, it was 93%.
+		best.confidence = model.ConfidenceLow
 		best.reason = ruleRequiredOtherType
 		return bound(best)
 	}

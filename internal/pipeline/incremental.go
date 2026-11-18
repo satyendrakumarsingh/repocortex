@@ -793,6 +793,7 @@ func writeIncrementalReferences(
 			Col:          ref.Range.Start.Col,
 			ValueLine:    ref.Value.Line,
 			ValueCol:     ref.Value.Col,
+			Block:        ref.Block,
 		})
 	}
 	return reg.ReplaceFileReferences(ctx, runID, fileID, refs, registryImports(facts))

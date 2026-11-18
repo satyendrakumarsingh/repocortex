@@ -38,13 +38,18 @@ type EnclosingSymbol struct {
 	// caller of the file's own code, not a definition: FileSymbols returns it
 	// like any other row and loadFilePage moves it to FileRefs.FileCaller.
 	Kind string
+
+	// Singleton is true for a Ruby method defined on the class itself
+	// (`def self.x`). It says which of a class's two kinds of method a bare
+	// call written inside this one reaches. See model.Symbol.
+	Singleton bool
 }
 
 // FileSymbols returns a file's symbols ordered by position, for enclosure
 // lookups during resolution.
 func (r *Registry) FileSymbols(ctx context.Context, fileID int64) ([]EnclosingSymbol, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT id, name, start_line, end_line, fqn, kind, start_col, end_col
+		SELECT id, name, start_line, end_line, fqn, kind, start_col, end_col, flags
 		  FROM symbols
 		 WHERE file_id = ?
 		 ORDER BY start_line, end_line DESC`, fileID)
@@ -56,9 +61,11 @@ func (r *Registry) FileSymbols(ctx context.Context, fileID int64) ([]EnclosingSy
 	var out []EnclosingSymbol
 	for rows.Next() {
 		var s EnclosingSymbol
-		if err := rows.Scan(&s.ID, &s.Name, &s.StartLine, &s.EndLine, &s.FQN, &s.Kind, &s.StartCol, &s.EndCol); err != nil {
+		var flags int
+		if err := rows.Scan(&s.ID, &s.Name, &s.StartLine, &s.EndLine, &s.FQN, &s.Kind, &s.StartCol, &s.EndCol, &flags); err != nil {
 			return nil, err
 		}
+		s.Singleton = flags&model.SymbolFlagSingleton != 0
 		out = append(out, s)
 	}
 	return out, rows.Err()

@@ -121,6 +121,16 @@ type CallTraits struct {
 	// member or a static import, and anything else is not bound.
 	DynamicSelf bool
 
+	// PreprocessedVariants reports that a definition may be one of several
+	// alternatives the preprocessor chooses between: C, C++ and CUDA's `#if`,
+	// `#ifdef` and `#else`, as in a `compat_fs.c` that defines `cbm_fopen` once
+	// for Windows and once for POSIX. Which one a build sees depends on flags
+	// the source does not carry, so a call to a name that has two such
+	// definitions, or one written under a conditional, cannot be bound to one of
+	// them with confidence. Measured on codebase-memory-mcp: of 1,018 wrong
+	// bindings at medium, 976 were variants of one function.
+	PreprocessedVariants bool
+
 	// CallConstructs reports that calling a type by its name constructs one:
 	// Python's `Account(...)`, Kotlin's `Queue()`, a Go conversion, a Rust
 	// tuple struct. Where it does not hold a bare call can never denote a
@@ -464,15 +474,15 @@ var callTraitsByLanguage = map[string]CallTraits{
 	"rust":       {Measured: ruleTiers{UnknownReceiver: model.ConfidenceMedium, NamedAfterType: model.ConfidenceHigh, UniqueTypeName: model.ConfidenceHigh}, CallConstructs: true, OpenTypes: true, TypesAreCapitalised: true, ScopeNamesModule: true, ExternalRoots: []string{"std", "core", "alloc"}, Builtins: rustBuiltins},
 	"ruby":       {Measured: ruleTiers{NamedAfterType: model.ConfidenceHigh}, ImplicitSelf: true, DynamicSelf: true, OpenTypes: true, TypesAreCapitalised: true, Builtins: rubyBuiltins},
 	"c_sharp":    {NewConstructs: true, NoFreeFunctions: true, Measured: ruleTiers{UnknownReceiver: model.ConfidenceMedium, NamedAfterType: model.ConfidenceLow, UniqueTypeName: model.ConfidenceHigh}, ImplicitSelf: true, Overloads: true, OpenTypes: true, TypesAreCapitalised: true, ExternalRoots: []string{"System", "Microsoft"}, Builtins: csharpBuiltins},
-	"cpp":        {Measured: ruleTiers{NamedAfterType: model.ConfidenceHigh, Neighbour: model.ConfidenceLow}, CallConstructs: true, ImplicitSelf: true, Overloads: true, OpenTypes: true, ScopeNamesModule: true, ExternalRoots: []string{"std"}},
+	"cpp":        {PreprocessedVariants: true, Measured: ruleTiers{NamedAfterType: model.ConfidenceHigh, Neighbour: model.ConfidenceLow}, CallConstructs: true, ImplicitSelf: true, Overloads: true, OpenTypes: true, ScopeNamesModule: true, ExternalRoots: []string{"std"}},
 	// C reads a neighbour the include did not name at low, as C++ does: a `static`
 	// function of another file is not linkable, and a same-directory definition is
 	// the only thing that tells a file's own helper from one it merely shares a
 	// directory with. Measured on C code in this repository's reach (see CHANGELOG).
-	"c": {Measured: ruleTiers{Neighbour: model.ConfidenceLow}, OpenTypes: true},
+	"c": {Measured: ruleTiers{Neighbour: model.ConfidenceLow}, OpenTypes: true, PreprocessedVariants: true},
 	// CUDA is C++ with kernels: the traits are C++'s (a `.cu` file includes a C++ header
 	// and calls through the same linker), and the runtime's own names are external.
-	"cuda":       {Measured: ruleTiers{NamedAfterType: model.ConfidenceHigh, Neighbour: model.ConfidenceLow}, CallConstructs: true, ImplicitSelf: true, Overloads: true, OpenTypes: true, ScopeNamesModule: true, ExternalRoots: []string{"std", "thrust", "cub", "cooperative_groups", "nvcuda", "cuda"}},
+	"cuda":       {PreprocessedVariants: true, Measured: ruleTiers{NamedAfterType: model.ConfidenceHigh, Neighbour: model.ConfidenceLow}, CallConstructs: true, ImplicitSelf: true, Overloads: true, OpenTypes: true, ScopeNamesModule: true, ExternalRoots: []string{"std", "thrust", "cub", "cooperative_groups", "nvcuda", "cuda"}},
 	"glsl":       {},
 	"hlsl":       {},
 	"cmake":      {},

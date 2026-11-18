@@ -188,6 +188,7 @@ func (s *RegistrySink) writeFileRows(ctx context.Context, facts FileFacts) error
 			Col:          ref.Range.Start.Col,
 			ValueLine:    ref.Value.Line,
 			ValueCol:     ref.Value.Col,
+			Block:        ref.Block,
 		}); err != nil {
 			return fmt.Errorf("add reference %s in %s: %w", ref.Name, f.Path, err)
 		}

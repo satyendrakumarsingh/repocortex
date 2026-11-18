@@ -257,6 +257,20 @@ type Symbol struct {
 	// not one: its methods are implementations. Migration 0024_symbol_flags.
 	Trait bool `json:"trait,omitempty"`
 
+	// Singleton is true for a Ruby method defined on the class or module
+	// itself (`def self.x`, `class << self; def x`), not on its instances.
+	// False is "not read as singleton", which for every other language is
+	// all it can say. Bit 4 of symbols.flags.
+	Singleton bool `json:"singleton,omitempty"`
+
+	// Conditional is true for a C or C++ function definition written inside a
+	// preprocessor conditional (`#if`, `#ifdef`, `#else`), other than a header
+	// guard or `#ifdef __cplusplus`. Two definitions of one name under
+	// opposite branches are two variants of one function, and which one the
+	// compiler saw depends on flags the source does not carry. Bit 8 of
+	// symbols.flags.
+	Conditional bool `json:"conditional,omitempty"`
+
 	// Confidence describes how reliably this symbol was extracted. Symbols are
 	// usually high or exact; a Tier-1 generic extraction may be medium.
 	Confidence Confidence `json:"confidence"`
@@ -429,10 +443,18 @@ const (
 // identifier in any language, so it cannot collide with a real receiver.
 const OpaqueReceiver = "?"
 
+// The bits of symbol_references.flags (migration 0028_reference_flags).
+const (
+	// ReferenceFlagBlock marks a call that passes a block. Read for Ruby.
+	ReferenceFlagBlock = 1
+)
+
 // The bits of symbols.flags (migration 0024_symbol_flags).
 const (
-	SymbolFlagPrivate = 1
-	SymbolFlagTrait   = 2
+	SymbolFlagPrivate     = 1
+	SymbolFlagTrait       = 2
+	SymbolFlagSingleton   = 4
+	SymbolFlagConditional = 8
 )
 
 // Flags is the symbol's bit set as the index stores it.
@@ -443,6 +465,12 @@ func (s Symbol) Flags() int {
 	}
 	if s.Trait {
 		f |= SymbolFlagTrait
+	}
+	if s.Singleton {
+		f |= SymbolFlagSingleton
+	}
+	if s.Conditional {
+		f |= SymbolFlagConditional
 	}
 	return f
 }

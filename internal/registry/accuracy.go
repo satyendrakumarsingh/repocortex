@@ -121,6 +121,43 @@ type Adjudication struct {
 const resolverResolution = `(CASE WHEN r.prior_resolution <> '' THEN r.prior_resolution ` +
 	`ELSE r.resolution END)`
 
+// sameAnswer is when a heuristic edge h and the compiler's target t are the same
+// answer to a call site: the same definition, or, for a construction, the type
+// and the constructor that builds it.
+//
+// WHY THE SECOND CASE. An INSTANTIATES edge goes to the type (see "A call that
+// constructs a type" in docs/accuracy.md): it is the one answer that exists in
+// every language, because a class may declare no constructor, may declare
+// several that the call's argument count does not tell apart, and in Python,
+// Ruby and Go has none to name. A compiler index that records constructors
+// (scip-clang, scip-java) reports the call site as a reference to the
+// constructor, which is a method named after the type. Scoring the two as
+// different answers counted every `Foo(...)` and `new Foo` against the
+// resolver for a choice made on purpose: all 16 wrong `high` edges on greenlet
+// under scip-clang were exactly that. They are the same answer here.
+//
+// The constructor is recognised by name and by owner. It is a method or a
+// function (a C++ parser indexes it as the second) named X, whose qualified name
+// is the type's qualified name followed by `.X`. It may be written outside the
+// header that declares the class (`Foo::Foo() {}` in a .cpp), so the two need
+// not share a file; then the type must be the only one of that
+// qualified name, or a constructor of one `Foo` would vouch for another.
+//
+// It applies to INSTANTIATES edges only. A CALLS edge to a type, or any edge to
+// a method of the type that is not its constructor, is still a different answer.
+const sameAnswer = `(h.dst_id = t.dst OR (h.ekind = 'INSTANTIATES' AND EXISTS (
+        SELECT 1 FROM symbols hs2 JOIN symbols ts2 ON ts2.id = t.dst
+         WHERE hs2.id = h.dst_id AND ts2.name = hs2.name AND ts2.kind IN ('method', 'function')
+           AND hs2.kind NOT IN ('method', 'function')
+           AND substr(ts2.fqn, instr(ts2.fqn, ':') + 1) =
+               substr(hs2.fqn, instr(hs2.fqn, ':') + 1) || '.' || hs2.name
+           AND (hs2.file_id = ts2.file_id OR NOT EXISTS (
+                SELECT 1 FROM symbols hs3 INDEXED BY idx_symbols_name
+                 WHERE hs3.index_run_id = hs2.index_run_id AND hs3.name = hs2.name AND hs3.id <> hs2.id
+                   AND hs3.kind NOT IN ('method', 'function')
+                   AND substr(hs3.fqn, instr(hs3.fqn, ':') + 1) = substr(hs2.fqn, instr(hs2.fqn, ':') + 1)))
+        )))`
+
 // accuracyCTE is the shared vocabulary of the whole measurement.
 //
 //   - unambiguous: lines the compiler resolved to EXACTLY ONE target. Same
@@ -200,19 +237,19 @@ truth AS (
                       AND r.index_run_id = ? AND r.kind LIKE '%call%'
                       AND r.start_line > 0 AND r.name = ts.name)),
 heur AS (
-    SELECT e.evidence_file AS f, e.evidence_line AS l, e.dst_id,
+    SELECT e.evidence_file AS f, e.evidence_line AS l, e.dst_id, e.kind AS ekind,
            ` + resolverConfidence + ` AS confidence
       FROM edges e
      WHERE e.index_run_id = ? AND e.kind IN ('CALLS', 'INSTANTIATES')
        AND ` + resolverSource + ` = 'source_code'),
 scored AS (
     SELECT t.f AS f, t.l AS l, t.lang AS lang,
-           MAX(CASE WHEN h.dst_id = t.dst THEN 1 ELSE 0 END) AS correct,
+           MAX(CASE WHEN ` + sameAnswer + ` THEN 1 ELSE 0 END) AS correct,
            MIN(CASE WHEN h.confidence IS NULL THEN NULL ELSE
                (CASE h.confidence WHEN 'exact' THEN 0 WHEN 'high' THEN 1
                                   WHEN 'medium' THEN 2 WHEN 'low' THEN 3
                                   ELSE 4 END) END) AS any_rank,
-           MIN(CASE WHEN h.dst_id = t.dst THEN
+           MIN(CASE WHEN ` + sameAnswer + ` THEN
                (CASE h.confidence WHEN 'exact' THEN 0 WHEN 'high' THEN 1
                                   WHEN 'medium' THEN 2 WHEN 'low' THEN 3
                                   ELSE 4 END) ELSE NULL END) AS hit_rank

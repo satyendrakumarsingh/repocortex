@@ -2734,6 +2734,187 @@ Each is stated with the figure that measured it, from the record or from the com
 - **Eight languages have no definition query on purpose:** Perl, Haskell, Pascal, COBOL, Elm, Nix, Verilog and Assembly. `repocortex languages --verbose` lists each under text only: searchable, with no symbols.
 - **Platforms and assets.** `install.ps1` has not been run on Windows (commit `d28e6a4`); no result of the test suite on Windows or Linux for the work in this document is in the record. The demo images in `docs/assets` were last regenerated at v1.0.1 and the portal screenshots on 11 November, before these changes.
 
+## Ruby, C and C++ against compiler indexes (2026-11-18)
+
+Until this section Ruby, C and C++ had been measured only on fixtures. This is
+the first measurement on real code against a compiler index, and what it found
+and changed. Every figure below is `repocortex accuracy`, run as in "Method":
+`index`, `resolve --no-scip`, `scip import`, `accuracy`, on the same corpus
+before and after.
+
+### The corpora and the compiler indexes
+
+| Corpus | Language | Files | Index | How the index was made |
+|---|---|---|---|---|
+| Ruby standard library, `lib/` of 4.0.9 | Ruby | 886 | `scip-ruby` 0.5.1 | run over the tree; it needs no build |
+| Homebrew `Library/Homebrew` | Ruby | 2,397 | `scip-ruby` 0.5.1 | the same |
+| `pg_query_go` (libpg_query's C) | C | 519 | `scip-clang` 0.4.1 | 74 translation units |
+| `codebase-memory-mcp` | C and C++ | 625 (615 C, 10 C++) | `scip-clang` 0.4.1 | 131 translation units |
+| `greenlet` | C++ | 53 | `scip-clang` 0.4.1 | 14 translation units |
+
+`scip-clang` reads a compilation database. None of the three C and C++
+projects ships one, so each was made for the occasion, and what each contains is
+part of what the figures describe:
+
+- **pg_query_go:** written by hand, one entry per `.c` file the Go package's
+  `build_cgo.go` compiles, with that file's flags (`-Iinclude -Iinclude/postgres
+  -std=gnu99 -DXXH_NAMESPACE=PG_QUERY_`).
+- **codebase-memory-mcp:** from `make -n` on the project's Makefile, each compile
+  line of the dry run turned into an entry, so the flags are the project's own
+  and the tree is the one the project builds for its host (macOS, POSIX).
+- **greenlet:** hand-written, `clang++ -std=c++11` with the CPython 3.13 include
+  path, for the 14 `.cpp` files the extension compiles.
+
+A file the database does not list has no compiler facts, which is the first
+reason coverage is low (below).
+
+### Before and after
+
+Precision is right / wrong edges at that tier over the call sites the compiler
+resolved to exactly one definition. Recall is the share of those call sites with
+a correct edge at that tier. "Before" is `dev` at `ab925ce`; "after" is this
+change.
+
+| Corpus | Tier | Before | After |
+|---|---|---|---|
+| Ruby standard library 4.0.9 (886 files) | high | 6,651 / 48 (99.3%, recall 62.3%) | 6,479 / 8 (99.9%, recall 60.7%) |
+| Ruby standard library 4.0.9 (886 files) | medium | 57 / 12 (82.6%, recall 0.5%) | 57 / 12 (82.6%, recall 0.5%) |
+| Ruby standard library 4.0.9 (886 files) | low | 542 / 1,070 (33.6%, recall 5.1%) | 730 / 1,094 (40.0%, recall 6.8%) |
+| Ruby standard library 4.0.9 (886 files) | all | 86.5% P, 67.9% R | 86.7% P, 68.0% R |
+| Homebrew/brew Library/Homebrew | high | 9,099 / 445 (95.3%, recall 37.5%) | 8,122 / 3 (100.0%, recall 33.4%) |
+| Homebrew/brew Library/Homebrew | medium | 1,636 / 134 (92.4%, recall 6.7%) | 1,636 / 134 (92.4%, recall 6.7%) |
+| Homebrew/brew Library/Homebrew | low | 4,089 / 212 (95.1%, recall 16.8%) | 5,080 / 640 (88.8%, recall 20.9%) |
+| Homebrew/brew Library/Homebrew | all | 94.9% P, 61.0% R | 95.0% P, 61.1% R |
+| pg_query_go (C) | high | 4,391 / 22 (99.5%, recall 51.6%) | 4,248 / 1 (100.0%, recall 49.9%) |
+| pg_query_go (C) | medium | 10 / 4 (71.4%, recall 0.1%) | 0 / 0 (-) |
+| pg_query_go (C) | low | 734 / 0 (100.0%, recall 8.6%) | 887 / 25 (97.3%, recall 10.4%) |
+| pg_query_go (C) | all | 99.5% P, 60.4% R | 99.5% P, 60.4% R |
+| codebase-memory-mcp (C) | high | 27,979 / 512 (98.2%, recall 74.5%) | 26,837 / 442 (98.4%, recall 71.4%) |
+| codebase-memory-mcp (C) | medium | 67 / 1,018 (6.2%, recall 0.2%) | 0 / 0 (-) |
+| codebase-memory-mcp (C) | low | 2,265 / 4 (99.8%, recall 6.0%) | 3,474 / 1,092 (76.1%, recall 9.2%) |
+| codebase-memory-mcp (C) | all | 95.2% P, 80.7% R | 95.2% P, 80.7% R |
+| codebase-memory-mcp (C++) | high | 224 / 3 (98.7%, recall 50.3%) | 224 / 0 (100.0%, recall 50.3%) |
+| codebase-memory-mcp (C++) | medium | 20 / 0 (100.0%, recall 4.5%) | 20 / 0 (100.0%, recall 4.5%) |
+| codebase-memory-mcp (C++) | low | 10 / 0 (100.0%, recall 2.2%) | 10 / 3 (76.9%, recall 2.2%) |
+| codebase-memory-mcp (C++) | all | 98.8% P, 57.1% R | 98.8% P, 57.1% R |
+| greenlet (C++) | high | 125 / 16 (88.7%, recall 36.3%) | 141 / 0 (100.0%, recall 41.0%) |
+| greenlet (C++) | medium | 9 / 0 (100.0%, recall 2.6%) | 9 / 0 (100.0%, recall 2.6%) |
+| greenlet (C++) | low | 64 / 13 (83.1%, recall 18.6%) | 68 / 9 (88.3%, recall 19.8%) |
+| greenlet (C++) | all | 87.2% P, 57.6% R | 96.0% P, 63.4% R |
+
+The `all` rows do not move for the languages the changes were about: a binding
+that was wrong at `high` is now reported at `low`, where it is still reported.
+What moved is which tier it is in. The `high` tier loses recall for it
+(Homebrew 37.5% to 33.4%, codebase-memory-mcp 74.5% to 71.4%) and gains the
+precision the tier is read for.
+
+### What each change was, and what it measured
+
+**Ruby, "a method of this name in a required file."** A bare call that nothing
+in the enclosing type or file declares is a DSL call in a block (`conflicts`,
+`depends_on`, `resource`, `desc`, `gem`), and the rule bound it to whichever
+required file defined the name, at `high`. On Homebrew it was 956 right and 376
+wrong at `high` (71.8%); on the standard library, where the name is a module's own
+helper, 93%. Capped at `medium` it was 2 right of 378, so it is `low`. On
+Homebrew it is still 2 right of 501 at `low`, and the rule is the largest
+single contributor to Homebrew's `low` tier falling from 95.1% to 88.8%. That is
+the cost of reporting it at all; it is not a rule to trust.
+
+**Ruby, a same-file `def` that shadows a DSL method.** A spec-local `def patch`
+bound the `patch do ... end` that runs against `Formula`. Whether the call
+passes a block is now recorded on the reference (`symbol_references.flags`
+bit 1, migration 0028, read for Ruby only). A call that passes a block, where the
+same name is a method of a class in a file that is not a test, is `low`: capped at
+`medium` it was 0 right of 23. The same name defined twice at one level of a file
+(rspec helpers in separate `describe` blocks) is `low`, 0 right of 27. The
+helper called without a block stays `high`. Homebrew's `high` wrong from this
+rule fell from 52 to 2.
+
+**Ruby, a class method and an instance method of one name.** `def self.x` and
+`def x` share a qualified name. Whether a Ruby definition is a singleton
+(`def self.x`, `def Const.x`, or under `class << self`) is now a bit of
+`symbols.flags` (4), and a bare call or a call on `self` prefers the method of
+the kind of the `def` it is written in. Where only the other kind exists the
+binding is `low`: 57 call sites on the standard library, none right. The
+standard library's `high` wrong fell from 48 to 8 (`each_address` in `resolv.rb` and
+`start` in `net/http.rb` were two of the ones that were the other kind).
+
+**Ruby, a method defined twice in a type.** "Declared on the enclosing type" took
+the first of several same-name, same-kind members at `high`. It is now `low`:
+capped at `medium` it was 0 right of 12 on the standard library. One of each
+kind is not a redefinition.
+
+**C and C++, preprocessor alternatives.** `compat_fs.c` defines `cbm_fopen`
+once under `#ifdef _WIN32` and once for POSIX; a binding to either was `high` (the
+same file, the first declaration) or `medium` (several matches among imports),
+and `medium` was 67 right of 1,085 (6.2%) on codebase-memory-mcp, 976 of the
+wrong ones variants of one function. Whether a C or C++ definition sits in a
+conditional branch is now a bit of `symbols.flags` (8), read from the directives
+in the text with the scanner `cond.go` already has, because the masked retry
+parse blanks them. A conditional that is an include guard, or names
+`__cplusplus`, is not one. A call is `low` where any candidate of the name is
+conditional, where one file defines a C name twice, or where the binding is
+"multiple matches among imports". C++ overloads are not alternatives. Result:
+codebase-memory-mcp's `medium` tier is empty (it was 1,085 call sites) and its
+`high` tier lost 3.1 points of recall to `low`, whose precision is now 76.1% over
+4,566 call sites instead of 99.8% over 2,269. pg_query_go's 22 wrong `high`
+edges became 1, and 21 of them are `low` now. Its one that remains is a
+`static` function the compiler index attributes to another file, below.
+
+**C++ INSTANTIATES.** `Foo(...)` and `new Foo` bind `INSTANTIATES` to the class;
+`scip-clang` binds the constructor, so all 16 wrong `high` edges on greenlet were
+this. The edge stays on the class, as it is for Java, C#, Kotlin, Python and
+Ruby: a class may declare no constructor, or several that the argument count does
+not tell apart, and a compiler index that has constructors is the exception, not
+the rule. Binding to the constructor where one is indexed would give C++ a
+different `INSTANTIATES` target from every other language. The adjudication takes the other
+side of the difference instead: for an `INSTANTIATES` edge, the type and its own
+constructor are the same answer (`registry/accuracy.go`, `sameAnswer`).
+The constructor is a method or function of the same name whose qualified name is
+the type's followed by `.Name`; where it is written outside the header that
+declares the class the type must be the only one of that qualified name, or one
+class's constructor would vouch for another's. A `CALLS` edge to the type, an
+edge to another class of the same name, and an edge to a method that is not the
+constructor are still different answers. The change is to the measurement, not
+to the graph, and it is not specific to C++: the rule reads names and qualified
+names, and Java and C# were not measured here. greenlet: 16 wrong at `high` to 0,
+141 right. An edge to a type is also never lowered for a constructor written
+under an `#if`, which is a variant of the constructor and not of the type.
+
+### Caveats
+
+- **Coverage is 15% to 37% of call sites.** The adjudicated sites are those the
+  compiler resolved to one definition on a line where the parser also found a
+  call: 10,680 of 47,116 (22.7%) on the standard library, 24,296 of 162,050
+  (15.0%) on Homebrew, 8,505 of 30,234 (28.1%) on pg_query_go, 38,516 of 201,524
+  (19.1%) on codebase-memory-mcp, 344 of 940 (36.6%) on greenlet. The rest is
+  lines with no compiler fact, lines with several, and files the compilation
+  database did not list. These are rates over that slice, as the report says.
+- **`scip-clang` conflates `static`.** Two `static` functions of one name in two
+  files are two functions; the index attaches a call in one file to the other's
+  in places. Of the 442 `high` edges still wrong on codebase-memory-mcp, 256 bind
+  a `static` function in the call's own file (`heap_strdup` alone is 204): the
+  edge the language requires, scored as wrong against the index. That counts
+  against RepoCortex in every C figure above and is not a defect in it. The other
+  186 are the case this change did not try to fix: two real non-static
+  definitions in different directories, which the link target decides
+  (`cbm_arena_alloc` in `internal/cbm/arena.c` and `src/foundation/arena.c`).
+- **The C++ samples are small.** codebase-memory-mcp has 10 C++ files and 445
+  adjudicated sites, greenlet 344 sites in 30 files. A 100% on 141 sites is a
+  statement about greenlet, not about C++.
+- **The corpora are what they are.** Homebrew and the standard library are
+  Ruby written with a great deal of metaprogramming, and one project each is not
+  all of Ruby. The compilation databases were made by hand or by a dry run, and a host
+  with another platform's `#ifdef` branches would resolve to the other variants.
+- **Recall from the `all` rows did not change.** The changes move edges between
+  tiers; they do not remove any, and the call sites with no edge at all are
+  the same.
+- **`high` recall did drop,** and the cost is real: `high` holds 977 fewer right
+  edges on Homebrew, 1,142 fewer on codebase-memory-mcp and 143 fewer on
+  pg_query_go than before. They are reported one or two tiers down, not lost.
+  Whether that is the right price for the precision is a judgement; the
+  measurements above are what it is made on.
+
 ## Reproducing
 
 The numbers above came from:
