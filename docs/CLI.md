@@ -130,8 +130,12 @@ and makes the result queryable. Incremental by default: only files whose
 timestamps does not trigger a full reparse.
 
 An update costs a small fraction of a rebuild, but it is not independent of
-repository size: every file is stat'ed on every run, and after a change
-references are re-resolved across the whole index. On django (7,090 files) that
+repository size: every file is stat'ed on every run. After a change, every
+reference the change can rebind is resolved again, wherever it is: the changed
+files, the files bound into them, the files that name a definition that was
+added, removed or changed, and the files that import a changed file, whatever
+each reference's previous outcome. An edit that changes only bodies selects no
+names. The result is the graph `index --full` would build. On django (7,090 files) that
 is 0.13 s when nothing changed and about 1 s after a two-file edit; see
 [performance](performance.md#figures-other-tools-publish-measured-here).
 

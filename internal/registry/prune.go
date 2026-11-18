@@ -71,8 +71,25 @@ func (r *Registry) PruneImpossibleEdges(ctx context.Context, runID int64) (int, 
 	return int(n), nil
 }
 
-// ResetHeuristicResolutions resets references resolved heuristically back to 'pending'
-// and drops all non-compiler edges for the run, allowing a full re-resolution.
+// ResetHeuristicResolutions returns every reference of the run that the
+// heuristic resolver decided, in ANY outcome, to 'pending', and drops the
+// resolver edges those decisions wrote, so the next Resolve decides them all
+// again. It is `resolve --re-resolve`.
+//
+// Every outcome, not only 'resolved'. It reset only resolved references, so a
+// reference recorded as unresolved or ambiguous was never looked at again,
+// however much the index around it had changed: a definition added after the
+// reference was first resolved stayed unbound through any number of
+// re-resolves. Only a compiler's outcome is kept, with its edges, because
+// resolution does not produce those and the compiler passes `resolve` runs
+// next do.
+//
+// Only the resolver's edges go, by the rule ResetFileResolutions states. It
+// used to delete every edge whose source was not a compiler, which took the
+// analysis layer with it (EXPOSES, PUBLISHES, CONSUMES and the rest are
+// written by `index`, not by resolution, so nothing put them back), and the
+// heuristic edges of references a compiler had confirmed, which the reset
+// itself had kept.
 func (r *Registry) ResetHeuristicResolutions(ctx context.Context, runID int64) (refsReset, edgesDropped int, err error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -80,28 +97,25 @@ func (r *Registry) ResetHeuristicResolutions(ctx context.Context, runID int64) (
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	nEdges, err := resetResolutions(ctx, tx, runID, nil)
+	if err != nil {
+		return 0, 0, fmt.Errorf("registry: reset heuristic: %w", err)
+	}
+
 	resRefs, err := tx.ExecContext(ctx, `
 		UPDATE symbol_references
-		   SET resolution = 'pending', resolved_symbol_id = NULL, resolution_source = ''
+		   SET resolution = 'pending', resolved_symbol_id = NULL,
+		       resolution_source = '', prior_resolution = '', external = 0
 		 WHERE index_run_id = ?
-		   AND resolution = 'resolved'
-		   AND (resolution_source <> 'compiler' OR resolution_source IS NULL OR resolution_source = '')`, runID)
+		   AND resolution <> 'pending'
+		   AND resolution_source <> 'compiler'`, runID)
 	if err != nil {
 		return 0, 0, fmt.Errorf("registry: reset heuristic: update references: %w", err)
 	}
 	nRefs, _ := resRefs.RowsAffected()
 
-	resEdges, err := tx.ExecContext(ctx, `
-		DELETE FROM edges
-		 WHERE index_run_id = ?
-		   AND source <> 'compiler'`, runID)
-	if err != nil {
-		return 0, 0, fmt.Errorf("registry: reset heuristic: delete edges: %w", err)
-	}
-	nEdges, _ := resEdges.RowsAffected()
-
 	if err := tx.Commit(); err != nil {
 		return 0, 0, fmt.Errorf("registry: reset heuristic: commit: %w", err)
 	}
-	return int(nRefs), int(nEdges), nil
+	return int(nRefs), nEdges, nil
 }

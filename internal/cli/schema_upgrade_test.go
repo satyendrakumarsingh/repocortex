@@ -124,9 +124,16 @@ func TestUpgradeAppliesPendingMigrations(t *testing.T) {
 
 	dbPath := filepath.Join(root, ".repocortex", "index.db")
 	current := schemaVersionOf(t, dbPath)
-	rewound := dropLatestMigration(t, dbPath)
-	if got := schemaVersionOf(t, dbPath); got != rewound-1 {
-		t.Fatalf("rewind failed: schema is v%d, wanted v%d", got, rewound-1)
+	dropLatestMigration(t, dbPath)
+	// The version before the latest, not the latest minus one: migration
+	// numbers are unique and ascending, not contiguous, so a release may
+	// carry a gap where a number was reserved for work that landed later.
+	migs, err := store.LoadMigrations()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := migs[len(migs)-2].Version; schemaVersionOf(t, dbPath) != want {
+		t.Fatalf("rewind failed: schema is v%d, wanted v%d", schemaVersionOf(t, dbPath), want)
 	}
 
 	// A writable command must upgrade in place.

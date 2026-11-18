@@ -63,6 +63,13 @@ type ResolveOptions struct {
 	// folded into one node each. `index` counts them one per declaring file;
 	// the merge is why the symbol count can be lower after `resolve`.
 	OnEventsMerged func(removed int)
+
+	// SkipGoMounts leaves the Go router-mount pass out. Set by an incremental
+	// pass in which no Go file and no go.mod changed: the pass parses every Go
+	// file that builds a router (about 2 s on this repository) and recomputes
+	// every route name from its own path, so with the Go files as they were it
+	// can only write what is already there.
+	SkipGoMounts bool
 }
 
 // DefaultResolveBatch is how many edges accumulate before a write.
@@ -289,13 +296,15 @@ func Resolve(
 	mounts.Mounts += jsMounts.Mounts
 	mounts.Renamed += jsMounts.Renamed
 	mounts.Ambiguous += jsMounts.Ambiguous
-	goMounts, err := MountGoRouters(ctx, reg, runID)
-	if err != nil {
-		return stats, fmt.Errorf("mount go routers: %w", err)
+	if !opts.SkipGoMounts {
+		goMounts, err := MountGoRouters(ctx, reg, runID)
+		if err != nil {
+			return stats, fmt.Errorf("mount go routers: %w", err)
+		}
+		mounts.Mounts += goMounts.Mounts
+		mounts.Renamed += goMounts.Renamed
+		mounts.Ambiguous += goMounts.Ambiguous
 	}
-	mounts.Mounts += goMounts.Mounts
-	mounts.Renamed += goMounts.Renamed
-	mounts.Ambiguous += goMounts.Ambiguous
 	if opts.OnRouteMounts != nil {
 		opts.OnRouteMounts(mounts)
 	}
