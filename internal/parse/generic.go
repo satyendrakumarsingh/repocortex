@@ -894,6 +894,7 @@ func (p *genericParser) Parse(ctx context.Context, path string, src []byte) (*Re
 							// The call the receiver's value came from, by the
 							// position its own reference is recorded at.
 							r.Value = callStarts[shape.from]
+							r.Reassigns = shape.reassigns
 						}
 					}
 				}

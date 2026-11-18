@@ -96,6 +96,12 @@ type Reference struct {
 	// See returnedValue in shape.go.
 	Value model.Position
 
+	// Reassigns is true when that call is the whole right side of an
+	// assignment back to the variable it is called on (`x = x.f(a)`). The
+	// resolver keeps the variable's producer only if f returns the type the
+	// producer's result has. Migration 0026_reference_reassigns.
+	Reassigns bool
+
 	Range model.Range
 }
 

@@ -39,6 +39,11 @@ type Reference struct {
 	// See migration 0023_return_types.
 	ValueLine int
 	ValueCol  int
+
+	// Reassigns is true for such a call that is the whole right side of an
+	// assignment back to the variable (`x = x.f(a)`). See migration
+	// 0026_reference_reassigns.
+	Reassigns bool
 }
 
 // Import is a dependency declared by a file.
@@ -71,7 +76,7 @@ func (w *Writer) AddReference(ctx context.Context, fileID int64, r Reference) er
 	}
 	if _, err := w.st.ref.ExecContext(ctx,
 		w.runID, fileID, r.Name, r.Kind, r.Receiver, r.ReceiverKind, r.Line, r.Col, int(r.ArgCount),
-		r.ValueLine, r.ValueCol,
+		r.ValueLine, r.ValueCol, boolToInt(r.Reassigns),
 	); err != nil {
 		return w.fail(fmt.Errorf("registry: add reference %q: %w", r.Name, err))
 	}
@@ -111,10 +116,10 @@ func (r *Registry) ReplaceFileReferences(
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO symbol_references
 				(index_run_id, file_id, name, kind, receiver, receiver_kind, start_line, start_col, arg_count,
-				 value_line, value_col, resolution)
-			VALUES (?,?,?,?,?,?,?,?,?,?,?, 'pending')`,
+				 value_line, value_col, reassigns, resolution)
+			VALUES (?,?,?,?,?,?,?,?,?,?,?,?, 'pending')`,
 			runID, fileID, ref.Name, ref.Kind, ref.Receiver, ref.ReceiverKind, ref.Line, ref.Col, int(ref.ArgCount),
-			ref.ValueLine, ref.ValueCol,
+			ref.ValueLine, ref.ValueCol, boolToInt(ref.Reassigns),
 		); err != nil {
 			return fmt.Errorf("registry: re-add reference %q: %w", ref.Name, err)
 		}
@@ -348,7 +353,7 @@ func (r *Registry) importsForFile(ctx context.Context, fileID int64) ([]Import, 
 func (r *Registry) refsForFile(ctx context.Context, fileID int64) ([]Reference, error) {
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, name, kind, receiver, receiver_kind, start_line, start_col, arg_count,
-		       value_line, value_col
+		       value_line, value_col, reassigns
 		  FROM symbol_references
 		 WHERE file_id = ? AND resolution = 'pending'
 		 ORDER BY start_line, start_col, name`, fileID)
@@ -360,12 +365,13 @@ func (r *Registry) refsForFile(ctx context.Context, fileID int64) ([]Reference, 
 	var out []Reference
 	for rows.Next() {
 		ref := Reference{FileID: fileID}
-		var argCount int
+		var argCount, reassigns int
 		if err := rows.Scan(&ref.ID, &ref.Name, &ref.Kind, &ref.Receiver, &ref.ReceiverKind,
-			&ref.Line, &ref.Col, &argCount, &ref.ValueLine, &ref.ValueCol); err != nil {
+			&ref.Line, &ref.Col, &argCount, &ref.ValueLine, &ref.ValueCol, &reassigns); err != nil {
 			return nil, err
 		}
 		ref.ArgCount = model.Arity(argCount)
+		ref.Reassigns = reassigns == 1
 		out = append(out, ref)
 	}
 	return out, rows.Err()

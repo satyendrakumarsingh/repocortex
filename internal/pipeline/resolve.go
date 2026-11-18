@@ -265,6 +265,12 @@ func Resolve(
 	if _, err := reg.PruneImpossibleEdges(ctx, runID); err != nil {
 		return stats, fmt.Errorf("prune impossible edges: %w", err)
 	}
+	// An explicit interface implementation is indexed as `I.M`, so it shares
+	// no name with the member it implements; the method-level IMPLEMENTS edge
+	// that says so needs the type-level edges the loop above wrote.
+	if _, err := reg.LinkExplicitImplementations(ctx, runID); err != nil {
+		return stats, fmt.Errorf("link explicit implementations: %w", err)
+	}
 
 	// The resolver counted edges it BUILT; report edges that landed. Set after
 	// the deferred drain so the total covers both passes.
