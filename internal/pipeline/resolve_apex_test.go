@@ -31,9 +31,10 @@ func TestApexResolution(t *testing.T) {
 		// `this.`, a bare call, and the one the superclass declares.
 		{cls + "svc/CartService.cls:CartService.checkout", cls + "svc/CartService.cls:CartService.audit", high},
 		{cls + "svc/CartService.cls:CartService.checkout", cls + "svc/BaseService.cls:BaseService.log", high},
-		// Not bound: `super.audit()` where the superclass and an implemented
-		// interface both declare `audit` is a tie of two ancestors at one depth,
-		// and the resolver records it ambiguous rather than choose.
+		// `super.audit()` where the superclass and an implemented interface both
+		// declare `audit`: the class's implementation is what runs, the
+		// interface only declares it.
+		{cls + "svc/CartService.cls:CartService.audit", cls + "svc/BaseService.cls:BaseService.audit", high},
 		// A constructor chaining to super, and a class extending another.
 		{cls + "svc/CartService.cls:CartService", cls + "svc/BaseService.cls:BaseService", high},
 		{cls + "svc/CartService.cls:CartService", cls + "svc/IService.cls:IService", high},

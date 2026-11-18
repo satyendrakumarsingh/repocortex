@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/satyendrakumarsingh/repocortex/internal/registry"
 )
 
 // Layout is what resolution knows about the repository as a whole: which
@@ -58,6 +60,34 @@ type Layout struct {
 
 	// deps are the dependencies the repository's manifests declare.
 	deps map[string]struct{}
+
+	// ownPackages maps the name of each package the repository declares for
+	// itself (an R DESCRIPTION's Package: field) to the directories that
+	// declare it, in path order. See OwnPackageDirs.
+	ownPackages map[string][]string
+}
+
+// SetOwnPackages records the packages the repository declares for itself. It
+// is read before resolution starts and not changed after.
+func (l *Layout) SetOwnPackages(pkgs []registry.OwnPackage) {
+	if l == nil || len(pkgs) == 0 {
+		return
+	}
+	l.ownPackages = make(map[string][]string, len(pkgs))
+	for _, p := range pkgs {
+		l.ownPackages[p.Name] = append(l.ownPackages[p.Name], p.Dir)
+	}
+}
+
+// OwnPackageDirs returns the directories that declare a package of this name
+// for the repository itself, or nil when the name is any other package: the
+// language's own, a dependency, or one nothing here declares. Case matters, as
+// it does to R.
+func (l *Layout) OwnPackageDirs(name string) []string {
+	if l == nil {
+		return nil
+	}
+	return l.ownPackages[name]
 }
 
 // packageMarkers are the file names that make a directory a package whose

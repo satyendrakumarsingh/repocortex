@@ -133,10 +133,19 @@ func Resolve(
 		return stats, fmt.Errorf("create file callers: %w", err)
 	}
 
+	layout := infer.NewLayout(paths, dependencies)
+	// The packages the repository declares for itself, so `pkg::f()` in its own
+	// code is told from a call into somebody else's package.
+	own, err := reg.OwnPackages(ctx, runID)
+	if err != nil {
+		return stats, fmt.Errorf("read own packages: %w", err)
+	}
+	layout.SetOwnPackages(own)
+
 	cands := registry.NewCandidateCache(reg, runID, opts.CandidateBudget, registry.DefaultPerNameLimit)
 	resolver := infer.NewStreaming(cands, infer.Options{
 		MinConfidence: opts.MinConfidence,
-		Layout:        infer.NewLayout(paths, dependencies),
+		Layout:        layout,
 		// A21 — supply the Ancestry port and the deferred inherited-dispatch
 		// pass switches on. Without it the resolver parks nothing and
 		// ResolveDeferred is a no-op, which is how this pass sat inert.

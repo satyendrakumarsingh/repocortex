@@ -60,6 +60,11 @@ func TestPHPResolution(t *testing.T) {
 		{"src/Order.php:Order.save", "src/Logger.php:Logger.write", high},
 		{"src/Order.php:Order.save", "src/Order.php:Order.total", high},
 		{"src/Order.php:Order.total", "src/Money.php:Money.zero", high},
+		// Cart extends Order (which reaches Base.describe) and implements
+		// Describable, which declares describe: the class's implementation is
+		// the one the call runs, the interface's declaration is not. Ticket
+		// only implements the interface, so there the declaration is all there is.
+		{"src/Ticket.php:Ticket.show", "src/Util.php:Describable.describe", high},
 		{"src/Store.php:Store.place", "src/Money.php:Money.zero", high},
 		{"src/Store.php:Store.place", "src/Order.php:Order", high},
 		{"src/Store.php:Store.place", "src/Order.php:Order.addLine", high},
@@ -80,11 +85,16 @@ func TestPHPResolution(t *testing.T) {
 		{Src: "src/Store.php:Store.save", Dst: "Logger.save"},
 		{Src: "src/Store.php:Store.save", Dst: "Money.save"},
 		{Src: "src/Store.php:Store.place", Dst: "Money.save"},
+		// Neither class reaches the other's describe.
+		{Src: "src/Cart.php:Cart.label", Dst: "src/Util.php:Describable.describe"},
+		{Src: "src/Ticket.php:Ticket.show", Dst: "src/Base.php:Base.describe"},
 	}
 	// Edges the resolver may produce, each no higher than the confidence given.
 	ceilings := []want{
 		{"src/Cart.php:Cart", "src/Order.php:Order", model.ConfidenceMedium},
 		{"src/Cart.php:Cart", "src/Util.php:Auditable", model.ConfidenceMedium},
+		{"src/Cart.php:Cart", "src/Util.php:Describable", model.ConfidenceMedium},
+		{"src/Ticket.php:Ticket", "src/Util.php:Describable", model.ConfidenceMedium},
 		{"src/Cart.php:Cart.peek", "src/Order.php:Order.total", model.ConfidenceLow},
 		{"src/Convert.php:Converter.run", "src/Money.php:Money.short", model.ConfidenceMedium},
 		{"src/Convert.php:Converter.run", "src/Order.php:Order.save", model.ConfidenceLow},
@@ -322,7 +332,7 @@ interface Describable
 		"src/Cart.php": `<?php
 namespace Shop;
 
-class Cart extends Order
+class Cart extends Order implements Describable
 {
     use Auditable;
 
@@ -363,6 +373,17 @@ class Cart extends Order
         $c->save();
         $c->label();
         $extra->save();
+    }
+}
+`,
+		"src/Ticket.php": `<?php
+namespace Shop;
+
+abstract class Ticket implements Describable
+{
+    public function show(): string
+    {
+        return $this->describe('ticket');
     }
 }
 `,

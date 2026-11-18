@@ -250,6 +250,25 @@ func File(path string, src []byte, symbols []model.Symbol) Result {
 		}
 	}
 
+	// An R package's DESCRIPTION names the package, which is what `pkg::f()`
+	// in the package's own code and tests is qualified by. The resolver reads
+	// the node to tell the repository's own package from every other.
+	if name, line, ok := rPackageName(path, src); ok {
+		res.Symbols = append(res.Symbols, model.Symbol{
+			ID:   placeholderID(len(res.Symbols)),
+			Kind: model.KindPackage,
+			Name: name,
+			FQN:  RPackageFQN(name),
+			Range: model.Range{
+				Start: model.Position{Line: line},
+				End:   model.Position{Line: line},
+			},
+			Exported:   true,
+			Confidence: model.ConfidenceHigh,
+			Source:     model.SourceSourceCode,
+		})
+	}
+
 	for _, b := range events.Extract(path, src) {
 		if b.SrcSymbolFQN == "" {
 			b.SrcSymbolFQN = enclosing.at(b.Line)
@@ -431,5 +450,5 @@ func dedupeSymbols(in []model.Symbol) []model.Symbol {
 // Analysis here needs TEXT, not a syntax tree. So the pipeline asks this before
 // giving up, and reads the file when the answer is yes.
 func Wants(path string) bool {
-	return cfg.IsConfigFile(path) || deps.IsManifest(path)
+	return cfg.IsConfigFile(path) || deps.IsManifest(path) || isRDescription(path)
 }
