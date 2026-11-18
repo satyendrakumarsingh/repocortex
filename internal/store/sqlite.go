@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -47,6 +48,16 @@ func Open(ctx context.Context, opts Options) (*DB, error) {
 	dsn, path := buildDSN(opts)
 
 	if path != "" {
+		// A zero-byte file is a valid empty database to SQLite, so it would
+		// read as "schema v0, run index to upgrade". An index file is never
+		// legitimately empty (the schema is written when it is created), so
+		// it is a truncated or interrupted one and is reported as corrupt.
+		if fi, err := os.Stat(path); err == nil && fi.Size() == 0 {
+			return nil, &ErrCorrupt{Path: path, Cause: errors.New("the file is empty")}
+		}
+	}
+
+	if path != "" {
 		// 0o750: the index is a structural map of private source code and has
 		// no reason to be world-readable.
 		if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
@@ -64,6 +75,21 @@ func Open(ctx context.Context, opts Options) (*DB, error) {
 	db.SetMaxOpenConns(maxOpenConns(opts))
 	db.SetMaxIdleConns(4)
 	db.SetConnMaxLifetime(0)
+
+	if path != "" {
+		// Reads the first page and the schema, which is where a truncated or
+		// overwritten file is first noticed. Without it the pragma check below
+		// swallows the driver's error and the first query reports a bare
+		// "database disk image is malformed (11)".
+		var n int
+		if err := db.QueryRowContext(ctx, `SELECT count(*) FROM sqlite_master`).Scan(&n); err != nil {
+			_ = db.Close()
+			if IsCorrupt(err) {
+				return nil, &ErrCorrupt{Path: path, Cause: err}
+			}
+			return nil, err
+		}
+	}
 
 	if err := verifyPragmas(ctx, db); err != nil {
 		_ = db.Close()
@@ -141,6 +167,17 @@ func buildDSN(opts Options) (dsn, path string) {
 		params = append(params, "_pragma=journal_mode(WAL)")
 	} else {
 		params = append(params, "mode=ro")
+		// A WAL database is read through a shared-memory file (-shm) that a
+		// reader must be able to create. In a directory the user cannot write
+		// to (a read-only checkout, a mounted snapshot, chmod 555) that fails
+		// with "attempt to write a readonly database" even for a plain SELECT.
+		// immutable=1 tells SQLite the file cannot change, so it reads the
+		// main file without -shm or -wal. It is used only when nothing could
+		// be writing (the directory is not writable) and no -wal holds
+		// pages the main file lacks, which immutable would ignore.
+		if readOnlyLocation(path) {
+			params = append(params, "immutable=1")
+		}
 	}
 	return "file:" + path + "?" + strings.Join(params, "&"), path
 }
@@ -233,4 +270,20 @@ func VerifyFTS5(ctx context.Context, db *sql.DB) error {
 	}
 	return fmt.Errorf("SQLite build lacks FTS5 (ENABLE_FTS5 absent); " +
 		"search is unavailable — this indicates an unexpected modernc.org/sqlite build")
+}
+
+// readOnlyLocation reports whether a reader of the database at path cannot
+// create the -shm file next to it, and no -wal holds data the main file lacks.
+func readOnlyLocation(path string) bool {
+	if fi, err := os.Stat(path + "-wal"); err == nil && fi.Size() > 0 {
+		return false
+	}
+	probe, err := os.CreateTemp(filepath.Dir(path), ".rc-write-probe-*")
+	if err == nil {
+		name := probe.Name()
+		_ = probe.Close()
+		_ = os.Remove(name)
+		return false
+	}
+	return true
 }

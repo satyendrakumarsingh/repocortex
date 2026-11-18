@@ -74,6 +74,11 @@ skips all of it.`,
 			if _, err := os.Stat(dbPath); errors.Is(err, os.ErrNotExist) {
 				return fmt.Errorf("no index at %s — run 'repocortex init' first", dbPath)
 			}
+			unlock, err := lockIndex(ctx, dbPath)
+			if err != nil {
+				return err
+			}
+			defer unlock()
 			db, err := openWritable(ctx, g, dbPath)
 			if err != nil {
 				return err
