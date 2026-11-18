@@ -1,0 +1,13 @@
+-- 0025_reference_receiver_index: references by the receiver they are written on.
+--
+-- WHY. An incremental index has to re-resolve every reference whose binding a
+-- change can move, wherever it sits, and not only the references in the files
+-- that changed. A reference is looked up by its name and by the qualifier it
+-- is written on (`Repo.find()`, `mypkg::h()`, `A->new`), so finding the ones
+-- a changed definition can reach means finding references by receiver as well
+-- as by name. Names have idx_refs_run_name; receivers had nothing, and the
+-- only way to ask was to read the whole table on every update.
+--
+-- Partial: a bare call has no receiver, and those rows are never asked about
+-- by receiver. See internal/pipeline/reresolve.go for the questions asked.
+CREATE INDEX idx_refs_run_receiver ON symbol_references (index_run_id, receiver) WHERE receiver <> '';

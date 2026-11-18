@@ -35,8 +35,9 @@ queryable.
 
 By default this is incremental: only files whose content changed are reparsed,
 so an update costs a small fraction of a rebuild. It is not independent of
-repository size. Every file is stat'ed on every run, and after a change
-references are re-resolved across the whole index. docs/performance.md has
+repository size. Every file is stat'ed on every run, and after a change every
+reference the change can rebind is resolved again, wherever it is, so the
+result is the graph --full would build. docs/performance.md has
 measured figures. Use --full to rebuild from scratch.
 
 A file is read only when it might have changed. If its size and modification
@@ -117,6 +118,9 @@ type incrementalReport struct {
 // Returns false when there is nothing to update — no index, or an index that
 // has never been populated — so the caller can fall back to a full build.
 func tryIncremental(cmd *cobra.Command, g *Global, showDigest, rehash bool) (bool, error) {
+	// The update is the path `index` takes most, so it is profiled the way
+	// a full build is (REPOCORTEX_PROFILE_DIR).
+	defer startProfiling()()
 	ctx := cmd.Context()
 	cfg := g.Config()
 	start := time.Now()

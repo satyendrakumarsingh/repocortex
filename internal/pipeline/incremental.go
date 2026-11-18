@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -57,6 +58,9 @@ type IncrementalStats struct {
 	// CompilerProofRestored is how many exact edges from a cached SCIP index
 	// were put back after files were replaced; see RestoreCompilerProof.
 	CompilerProofRestored int64
+	// ReResolved is how many files had their references resolved again,
+	// changed files included; see reresolve.go for how they are chosen.
+	ReResolved int64
 }
 
 // DiffOptions adjusts how the working tree is compared with the index.
@@ -270,6 +274,17 @@ func Incremental(
 		parsers = parse.NewRegistry(parse.WithMaxSourceBytes(int(walker.MaxFileSize())))
 	}
 
+	// What the run holds for the files about to be replaced, read before they
+	// are: choosing which references to resolve again compares it with what
+	// replaces it. See reresolve.go.
+	var plan *reresolvePlan
+	if opts.Resolve {
+		var err error
+		if plan, err = planReresolve(ctx, reg, runID, changes); err != nil {
+			return stats, fmt.Errorf("plan re-resolution: %w", err)
+		}
+	}
+
 	var touched []registry.FileStat
 	for _, ch := range changes {
 		if err := ctx.Err(); err != nil {
@@ -350,6 +365,9 @@ func Incremental(
 			if err := writeIncrementalReferences(ctx, reg, runID, f.ID, facts); err != nil {
 				return stats, fmt.Errorf("references for %s: %w", ch.Path, err)
 			}
+			if plan != nil {
+				plan.noteWritten(f, symbols, registryImports(facts))
+			}
 			stats.Symbols += int64(len(symbols))
 			if ch.Kind == ChangeAdded {
 				stats.Added++
@@ -361,18 +379,36 @@ func Incremental(
 	if err := reg.RestatFiles(ctx, runID, touched); err != nil {
 		return stats, err
 	}
-	hasGoChanges := false
-	for _, ch := range changes {
-		if strings.HasSuffix(ch.Path, ".go") {
-			hasGoChanges = true
-			break
-		}
-	}
 	if opts.Resolve && (stats.Added > 0 || stats.Modified > 0 || stats.Deleted > 0) {
-		if _, err := Resolve(ctx, reg, runID, ResolveOptions{}); err != nil {
+		// Not only the changed files: every file whose references a change
+		// can rebind, so the graph is the one a full index would build.
+		paths, err := reresolveIncremental(ctx, reg, runID, plan)
+		if err != nil {
 			return stats, fmt.Errorf("incremental resolve: %w", err)
 		}
-		if hasGoChanges && opts.Root != "" {
+		stats.ReResolved = int64(len(paths))
+		// The type check judges the heuristic calls of every Go file it is
+		// run over, so it runs whenever a Go file's calls were bound again,
+		// changed or not: otherwise a call it had withdrawn would come back.
+		// And only then. `changes` lists every file of the tree, unchanged
+		// ones included, and this loop once tested the suffix alone, so any
+		// repository holding one Go file type-checked its whole module on
+		// every update: 12.8 s for an edit to install.sh on this repository.
+		goTouched := false
+		for _, ch := range changes {
+			base := path.Base(ch.Path)
+			if ch.Kind != ChangeSame && (strings.HasSuffix(ch.Path, ".go") || base == "go.mod" || base == "go.work") {
+				goTouched = true
+				break
+			}
+		}
+		for _, p := range paths {
+			if strings.HasSuffix(p, ".go") {
+				goTouched = true
+				break
+			}
+		}
+		if goTouched && opts.Root != "" {
 			_ = CheckGoTypes(ctx, reg, runID, GoTypesOptions{Root: opts.Root})
 		}
 		// The other languages' proof comes from SCIP indexes `resolve` cached.
@@ -724,6 +760,15 @@ func writeIncrementalAnalysis(
 	return nil
 }
 
+// registryImports is a file's imports as the registry stores them.
+func registryImports(facts FileFacts) []registry.Import {
+	imports := make([]registry.Import, 0, len(facts.Imports))
+	for _, imp := range facts.Imports {
+		imports = append(imports, registry.Import{Path: imp.Path, Alias: imp.Alias, Line: imp.Range.Start.Line})
+	}
+	return imports
+}
+
 // writeIncrementalReferences re-attaches one file's references and imports
 // after ReplaceFile has recreated it.
 //
@@ -750,15 +795,7 @@ func writeIncrementalReferences(
 			ValueCol:     ref.Value.Col,
 		})
 	}
-	imports := make([]registry.Import, 0, len(facts.Imports))
-	for _, imp := range facts.Imports {
-		imports = append(imports, registry.Import{
-			Path:  imp.Path,
-			Alias: imp.Alias,
-			Line:  imp.Range.Start.Line,
-		})
-	}
-	return reg.ReplaceFileReferences(ctx, runID, fileID, refs, imports)
+	return reg.ReplaceFileReferences(ctx, runID, fileID, refs, registryImports(facts))
 }
 
 // languageForPath names the language a path would be parsed as, or "" when no
