@@ -33,6 +33,10 @@ type RefreshOutcome struct {
 	// Busy is true when another process (a git hook's background pass, a
 	// watcher) was writing the index, so this call did not check.
 	Busy bool
+	// Pending is how many changed files are still being re-indexed in the
+	// background after this call refreshed what its budget allowed. While it
+	// is above zero the index is partly behind the code.
+	Pending int
 	// Err is a check or an update that failed. The answer is then given from
 	// the index as it stands, and says so.
 	Err error
@@ -67,8 +71,17 @@ func applyRefresh(p *Provenance, o RefreshOutcome) {
 	if !o.LastCheck.IsZero() {
 		p.EditsCheckedAt = o.LastCheck.UTC().Format(time.RFC3339)
 	}
-	p.IndexBusy = o.Busy
+	p.IndexBusy = o.Busy || o.Pending > 0
+	p.RefreshPending = o.Pending
 	switch {
+	case o.Pending > 0:
+		noun := "files are"
+		if o.Pending == 1 {
+			noun = "file is"
+		}
+		p.Caveat = fmt.Sprintf("The index is busy: %d changed %s still being re-indexed in the background "+
+			"(a large edit, such as a branch switch, is refreshed in steps so one answer never waits for all of "+
+			"it). Answers about those files may be out of date; ask again for progress. ", o.Pending, noun) + p.Caveat
 	case o.Err != nil:
 		p.Caveat = "Checking the working tree for edits failed (" + o.Err.Error() + "), so this answer is from the " +
 			"index as it stands. " + p.Caveat

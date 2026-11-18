@@ -48,17 +48,40 @@ type Directives interface {
 // the path an import writes.
 type reexportGraph struct {
 	files map[string]registry.FileDirectives
-	// keys is every file with a directive, sorted, for the monorepo case where
-	// an import path is a suffix of a file's.
+	// keys is every file with a directive, sorted.
 	keys []string
+	// bySuffix maps each "/"-bounded tail of every key to the one key it
+	// ends, or to ambiguous when two keys share it. It is how an import path
+	// that is a suffix of a file's (a package living under a directory) is
+	// found without scanning every key: that scan made resolving a Dart
+	// repository quadratic, most of all for `package:` imports of external
+	// packages, which never match and so always scanned them all.
+	bySuffix map[string]string
 }
 
+// ambiguous marks a suffix two files end with. It cannot be a file key: keys
+// are paths without extension and this holds a NUL.
+const ambiguous = "\x00ambiguous"
+
 func newReexportGraph(files map[string]registry.FileDirectives) *reexportGraph {
-	g := &reexportGraph{files: files, keys: make([]string, 0, len(files))}
+	g := &reexportGraph{files: files, keys: make([]string, 0, len(files)), bySuffix: make(map[string]string, len(files)*3)}
 	for k := range files {
 		g.keys = append(g.keys, k)
 	}
 	sort.Strings(g.keys)
+	for _, k := range g.keys {
+		for i := 0; i < len(k); i++ {
+			if k[i] != '/' {
+				continue
+			}
+			tail := k[i+1:]
+			if _, dup := g.bySuffix[tail]; dup {
+				g.bySuffix[tail] = ambiguous
+			} else {
+				g.bySuffix[tail] = k
+			}
+		}
+	}
 	return g
 }
 
@@ -69,17 +92,8 @@ func (g *reexportGraph) lookup(importPath string) (registry.FileDirectives, bool
 	if d, ok := g.files[importPath]; ok {
 		return d, true
 	}
-	var found string
-	suffix := "/" + importPath
-	for _, k := range g.keys {
-		if strings.HasSuffix(k, suffix) {
-			if found != "" {
-				return registry.FileDirectives{}, false
-			}
-			found = k
-		}
-	}
-	if found == "" {
+	found, ok := g.bySuffix[importPath]
+	if !ok || found == ambiguous {
 		return registry.FileDirectives{}, false
 	}
 	return g.files[found], true

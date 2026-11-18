@@ -105,8 +105,9 @@ func ownedLanguage(lang string) bool {
 }
 
 func (r *Resolver) callModular(c call, _ *Stats) decision {
-	dirs := moduleDirectivesOf(c.fr.Imports)
-	home := moduleHome(c)
+	facts := c.factsOf()
+	dirs := facts.moduleDirectives()
+	home := moduleHome(c, facts)
 
 	switch c.ref.ReceiverKind {
 	case model.ReceiverBare:
@@ -170,7 +171,7 @@ func (r *Resolver) callModularBare(c call, dirs moduleDirectiveSet, home string)
 		// that module's.
 		var included []registry.SymbolIndexEntry
 		for _, inc := range dirs.includes {
-			if juliaModuleAt(c.fr, inc.line) != home {
+			if c.factsOf().juliaModuleAt(inc.line) != home {
 				continue
 			}
 			for _, s := range c.cands {
@@ -513,29 +514,26 @@ func clojureLoads(callerPath, filePath string) bool {
 // moduleHome is the module the call is written in, where the language names
 // one the call can be told by: Erlang's module is the file's, and Julia's is the
 // innermost `module` block around the call ("" at a file's top level).
-func moduleHome(c call) string {
+func moduleHome(c call, facts *fileFacts) string {
 	switch c.spec.Name {
 	case "erlang":
 		return fileBaseName(c.fr.Path)
 	case "julia", "ocaml", "fsharp", "fortran":
-		return juliaModuleAt(c.fr, c.ref.Line)
+		return facts.juliaModuleAt(c.ref.Line)
 	case "perl":
-		return perlPackageAt(c.fr, c.ref.Line)
+		return facts.perlPackageAt(c.ref.Line)
 	}
 	return ""
 }
 
-// perlPackageAt is the package in force at a line of a Perl file: the block of
+// perlPackageIn is the package in force at a line of a Perl file: the block of
 // a `package NAME { }` that holds it, or else the last `package NAME;` before
 // it. "" is `main`, the package of code written before any.
-func perlPackageAt(fr registry.FileRefs, line int) string {
+func perlPackageIn(_ registry.FileRefs, packages []registry.EnclosingSymbol, line int) string {
 	home := ""
-	for _, s := range fr.Symbols {
+	for _, s := range packages {
 		if s.StartLine > line {
 			break
-		}
-		if s.Kind != string(model.KindPackage) {
-			continue
 		}
 		if s.EndLine > s.StartLine && line > s.EndLine {
 			continue
@@ -545,11 +543,11 @@ func perlPackageAt(fr registry.FileRefs, line int) string {
 	return home
 }
 
-// juliaModuleAt is the innermost `module` block around a line of a file, by its
+// juliaModuleIn is the innermost `module` block around a line of a file, by its
 // qualified name ("" at the file's top level).
-func juliaModuleAt(fr registry.FileRefs, line int) string {
+func juliaModuleIn(fr registry.FileRefs, packages []registry.EnclosingSymbol, line int) string {
 	home := ""
-	for _, s := range fr.Symbols {
+	for _, s := range packages {
 		if s.StartLine > line {
 			break
 		}

@@ -130,6 +130,10 @@ type call struct {
 	// caller has neither, which leaves that rule out.
 	produced   producedBy
 	typesNamed func(name string) []registry.SymbolIndexEntry
+
+	// facts are the file's own directives and blocks, built once per file
+	// (filefacts.go); nil outside ResolveFile, where factsOf builds them.
+	facts *fileFacts
 }
 
 // isConstructorDelegation reports whether the call is `this(...)` written in a

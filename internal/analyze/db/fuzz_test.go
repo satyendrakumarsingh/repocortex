@@ -37,7 +37,12 @@ func FuzzParse(f *testing.F) {
 				t.Fatalf("empty table name from %q", s)
 			}
 			if sqlKeywords[strings.ToUpper(tbl)] {
-				t.Fatalf("keyword %q reported as a table from %q", tbl, s)
+				// A word real schemas use as a table name (order, group) is
+				// one when the source quoted it; a clause word never is.
+				quoted := strings.ContainsAny(s, "\"`[")
+				if !quoted || clauseWords[strings.ToUpper(tbl)] {
+					t.Fatalf("keyword %q reported as a table from %q", tbl, s)
+				}
 			}
 		}
 		for _, col := range st.Columns {

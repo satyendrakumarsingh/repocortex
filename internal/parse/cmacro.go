@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	ts "github.com/odvcencio/gotreesitter"
 )
@@ -761,6 +762,36 @@ func maskCandidates(src []byte, cands []macroCandidate) []byte {
 	return out
 }
 
+// maskRetryErrorLimit is, for a language whose only retry is a spanMask, the
+// plain parse's error count from which the retry is not made.
+//
+// MEASURED on 65 Swift interface files (the macOS SDK's, 1 KB to 250 KB): the
+// retry ran for 8 files and cost 15.7 s of 66 s of parsing, 24%. The five
+// files with 100 or more error nodes (181 to 2,014) took 15.5 s of it (parse
+// time is superlinear in Swift) and the retry bought nothing: the accepted
+// ones went from 885 to 883, 208 to 207 and 189 to 186 errors, a rejected one
+// from 181 to 190, and every file was partial before and after. The three
+// below 100 errors cost 0.2 s and fixed a third to a half of theirs (72 to 32,
+// 55 to 33). C and C++ are not in the table: their macro mask turns hundreds
+// of errors into one (491 to 1, 193 to 1, 119 to 0 in PostgreSQL), so the
+// count says nothing there.
+var maskRetryErrorLimit = map[string]int{"swift": 100}
+
+// maskRetry is one retry's outcome, for maskRetryObserver.
+type maskRetry struct {
+	Language     string
+	SourceBytes  int
+	PlainErrors  int
+	MaskedErrors int
+	Took         time.Duration
+	Outcome      string
+	Early        bool
+}
+
+// maskRetryObserver, when set (tests, measurements), is told how every masked
+// retry ended.
+var maskRetryObserver func(maskRetry)
+
 // maskedParse is the result of the guarded second parse.
 type maskedParse struct {
 	by   *genericParser
@@ -804,7 +835,7 @@ func (m *maskedParse) unclean() bool {
 // the same work limits and cancellation as any parse: the caller must look at
 // ctx afterwards, since a cancelled parse returns nil here.
 func (p *genericParser) retryMasked(ctx context.Context, tree *ts.Tree, stop stopInfo, src []byte, tags []ts.Tag) *maskedParse {
-	return p.retryMaskedWithin(ctx, tree, stop, src, tags, p.cfg.ceilingMicros())
+	return p.retryMaskedWithin(ctx, tree, stop, src, tags, p.cfg.budgetMicros(p.entry.Name, len(src)))
 }
 
 // retryMaskedWithin is retryMasked with the wall-clock allowance of the
@@ -879,6 +910,13 @@ func (p *genericParser) retryMaskedWithin(ctx context.Context, tree *ts.Tree, st
 	if !macroDue && !condDue && len(spans) == 0 {
 		return nil
 	}
+	if limit, ok := maskRetryErrorLimit[lang]; ok && !stop.early && len(spans) > 0 && !macroDue && !condDue {
+		// A retry that only blanks a construct the grammar misreads cannot
+		// repair a file whose errors are elsewhere; see maskRetryErrorLimit.
+		if e, m, _ := countSyntaxErrors(root); e+m >= limit {
+			return nil
+		}
+	}
 
 	masked := src
 	if condDue {
@@ -899,9 +937,13 @@ func (p *genericParser) retryMaskedWithin(ctx context.Context, tree *ts.Tree, st
 		names = map[string]bool{}
 	}
 
+	began := time.Now()
 	tree2, stop2, err := p.parseOnceWithin(ctx, masked, micros)
 	stop2 = stop2.settled(len(masked))
 	if err != nil || tree2 == nil || ctx.Err() != nil || stop2.early && !stop.early {
+		if maskRetryObserver != nil {
+			maskRetryObserver(maskRetry{Language: lang, SourceBytes: len(src), Took: time.Since(began), Outcome: "unparsed"})
+		}
 		return nil
 	}
 	tags2, implementers2, err := p.tagTree(tree2, masked)
@@ -928,7 +970,20 @@ func (p *genericParser) retryMaskedWithin(ctx context.Context, tree *ts.Tree, st
 			mc.plainEarly, mc.swallowed, mc.plainParsed = true, true, spans[0].start
 		}
 	}
-	if !maskGuard(root, tags, tree2.RootNode(), tags2, names, mc) {
+	accepted := maskGuard(root, tags, tree2.RootNode(), tags2, names, mc)
+	if maskRetryObserver != nil {
+		pe, pm, _ := countSyntaxErrors(root)
+		me, mm, _ := countSyntaxErrors(tree2.RootNode())
+		o := "rejected"
+		if accepted {
+			o = "accepted"
+		}
+		maskRetryObserver(maskRetry{Language: lang, SourceBytes: len(src), PlainErrors: pe + pm, MaskedErrors: me + mm,
+			Took: time.Since(began), Outcome: o, Early: stop.early})
+	}
+	if !accepted {
+		// The masked tree lost: hand its arena back now, not at the next collection.
+		tree2.Release()
 		return nil
 	}
 	branches := 0

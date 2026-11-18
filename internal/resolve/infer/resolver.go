@@ -474,6 +474,7 @@ func (r *Resolver) ResolveFile(
 		}
 	}
 
+	facts := newFileFacts(fr)
 	edges := make([]model.Edge, 0, len(fr.Refs))
 	outcomes := make([]registry.RefOutcome, 0, len(fr.Refs))
 
@@ -719,7 +720,7 @@ func (r *Resolver) ResolveFile(
 		if edgeKind == model.EdgeCalls && ref.ReceiverKind != "" && !spec.QualifiedMembers {
 			d := r.resolveCall(call{
 				spec: spec, fr: fr, imports: imports, ref: ref, cands: cands, symbols: symbols,
-				produced: produced, typesNamed: typesNamed,
+				produced: produced, typesNamed: typesNamed, facts: facts,
 			}, stats)
 			switch {
 			case d.verdict == verdictBound && d.best.confidence.AtLeast(r.opts.MinConfidence):

@@ -61,6 +61,9 @@ type Provenance struct {
 	// IndexBusy is true when another process was updating the index, so the
 	// check was skipped and the latest edits may be missing.
 	IndexBusy bool `json:"index_busy,omitempty"`
+	// RefreshPending is how many changed files a background re-index still
+	// had to do when this answer was given; absent once it is done.
+	RefreshPending int `json:"refresh_pending,omitempty"`
 
 	// Caveat is always set. It states what the comparison above does not cover.
 	Caveat string `json:"caveat"`

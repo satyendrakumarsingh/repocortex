@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/satyendrakumarsingh/repocortex/pkg/model"
 )
@@ -52,25 +53,84 @@ const insertFileCallerSQL = `
 // A definition spans start_line to end_line, and a definition whose span is
 // unknown (end_line 0) covers only its own line, exactly as the resolver reads
 // it (infer.enclosing), so the two agree on what "outside" means.
+//
+// ONE PASS. This was a single INSERT ... WHERE EXISTS (pending reference AND
+// NOT EXISTS (definition covering its line)): for every pending reference a
+// probe of the file's symbols, 30% of the resolve time on a synthetic Perl
+// repository. A line is covered when some definition starting at or before it
+// ends at or after it, which is the same as the largest end among the
+// definitions starting at or before it reaching it. So both streams are read
+// once, ordered by file and line (a definition before a reference on the
+// same line), and one running maximum answers every reference: work
+// proportional to the rows, not to references times symbols. The result is
+// the one the SQL gave; see TestEnsureFileCallersMatchesTheQuery.
 func (r *Registry) EnsureFileCallers(ctx context.Context, runID int64) (int, error) {
-	res, err := r.db.ExecContext(ctx, insertFileCallerSQL+`
-		SELECT f.index_run_id, f.id, 'file', '(top level of ' || f.path || ')', f.path || ':(top level of ' || f.path || ')',
-		       1, 0, 1, 0, '', '', 0, 'high', 'source_code'
-		  FROM files f
-		 WHERE f.index_run_id = ?
-		   AND EXISTS (
-		       SELECT 1 FROM symbol_references sr
-		        WHERE sr.file_id = f.id AND sr.resolution = 'pending' AND sr.start_line > 0
-		          AND NOT EXISTS (
-		              SELECT 1 FROM symbols s INDEXED BY idx_symbols_file
-		               WHERE s.file_id = f.id AND s.kind <> 'file'
-		                 AND s.start_line <= sr.start_line
-		                 AND MAX(s.end_line, s.start_line) >= sr.start_line))`, runID)
+	pending := `symbol_references WHERE index_run_id = ? AND resolution = 'pending' AND start_line > 0`
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT file_id, start_line, 0 AS ref, MAX(end_line, start_line)
+		  FROM symbols
+		 WHERE index_run_id = ? AND kind <> 'file'
+		   AND file_id IN (SELECT file_id FROM `+pending+`)
+		UNION
+		SELECT file_id, start_line, 1, 0 FROM `+pending+`
+		ORDER BY 1, 2, 3`, runID, runID, runID)
 	if err != nil {
 		return 0, fmt.Errorf("registry: create file callers: %w", err)
 	}
-	n, _ := res.RowsAffected()
-	return int(n), nil
+	var need []int64
+	var file, reach int64 = -1, 0
+	flagged := false
+	for rows.Next() {
+		var f, line, isRef, end int64
+		if err := rows.Scan(&f, &line, &isRef, &end); err != nil {
+			_ = rows.Close()
+			return 0, fmt.Errorf("registry: create file callers: scan: %w", err)
+		}
+		if f != file {
+			file, reach, flagged = f, 0, false
+		}
+		switch {
+		case flagged:
+		case isRef == 0:
+			reach = max(reach, end)
+		case reach < line:
+			flagged = true
+			need = append(need, f)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return 0, fmt.Errorf("registry: create file callers: %w", err)
+	}
+	_ = rows.Close()
+	if len(need) == 0 {
+		return 0, nil
+	}
+
+	// Chunked, one statement per chunk like the single INSERT ... SELECT this
+	// replaced: a statement per file costs several times more.
+	const chunk = 500
+	created := 0
+	for len(need) > 0 {
+		n := min(chunk, len(need))
+		args := make([]any, 0, n+1)
+		args = append(args, runID)
+		for _, id := range need[:n] {
+			args = append(args, id)
+		}
+		res, err := r.db.ExecContext(ctx, insertFileCallerSQL+`
+			SELECT f.index_run_id, f.id, 'file', '(top level of ' || f.path || ')', f.path || ':(top level of ' || f.path || ')',
+			       1, 0, 1, 0, '', '', 0, 'high', 'source_code'
+			  FROM files f WHERE f.index_run_id = ? AND f.id IN (?`+strings.Repeat(",?", n-1)+`)
+			 ORDER BY f.id`, args...)
+		if err != nil {
+			return 0, fmt.Errorf("registry: create file callers: %w", err)
+		}
+		c, _ := res.RowsAffected()
+		created += int(c)
+		need = need[n:]
+	}
+	return created, nil
 }
 
 // FileCaller returns the synthetic caller of one file, creating it when the
