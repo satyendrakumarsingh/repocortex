@@ -642,16 +642,16 @@ actually yields was checked by hand; see
 $ repocortex languages
 TIER              COUNT  WHAT YOU GET
 typed             12     definitions, imports, receiver discrimination by arity or class — references can reach 'high'
-resolved          29     definitions and imports — references bind across files
-parsed            74     definitions and search only — no cross-file references claimed
+resolved          35     definitions and imports — references bind across files
+parsed            68     definitions and search only — no cross-file references claimed
 with definitions  115
 text only         91     no definition query: full-text search only, no symbols
 total             206    
 
 typed:    [c_sharp cpp go java javascript kotlin php python ruby rust scala typescript]
-resolved: [apex bash c clojure cmake cuda dart elixir erlang fortran fsharp glsl groovy haskell hlsl julia lua matlab objc ocaml perl powershell r solidity svelte swift tsx vue zig]
+resolved: [apex bash c clojure cmake crystal cuda d dart elixir erlang fortran fsharp gdscript glsl groovy haskell hcl hlsl julia lua matlab nim objc ocaml perl powershell r rescript solidity svelte swift tsx vue zig]
 
-(74 parsed-tier and 91 text-only languages not listed; pass --verbose)
+(68 parsed-tier and 91 text-only languages not listed; pass --verbose)
 ```
 
 Read the tiers as a coverage statement before trusting an empty relationship
