@@ -60,7 +60,7 @@ func narrowByArity(ref registry.Reference, group []registry.SymbolIndexEntry) []
 func earliest(group []registry.SymbolIndexEntry) registry.SymbolIndexEntry {
 	first := group[0]
 	for _, c := range group[1:] {
-		if c.ID < first.ID {
+		if declaredBefore(c, first) {
 			first = c
 		}
 	}

@@ -197,11 +197,24 @@ func firstDeclaration(cs []registry.SymbolIndexEntry) (registry.SymbolIndexEntry
 	}
 	first := cs[0]
 	for _, c := range cs[1:] {
-		if c.ID < first.ID {
+		if declaredBefore(c, first) {
 			first = c
 		}
 	}
 	return first, true
+}
+
+// declaredBefore orders the declarations of one definition. Within a file the
+// first by position (symbol ids follow it); across files, by path. Ids alone
+// were not an order across files: files are indexed in parallel, so whether
+// Item.h or Item.m received the lower id changed from run to run, and so did
+// the target of every call to an Objective-C method declared in both
+// (TestObjCResolution failed about one run in six).
+func declaredBefore(a, b registry.SymbolIndexEntry) bool {
+	if a.FilePath != b.FilePath {
+		return a.FilePath < b.FilePath
+	}
+	return a.ID < b.ID
 }
 
 func (s LanguageSpec) isClassSelfName(r string) bool {

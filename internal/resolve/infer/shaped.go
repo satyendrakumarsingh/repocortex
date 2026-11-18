@@ -313,7 +313,7 @@ func (r *Resolver) typeNamed(c call, name string) (t typeRef, found, known bool)
 		}
 		first := group[0]
 		for _, s := range group[1:] {
-			if s.ID < first.ID {
+			if declaredBefore(s, first) { // a stable order across files; see declaredBefore
 				first = s
 			}
 		}
