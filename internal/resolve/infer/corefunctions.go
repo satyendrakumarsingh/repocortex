@@ -301,6 +301,17 @@ func buildCoreFunctions() map[string]map[string]struct{} {
 		vfscanf vscanf vsscanf`)
 	out["c"] = libc
 	out["cpp"] = libc
+	// CUDA: the C library, and what the toolkit provides to device and host code
+	// alike (the names with a prefix are in coreFunctionPrefixes).
+	cuda := words(`
+		atomicAdd atomicSub atomicExch atomicMin atomicMax atomicInc atomicDec atomicCAS
+		atomicAnd atomicOr atomicXor rsqrtf sqrtf expf exp2f logf log2f log10f sinf cosf tanf
+		powf fabsf fminf fmaxf floorf ceilf roundf truncf fmodf rintf sincosf erff tanhf
+		min max abs dim3 printf assert malloc free memcpy memset`)
+	for name := range libc {
+		cuda[name] = struct{}{}
+	}
+	out["cuda"] = cuda
 	// Objective-C includes the C library, and Foundation adds NSLog.
 	objc := words("NSLog")
 	for name := range libc {
@@ -398,6 +409,141 @@ func buildCoreFunctions() map[string]map[string]struct{} {
 		ucfirst umask undef unlink unpack unshift untie use utime values vec wait waitpid wantarray warn
 		write`)
 
+	// MATLAB: the functions every installation has, which a bare call names whatever
+	// a file of the repository is called. A repository's own `zeros.m` would shadow
+	// the builtin on the path, and nobody writes one; the rest of the language's
+	// library is far larger than this list, and is what no repository file named.
+	out["matlab"] = words(`
+		zeros ones eye rand randn randi randperm magic linspace logspace repmat reshape size
+		length numel ndims isempty isnumeric ischar iscell isstruct islogical isa isfield
+		isreal isscalar isvector ismatrix isrow iscolumn isnan isinf isfinite class double
+		single int8 int16 int32 int64 uint8 uint16 uint32 uint64 char logical cell struct
+		fieldnames rmfield setfield getfield cellfun arrayfun structfun cell2mat num2cell
+		num2str str2num str2double mat2str sprintf fprintf disp display error warning
+		assert input pause tic toc clock cputime date datestr datenum now sum prod cumsum
+		cumprod max min mean median std var mode sort sortrows unique find any all abs sqrt
+		exp log log2 log10 sin cos tan asin acos atan atan2 sinh cosh tanh floor ceil round
+		fix mod rem power times plus minus rdivide mtimes dot cross kron det inv pinv rank
+		trace norm eig svd qr lu chol expm diag tril triu fliplr flipud flip rot90 circshift
+		cat horzcat vertcat squeeze permute meshgrid ndgrid interp1 interp2 polyfit polyval
+		roots conv deconv fft ifft plot plot3 figure hold axis xlabel ylabel zlabel title
+		legend grid subplot surf mesh contour bar hist histogram scatter line text saveas
+		close clf cla drawnow set get gca gcf colorbar colormap load save exist isfile
+		isfolder mkdir rmdir delete copyfile movefile cd pwd ls dir fopen fclose fread fwrite
+		fgetl fgets fscanf textscan readtable writetable csvread csvwrite dlmread dlmwrite
+		importdata strcat strsplit strjoin strrep strfind strcmp strcmpi strncmp strncmpi
+		strtrim upper lower regexp regexprep regexpi contains startsWith endsWith func2str
+		str2func feval eval evalin assignin deal isequal ismember setdiff union intersect nnz
+		diff accumarray bitand bitor bitxor bitshift mat2cell rethrow throw validateattributes
+		nargin nargout narginchk nargoutchk exit quit clc clear clearvars format who whos which
+		help doc type numel cummax cummin range sub2ind ind2sub colon isspace isletter
+		isdigit fieldnames inputname nnz triu nan inf pi eps`)
+
+	// Fortran: the intrinsic procedures, which a call names whatever a module of the
+	// repository defines under the same name and does not bring in. The names are
+	// lower case: the language does not tell cases apart (isCoreFunction).
+	out["fortran"] = words(`
+		abs achar acos acosh adjustl adjustr aimag aint all allocated anint any asin asinh
+		associated atan atan2 atanh bit_size btest ceiling char cmplx command_argument_count
+		conjg cos cosh count cpu_time cshift date_and_time dble digits dim dot_product dprod
+		eoshift epsilon erf erfc exp exponent floor fraction gamma get_command
+		get_command_argument get_environment_variable huge hypot iachar iand ibclr ibits ibset
+		ichar ieor index int ior ishft ishftc kind lbound len len_trim lge lgt lle llt log
+		log10 log_gamma logical matmul max maxloc maxval merge min minloc minval mod modulo
+		move_alloc mvbits nearest new_line nint norm2 not null pack parity popcnt poppar
+		precision present product radix random_number random_seed range real repeat reshape
+		rrspacing scale scan selected_int_kind selected_real_kind set_exponent shape sign sin
+		sinh size spacing spread sqrt storage_size sum system_clock tan tanh tiny transfer
+		transpose trim ubound unpack verify c_loc c_f_pointer c_associated c_sizeof
+		execute_command_line flush open close read write print rewind backspace inquire
+		allocate deallocate nullify stop error stop`)
+
+	// GLSL: the built-in functions and the constructors of the built-in types. A
+	// shader file of the repository may define a `lerp` or a `saturate` of its own
+	// for a target that lacks it, and a file that includes it (or defines it) is
+	// still bound to it.
+	out["glsl"] = words(`
+		radians degrees sin cos tan asin acos atan sinh cosh tanh asinh acosh atanh pow exp
+		log exp2 log2 sqrt inversesqrt abs sign floor trunc round roundEven ceil fract mod
+		modf min max clamp mix step smoothstep isnan isinf floatBitsToInt floatBitsToUint
+		intBitsToFloat uintBitsToFloat length distance dot cross normalize faceforward reflect
+		refract matrixCompMult outerProduct transpose determinant inverse lessThan
+		lessThanEqual greaterThan greaterThanEqual equal notEqual any all not texture
+		textureLod textureProj textureOffset texelFetch textureSize textureGrad textureGather
+		textureQueryLod textureQueryLevels texture1D texture2D texture3D textureCube
+		texture2DLod imageLoad imageStore imageSize imageAtomicAdd atomicAdd atomicMin
+		atomicMax atomicAnd atomicOr atomicXor atomicExchange atomicCompSwap dFdx dFdy fwidth
+		dFdxFine dFdyFine dFdxCoarse dFdyCoarse fwidthFine fwidthCoarse interpolateAtCentroid
+		interpolateAtSample interpolateAtOffset EmitVertex EndPrimitive EmitStreamVertex
+		EndStreamPrimitive barrier memoryBarrier groupMemoryBarrier memoryBarrierShared
+		memoryBarrierImage memoryBarrierBuffer packHalf2x16 unpackHalf2x16 packUnorm2x16
+		unpackUnorm2x16 packUnorm4x8 unpackUnorm4x8 packSnorm4x8 unpackSnorm4x8 bitfieldExtract
+		bitfieldInsert bitfieldReverse bitCount findLSB findMSB subpassLoad noise1 noise2
+		noise3 noise4 float int uint bool double vec2 vec3 vec4 ivec2 ivec3 ivec4 uvec2 uvec3
+		uvec4 bvec2 bvec3 bvec4 dvec2 dvec3 dvec4 mat2 mat3 mat4 mat2x2 mat2x3 mat2x4 mat3x2
+		mat3x3 mat3x4 mat4x2 mat4x3 mat4x4 dmat2 dmat3 dmat4`)
+
+	// HLSL: the intrinsic functions and the constructors of the scalar, vector and
+	// matrix types.
+	out["hlsl"] = words(`
+		abs acos all any asin atan atan2 ceil clamp clip cos cosh cross ddx ddy ddx_coarse
+		ddx_fine ddy_coarse ddy_fine degrees determinant distance dot exp exp2 faceforward
+		floor fmod frac frexp fwidth isfinite isinf isnan ldexp length lerp lit log log10 log2
+		mad max min modf mul normalize pow radians rcp reflect refract round rsqrt saturate
+		sign sin sincos sinh smoothstep sqrt step tan tanh transpose trunc asfloat asint asuint
+		asdouble f16tof32 f32tof16 countbits firstbitlow firstbithigh reversebits noise
+		InterlockedAdd InterlockedMin InterlockedMax InterlockedAnd InterlockedOr InterlockedXor
+		InterlockedExchange InterlockedCompareExchange InterlockedCompareStore
+		GroupMemoryBarrier GroupMemoryBarrierWithGroupSync DeviceMemoryBarrier
+		DeviceMemoryBarrierWithGroupSync AllMemoryBarrier AllMemoryBarrierWithGroupSync
+		tex1D tex2D tex3D texCUBE tex2Dlod tex2Dbias WaveActiveSum WaveActiveMin WaveActiveMax
+		WaveActiveAllTrue WaveActiveAnyTrue WaveActiveBallot WaveGetLaneIndex WaveGetLaneCount
+		WaveIsFirstLane WaveReadLaneFirst WaveReadLaneAt WavePrefixSum QuadReadAcrossX
+		QuadReadAcrossY QuadReadLaneAt GetRenderTargetSampleCount GetRenderTargetSamplePosition
+		bool int uint half float double min16float min16int min16uint bool2 bool3 bool4 int2
+		int3 int4 uint2 uint3 uint4 half2 half3 half4 float2 float3 float4 double2 double3
+		double4 float2x2 float3x3 float4x4 float2x3 float2x4 float3x2 float3x4 float4x2 float4x3
+		int2x2 int3x3 int4x4 uint2x2 uint3x3 uint4x4 half2x2 half3x3 half4x4 double2x2
+		double3x3 double4x4 matrix vector`)
+
+	// CMake: the commands the program itself provides, and those of the modules that
+	// ship with it and that a project calls without having written them. The names
+	// are lower case: command names are not case-sensitive (isCoreFunction).
+	out["cmake"] = words(`
+		add_compile_definitions add_compile_options add_custom_command add_custom_target
+		add_definitions add_dependencies add_executable add_library add_link_options
+		add_subdirectory add_test aux_source_directory break build_command cmake_file_api
+		cmake_host_system_information cmake_language cmake_minimum_required cmake_parse_arguments
+		cmake_path cmake_policy configure_file continue create_test_sourcelist define_property
+		else elseif enable_language enable_testing endblock endforeach endfunction endif
+		endmacro endwhile execute_process export file find_file find_library find_package
+		find_path find_program fltk_wrap_ui foreach function get_cmake_property
+		get_directory_property get_filename_component get_property get_source_file_property
+		get_target_property get_test_property if include include_directories
+		include_external_msproject include_guard include_regular_expression install
+		link_directories link_libraries list load_cache load_command macro mark_as_advanced
+		math message option project remove_definitions return separate_arguments set
+		set_directory_properties set_property set_source_files_properties set_target_properties
+		set_tests_properties site_name source_group string target_compile_definitions
+		target_compile_features target_compile_options target_include_directories
+		target_link_directories target_link_libraries target_link_options
+		target_precompile_headers target_sources try_compile try_run unset variable_watch while
+		block ctest_build ctest_configure ctest_coverage ctest_memcheck ctest_start ctest_submit
+		ctest_test ctest_update ctest_upload qt_wrap_cpp qt_wrap_ui qt5_wrap_cpp qt5_wrap_ui
+		check_include_file check_include_files check_include_file_cxx check_function_exists
+		check_symbol_exists check_cxx_symbol_exists check_cxx_source_compiles
+		check_c_source_compiles check_cxx_source_runs check_c_source_runs check_cxx_compiler_flag
+		check_c_compiler_flag check_library_exists check_type_size check_struct_has_member
+		check_language cmake_dependent_option cmake_print_variables cmake_print_properties
+		cmake_push_check_state cmake_pop_check_state cmake_reset_check_state
+		write_basic_package_version_file configure_package_config_file
+		generate_export_header gtest_discover_tests gtest_add_tests fetchcontent_declare
+		fetchcontent_makeavailable fetchcontent_populate fetchcontent_getproperties
+		externalproject_add externalproject_add_step pkg_check_modules pkg_search_module
+		find_package_handle_standard_args feature_summary add_feature_info set_package_properties
+		include_directories_before cpack_add_component cpack_add_component_group
+		cpack_add_install_type`)
+
 	// ECMAScript: the platform's own constructors and namespaces, which a bare
 	// `new URL(...)` or `Response(...)` names whether or not the repository
 	// declares a class of the same name elsewhere.
@@ -414,12 +560,31 @@ func buildCoreFunctions() map[string]map[string]struct{} {
 // isCoreFunction reports whether the language's own library provides a
 // callable of this bare name.
 func (s LanguageSpec) isCoreFunction(name string) bool {
-	if s.Name == "powershell" {
-		// Command names are case-insensitive, and the list is kept lowercase.
+	switch s.Name {
+	case "powershell", "fortran", "cmake":
+		// Command and procedure names are case-insensitive, and the list is kept lowercase.
 		name = strings.ToLower(name)
 	}
-	_, ok := coreFunctions[s.Name][name]
-	return ok
+	if _, ok := coreFunctions[s.Name][name]; ok {
+		return true
+	}
+	for _, prefix := range coreFunctionPrefixes[s.Name] {
+		if strings.HasPrefix(name, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// coreFunctionPrefixes are, per language, the beginnings of the names of a library's
+// functions, for a library too large to list: the CUDA runtime and its math,
+// random-number, FFT and neural-network libraries (`cudaMalloc`, `cublasSgemm`,
+// `curand_uniform`), the compiler intrinsics that start with two underscores
+// (`__syncthreads`, `__shfl_sync`), and the vector constructors (`make_float3`);
+// and the message-passing and OpenMP runtimes a Fortran program calls.
+var coreFunctionPrefixes = map[string][]string{
+	"cuda":    {"cuda", "cublas", "cufft", "curand", "cusparse", "cusolver", "cudnn", "nvtx", "nvml", "nccl", "__", "make_float", "make_int", "make_uint", "make_double", "make_long", "make_short", "make_char", "make_uchar", "make_ulong", "make_ushort", "make_ulonglong", "make_longlong"},
+	"fortran": {"mpi_", "omp_", "nf90_", "nf_", "h5", "blacs_", "pdgemm"},
 }
 
 // isCoreSyntax reports whether a bare call of this name is the language's own

@@ -11,6 +11,15 @@ from an actual run.
 
 ## [Unreleased]
 
+- **MATLAB, Fortran, CUDA, GLSL, HLSL and CMake bind calls across files.**
+  - **MATLAB:** a function is global by its file name, with `+pkg` packages, `private/` folders, local functions and classdef methods kept in their own scope.
+  - **Fortran:** binds through `use` (with `only:`) by module name. Private module procedures are not reachable.
+  - **CUDA:** reads includes as C++ does, and counts a kernel launch `k<<<g,b>>>()` as a call of `k`.
+  - **GLSL and HLSL:** read `#include`.
+  - **CMake:** commands bind to a `function()` or `macro()` defined in the same file or in one the caller runs through `include`, `find_package` or `add_subdirectory` (`high`), else in a parent `CMakeLists.txt` (`medium`), else the only one of that name (`low`).
+
+  Builtins and toolkit APIs never bind to repository names. Every fixture measured 100% precision (7 to 32 edges each) and was stable over 20 runs. Main gaps: transitive includes, case-insensitive Fortran and CMake names, and MATLAB methods on values.
+
 - **Resolution is the same on every run.** When a definition is declared in more than one file (an Objective-C method in `Item.h` and `Item.m`, a C function in a header and a source file), the resolver chose between them by symbol id. Files are indexed in parallel, so the ids, and with them the target of every call to such a method, changed from run to run (`TestObjCResolution` failed about one run in six). The choice is now ordered by file path, and by position within a file.
 - **Definitions are recovered from the unreadable parts of Perl and Swift files.** Where the grammar gives up (an ERROR region), lines shaped like a definition (`sub name {`, `func name(`, `class Name`) are read as one, at `medium` confidence, and the file's parse note says how many. Measured on about 4,900 files already on this machine: only Perl (34 subs in 105 files) and Swift interface files (2,407 declarations) lose definitions this way, with no spurious ones. Every other language measured loses none, so the pass is off for them. Comments, strings, POD and forward declarations are never read as definitions.
 

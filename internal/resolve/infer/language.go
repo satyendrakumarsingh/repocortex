@@ -1284,6 +1284,73 @@ func NewSpecs() *Specs {
 	add(objc)
 	add(scopeSpec("cpp", nil, TestFiles{Dirs: []string{"test", "tests"}}))
 	add(scopeSpec("c", nil, TestFiles{Dirs: []string{"test", "tests"}}))
+	// CUDA is C++: the same linker, the same #include of headers (`.cuh`, `.h`), and
+	// a kernel launch `kern<<<g, b>>>(x)` is a call of `kern`. The spec is the
+	// C++ one (the C family's Interop is the call traits' Family), with a type in a
+	// neighbouring file in scope only through an #include, as in Objective-C.
+	cuda := scopeSpec("cuda", nil, TestFiles{Dirs: []string{"test", "tests"}})
+	cuda.TypesNeedImport = true
+	// A `.cu` file is a translation unit of its own: what a neighbour defines is in
+	// scope only through the header that declares it (an include of `vec.cuh` covers
+	// `vec.cu`, which is how the pair is told), and a `static` function of the
+	// neighbour is not linkable at all. Measured on the fixture, the C++ spec's
+	// same-directory tier bound such a call.
+	cuda.ProximityIsEvidence = false
+	add(cuda)
+	// GLSL and HLSL. A shader reaches another file's functions by #include and by
+	// nothing else: it is compiled as one translation unit, per entry point, from
+	// the file the compiler is handed. So a neighbour is no more in scope than any
+	// other file (ProximityIsEvidence off, as for Lua), and a struct next door is
+	// unknown until it is included. The language has no classes, no namespaces and
+	// no qualified call: a call is bare, or a method of a built-in resource type
+	// (`tex.Sample(s, uv)`), which no file of the repository defines.
+	glsl := scopeSpec("glsl", nil, TestFiles{Dirs: []string{"test", "tests"}})
+	glsl.ProximityIsEvidence = false
+	glsl.TypesNeedImport = true
+	glsl.MemberSeparators = sepDefault
+	add(glsl)
+	hlsl := scopeSpec("hlsl", nil, TestFiles{Dirs: []string{"test", "tests"}})
+	hlsl.ProximityIsEvidence = false
+	hlsl.TypesNeedImport = true
+	hlsl.MemberSeparators = sepDefault
+	add(hlsl)
+	// CMake. A command (a function() or macro() that was run) is global once its
+	// definition has run, wherever it was written, and what runs is what a file
+	// include()s, what add_subdirectory() enters, and what the directories above it
+	// ran before them: no neighbour is in scope on adjacency alone, and the
+	// resolution is cmake.go's. Tests are `*_test.cmake` and a `test/` tree.
+	cmake := scopeSpec("cmake", nil, TestFiles{
+		Suffixes: []string{"_test.cmake", "test.cmake"},
+		Dirs:     []string{"test", "tests"},
+	})
+	cmake.ProximityIsEvidence = false
+	cmake.MemberSeparators = sepDefault
+	add(cmake)
+	// MATLAB. A function file `foo.m` defines `foo`, and every function on the path
+	// can call it by that name with no import; the repository is taken as one path
+	// (matlab.go). A file is not a package and a directory is not either, so neither
+	// proximity nor an import path means anything here: only a `+pkg` folder, which
+	// qualifies, and an `@Class` folder, which makes its files methods. Tests are
+	// `*Test.m` classes and a `tests/` folder.
+	matlab := scopeSpec("matlab", []string{"matlab"}, TestFiles{
+		Suffixes: []string{"test.m", "tests.m"},
+		Prefixes: []string{"test_", "test"},
+		Dirs:     []string{"test", "tests"},
+	})
+	matlab.ProximityIsEvidence = false
+	matlab.MemberSeparators = sepDefault
+	add(matlab)
+	// Fortran. A module is a declaration and not a file, reached by `use` of its name
+	// (modules.go), so no neighbour is in scope and proximity is no evidence. pFUnit
+	// and test-drive tests are `test_*.f90` and `*_test.f90`, under test/ or tests/.
+	fortran := scopeSpec("fortran", []string{"fortran"}, TestFiles{
+		Suffixes: []string{"_test.f90", "_test.f", "_tests.f90", ".pf"},
+		Prefixes: []string{"test_"},
+		Dirs:     []string{"test", "tests"},
+	})
+	fortran.ProximityIsEvidence = false
+	fortran.MemberSeparators = sepDefault
+	add(fortran)
 
 	// --- C# ------------------------------------------------------------------
 	//

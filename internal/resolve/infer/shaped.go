@@ -216,6 +216,16 @@ func (r *Resolver) resolveCall(c call, stats *Stats) decision {
 		return r.callElixir(c, stats)
 	}
 
+	switch c.spec.Name {
+	case "matlab":
+		// A function is reached by its file's name, from any folder on the path,
+		// and a package's by the folder that qualifies it: matlab.go.
+		return r.callMatlab(c, stats)
+	case "cmake":
+		// A command is global once the file that defines it has run: cmake.go.
+		return r.callCMake(c, stats)
+	}
+
 	if modularLanguages[c.spec.Name] {
 		// Erlang, Clojure and Julia reach a function through the module it is in,
 		// which no rule below can say. Only their calls come here; see modules.go.

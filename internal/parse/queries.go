@@ -226,6 +226,29 @@ var supplements = map[string]string{
 (call !receiver method: (identifier) @name (#not-any-of? @name "include" "extend" "prepend")) @reference.call
 `,
 
+	// MATLAB: the inferred query finds functions and classes and no call. A call is
+	// `f(x)`, `pkg.f(x)` and `a.b.f(x)` (the function_call inside a field_expression,
+	// whose range starts at the qualifier, which is how shape.go reads the receiver),
+	// a command-syntax statement (`hold on`, `cleanup`), and a function handle
+	// (`@f`), which is how a function is passed to cellfun and ode45. An indexed
+	// variable `y(i)` is the same tree as a call and is told apart from it by
+	// matlabShadowed (shadow.go).
+	"matlab": `
+((function_call (identifier) @name) @reference.call
+  (#not-has-parent? @reference.call field_expression))
+(field_expression (function_call (identifier) @name)) @reference.call
+((command (command_name) @name) @reference.call
+  (#not-eq? @name "import"))
+(handle_operator (identifier) @name @reference.call)
+`,
+
+	// CMake: the inferred query finds function() and macro() and no call. Every
+	// command is a normal_command, a builtin (set, add_library) and a user's alike;
+	// the resolver tells them apart (cmake.go).
+	"cmake": `
+(normal_command (identifier) @name) @reference.call
+`,
+
 	// Solidity: the definition query (lang_solidity.go) tags no reference, so a
 	// call, a construction and a `is` clause bound nothing. The call tag spans the
 	// whole call expression, which is how the receiver of `Math.max(a, b)` is read
@@ -1040,6 +1063,49 @@ var importQueries = map[string]string{
 	"fsharp": `
 (import_decl) @path
 (module_defn (identifier) block: (long_identifier_or_op)) @path
+`,
+
+	// MATLAB: `import pkg.sub.*` and `import pkg.sub.f` bring the functions of a
+	// package folder (+pkg/+sub) in under their own names. The argument is
+	// captured whole and matlabImport (lang_matlab.go) reads it. Every other
+	// function is reached by its file's name, with nothing to import.
+	"matlab": `
+((command (command_name) @_c (command_argument) @path)
+  (#eq? @_c "import"))
+`,
+
+	// Fortran: `use m`, `use m, only: f, g`, `use m, local => f` and `use,
+	// intrinsic :: m`. The statement is captured whole, because what it brings in
+	// (every public name, or the ones listed) is text that fortranImport
+	// (lang_fortran.go) reads.
+	"fortran": `
+(use_statement) @path
+`,
+
+	// CMake: include(), add_subdirectory() and find_package() run another file's
+	// commands in this one's scope. The command name is captured as the alias, so
+	// that cmakeImport (lang_cmake.go) can tell the three apart, and the first
+	// argument whole, which may be a path, a module name or a variable expansion.
+	"cmake": `
+((normal_command (identifier) @alias (argument_list . (argument) @path))
+  (#match? @alias "^(?i:include|add_subdirectory|find_package)$"))
+`,
+
+	// CUDA, GLSL and HLSL read #include as C does. The path is rewritten by
+	// includeFileImport (lang_includes.go), which names a file by its stem.
+	"cuda": `
+(preproc_include path: (system_lib_string) @path)
+(preproc_include path: (string_literal) @path)
+`,
+
+	"glsl": `
+(preproc_include path: (system_lib_string) @path)
+(preproc_include path: (string_literal) @path)
+`,
+
+	"hlsl": `
+(preproc_include path: (system_lib_string) @path)
+(preproc_include path: (string_literal) @path)
 `,
 
 	"c": `

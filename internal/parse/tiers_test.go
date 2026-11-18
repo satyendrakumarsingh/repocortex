@@ -108,6 +108,19 @@ func TestModuleLanguagesAreResolved(t *testing.T) {
 	}
 }
 
+// MATLAB, Fortran, CUDA, GLSL, HLSL and CMake read their imports (an `import`, a
+// `use`, an `#include`, an `include()`), and so bind calls across files.
+func TestFileAndModuleLanguagesAreResolved(t *testing.T) {
+	for _, lang := range []string{"matlab", "fortran", "cuda", "glsl", "hlsl", "cmake"} {
+		if ImportQuery(lang) == "" {
+			t.Errorf("%s: no import query", lang)
+		}
+		if got := TierFor(lang); got != TierResolved {
+			t.Errorf("%s: want TierResolved, got %v", lang, got)
+		}
+	}
+}
+
 func TestTiersCoversEveryGrammar(t *testing.T) {
 	all := PureGoBackend().Languages()
 	tiers := Tiers()

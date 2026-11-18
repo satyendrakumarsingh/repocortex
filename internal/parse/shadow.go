@@ -24,9 +24,13 @@ import (
 //
 // It is an approximation and says so by erring toward binding nothing: a name
 // bound anywhere in an enclosing pattern counts, whatever order it was bound in.
-var shadowLanguages = map[string]bool{"haskell": true, "ocaml": true, "fsharp": true}
+var shadowLanguages = map[string]bool{"haskell": true, "ocaml": true, "fsharp": true, "matlab": true}
 
 func shadowedByLocal(language string, root *ts.Node, lang *ts.Language, src []byte, at, end uint32, name string) bool {
+	if language == "matlab" {
+		// `y(i)` indexes a variable the function binds (lang_matlab.go).
+		return matlabBinds(root, lang, src, at, end, name)
+	}
 	n := root.NamedDescendantForByteRange(at, end)
 	if n == nil {
 		return false

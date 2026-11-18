@@ -466,6 +466,14 @@ var callTraitsByLanguage = map[string]CallTraits{
 	"c_sharp":    {NewConstructs: true, NoFreeFunctions: true, Measured: ruleTiers{UnknownReceiver: model.ConfidenceMedium, NamedAfterType: model.ConfidenceLow, UniqueTypeName: model.ConfidenceHigh}, ImplicitSelf: true, Overloads: true, OpenTypes: true, TypesAreCapitalised: true, ExternalRoots: []string{"System", "Microsoft"}, Builtins: csharpBuiltins},
 	"cpp":        {Measured: ruleTiers{NamedAfterType: model.ConfidenceHigh, Neighbour: model.ConfidenceLow}, CallConstructs: true, ImplicitSelf: true, Overloads: true, OpenTypes: true, ScopeNamesModule: true, ExternalRoots: []string{"std"}},
 	"c":          {OpenTypes: true},
+	// CUDA is C++ with kernels: the traits are C++'s (a `.cu` file includes a C++ header
+	// and calls through the same linker), and the runtime's own names are external.
+	"cuda":       {Measured: ruleTiers{NamedAfterType: model.ConfidenceHigh, Neighbour: model.ConfidenceLow}, CallConstructs: true, ImplicitSelf: true, Overloads: true, OpenTypes: true, ScopeNamesModule: true, ExternalRoots: []string{"std", "thrust", "cub", "cooperative_groups", "nvcuda", "cuda"}},
+	"glsl":       {},
+	"hlsl":       {},
+	"cmake":      {},
+	"matlab":     {CallConstructs: true, ExternalRoots: []string{"matlab", "containers", "java", "javax", "py", "System"}},
+	"fortran":    {CallConstructs: true, ExternalRoots: []string{"iso_fortran_env", "iso_c_binding", "omp_lib", "mpi", "ieee_arithmetic", "ieee_exceptions", "ieee_features"}},
 	"php":        {Measured: ruleTiers{NamedAfterType: model.ConfidenceHigh, UniqueTypeName: model.ConfidenceHigh}, NewConstructs: true, TypesAreCapitalised: true, Imports: ImportsNameClasses},
 	"swift":      {CallConstructs: true, ImplicitSelf: true, Overloads: true, OpenTypes: true, TypesAreCapitalised: true, Builtins: swiftBuiltins},
 	"dart":       {CallConstructs: true, ImplicitSelf: true, TypesAreCapitalised: true, Imports: ImportsNameModules, Builtins: dartBuiltins},

@@ -56,6 +56,13 @@ import (
 //	          compiles files in the order the project lists them and so a file
 //	          sees only the files before it; that order is in the .fsproj, which
 //	          is not read, so a name is bound whichever file holds it.
+//	Fortran   a module is a declaration, never a file: `module m` ... `end module`
+//	          is qualified onto each procedure by the parser (`m.area`,
+//	          parse.fortranOwners), and a name is brought in by `use m` (every public
+//	          name), `use m, only: f, g` (the listed ones), and by nothing else. A
+//	          procedure written in no module is an external one, called by its name from
+//	          anywhere in the program. Names do not tell cases apart. A call is bare
+//	          (`call f(x)`, `f(x)`): a type-bound `obj%f(x)` is a call on a value.
 //	Perl      a package is a declaration too (`package Shop::Cart;` or a block),
 //	          qualified onto each sub by the parser (parse.perlOwners).
 //	          `use A::B qw(f g)` brings f and g in, a plain `use A::B;` whatever
@@ -83,7 +90,7 @@ import (
 // modularLanguages are the languages callModular resolves.
 var modularLanguages = map[string]bool{
 	"erlang": true, "clojure": true, "julia": true,
-	"haskell": true, "ocaml": true, "fsharp": true, "perl": true,
+	"haskell": true, "ocaml": true, "fsharp": true, "perl": true, "fortran": true,
 }
 
 // ownedLanguages are those whose parser writes the module a definition is in
@@ -91,7 +98,7 @@ var modularLanguages = map[string]bool{
 // module is a declaration in a file and not the file itself.
 func ownedLanguage(lang string) bool {
 	switch lang {
-	case "julia", "ocaml", "fsharp", "perl":
+	case "julia", "ocaml", "fsharp", "perl", "fortran":
 		return true
 	}
 	return false
@@ -138,6 +145,25 @@ func (r *Resolver) callModularBare(c call, dirs moduleDirectiveSet, home string)
 		return pickModular(c, local, "defined in the same module", model.ConfidenceHigh)
 	}
 
+	if lang == "fortran" {
+		// An internal procedure (after the `contains` of another) is visible in its
+		// host, and in the other internal procedures of the host.
+		var internal []registry.SymbolIndexEntry
+		for _, s := range c.cands {
+			owner := juliaOwner(s)
+			host, isInternal := strings.CutSuffix(owner, "."+localsSegment)
+			if s.FileID != c.fr.FileID || !isInternal || !isCallableKind(s.Kind) {
+				continue
+			}
+			if c.scope == host || strings.HasPrefix(c.scope, host+"."+localsSegment+".") {
+				internal = append(internal, s)
+			}
+		}
+		if len(internal) > 0 {
+			return pickModular(c, internal, "an internal procedure of the one the call is in", model.ConfidenceHigh)
+		}
+	}
+
 	if lang == "julia" {
 		// What an `include` names is part of the module the statement is written
 		// in, and the definitions of a file with no module block of its own are
@@ -165,8 +191,13 @@ func (r *Resolver) callModularBare(c call, dirs moduleDirectiveSet, home string)
 	}
 
 	var imported []registry.SymbolIndexEntry
+	ref := c.ref
+	if lang == "fortran" {
+		// The names a `use` lists are lower case: the language does not tell cases apart.
+		ref.Name = strings.ToLower(ref.Name)
+	}
 	for _, d := range dirs.imports {
-		if !d.brings(c.ref) {
+		if !d.brings(ref) {
 			continue
 		}
 		for _, s := range c.cands {
@@ -181,6 +212,21 @@ func (r *Resolver) callModularBare(c call, dirs moduleDirectiveSet, home string)
 
 	if c.spec.isCoreFunction(c.ref.Name) {
 		return externalCall
+	}
+
+	if lang == "fortran" {
+		// An external procedure, written outside every module, is linked by its name
+		// from any file. Nothing in the call says the file is the one meant (an array
+		// element reads as a call too), so the one procedure of that name is a guess.
+		var external []registry.SymbolIndexEntry
+		for _, s := range c.cands {
+			if s.FileID != c.fr.FileID && juliaOwner(s) == "" && moduleLevel(lang, s) {
+				external = append(external, s)
+			}
+		}
+		if len(external) > 0 {
+			return pickModular(c, external, "an external procedure, linked by its name", model.ConfidenceLow)
+		}
 	}
 	return unresolvedCall
 }
@@ -296,6 +342,10 @@ func moduleLevel(lang string, c registry.SymbolIndexEntry) bool {
 	}
 	if ownedLanguage(lang) {
 		qual, ok := qualOf(c)
+		if lang == "fortran" && strings.Contains(qual, parse.FortranInterfaceSegment) {
+			// The interface of an external procedure declares it and defines nothing.
+			return false
+		}
 		return ok && !strings.Contains(qual, localsSegment)
 	}
 	return isModuleLevel(c)
@@ -332,6 +382,9 @@ func moduleDefines(lang string, s registry.SymbolIndexEntry, module string) bool
 	case "perl":
 		owner := juliaOwner(s)
 		return owner == module || (owner == "" && module == "main")
+	case "fortran":
+		owner := juliaOwner(s)
+		return owner != "" && strings.EqualFold(owner, module)
 	}
 	return false
 }
@@ -413,6 +466,10 @@ func ownerVisibleFrom(lang, owner, home string) bool {
 	case "ocaml", "fsharp":
 		// The file's top level, the module the call is in, and the ones around it.
 		return owner == "" || owner == home || strings.HasPrefix(home, owner+".")
+	case "fortran":
+		// An external procedure of the file is in scope everywhere in it; a unit's own
+		// procedures are, to the code of the unit (a module, a program, a submodule).
+		return owner == "" || strings.EqualFold(strings.TrimSuffix(owner, "."+parse.FortranPrivateSegment), home)
 	}
 	return owner == home
 }
@@ -460,7 +517,7 @@ func moduleHome(c call) string {
 	switch c.spec.Name {
 	case "erlang":
 		return fileBaseName(c.fr.Path)
-	case "julia", "ocaml", "fsharp":
+	case "julia", "ocaml", "fsharp", "fortran":
 		return juliaModuleAt(c.fr, c.ref.Line)
 	case "perl":
 		return perlPackageAt(c.fr, c.ref.Line)

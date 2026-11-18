@@ -1563,3 +1563,306 @@ pub fn total(x: i64) i64 {
 		}
 	}
 }
+
+// Fortran: `use` names a module, lowercased, and what of it comes in. A name brought
+// in under another name is not listed, a renaming `use` brings every public name,
+// and an intrinsic module names nothing of the repository.
+func TestFortranImports(t *testing.T) {
+	res := parse(t, "src/stats.f90", `module stats
+  use geometry
+  use Shapes, only: area, Circle, sq => square, operator(+)
+  use util, loc => other
+  use, intrinsic :: iso_c_binding
+  use, non_intrinsic :: tools
+  use iso_fortran_env, only: dp => real64
+  use long_module, only: first, &   ! the list continues
+                         second
+contains
+  subroutine s()
+    use inner_mod, only: thing
+  end subroutine s
+end module stats
+`)
+	wantRows(t, res, []string{
+		"geometry import",
+		"shapes import:area,circle",
+		"util import",
+		"tools import",
+		"iso_fortran_env ",
+		"long_module import:first,second",
+		"inner_mod import:thing",
+	})
+}
+
+// Fortran definitions are qualified by the unit around them, which is what a `use`
+// names; a private procedure, an internal one and an interface body are not
+// reachable through one.
+func TestFortranOwners(t *testing.T) {
+	res := parse(t, "src/m.f90", `module m
+  implicit none
+  private
+  public :: shown
+  type :: box
+    real :: w
+  contains
+    procedure :: grow => box_grow
+  end type box
+  interface area
+    module procedure shown
+  end interface area
+  interface
+    function ext(x) result(y)
+      real :: x, y
+    end function ext
+  end interface
+contains
+  function shown(a) result(b)
+    real :: a, b
+    b = a
+  end function shown
+  subroutine hidden()
+  contains
+    subroutine inside()
+    end subroutine inside
+  end subroutine hidden
+  subroutine box_grow(self)
+    class(box) :: self
+  end subroutine box_grow
+end module m
+program p
+  call run()
+contains
+  subroutine run()
+  end subroutine run
+end program p
+subroutine outside()
+end subroutine outside
+`)
+	want := map[string]string{
+		"area":     "src/m.f90:m.area",
+		"shown":    "src/m.f90:m.shown",
+		"hidden":   "src/m.f90:m.<private>.hidden",
+		"inside":   "src/m.f90:m.hidden.<locals>.inside",
+		"box_grow": "src/m.f90:m.<private>.box_grow",
+		"grow":     "src/m.f90:m.box.grow",
+		"ext":      "src/m.f90:m.<interface>.ext",
+		"run":      "src/m.f90:p.run",
+		"outside":  "outside",
+	}
+	got := map[string]string{}
+	for _, s := range res.Symbols {
+		got[s.Name] = s.FQN
+	}
+	for name, fqn := range want {
+		// A definition with no owner keeps its plain name (the pipeline qualifies it by its file).
+		if got[name] != fqn && (got[name] != "" || fqn != name) {
+			t.Errorf("%s = %q, want %q", name, got[name], fqn)
+		}
+	}
+}
+
+// Fortran calls: `call f(x)` and `f(x)` by name. A call on a value (`call c%grow()`)
+// is no call of a name.
+func TestFortranCallShapes(t *testing.T) {
+	refs, _ := shapeOf(t, "a.f90", `program p
+  use geometry
+  call run(1)
+  x = area(c) + size(v)
+  call c%grow(2.0)
+end program p
+`)
+	for _, name := range []string{"run", "area", "size"} {
+		if got, ok := refs[name]; !ok || got.ReceiverKind != model.ReceiverBare {
+			t.Errorf("%s = %+v, want a bare call", name, got)
+		}
+	}
+	if _, ok := refs["grow"]; ok {
+		t.Errorf("a type-bound call on a value was recorded as a call of a name")
+	}
+}
+
+// MATLAB: `import pkg.sub.*` brings a package folder's functions in, `import
+// pkg.sub.f` one of them; the statement is not itself a call.
+func TestMatlabImports(t *testing.T) {
+	refs, res := shapeOf(t, "scripts/run.m", `import report.*
+import tools.stats.zscore
+import java.util.ArrayList
+x = zscore(data);
+`)
+	wantRows(t, res, []string{
+		"report import",
+		"tools.stats import:zscore",
+		"java.util import:ArrayList",
+	})
+	if _, ok := refs["import"]; ok {
+		t.Errorf("`import` was recorded as a call")
+	}
+	if got, ok := refs["zscore"]; !ok || got.ReceiverKind != model.ReceiverBare {
+		t.Errorf("zscore = %+v, want a bare call", got)
+	}
+}
+
+// MATLAB calls: a function, a package function, a command, a handle; and the
+// names a function binds, which index a variable and call nothing.
+func TestMatlabCallShapes(t *testing.T) {
+	refs, res := shapeOf(t, "src/a.m", `function out = run(data, k)
+  clean = prep(data);
+  out = clean(k) + total(clean);
+  y(3) = prep(1);
+  r = pkg.sub.thing(2);
+  hold on
+  cellfun(@scale, {1});
+  g = @(v) v(2) + other(v);
+  for i = 1:3
+    i(1);
+  end
+  [a, ~] = split(out);
+  a(2);
+end
+
+function out = other_fn()
+  out = clean(1);
+end
+`)
+	bare := func(name string) bool {
+		got, ok := refs[name]
+		return ok && got.ReceiverKind == model.ReceiverBare && !strings.HasSuffix(got.Kind, ".indirect")
+	}
+	for _, name := range []string{"prep", "total", "hold", "scale", "other", "split"} {
+		if !bare(name) {
+			t.Errorf("%s = %+v, want a bare call", name, refs[name])
+		}
+	}
+	// Bound in the function that calls them: a variable that is indexed.
+	for _, name := range []string{"clean", "y", "v", "i", "a"} {
+		if got, ok := refs[name]; ok && !strings.HasSuffix(got.Kind, ".indirect") {
+			t.Errorf("%s = %+v, want an indexed variable (indirect)", name, got)
+		}
+	}
+	// `clean` in another function is a call: its own workspace did not bind it.
+	var inOther bool
+	for _, r := range res.References {
+		if r.Name == "clean" && r.Range.Start.Line == 17 && !strings.HasSuffix(r.Kind, ".indirect") {
+			inOther = true
+		}
+	}
+	if !inOther {
+		t.Errorf("clean in the second function should be a call")
+	}
+	if got := refs["thing"]; got.ReceiverKind != model.ReceiverPath || got.Receiver != "pkg.sub" {
+		t.Errorf("thing = %+v, want a call on the path pkg.sub", got)
+	}
+	// A classdef's functions are methods of the class.
+	cls := parse(t, "src/Account.m", `classdef Account
+  methods
+    function obj = Account(b)
+    end
+    function deposit(obj, x)
+    end
+  end
+end
+function helper()
+end
+`)
+	for name, want := range map[string]model.EntityKind{"Account": model.KindMethod, "deposit": model.KindMethod, "helper": model.KindFunction} {
+		found := false
+		for _, s := range cls.Symbols {
+			if s.Name == name && s.Kind == want {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("%s: want a %s among %v", name, want, symbolNames(cls))
+		}
+	}
+}
+
+// CMake: include, add_subdirectory and find_package name files that run in this
+// one's scope, by the file's repository path where the code gives one, and by the
+// end of it where it starts with a variable the code does not define.
+func TestCMakeImports(t *testing.T) {
+	res := parse(t, "app/CMakeLists.txt", `include(cmake/helpers.cmake)
+include("${CMAKE_CURRENT_LIST_DIR}/x.cmake" OPTIONAL)
+include("${CMAKE_SOURCE_DIR}/cmake/root.cmake")
+include("${SOME_DIR}/tail.cmake")
+Include(FooModule)
+include(CMakePackageConfigHelpers)
+include(${CMAKE_BINARY_DIR}/generated.cmake)
+add_subdirectory(src EXCLUDE_FROM_ALL)
+add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/ext")
+add_subdirectory(${OTHER}/lib)
+find_package(Fmt REQUIRED)
+find_package(Boost 1.70 COMPONENTS system)
+`)
+	wantRows(t, res, []string{
+		"cmake/helpers.cmake include", "app/cmake/helpers.cmake include",
+		"app/x.cmake include",
+		"cmake/root.cmake include",
+		"tail.cmake include-end",
+		"FooModule module",
+		"CMakePackageConfigHelpers module",
+		"generated.cmake include-end",
+		"app/src/CMakeLists.txt include",
+		"app/ext/CMakeLists.txt include",
+		"lib/CMakeLists.txt include-end",
+		"FindFmt module",
+		"FindBoost module",
+	})
+}
+
+// CMake calls: every command, the program's and a function's alike.
+func TestCMakeCallShapes(t *testing.T) {
+	refs, res := shapeOf(t, "CMakeLists.txt", `function(my_helper target)
+  target_link_libraries(${target} PRIVATE m)
+endfunction()
+macro(my_macro)
+endmacro()
+if(FOO)
+  my_helper(a)
+endif()
+My_Macro()
+`)
+	for _, name := range []string{"target_link_libraries", "my_helper", "My_Macro"} {
+		if got, ok := refs[name]; !ok || got.ReceiverKind != model.ReceiverBare {
+			t.Errorf("%s = %+v, want a bare call", name, got)
+		}
+	}
+	for _, name := range []string{"my_helper", "my_macro"} {
+		if !hasSymbol(res, name, model.KindFunction) {
+			t.Errorf("%s should be a function among %v", name, symbolNames(res))
+		}
+	}
+}
+
+// CUDA, GLSL and HLSL: `#include` names a file by its stem, beside the including file
+// and on the include path; an angle-bracket include names the path only; a kernel
+// launch is a call of the kernel.
+func TestIncludeImports(t *testing.T) {
+	for _, tc := range []struct {
+		file, src string
+		want      []string
+	}{
+		{"src/main.cu", "#include \"vec.cuh\"\n#include \"../common/util.h\"\n#include <cuda_runtime.h>\n#include <thrust/sort.h>\n", []string{
+			"vec ", "src/vec ", "src/../common/util ", "common/util ", "cuda_runtime ", "thrust/sort ",
+		}},
+		{"shaders/pbr.frag", "#version 450\n#include \"common/lighting.glsl\"\n", []string{"common/lighting ", "shaders/common/lighting "}},
+		{"shaders/pbr.hlsl", "#include \"lighting.hlsli\"\n#include \"../x.hlsli\"\n", []string{"lighting ", "shaders/lighting ", "x "}},
+		{"top.cu", "#include \"vec.cuh\"\n#include \"../outside.cuh\"\n", []string{"vec "}},
+	} {
+		res := parse(t, tc.file, tc.src)
+		got := importRows(res)
+		// path.Join cleans the rooted rows.
+		for _, w := range tc.want {
+			if w == "src/../common/util " {
+				w = "common/util "
+			}
+			if !got[w] {
+				t.Errorf("%s: missing import row %q in %+v", tc.file, w, res.Imports)
+			}
+		}
+	}
+	refs, _ := shapeOf(t, "k.cu", "__global__ void kern(float* a) {}\nvoid run(float* d) { kern<<<4, 32>>>(d); cudaMalloc(&d, 4); }\n")
+	if got, ok := refs["kern"]; !ok || got.ReceiverKind != model.ReceiverBare {
+		t.Errorf("a kernel launch was not recorded as a call of kern: %+v", got)
+	}
+}
