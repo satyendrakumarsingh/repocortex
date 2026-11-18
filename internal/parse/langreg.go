@@ -6,6 +6,8 @@ import (
 
 	ts "github.com/odvcencio/gotreesitter"
 	"github.com/odvcencio/gotreesitter/grammars"
+
+	"github.com/satyendrakumarsingh/repocortex/pkg/model"
 )
 
 // A language's definition query can come from three places, tried in order.
@@ -152,6 +154,9 @@ func fixImports(language, filePath string, in []Import) []Import {
 		return in
 	}
 	out := rewriteImports(fix, filePath, in)
+	if language == "dart" {
+		out = withoutPlainTwin(out)
+	}
 	if keepsEveryDirective[language] {
 		return dedupeDirectives(out)
 	}
@@ -185,3 +190,33 @@ func fixBindings(language, filePath string, in []Import) []Import {
 // last segment: the rewrite narrows the name to it, so that the text before it,
 // which shape.go reads the receiver from, is the package.
 var tagAdjusters = map[string]func(src []byte, tags []ts.Tag) []ts.Tag{}
+
+// withoutPlainTwin drops the plain row a prefixed import also produces. Dart's
+// query has one pattern for `import 'a.dart' as a;` and one for any import, and
+// the second matches the first's statement too: the file then looked as if it
+// imported a.dart both under the prefix and without one, and an unprefixed name
+// bound to it. A row with no alias is dropped when another row of the same
+// path was captured at the same place with one.
+func withoutPlainTwin(in []Import) []Import {
+	type key struct {
+		path string
+		at   model.Range
+	}
+	prefixed := make(map[key]struct{}, len(in))
+	for _, imp := range in {
+		if imp.Alias != "" {
+			prefixed[key{imp.Path, imp.Range}] = struct{}{}
+		}
+	}
+	if len(prefixed) == 0 {
+		return in
+	}
+	out := in[:0]
+	for _, imp := range in {
+		if _, twin := prefixed[key{imp.Path, imp.Range}]; twin && imp.Alias == "" {
+			continue
+		}
+		out = append(out, imp)
+	}
+	return out
+}

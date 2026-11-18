@@ -608,6 +608,7 @@ func (p *genericParser) Parse(ctx context.Context, path string, src []byte) (*Re
 	// The type each function declares it returns, read from the same tree for
 	// the same reason. See returns.go.
 	returnTypes := by.definitionReturnTypes(tree, src, tags)
+	defFlags := by.definitionFlags(tree, src, tags)
 
 	// Constructor delegation (`this(...)`, `super(...)`, `: base(...)`) has no
 	// name to tag and is built from the tree. See delegation.go.
@@ -704,6 +705,8 @@ func (p *genericParser) Parse(ctx context.Context, path string, src []byte) (*Re
 			// than the name the arity query captured.
 			sym.ParamCount = paramCounts[callSite{line: int(tag.NameRange.StartPoint.Row) + 1, name: sym.Name}]
 			sym.ReturnType = returnTypes[tag.NameRange.StartByte]
+			f := defFlags[tag.NameRange.StartByte]
+			sym.Private, sym.Trait = f&model.SymbolFlagPrivate != 0, f&model.SymbolFlagTrait != 0
 			if py != nil {
 				// A nested definition is qualified by what encloses it, so that
 				// two classes' `save` are two names. Module-level definitions

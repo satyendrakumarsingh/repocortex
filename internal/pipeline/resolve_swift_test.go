@@ -51,7 +51,10 @@ func TestSwiftResolution(t *testing.T) {
 		// `sum = Money.zero()`, each assigned from a function declared to
 		// return Money, so the receiver is a Money (returned.go). Before return
 		// types were read these were bound at low, by the name alone.
-		{"Core/Models/Order.swift:Order.total", "Core/Money.swift:Money.adding", high},
+		// Order.total assigns `sum` again (`sum = sum.adding(l)`), so the type
+		// read from Money.zero() is withdrawn for it (internal/parse/shape.go,
+		// reassigned): the edge is the name-only binding, at low, and right.
+		{"Core/Models/Order.swift:Order.total", "Core/Money.swift:Money.adding", model.ConfidenceLow},
 		{"App/Cart.swift:Cart.checkout", "Core/Money.swift:Money.adding", high},
 	}
 	forbid := []want{

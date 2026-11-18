@@ -291,6 +291,22 @@ func (r *Resolver) scriptQualifier(fr registry.FileRefs, imports importSet, name
 	return module{}, false, false
 }
 
+// luaAliasContested reports whether a name is bound by `require` to more than
+// one module in the file.
+func luaAliasContested(imports importSet, name string) bool {
+	first := ""
+	for _, e := range imports.imports {
+		if e.alias != name {
+			continue
+		}
+		if first != "" && e.raw != first {
+			return true
+		}
+		first = e.raw
+	}
+	return false
+}
+
 // moduleOf traces an import's path to a module in the language's own terms.
 // ECMAScript's rules (extensions, `./`, `index`, bare packages) are the
 // default; a language whose specifier means something else says so here

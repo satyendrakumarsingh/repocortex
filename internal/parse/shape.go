@@ -183,6 +183,7 @@ const (
 	shMaybeFunc
 	shMaybeDecl
 	shIsField
+	shAssign
 )
 
 // implicitThisLanguages are the languages in which a bare name inside a class
@@ -843,6 +844,10 @@ func classifyNodeType(language, typ string) shFlags {
 		return false
 	}
 	var f shFlags
+	if returnsTypes(language) && language != "php" && assignmentNodes[typ] {
+		// An assignment to something already declared: see reassigned.
+		return shAssign
+	}
 	if language == "solidity" && (typ == "contract_declaration" || typ == "library_declaration") {
 		// A contract and a library are types, and their names do not say so
 		// ("class", "interface" and "struct" are what this reads for the rest).
@@ -934,6 +939,8 @@ func (w *shWalker) visit(n *ts.Node, scope, depth int, hint string, hintStart ui
 		}
 	case flags&shMaybeDecl != 0:
 		w.declare(n, scope, flags&shIsField != 0)
+	case flags&shAssign != 0:
+		w.reassigned(n, scope)
 	}
 
 	// A function that is the value of a named declaration takes that name.
@@ -1166,6 +1173,58 @@ func (w *shWalker) declare(n *ts.Node, scope int, isField bool) {
 			if class := w.enclosingClass(scope); class >= 0 {
 				w.bindField(w.scopes[class].name, name.text, typ)
 			}
+		}
+	}
+}
+
+// assignmentNodes are the nodes that assign to a name already declared, in the
+// languages whose return types are read (returns.go). PHP is left out: there
+// an assignment is the declaration, and bind already withdraws a second one.
+var assignmentNodes = map[string]bool{
+	"assignment_expression": true, "augmented_assignment_expression": true,
+	"compound_assignment_expr": true, "assignment": true,
+}
+
+// reassigned withdraws the call a local's type was read from when the function
+// assigns the local again. `var o = repo.make(); o = repo.other(); o.save()`
+// calls what `other` returns; the declaration's producer is then true for part
+// of the function at most, and a producer is only worth linking when it holds
+// for all of it. Any assignment counts, wherever it is in the function and
+// whether or not it runs first: a loop assigns after the call it precedes.
+// What the declaration states (a type, or a constructor) is kept, since the
+// language keeps the variable to it.
+func (w *shWalker) reassigned(n *ts.Node, scope int) {
+	var target *ts.Node
+	for _, f := range []string{"left", "target"} {
+		if target = n.ChildByFieldName(f, w.lang); target != nil {
+			break
+		}
+	}
+	if target == nil {
+		target = n.NamedChild(0)
+	}
+	// Swift wraps the name: directly_assignable_expression(simple_identifier).
+	for i := 0; target != nil && target.NamedChildCount() == 1 && i < 3; i++ {
+		target = target.NamedChild(0)
+	}
+	if target == nil || target.NamedChildCount() != 0 {
+		return
+	}
+	name := w.text(target)
+	if !isIdentifier(name) {
+		return
+	}
+	for s := scope; s >= 0; s = w.scopes[s].parent {
+		sc := &w.scopes[s]
+		if sc.kind == shClass && !implicitThisLanguages[w.language] {
+			continue
+		}
+		if b, ok := sc.decls[name]; ok {
+			if b.from != 0 {
+				b.from = 0
+				sc.decls[name] = b
+			}
+			return
 		}
 	}
 }

@@ -56,6 +56,9 @@ func (r *Resolver) callReturned(c call, stats *Stats) (decision, bool) {
 	if !ok || producer.entry.ReturnType == "" {
 		return decision{}, false
 	}
+	if c.producerOverloadsDisagree(producer) {
+		return decision{}, false
+	}
 	t, ok := c.returnedType(producer.entry)
 	if !ok {
 		return decision{}, false
@@ -72,6 +75,25 @@ func (r *Resolver) callReturned(c call, stats *Stats) (decision, bool) {
 	d.best.reason += ", from " + producer.entry.Name
 	stats.ReturnTyped++
 	return d, true
+}
+
+// producerOverloadsDisagree reports whether the producing call was bound to
+// one of several overloads that the call did not choose between (the binding's
+// reason says so), and those overloads declare different return types.
+// `find(String)` and `find(int)` returning Customer and Order leave the
+// variable's type open, and the one taken first is wrong half the time.
+func (c call) producerOverloadsDisagree(producer candidate) bool {
+	if !strings.Contains(producer.reason, ", overloaded:") || c.typesNamed == nil {
+		return false
+	}
+	owner := ownerQual(producer.entry)
+	for _, s := range c.typesNamed(producer.entry.Name) {
+		if s.ID != producer.entry.ID && s.FilePath == producer.entry.FilePath &&
+			ownerQual(s) == owner && s.ReturnType != producer.entry.ReturnType {
+			return true
+		}
+	}
+	return false
 }
 
 // returnedType identifies the type a definition declares it returns, from

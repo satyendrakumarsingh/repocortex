@@ -89,19 +89,61 @@ func init() {
 // cannot begin right after `=>`; whatever the tree calls a declaration there is
 // the expression body of the member before it, and is dropped.
 func init() {
-	definitionRefiners["c_sharp"] = func(_ *ts.Node, _ *ts.Language, _ string, src []byte, tags []ts.Tag) map[uint32]definitionFix {
+	definitionRefiners["c_sharp"] = func(root *ts.Node, lang *ts.Language, _ string, src []byte, tags []ts.Tag) map[uint32]definitionFix {
 		var fixes map[uint32]definitionFix
 		for _, tag := range tags {
-			if !strings.HasPrefix(tag.Kind, "definition") || !followsArrow(src, tag.Range.StartByte) {
+			if !strings.HasPrefix(tag.Kind, "definition") {
 				continue
 			}
-			if fixes == nil {
-				fixes = map[uint32]definitionFix{}
+			if followsArrow(src, tag.Range.StartByte) {
+				if fixes == nil {
+					fixes = map[uint32]definitionFix{}
+				}
+				fixes[tag.NameRange.StartByte] = definitionFix{drop: true}
+				continue
 			}
-			fixes[tag.NameRange.StartByte] = definitionFix{drop: true}
+			if iface := explicitInterface(root, lang, src, tag); iface != "" {
+				if fixes == nil {
+					fixes = map[uint32]definitionFix{}
+				}
+				fixes[tag.NameRange.StartByte] = definitionFix{name: iface + "." + tag.Name}
+			}
 		}
 		return fixes
 	}
+}
+
+// explicitInterface is the interface an explicit implementation names:
+// `void I.M() {}` is a member of the class that only a value typed I can
+// reach, and `M()` written in the class does not call it. It is indexed under
+// the interface-qualified name (`I.M`), which no unqualified call can match.
+// "" for any other definition.
+func explicitInterface(root *ts.Node, lang *ts.Language, src []byte, tag ts.Tag) string {
+	if root == nil {
+		return ""
+	}
+	n := root.NamedDescendantForByteRange(tag.NameRange.StartByte, tag.NameRange.EndByte)
+	if n == nil {
+		return ""
+	}
+	def := n.Parent()
+	if def == nil {
+		return ""
+	}
+	for i := 0; i < def.NamedChildCount(); i++ {
+		c := def.NamedChild(i)
+		if c != nil && c.Type(lang) == "explicit_interface_specifier" {
+			name := strings.TrimSuffix(strings.TrimSpace(c.Text(src)), ".")
+			if j := strings.LastIndex(name, "."); j >= 0 {
+				name = name[j+1:]
+			}
+			if k := strings.Index(name, "<"); k >= 0 {
+				name = name[:k]
+			}
+			return name
+		}
+	}
+	return ""
 }
 
 // followsArrow reports whether the text before pos, ignoring white space, ends

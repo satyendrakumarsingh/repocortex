@@ -1,0 +1,34 @@
+-- 0024_symbol_flags: facts about a definition the language itself writes and
+-- the index had nowhere to keep: whether it is private to what encloses it,
+-- and whether a PHP "interface" is really a trait.
+--
+-- WHY. The resolver bound a call to a member or function the language does not
+-- let the caller reach, or ordered two ancestors by a rule that is not the
+-- language's:
+--   - a `private` method of a base class, preferred over an interface's
+--     default of the same name. Private members are not inherited, so the
+--     subclass's call reaches the default;
+--   - a Clojure `defn-` through `:refer :all`, and a C `static` function from
+--     another translation unit whose own file defines a static function of
+--     the same name;
+--   - a PHP trait's method, which overrides the method a class inherits, read
+--     as an interface's declaration and beaten by the parent class's. A trait
+--     is indexed as kind `interface`, like an interface, and nothing said
+--     which was which.
+-- The index recorded no visibility, only the upper-case-first-letter guess in
+-- `exported`, which is Go's rule and nobody else's; see
+-- capability.ExportedKnown.
+--
+-- symbols.flags is a bit set, 0 for every existing row, every SCIP-imported
+-- symbol and every language with no reader, so that "not read" never claims a
+-- symbol is public:
+--   1  private: internal/parse read the language's own marker. `private` on a
+--      Java, C#, Kotlin or PHP member, `defn-` or `^:private` in Clojure,
+--      `static` on a C function (internal linkage).
+--   2  trait: a PHP `trait`, indexed as an interface.
+--
+-- A column, not a use of `exported`: that flag orders search results and tiers
+-- bindings (a unique exported candidate), so changing what it means would move
+-- far more than the cases this fixes.
+
+ALTER TABLE symbols ADD COLUMN flags INTEGER NOT NULL DEFAULT 0;

@@ -29,7 +29,6 @@ func TestDartResolution(t *testing.T) {
 		{"lib/src/cart.dart:Cart.total", "lib/src/cart.dart:Cart.helper", high},
 		{"lib/src/cart.dart:Cart.total", "lib/src/cart.dart:Cart.recalc", high},
 		{"lib/src/cart.dart:Cart.total", "lib/src/util.dart:log", high},
-		{"lib/src/cart.dart:Cart.total", "lib/src/util.dart:format", high},
 		{"lib/src/cart.dart:Cart.total", "lib/src/store.dart:Store.save", high},
 		{"lib/src/cart.dart:Cart.total", "lib/src/cache.dart:makeCache", high},
 		{"lib/src/cache.dart:makeCache", "lib/src/cache.dart:Cache", high},
@@ -50,6 +49,9 @@ func TestDartResolution(t *testing.T) {
 	}
 	forbid := []want{
 		{Src: "lib/src/", Dst: "lib/other/util.dart"},
+		// util.dart is imported `as u`: its names are reached through `u.`, so
+		// the unprefixed `format(x)` is not a call of its `format`.
+		{Src: "lib/src/cart.dart:Cart.total", Dst: "lib/src/util.dart:format"},
 		{Src: "lib/src/cart.dart", Dst: "lib/ui/text.dart:format"},
 		{Src: "lib/src/cart.dart:Cart.total", Dst: "lib/src/cache.dart:Cache.save"},
 		// internal.dart is exported by no barrel, and legacy.g.dart is a part of
