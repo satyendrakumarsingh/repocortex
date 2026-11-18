@@ -56,6 +56,8 @@ func newAutoIndexCmd(g *Global) *cobra.Command {
 				if ctx == nil {
 					ctx = context.Background()
 				}
+				// This process holds reindex.lock for the whole pass.
+				ctx = withIndexLockHeld(ctx)
 				idxCmd := newIndexCmd(g)
 				idxCmd.SetContext(ctx)
 				idxCmd.SetOut(logWriter(logFile))

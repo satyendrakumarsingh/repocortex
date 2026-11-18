@@ -11,6 +11,7 @@ import (
 
 	"github.com/satyendrakumarsingh/repocortex/internal/config"
 	"github.com/satyendrakumarsingh/repocortex/internal/observe"
+	"github.com/satyendrakumarsingh/repocortex/internal/store"
 
 	"github.com/spf13/cobra"
 )
@@ -236,6 +237,9 @@ func (e *ExitCodeError) Unwrap() error { return e.Err }
 func Execute(ctx context.Context) int {
 	root := NewRoot()
 	if err := root.ExecuteContext(ctx); err != nil {
+		// A corrupt index surfaces as a bare driver error from wherever the
+		// first query ran; say what it means and how to recover.
+		err = store.ExplainCorrupt(err)
 		var ec *ExitCodeError
 		if errors.As(err, &ec) {
 			if !ec.Silent {

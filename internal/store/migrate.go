@@ -11,6 +11,7 @@ import (
 	"database/sql"
 	"embed"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io/fs"
 	"sort"
@@ -116,6 +117,11 @@ var legacyChecksums = map[int]map[string]bool{
 // has been edited is a correctness hazard — two installs would silently have
 // different schemas — so it is a hard error, not a warning.
 func Migrate(ctx context.Context, db *sql.DB, now func() int64) (applied []int, err error) {
+	// Before anything is written: an index from a newer build must be left
+	// exactly as found.
+	if err := checkNotNewer(ctx, db); err != nil {
+		return nil, err
+	}
 	if _, err := db.ExecContext(ctx, migrationTableDDL); err != nil {
 		return nil, fmt.Errorf("create schema_migrations: %w", err)
 	}
@@ -243,9 +249,90 @@ func (e *ErrSchemaOutdated) Error() string {
 		e.Found, e.Wanted)
 }
 
+// ErrSchemaNewer reports an index written by a newer build than this one.
+// An older repocortex cannot know what a newer migration changed, so it must
+// neither read nor write the index, and no command of this build can upgrade
+// it: the fixes are a newer build, or a rebuild.
+type ErrSchemaNewer struct {
+	Found  int
+	Latest int
+}
+
+func (e *ErrSchemaNewer) Error() string {
+	return fmt.Sprintf(
+		"this index was made by a newer repocortex (schema v%d > v%d, the newest this build knows) — "+
+			"upgrade repocortex, or rebuild the index with 'repocortex init --force' then 'repocortex index'",
+		e.Found, e.Latest)
+}
+
+// ErrCorrupt reports an index file SQLite cannot read: truncated, overwritten
+// or empty.
+type ErrCorrupt struct {
+	Path  string
+	Cause error
+}
+
+func (e *ErrCorrupt) Error() string {
+	where := "the index"
+	if e.Path != "" {
+		where = "the index at " + e.Path
+	}
+	return fmt.Sprintf("%s is corrupt (%v) — rebuild it with 'repocortex init --force' then 'repocortex index'",
+		where, e.Cause)
+}
+
+func (e *ErrCorrupt) Unwrap() error { return e.Cause }
+
+// IsCorrupt reports whether err is SQLite saying the file is not a readable
+// database: SQLITE_CORRUPT (11) or SQLITE_NOTADB (26).
+func IsCorrupt(err error) bool {
+	if err == nil {
+		return false
+	}
+	var ec *ErrCorrupt
+	if errors.As(err, &ec) {
+		return true
+	}
+	var coded interface{ Code() int }
+	if errors.As(err, &coded) {
+		if c := coded.Code() & 0xff; c == 11 || c == 26 {
+			return true
+		}
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "database disk image is malformed") ||
+		strings.Contains(msg, "file is not a database")
+}
+
+// ExplainCorrupt turns a bare SQLite corruption error from anywhere in a
+// command into ErrCorrupt, so the user is told how to recover. Other errors
+// pass through.
+func ExplainCorrupt(err error) error {
+	var ec *ErrCorrupt
+	if err == nil || errors.As(err, &ec) || !IsCorrupt(err) {
+		return err
+	}
+	return &ErrCorrupt{Cause: err}
+}
+
+func checkNotNewer(ctx context.Context, db *sql.DB) error {
+	found, err := SchemaVersion(ctx, db)
+	if err != nil {
+		return err
+	}
+	latest, err := LatestVersion()
+	if err != nil {
+		return err
+	}
+	if found > latest {
+		return &ErrSchemaNewer{Found: found, Latest: latest}
+	}
+	return nil
+}
+
 // CheckVersion verifies db is at the schema version this build expects.
 //
-// A database ahead of this build is also an error: an older repocortex cannot
+// A database ahead of this build is ErrSchemaNewer: an older repocortex cannot
 // know what a newer migration changed, and guessing risks silent corruption.
 func CheckVersion(ctx context.Context, db *sql.DB) error {
 	found, err := SchemaVersion(ctx, db)
@@ -256,7 +343,10 @@ func CheckVersion(ctx context.Context, db *sql.DB) error {
 	if err != nil {
 		return err
 	}
-	if found != wanted {
+	switch {
+	case found > wanted:
+		return &ErrSchemaNewer{Found: found, Latest: wanted}
+	case found < wanted:
 		return &ErrSchemaOutdated{Found: found, Wanted: wanted}
 	}
 	return nil

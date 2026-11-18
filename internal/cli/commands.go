@@ -167,6 +167,12 @@ All figures are read from the registry. Nothing is estimated.`,
 				return err
 			}
 			if err := store.CheckVersion(ctx, db.DB); err != nil {
+				var newer *store.ErrSchemaNewer
+				if errors.As(err, &newer) {
+					st.IndexStatus = "newer"
+					st.ExpectedSchema = newer.Latest
+					return renderStatus(cmd, g, st, newer.Error()+".")
+				}
 				var outdated *store.ErrSchemaOutdated
 				if errors.As(err, &outdated) {
 					st.IndexStatus = "outdated"
@@ -554,6 +560,12 @@ see docs/accuracy.md for what the numbers do and do not mean.`,
 			if _, err := os.Stat(dbPath); os.IsNotExist(err) {
 				checks = append(checks, check{Name: "index", Status: "warn", Detail: "absent — run 'repocortex init'"})
 			} else {
+				if bad := indexHealthCheck(cmd, dbPath); bad != nil {
+					// A file that cannot be read, or was made by a newer
+					// build, has nothing further to examine.
+					checks = append(checks, *bad)
+					return renderChecks(cmd, g, checks, nil)
+				}
 				checks = append(checks, check{Name: "index", Status: "ok", Detail: dbPath})
 				checks = append(checks, deferredSchemaChecks(cmd, dbPath)...)
 				checks = append(checks, parseChecks(cmd, dbPath)...)
@@ -623,6 +635,33 @@ see docs/accuracy.md for what the numbers do and do not mean.`,
 	return cmd
 }
 
+// indexHealthCheck opens the index read-only and returns a failing check when
+// SQLite cannot read it or it was made by a newer build, nil when it opens.
+func indexHealthCheck(cmd *cobra.Command, dbPath string) *check {
+	ctx := cmd.Context()
+	db, err := store.Open(ctx, store.Options{Path: dbPath, ReadOnly: true})
+	if err == nil {
+		defer func() { _ = db.Close() }()
+		err = store.CheckVersion(ctx, db.DB)
+	}
+	var outdated *store.ErrSchemaOutdated
+	if err == nil || errors.As(err, &outdated) {
+		return nil
+	}
+	err = store.ExplainCorrupt(err)
+	c := check{Name: "index", Status: "fail", Detail: err.Error()}
+	var corrupt *store.ErrCorrupt
+	var newer *store.ErrSchemaNewer
+	switch {
+	case errors.As(err, &corrupt):
+		c.Detail = dbPath + " is corrupt: " + corrupt.Cause.Error()
+		c.Remedy = "run 'repocortex init --force', then 'repocortex index', to rebuild it"
+	case errors.As(err, &newer):
+		c.Remedy = "upgrade repocortex, or rebuild with 'repocortex init --force' then 'repocortex index'"
+	}
+	return &c
+}
+
 // deferredSchemaChecks reports indexes and triggers that an interrupted first
 // index set aside and did not put back. Nothing is reported when none are.
 func deferredSchemaChecks(cmd *cobra.Command, dbPath string) []check {
@@ -678,8 +717,12 @@ func parseChecks(cmd *cobra.Command, dbPath string) []check {
 
 	parsed := check{
 		Name: "parse status", Status: "ok",
-		Detail: fmt.Sprintf("%d files: %d clean, %d with syntax errors, %d incomplete, %d failed, %d text only",
-			s.Files, s.Clean, s.SyntaxErrors, s.Incomplete, s.Failed, s.TextOnly),
+		// The same split `index` prints: files a tree was built for, and
+		// files it was not (text only, too large, no grammar). Counting the
+		// skipped ones in the total made it disagree with `index`.
+		Detail: fmt.Sprintf("%d files indexed, %d skipped (%d discovered): %d clean, %d with syntax errors, %d incomplete, %d failed, %d text only",
+			s.Parsed(), s.Files-s.Parsed()-s.Failed, s.Files,
+			s.Clean, s.SyntaxErrors, s.Incomplete, s.Failed, s.TextOnly),
 	}
 	if s.Abandoned() > 0 {
 		parsed.Status = "warn"

@@ -69,6 +69,18 @@ revision in place.`,
 			if full && rehash {
 				return fmt.Errorf("--rehash applies to an incremental update; --full already reads every file")
 			}
+
+			// One writer at a time, for the incremental pass and the full
+			// build alike (the first can fall through to the second).
+			dbPath := g.DBPath()
+			if _, err := os.Stat(dbPath); errors.Is(err, os.ErrNotExist) {
+				return fmt.Errorf("no index at %s — run 'repocortex init' first", dbPath)
+			}
+			unlock, err := lockIndex(cmd.Context(), dbPath)
+			if err != nil {
+				return err
+			}
+			defer unlock()
 			if !full {
 				done, err := tryIncremental(cmd, g, showDig, rehash)
 				if err != nil {
