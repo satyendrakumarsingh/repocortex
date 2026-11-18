@@ -277,8 +277,8 @@ func (r *Resolver) ResolveDeferred(ctx context.Context, stats *Stats) ([]model.E
 	// What an earlier drain learned about the hierarchy is not carried into
 	// this one: edges may have been written in between.
 	r.supertypes = nil
-	r.interfaces = nil
-	defer func() { r.supertypes, r.interfaces = nil, nil }()
+	r.interfaces, r.traits = nil, nil
+	defer func() { r.supertypes, r.interfaces, r.traits = nil, nil, nil }()
 
 	if r.ancestry == nil || len(queued) == 0 {
 		return nil, nil, nil
@@ -333,7 +333,7 @@ func (r *Resolver) drainChunk(
 			// could say whether a subtype overrides the member.
 			best, ok = settleOverride(d, known), true
 		} else {
-			best, ok, ambiguous = inheritedBinding(d, cands, known, r.interfaceNamed(ctx))
+			best, ok, ambiguous = inheritedBinding(d, cands, known, r.ancestorKind(ctx))
 			fromAncestry = ok
 		}
 		if d.static {
@@ -547,8 +547,12 @@ func inheritedBinding(
 	d deferredRef,
 	cands []registry.SymbolIndexEntry,
 	known map[string][]string,
-	isInterface func(name string) bool,
+	kindOf func(name string) (iface, trait bool),
 ) (candidate, bool, bool) {
+	isInterface := func(name string) bool { i, _ := kindOf(name); return i }
+	if kindOf == nil {
+		isInterface = nil
+	}
 	seen := map[string]struct{}{d.receiver: {}}
 	frontier := []string{d.receiver}
 	// declaration is what an interface at a nearer level declared, held while
@@ -588,6 +592,12 @@ func inheritedBinding(
 		var ownerNames []string
 		for _, anc := range next {
 			for _, c := range cands {
+				if c.Private && inheritsNoPrivate[d.spec.Name] {
+					// A private member is not inherited: a subclass's call
+					// reaches the next definition up, an interface's default
+					// for one, and never the base class's own helper.
+					continue
+				}
 				if !ancestorOwns(d, anc, c) || containsID(owners, c.ID) {
 					// Deduplicated by symbol id: one definition matched through
 					// two ancestor names (or through both the qualified-name and
@@ -596,6 +606,27 @@ func inheritedBinding(
 				}
 				owners = append(owners, c)
 				ownerNames = append(ownerNames, anc)
+			}
+		}
+
+		// # PHP: a trait's method overrides an inherited one
+		//
+		// A class's own methods come first, then the methods of the traits it
+		// uses, then the parent's. `class C extends B { use T; }` calling
+		// `$this->m()` reaches T::m, though B declares m too and both are one
+		// level up: a `use` is recorded as an EXTENDS edge, like the parent.
+		// Where an owner at this level is a trait, the traits are the owners.
+		if kindOf != nil && d.spec.Name == "php" && len(owners) > 1 {
+			var traits []registry.SymbolIndexEntry
+			var traitNames []string
+			for i, o := range owners {
+				if _, trait := kindOf(ownerNames[i]); trait {
+					traits = append(traits, o)
+					traitNames = append(traitNames, ownerNames[i])
+				}
+			}
+			if len(traits) > 0 {
+				owners, ownerNames = traits, traitNames
 			}
 		}
 
@@ -665,6 +696,12 @@ func inheritedBinding(
 	}
 	return candidate{}, false, false
 }
+
+// inheritsNoPrivate are the languages in which a private member is not
+// inherited, and whose parser reads `private` (internal/parse/private.go). C#
+// is left out only where a partial class could span files, which the ancestor
+// walk never crosses: a private member is still not a subclass's.
+var inheritsNoPrivate = map[string]bool{"java": true, "c_sharp": true, "kotlin": true, "php": true}
 
 // ancestorOwns reports whether an ancestor declares a candidate.
 //
@@ -794,34 +831,38 @@ func deferredNames(chunk []deferredRef) []string {
 	return out
 }
 
-// interfaceNamed answers whether a type name is an interface, from the index.
+// ancestorKind answers, from the index, whether a type name is an interface
+// and whether it is a trait.
 //
 // A name is an interface only when every type of that name the repository
 // defines is one: two types sharing a name, one a class, are not told apart
 // here, and the answer is then "no", which is what the walk did before it
-// asked. Answers are kept for the length of one drain, like the hierarchy.
-func (r *Resolver) interfaceNamed(ctx context.Context) func(string) bool {
-	return func(name string) bool {
+// asked. A PHP trait is indexed as an interface and is not one: its methods
+// are implementations, so it is reported as a trait and not an interface.
+// Answers are kept for the length of one drain, like the hierarchy.
+func (r *Resolver) ancestorKind(ctx context.Context) func(string) (iface, trait bool) {
+	return func(name string) (bool, bool) {
 		if v, ok := r.interfaces[name]; ok {
-			return v
+			return v && !r.traits[name], r.traits[name]
 		}
 		got, err := r.candidates.Candidates(ctx, []string{name})
 		if err != nil {
-			return false
+			return false, false
 		}
-		iface := false
+		iface, trait := false, false
 		for _, c := range got[name] {
 			if c.Kind == string(model.KindInterface) {
 				iface = true
+				trait = trait || c.Trait
 			} else if isTypeKind(c.Kind) {
-				iface = false
+				iface, trait = false, false
 				break
 			}
 		}
 		if r.interfaces == nil {
-			r.interfaces = map[string]bool{}
+			r.interfaces, r.traits = map[string]bool{}, map[string]bool{}
 		}
-		r.interfaces[name] = iface
-		return iface
+		r.interfaces[name], r.traits[name] = iface, trait
+		return iface && !trait, trait
 	}
 }

@@ -171,7 +171,7 @@ func (r *Registry) ReplaceFile(
 			runID, fileID, string(s.Kind), s.Name, s.FQN,
 			s.Range.Start.Line, s.Range.Start.Col, s.Range.End.Line, s.Range.End.Col,
 			nullString(s.Signature), nullString(s.Doc), boolToInt(s.Exported),
-			string(s.Confidence), string(s.Source), int(s.ParamCount), s.ReturnType)
+			string(s.Confidence), string(s.Source), int(s.ParamCount), s.ReturnType, s.Flags())
 		if err != nil {
 			return fmt.Errorf("registry: ReplaceFile %q: insert symbol %q: %w", file.Path, s.FQN, err)
 		}

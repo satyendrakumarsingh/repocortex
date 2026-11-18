@@ -22,6 +22,12 @@ type EnclosingSymbol struct {
 	StartLine int
 	EndLine   int
 
+	// StartCol and EndCol place the span within its first and last lines, for
+	// the reference that must be told from its neighbours on one line (a
+	// supertype in the header of a class whose methods share the line).
+	StartCol int
+	EndCol   int
+
 	// FQN is the symbol's qualified name. Carried because, where a language's
 	// qualified names state the owning class, the symbol a call is written in
 	// says which class `self` is — and that is the one receiver whose class
@@ -38,7 +44,7 @@ type EnclosingSymbol struct {
 // lookups during resolution.
 func (r *Registry) FileSymbols(ctx context.Context, fileID int64) ([]EnclosingSymbol, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT id, name, start_line, end_line, fqn, kind
+		SELECT id, name, start_line, end_line, fqn, kind, start_col, end_col
 		  FROM symbols
 		 WHERE file_id = ?
 		 ORDER BY start_line, end_line DESC`, fileID)
@@ -50,7 +56,7 @@ func (r *Registry) FileSymbols(ctx context.Context, fileID int64) ([]EnclosingSy
 	var out []EnclosingSymbol
 	for rows.Next() {
 		var s EnclosingSymbol
-		if err := rows.Scan(&s.ID, &s.Name, &s.StartLine, &s.EndLine, &s.FQN, &s.Kind); err != nil {
+		if err := rows.Scan(&s.ID, &s.Name, &s.StartLine, &s.EndLine, &s.FQN, &s.Kind, &s.StartCol, &s.EndCol); err != nil {
 			return nil, err
 		}
 		out = append(out, s)

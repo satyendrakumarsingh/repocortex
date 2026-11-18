@@ -265,11 +265,11 @@ func (c *CandidateCache) fetch(ctx context.Context, names []string) (map[string]
 		// arrived in rowid order, and the resolver's single-candidate tiers
 		// read cands[0] directly. Leaving the order to the planner would make
 		// resolution's output depend on which index it chose.
-		q := `SELECT id, name, fqn, kind, file_id, path, exported, param_count, language, return_type FROM (
+		q := `SELECT id, name, fqn, kind, file_id, path, exported, param_count, language, return_type, flags FROM (
 		        SELECT s.id AS id, s.name AS name, s.fqn AS fqn, s.kind AS kind,
 		               s.file_id AS file_id, f.path AS path, s.exported AS exported,
 		               s.param_count AS param_count, f.language AS language,
-		               s.return_type AS return_type,
+		               s.return_type AS return_type, s.flags AS flags,
 		               ROW_NUMBER() OVER (PARTITION BY s.name ORDER BY s.id) AS rn
 		          FROM symbols s
 		          JOIN files f ON f.id = s.file_id
@@ -285,13 +285,14 @@ func (c *CandidateCache) fetch(ctx context.Context, names []string) (map[string]
 		}
 		for rows.Next() {
 			var e SymbolIndexEntry
-			var exported, paramCount int
+			var exported, paramCount, flags int
 			if err := rows.Scan(&e.ID, &e.Name, &e.FQN, &e.Kind, &e.FileID, &e.FilePath,
-				&exported, &paramCount, &e.Language, &e.ReturnType); err != nil {
+				&exported, &paramCount, &e.Language, &e.ReturnType, &flags); err != nil {
 				_ = rows.Close()
 				return nil, err
 			}
 			e.Exported = exported == 1
+			e.Private, e.Trait = flags&model.SymbolFlagPrivate != 0, flags&model.SymbolFlagTrait != 0
 			e.ParamCount = model.Arity(paramCount)
 			e.FilePath = c.internPath(e.FilePath)
 			e.Kind = c.internKind(e.Kind)

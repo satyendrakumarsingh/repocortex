@@ -183,3 +183,46 @@ func importSegments(spec LanguageSpec, p string) []string {
 	}
 	return append(pathSegments(dir), strings.ToLower(base))
 }
+
+// privateElsewhere reports whether a call to a `_private` name cannot reach the
+// candidate: in Dart a name that starts with an underscore is private to its
+// LIBRARY, which is a file and the parts that name it, so a definition in
+// another library is not what a call there denotes whatever the imports say.
+// The library is read from the part directives; where none are indexed a
+// library is its one file.
+func (r *Resolver) privateElsewhere(spec LanguageSpec, name, callerPath string, c registry.SymbolIndexEntry) bool {
+	if spec.Name != "dart" || !strings.HasPrefix(name, "_") || c.FilePath == callerPath {
+		return false
+	}
+	if r.reexportGraph == nil {
+		return true
+	}
+	return !r.reexportGraph.sameLibrary(callerPath, c.FilePath)
+}
+
+// sameLibrary reports whether two files are one library: one names the other
+// as a part, or both are parts of a third.
+func (g *reexportGraph) sameLibrary(a, b string) bool {
+	ka := strings.TrimSuffix(a, path.Ext(a))
+	kb := strings.TrimSuffix(b, path.Ext(b))
+	names := func(parts []string, key string) bool {
+		for _, p := range parts {
+			if p == key || strings.HasSuffix(key, "/"+p) {
+				return true
+			}
+		}
+		return false
+	}
+	if d, ok := g.lookup(ka); ok && names(d.Parts, kb) {
+		return true
+	}
+	if d, ok := g.lookup(kb); ok && names(d.Parts, ka) {
+		return true
+	}
+	for _, key := range g.keys {
+		if d := g.files[key]; names(d.Parts, ka) && names(d.Parts, kb) {
+			return true
+		}
+	}
+	return false
+}

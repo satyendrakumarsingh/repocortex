@@ -24,12 +24,15 @@ import (
 //
 // It is an approximation and says so by erring toward binding nothing: a name
 // bound anywhere in an enclosing pattern counts, whatever order it was bound in.
-var shadowLanguages = map[string]bool{"haskell": true, "ocaml": true, "fsharp": true, "matlab": true}
+var shadowLanguages = map[string]bool{"haskell": true, "ocaml": true, "fsharp": true, "matlab": true, "clojure": true}
 
 func shadowedByLocal(language string, root *ts.Node, lang *ts.Language, src []byte, at, end uint32, name string) bool {
 	if language == "matlab" {
 		// `y(i)` indexes a variable the function binds (lang_matlab.go).
 		return matlabBinds(root, lang, src, at, end, name)
+	}
+	if language == "clojure" {
+		return clojureBinds(root, lang, src, at, end, name)
 	}
 	n := root.NamedDescendantForByteRange(at, end)
 	if n == nil {
@@ -184,4 +187,100 @@ func boundBeyondFirst(left *ts.Node, lang *ts.Language, src []byte, name string)
 		return false
 	}
 	return walk(left)
+}
+
+// clojureBinders are the forms whose first vector binds names for the forms
+// that follow it, as `let` does: the names are the vector's even positions.
+// The parameters of `fn`, `defn` and their kin are every symbol in the vector.
+var clojureBinders = map[string]bool{
+	"let": true, "loop": true, "for": true, "doseq": true, "binding": true,
+	"with-open": true, "if-let": true, "when-let": true, "if-some": true,
+	"when-some": true, "dotimes": true, "with-local-vars": true,
+}
+
+var clojureFunctions = map[string]bool{
+	"fn": true, "fn*": true, "defn": true, "defn-": true, "defmacro": true,
+	"defmethod": true,
+}
+
+// clojureBinds reports whether a form around a call binds the name the call
+// uses as its head: a parameter of an enclosing `fn` or `defn` (any arity), a
+// name of an enclosing `let`-like binding vector, or the name of a named `fn`.
+// `(defn pub2 [pub] (pub 3))` applies its parameter, not the `pub` a namespace
+// referred; so does `(let [pub (fn [x] x)] (pub 3))`. The definition's own
+// name is no shadow: a function calls itself. A name bound anywhere in the
+// enclosing vector counts, whatever order it was bound in, which errs toward
+// binding nothing, as the other languages here do.
+func clojureBinds(root *ts.Node, lang *ts.Language, src []byte, at, end uint32, name string) bool {
+	n := root.NamedDescendantForByteRange(at, end)
+	if n == nil {
+		return false
+	}
+	bound := func(v *ts.Node, evenOnly bool) bool {
+		for i, k := 0, 0; i < v.NamedChildCount(); i++ {
+			c := v.NamedChild(i)
+			if c == nil {
+				continue
+			}
+			if !evenOnly || k%2 == 0 {
+				if namesBoundIn(c, lang, src, name, "sym_name") {
+					return true
+				}
+			}
+			k++
+		}
+		return false
+	}
+	for child, p := n, n.Parent(); p != nil; child, p = p, p.Parent() {
+		if p.Type(lang) != "list_lit" {
+			continue
+		}
+		var head *ts.Node
+		for i := 0; i < p.NamedChildCount(); i++ {
+			if c := p.NamedChild(i); c != nil {
+				head = c
+				break
+			}
+		}
+		if head == nil {
+			continue
+		}
+		if head.Type(lang) == "vec_lit" && head != child {
+			// One arity of a multi-arity function: `([a b] body)`.
+			if bound(head, false) {
+				return true
+			}
+			continue
+		}
+		if head.Type(lang) != "sym_lit" || head == child {
+			continue
+		}
+		form := strings.TrimSpace(head.Text(src))
+		switch {
+		case clojureFunctions[form]:
+			for i := 1; i < p.NamedChildCount(); i++ {
+				c := p.NamedChild(i)
+				switch {
+				case c == nil || c == child:
+				case c.Type(lang) == "vec_lit":
+					if bound(c, false) {
+						return true
+					}
+				case i == 1 && form == "fn" && c.Type(lang) == "sym_lit" && strings.TrimSpace(c.Text(src)) == name:
+					// `(fn pub [x] (pub ...))`: a named fn is bound inside itself.
+					return true
+				}
+			}
+		case clojureBinders[form]:
+			for i := 1; i < p.NamedChildCount(); i++ {
+				if c := p.NamedChild(i); c != nil && c.Type(lang) == "vec_lit" {
+					if c != child && bound(c, true) {
+						return true
+					}
+					break
+				}
+			}
+		}
+	}
+	return false
 }

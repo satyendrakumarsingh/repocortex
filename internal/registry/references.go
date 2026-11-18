@@ -399,6 +399,13 @@ type SymbolIndexEntry struct {
 	// ReturnType is the plain type name the symbol declares it returns, or "".
 	// See model.Symbol.ReturnType.
 	ReturnType string
+
+	// Private is true where the parser read the language's own marker that the
+	// definition is reachable only from what encloses it: `private` on a Java,
+	// C#, Kotlin or PHP member, `defn-`, `static` on a C function. False means
+	// not read as private. Trait is true for a PHP trait, indexed as an
+	// interface. See migration 0024_symbol_flags.
+	Private, Trait bool
 }
 
 // LoadSymbolIndex returns every symbol in a run, keyed by name.
@@ -418,7 +425,7 @@ type SymbolIndexEntry struct {
 func (r *Registry) LoadSymbolIndex(ctx context.Context, runID int64) (map[string][]SymbolIndexEntry, error) {
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT s.id, s.name, s.fqn, s.kind, s.file_id, f.path, s.exported, s.param_count,
-		       f.language, s.return_type
+		       f.language, s.return_type, s.flags
 		  FROM symbols s
 		  JOIN files f ON f.id = s.file_id
 		 WHERE s.index_run_id = ?`, runID)
@@ -439,12 +446,13 @@ func (r *Registry) LoadSymbolIndex(ctx context.Context, runID int64) (map[string
 	}
 	for rows.Next() {
 		var e SymbolIndexEntry
-		var exported, paramCount int
+		var exported, paramCount, flags int
 		if err := rows.Scan(&e.ID, &e.Name, &e.FQN, &e.Kind, &e.FileID, &e.FilePath,
-			&exported, &paramCount, &e.Language, &e.ReturnType); err != nil {
+			&exported, &paramCount, &e.Language, &e.ReturnType, &flags); err != nil {
 			return nil, err
 		}
 		e.Exported = exported == 1
+		e.Private, e.Trait = flags&model.SymbolFlagPrivate != 0, flags&model.SymbolFlagTrait != 0
 		e.ParamCount = model.Arity(paramCount)
 		e.FilePath = intern(paths, e.FilePath)
 		e.Kind = intern(kinds, e.Kind)

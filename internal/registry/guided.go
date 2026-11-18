@@ -110,7 +110,7 @@ func (c *CandidateCache) inFilesChunk(ctx context.Context, names []string, fileI
 	for _, id := range fileIDs {
 		args = append(args, id)
 	}
-	q := `SELECT s.id, s.name, s.fqn, s.kind, s.file_id, f.path, s.exported, s.param_count, f.language, s.return_type
+	q := `SELECT s.id, s.name, s.fqn, s.kind, s.file_id, f.path, s.exported, s.param_count, f.language, s.return_type, s.flags
 	        FROM symbols s INDEXED BY idx_symbols_file_name
 	        JOIN files f ON f.id = s.file_id
 	       WHERE s.index_run_id = ?
@@ -123,12 +123,13 @@ func (c *CandidateCache) inFilesChunk(ctx context.Context, names []string, fileI
 	defer rows.Close()
 	for rows.Next() {
 		var e SymbolIndexEntry
-		var exported, paramCount int
+		var exported, paramCount, flags int
 		if err := rows.Scan(&e.ID, &e.Name, &e.FQN, &e.Kind, &e.FileID, &e.FilePath,
-			&exported, &paramCount, &e.Language, &e.ReturnType); err != nil {
+			&exported, &paramCount, &e.Language, &e.ReturnType, &flags); err != nil {
 			return err
 		}
 		e.Exported = exported == 1
+		e.Private, e.Trait = flags&model.SymbolFlagPrivate != 0, flags&model.SymbolFlagTrait != 0
 		e.ParamCount = model.Arity(paramCount)
 		e.FilePath = c.internPath(e.FilePath)
 		e.Kind = c.internKind(e.Kind)

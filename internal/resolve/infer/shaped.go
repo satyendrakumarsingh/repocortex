@@ -252,7 +252,11 @@ func (r *Resolver) resolveCall(c call, stats *Stats) decision {
 		// and an import to the file: the walk can say the name was declared and
 		// not that it was declared by a require. A name the file's imports bind
 		// is read as that import.
-		if c.spec.Calls.Imports == ImportsNameModules {
+		//
+		// Not in Lua, where a `local m = require(...)` is a `name` receiver
+		// already: a receiver the walk calls a value there is a parameter or a
+		// local of the same name, which is not the module.
+		if c.spec.Calls.Imports == ImportsNameModules && c.spec.Name != "lua" {
 			if _, _, ok := r.scriptQualifier(c.fr, c.imports, c.ref.Receiver); ok {
 				return r.callNamed(c, stats)
 			}
@@ -1284,6 +1288,14 @@ func (r *Resolver) callNamed(c call, stats *Stats) decision {
 	// CommonJS: `exports.f()` is a call of what this module exports.
 	if c.spec.Calls.Imports == ImportsNameModules && name == "exports" {
 		return ownExports(c)
+	}
+
+	// A Lua name `require`d twice (`m = require("b.mod")` after `local m =
+	// require("a.mod")`, or one in a nested block) is whichever was assigned
+	// last at the call, which the order of two requires does not say here: it
+	// is no module, rather than the first.
+	if c.spec.Name == "lua" && luaAliasContested(c.imports, name) {
+		return unresolvedCall
 	}
 
 	// An import says what the name is before anything else is asked.

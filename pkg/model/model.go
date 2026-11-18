@@ -246,6 +246,17 @@ type Symbol struct {
 	// internal/resolve/infer to type a variable assigned from a call to it.
 	ReturnType string `json:"return_type,omitempty"`
 
+	// Private is true where internal/parse read the language's own marker that
+	// the definition is reachable only from what encloses it: `private` on a
+	// Java, C#, Kotlin or PHP member, `defn-` in Clojure, `static` on a C
+	// function. False is "not read as private", not "public". Migration
+	// 0024_symbol_flags.
+	Private bool `json:"private,omitempty"`
+
+	// Trait is true for a PHP trait, which is indexed as an interface and is
+	// not one: its methods are implementations. Migration 0024_symbol_flags.
+	Trait bool `json:"trait,omitempty"`
+
 	// Confidence describes how reliably this symbol was extracted. Symbols are
 	// usually high or exact; a Tier-1 generic extraction may be medium.
 	Confidence Confidence `json:"confidence"`
@@ -417,3 +428,21 @@ const (
 // OpaqueReceiver is the receiver text recorded with ReceiverExpr. Not a valid
 // identifier in any language, so it cannot collide with a real receiver.
 const OpaqueReceiver = "?"
+
+// The bits of symbols.flags (migration 0024_symbol_flags).
+const (
+	SymbolFlagPrivate = 1
+	SymbolFlagTrait   = 2
+)
+
+// Flags is the symbol's bit set as the index stores it.
+func (s Symbol) Flags() int {
+	f := 0
+	if s.Private {
+		f |= SymbolFlagPrivate
+	}
+	if s.Trait {
+		f |= SymbolFlagTrait
+	}
+	return f
+}

@@ -193,6 +193,9 @@ type Resolver struct {
 	// interfaces remembers which type names are interfaces, for one drain.
 	interfaces map[string]bool
 
+	// traits remembers which of them are PHP traits, for one drain.
+	traits map[string]bool
+
 	// reexportGraph is the run's export and part directives, read on the first
 	// file that needs them. See reexport.go.
 	reexportGraph  *reexportGraph
@@ -529,6 +532,13 @@ func (r *Resolver) ResolveFile(
 		// for exactly those files; a file without one yields no edge, and the
 		// resolution is still recorded.
 		src, ok := callerOf(fr, ref.Line)
+		if kind := edgeKindFor(ref.Kind); kind == model.EdgeExtends || kind == model.EdgeImplements {
+			// A supertype belongs to the type whose header names it, which on
+			// a one-line class is not the last method on the line.
+			if id, found := headerOwner(fr.Symbols, ref.Line, ref.Col); found {
+				src, ok = id, true
+			}
+		}
 		if implementer != "" {
 			// `impl Trait for Type`: the edge starts at Type, which is not
 			// what encloses the line.
@@ -636,7 +646,7 @@ func (r *Resolver) ResolveFile(
 		if len(cands) > 0 {
 			kept := cands[:0:0]
 			for _, c := range cands {
-				if spec.canBind(c, edgeKind) {
+				if spec.canBind(c, edgeKind) && !unreachablePrivate(c, fr.Path) && !r.privateElsewhere(spec, ref.Name, fr.Path, c) {
 					kept = append(kept, c)
 				}
 			}
@@ -1654,6 +1664,11 @@ func (s importSet) covers(filePath string) (int, bool) {
 	}
 	best := 0
 	for i := range s.imports {
+		if s.spec.Name == "dart" && s.imports[i].alias != "" {
+			// `import 'a.dart' as a;` brings a.dart's names in through `a.`
+			// and in no other way: an unprefixed name is not one of them.
+			continue
+		}
 		if d := commonSuffixLen(s.imports[i].segments, segs); d > best {
 			best = d
 		}
@@ -2100,6 +2115,55 @@ func enclosing(symbols []registry.EnclosingSymbol, line int) (int64, bool) {
 		}
 	}
 	return best, found
+}
+
+// headerOwner finds the symbol whose span contains a position, by line and
+// column: of those that do, the one that starts last. `class A extends B {
+// void m() {} void k() {} }` on one line holds A, m and k by line alone, and
+// `B` sits in A's span but outside m's and k's. found is false when no span
+// has columns to say (an extractor that recorded none).
+func headerOwner(symbols []registry.EnclosingSymbol, line, col int) (int64, bool) {
+	var best registry.EnclosingSymbol
+	var found bool
+	for _, s := range symbols {
+		if s.StartLine > line {
+			break
+		}
+		if s.EndLine == 0 || s.Kind == registry.FileCallerKind {
+			continue
+		}
+		afterStart := s.StartLine < line || s.StartCol <= col
+		beforeEnd := s.EndLine > line || s.EndCol >= col
+		if !afterStart || !beforeEnd {
+			continue
+		}
+		if !found || s.StartLine > best.StartLine || (s.StartLine == best.StartLine && s.StartCol > best.StartCol) {
+			best, found = s, true
+		}
+	}
+	return best.ID, found
+}
+
+// fileLocalPrivate are the languages in which a definition the parser read as
+// private is private to its FILE: a C `static` function has internal linkage
+// (its own translation unit), and a Clojure `defn-` is reachable from its own
+// namespace, which is a file. A name another file's `extern` declaration or
+// `:refer` writes is a different definition, or none; no call reaches it.
+var fileLocalPrivate = map[string]bool{"c": true, "clojure": true}
+
+// unreachablePrivate reports whether a call in file `from` cannot reach the
+// candidate because it is private to another file. A definition in a header
+// is the exception: `static inline` in a header is each includer's own copy,
+// and the include tiers decide which header a call sees.
+func unreachablePrivate(c registry.SymbolIndexEntry, from string) bool {
+	if !c.Private || c.FilePath == from || !fileLocalPrivate[c.Language] {
+		return false
+	}
+	switch strings.ToLower(path.Ext(c.FilePath)) {
+	case ".h", ".hh", ".hpp", ".hxx", ".inc", ".inl":
+		return false
+	}
+	return true
 }
 
 // callerOf is the symbol an edge written at line starts from: the innermost
