@@ -448,8 +448,8 @@ func prepareWriterStmts(ctx context.Context, tx *sql.Tx) (*writerStmts, error) {
 	if err := prep(&st.ref, `
 		INSERT INTO symbol_references
 			(index_run_id, file_id, name, kind, receiver, receiver_kind, start_line, start_col, arg_count,
-			 value_line, value_col, resolution)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?, 'pending')`); err != nil {
+			 value_line, value_col, reassigns, resolution)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?, 'pending')`); err != nil {
 		return nil, err
 	}
 	if err := prep(&st.imp, `

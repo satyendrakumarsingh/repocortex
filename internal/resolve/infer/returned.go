@@ -63,6 +63,9 @@ func (r *Resolver) callReturned(c call, stats *Stats) (decision, bool) {
 	if !ok {
 		return decision{}, false
 	}
+	if !c.reassignmentsKeepType(t) {
+		return decision{}, false
+	}
 	d, ok := c.bindMember(t, ruleReturnedType)
 	if !ok || d.verdict != verdictBound {
 		return decision{}, false
@@ -94,6 +97,34 @@ func (c call) producerOverloadsDisagree(producer candidate) bool {
 		}
 	}
 	return false
+}
+
+// reassignmentsKeepType reports whether every `x = x.f(...)` that assigns the
+// variable back leaves it the type t. The parser keeps the producer of a local
+// that is reassigned only that way (a different producer, a conditional, a
+// loop-carried other variable all withdraw it), and flags those calls; they are
+// the references of this file that name the same producing call. Each must
+// bind to exactly one method f declared on t whose own declared return type is
+// t. A method that returns another type, none the parser could read, or an
+// overload set leaves the variable's type open, and the producer gives nothing.
+func (c call) reassignmentsKeepType(t typeRef) bool {
+	for _, r := range c.fr.Refs {
+		if !r.Reassigns || r.ValueLine != c.ref.ValueLine || r.ValueCol != c.ref.ValueCol {
+			continue
+		}
+		self := c
+		self.ref = r
+		self.cands = c.typesNamed(r.Name)
+		d, ok := self.bindMember(t, ruleReturnedType)
+		if !ok || d.verdict != verdictBound || strings.Contains(d.best.reason, ", overloaded:") {
+			return false
+		}
+		got, ok := c.returnedType(d.best.entry)
+		if !ok || got.fileID != t.fileID || got.qual != t.qual {
+			return false
+		}
+	}
+	return true
 }
 
 // returnedType identifies the type a definition declares it returns, from

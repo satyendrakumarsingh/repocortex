@@ -87,6 +87,12 @@ type callShape struct {
 	// byte of the name of the call whose result initialised that value; 0 when
 	// none. See producerOf.
 	from uint32
+
+	// reassigns is true for a call on a local value that is the whole right
+	// side of an assignment back to that value (`x = x.f(a)`), where the value
+	// still carries the call it was initialised from (from != 0). The resolver
+	// keeps that producer only if f returns the type the producer's result has.
+	reassigns bool
 }
 
 // shapeFacts is everything the walk reports about one file.
@@ -174,6 +180,11 @@ type shWalker struct {
 
 	// callStarts holds callEnds' keys in order.
 	callStarts []uint32
+
+	// selfCalls holds the name start of each call that is the whole right side
+	// of an assignment back to the variable it is called on: `x = x.f(a)`.
+	// See reassigned.
+	selfCalls map[uint32]struct{}
 }
 
 type shFlags uint8
@@ -268,6 +279,11 @@ func (p *genericParser) analyzeShapes(tree *ts.Tree, src []byte, tags []ts.Tag) 
 			facts.calls[at] = w.typedShape(facts.calls[at], w.scopeOf(at), tag.Name)
 			if facts.calls[at].from != 0 {
 				facts.producers = true
+				if _, self := w.selfCalls[at]; self {
+					sh := facts.calls[at]
+					sh.reassigns = true
+					facts.calls[at] = sh
+				}
 			}
 			if shadowLanguages[p.entry.Name] && facts.calls[at].kind == model.ReceiverBare &&
 				shadowedByLocal(p.entry.Name, tree.RootNode(), p.lang, src, at, tag.NameRange.EndByte, tag.Name) {
@@ -1214,6 +1230,15 @@ func (w *shWalker) reassigned(n *ts.Node, scope int) {
 	if !isIdentifier(name) {
 		return
 	}
+	if at, ok := w.selfCall(n, target, name); ok {
+		// `x = x.f(a)`: whether the producer survives depends on what f
+		// returns, which the resolver knows and this walk does not.
+		if w.selfCalls == nil {
+			w.selfCalls = make(map[uint32]struct{}, 4)
+		}
+		w.selfCalls[at] = struct{}{}
+		return
+	}
 	for s := scope; s >= 0; s = w.scopes[s].parent {
 		sc := &w.scopes[s]
 		if sc.kind == shClass && !implicitThisLanguages[w.language] {
@@ -1227,6 +1252,46 @@ func (w *shWalker) reassigned(n *ts.Node, scope int) {
 			return
 		}
 	}
+}
+
+// selfCall reports whether the assignment is `name = name.f(args)` with
+// nothing else on the right: a plain `=`, and a right side that is one call
+// whose receiver is the variable itself (optionally unwrapped by `try`,
+// `await`, `?.` or `!.`). It returns the start byte of f's name. A chain
+// (`name.a.f()`, `name.f().g()`), another variable, a conditional, an
+// operator-assignment or a call that is not the whole right side is not one.
+func (w *shWalker) selfCall(n, target *ts.Node, name string) (uint32, bool) {
+	switch n.Type(w.lang) {
+	case "assignment_expression", "assignment":
+	default:
+		return 0, false
+	}
+	rhs := w.valueOf(n)
+	if rhs == nil {
+		rhs = w.field(n, "result")
+	}
+	if rhs == nil || rhs.StartByte() < target.EndByte() || int(rhs.StartByte()) > len(w.src) {
+		return 0, false
+	}
+	if strings.TrimSpace(string(w.src[target.EndByte():rhs.StartByte()])) != "=" {
+		return 0, false
+	}
+	at := w.producerOf(rhs)
+	if at == 0 || at < rhs.StartByte() {
+		return 0, false
+	}
+	pre := strings.TrimSpace(string(w.src[rhs.StartByte():at]))
+	for _, kw := range []string{"try?", "try!", "try", "await"} {
+		if rest, ok := strings.CutPrefix(pre, kw); ok && strings.HasPrefix(rest, " ") {
+			pre = strings.TrimSpace(rest)
+		}
+	}
+	for _, sep := range []string{".", "?.", "!."} {
+		if pre == name+sep {
+			return at, true
+		}
+	}
+	return 0, false
 }
 
 func (w *shWalker) hasAccessModifier(n *ts.Node) bool {
