@@ -163,6 +163,11 @@ type Result struct {
 	// one-line doc comment in Groovy. Zero for every other file.
 	ConstructsMasked int
 
+	// RecoveredByShape is how many definitions were read by line shape from
+	// text the grammar left in ERROR nodes (see fallback.go). Each is a
+	// symbol of confidence medium. Zero for every file the grammar read.
+	RecoveredByShape int
+
 	// Err explains a status other than ok. Its text starts with Reason, so it
 	// can be stored as files.parse_error unchanged. It is diagnostic text for
 	// the file's record, never a reason to abort the indexing run.

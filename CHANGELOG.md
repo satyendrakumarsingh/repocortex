@@ -11,6 +11,9 @@ from an actual run.
 
 ## [Unreleased]
 
+- **Resolution is the same on every run.** When a definition is declared in more than one file (an Objective-C method in `Item.h` and `Item.m`, a C function in a header and a source file), the resolver chose between them by symbol id. Files are indexed in parallel, so the ids, and with them the target of every call to such a method, changed from run to run (`TestObjCResolution` failed about one run in six). The choice is now ordered by file path, and by position within a file.
+- **Definitions are recovered from the unreadable parts of Perl and Swift files.** Where the grammar gives up (an ERROR region), lines shaped like a definition (`sub name {`, `func name(`, `class Name`) are read as one, at `medium` confidence, and the file's parse note says how many. Measured on about 4,900 files already on this machine: only Perl (34 subs in 105 files) and Swift interface files (2,407 declarations) lose definitions this way, with no spurious ones. Every other language measured loses none, so the pass is off for them. Comments, strings, POD and forward declarations are never read as definitions.
+
 - **A local assigned from a call takes the type that call returns.** `order = repo.find(id); order.save()` stated nothing about `order`, so `save` bound by name alone, at `medium` or `low`, or not at all. When the bound function declares a plain return type, the resolver now looks `save` up on that type.
   - **Confidence:** the edge is never stronger than the weaker of the two bindings it rests on, and never `exact`.
   - **Stated types win:** a stated or constructed type always takes precedence.

@@ -604,6 +604,13 @@ func (p *genericParser) Parse(ctx context.Context, path string, src []byte) (*Re
 		res.Err = errors.New(strings.TrimPrefix(res.maskNote(), "; "))
 	}
 
+	// Definitions in what is still ERROR after any mask, read by line shape;
+	// see fallback.go. The candidates are checked against the symbols below.
+	var shapeCands []shapeCandidate
+	if res.Reason == model.ParseReasonSyntaxErrors {
+		shapeCands = by.lineShapeCandidates(tree, src)
+	}
+
 	// Drop the tree as soon as the last consumer is done with it.
 	//
 	// A tree-sitter tree is one to two orders of magnitude larger than its
@@ -796,6 +803,12 @@ func (p *genericParser) Parse(ctx context.Context, path string, src []byte) (*Re
 
 	res.References = append(res.References, delegations...)
 	res.Symbols = mergeClauses(dedupeSymbols(res.Symbols), clauseKeys)
+	if len(shapeCands) > 0 {
+		res.Symbols, res.RecoveredByShape = addRecovered(res.Symbols, shapeCands, src)
+		if res.RecoveredByShape > 0 && res.Err != nil {
+			res.Err = errors.New(res.Err.Error() + recoveredNote(res.RecoveredByShape))
+		}
+	}
 
 	// The status was decided by describeParse and is NOT revisited here.
 	// "Parsed cleanly and declared nothing" is a complete, correct reading of
