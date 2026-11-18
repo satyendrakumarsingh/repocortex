@@ -14,6 +14,7 @@ import (
 	"github.com/satyendrakumarsingh/repocortex/internal/capability"
 	devctx "github.com/satyendrakumarsingh/repocortex/internal/context"
 	"github.com/satyendrakumarsingh/repocortex/internal/graph"
+	devmcp "github.com/satyendrakumarsingh/repocortex/internal/mcp"
 	"github.com/satyendrakumarsingh/repocortex/internal/registry"
 	"github.com/satyendrakumarsingh/repocortex/internal/store"
 	"github.com/satyendrakumarsingh/repocortex/pkg/model"
@@ -338,9 +339,21 @@ This searches TEXT. To find a definition by name, use 'repocortex symbol'.`,
 			}
 			defer s.close()
 
-			matches, err := s.reg.SearchFiles(ctx, query, limit)
+			// The same query building as the search_code tool: what was typed
+			// is searched as words, never handed to the FTS5 parser raw.
+			match, rewritten := devmcp.FTSQuery(query)
+			if match == "" {
+				return fmt.Errorf("%w: nothing to search for in %q: it holds no letter or digit", errInvalidArgument, query)
+			}
+			matches, err := s.reg.SearchFiles(ctx, match, limit)
 			if err != nil {
 				return fmt.Errorf("search: %w", err)
+			}
+			if matches == nil {
+				matches = []registry.FileMatch{}
+			}
+			if len(rewritten) > 0 && !g.JSON {
+				g.Log().Info("searched as adjacent words", "words", strings.Join(rewritten, ", "))
 			}
 
 			if g.JSON {
@@ -405,6 +418,9 @@ compiler-proven definition is distinguishable from a parsed one.`,
 				return fmt.Errorf("symbol lookup: %w", err)
 			}
 
+			if syms == nil {
+				syms = []registry.SymbolHit{}
+			}
 			if g.JSON {
 				return emitJSON(cmd.OutOrStdout(), map[string]any{
 					"name": name, "kind": kind, "index_revision": s.runID, "symbols": syms,

@@ -122,6 +122,13 @@ func AnalyzePatch(
 		}
 	}
 
+	var oldLines []string
+	if existingFileID >= 0 {
+		if old, err := reg.FileContent(ctx, runID, normPath); err == nil {
+			oldLines = strings.Split(old, "\n")
+		}
+	}
+
 	var diffs []SymbolDiff
 	var impactedCallers []CallerImpact
 	visitedCallers := make(map[string]bool)
@@ -168,6 +175,12 @@ func AnalyzePatch(
 				newSig = newSignatures[newSym.FQN]
 			}
 			oldSig := oldSym.Signature
+			if oldSig == "" {
+				// Most parsers store no signature. Read the declaration
+				// the same way the new content's is read, from the
+				// indexed text, so the two lines can be compared.
+				oldSig = extractDeclarationSignature(oldLines, oldSym.Range)
+			}
 			modified, reason := isSignatureModified(oldSym, newSym, oldSig, newSig)
 			if modified {
 				diffs = append(diffs, SymbolDiff{
@@ -268,7 +281,7 @@ func isSignatureModified(oldSym, newSym model.Symbol, oldSig, newSig string) (bo
 	if oldSym.ParamCount.Known() && newSym.ParamCount.Known() && oldSym.ParamCount != newSym.ParamCount {
 		return true, fmt.Sprintf("parameter count changed from %d to %d", oldSym.ParamCount.Count(), newSym.ParamCount.Count())
 	}
-	if oldSig != "" && newSig != "" && oldSig != newSig {
+	if oldSig != "" && newSig != "" && strings.Join(strings.Fields(oldSig), " ") != strings.Join(strings.Fields(newSig), " ") {
 		return true, fmt.Sprintf("signature changed from %q to %q", oldSig, newSig)
 	}
 	return false, ""

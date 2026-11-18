@@ -425,6 +425,27 @@ func (p *genericParser) DrainPool() {
 
 func (p *genericParser) Language() string { return p.entry.Name }
 
+// normalizeLoneCR turns a carriage return that is not part of "\r\n" into a
+// line feed, byte for byte, so a classic-Mac file reads as lines to a grammar
+// that only knows "\n" and "\r\n". Same length, so every offset and range
+// stays valid. The input is copied only when there is something to change.
+func normalizeLoneCR(src []byte) []byte {
+	var out []byte
+	for i, c := range src {
+		if c != '\r' || (i+1 < len(src) && src[i+1] == '\n') {
+			continue
+		}
+		if out == nil {
+			out = append([]byte(nil), src...)
+		}
+		out[i] = '\n'
+	}
+	if out == nil {
+		return src
+	}
+	return out
+}
+
 func (p *genericParser) Parse(ctx context.Context, path string, src []byte) (*Result, error) {
 	res := &Result{Language: p.entry.Name, Status: StatusOK}
 
@@ -438,6 +459,7 @@ func (p *genericParser) Parse(ctx context.Context, path string, src []byte) (*Re
 		skip(res, model.ParseReasonTooLarge, tooLargeDetail(int64(len(src)), int64(limit)))
 		return res, nil
 	}
+	src = normalizeLoneCR(src)
 	if norm := sourceNormalizers[p.entry.Name]; norm != nil {
 		// A same-length rewrite of text the grammar cannot read, made before
 		// the first parse; see mask_fsharp.go.

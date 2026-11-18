@@ -510,6 +510,22 @@ func (s *Server) disambiguate(ctx context.Context, req *sdk.CallToolRequest, run
 	q symbolQuery, reason string, cands []registry.SymbolCandidate, total int) (*sdk.CallToolResult, *Response) {
 	name := strings.TrimSpace(q.Name)
 
+	// One definition exists and the selector missed it: that is not an
+	// ambiguity, there is nothing to choose between. Say where it is.
+	if reason != "" && total == 1 && len(cands) == 1 {
+		c := cands[0]
+		resp := &Response{
+			IndexRevision: runID,
+			IndexStatus:   status,
+			Outcome:       outcomeNoSuchKind,
+			Summary: fmt.Sprintf("%s — %s, so %s answered for nothing. The only definition of %q is a %s at %s:%d%s; "+
+				"pass that %s and %s, or leave them out.",
+				leadUnknown, reason, q.Tool, name, c.Kind, c.FilePath, c.StartLine, inOwner(c), q.PathParam, q.LineParam),
+		}
+		sc, r, _ := s.reply(ctx, req, resp)
+		return sc, r
+	}
+
 	// matched is how many definitions the caller's own selectors left. With no
 	// selector it is every definition of the name, which is the counted total
 	// and not the number of rows read.

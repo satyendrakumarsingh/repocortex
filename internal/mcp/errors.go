@@ -84,7 +84,8 @@ func hintForKind(k errs.Kind) (code string, hint string) {
 // once. Returning the error here instead of the result has already been shipped
 // once as a Critical bug. Do not "fix" it.
 func failWith(code, hint, format string, args ...any) (*sdk.CallToolResult, *Response, error) {
-	msg := fmt.Sprintf(format, args...)
+	msg := clipEchoed(fmt.Sprintf(format, args...))
+	hint = clipEchoed(hint)
 	var b strings.Builder
 	b.WriteString("=== " + sectionMetadata + " ===\n")
 	b.WriteString("error_code: " + code + "\n")
@@ -102,4 +103,48 @@ func failWith(code, hint, format string, args ...any) (*sdk.CallToolResult, *Res
 func failFrom(err error, format string, args ...any) (*sdk.CallToolResult, *Response, error) {
 	code, hint := hintForKind(errs.KindOf(err))
 	return failWith(code, hint, format, args...)
+}
+
+// maxEchoedToken is the longest unbroken run of text an answer repeats back.
+const maxEchoedToken = 200
+
+// clipEchoed shortens any whitespace-free run longer than maxEchoedToken to its
+// first maxEchoedToken bytes and an ellipsis. A caller's input is quoted back
+// in messages ("no symbol named ..."), and a 10 MB name came straight back as
+// a 10 MB answer. Words and sentences are untouched; only a single token that
+// long is cut.
+func clipEchoed(s string) string {
+	if len(s) <= maxEchoedToken {
+		return s
+	}
+	var out strings.Builder
+	start := -1
+	flush := func(end int) {
+		if start < 0 {
+			return
+		}
+		tok := s[start:end]
+		if len(tok) > maxEchoedToken {
+			cut := maxEchoedToken
+			for cut > 0 && !utf8Start(tok[cut]) {
+				cut--
+			}
+			tok = tok[:cut] + "…"
+		}
+		out.WriteString(tok)
+		start = -1
+	}
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c == ' ' || c == '\n' || c == '\t' || c == '\r' {
+			flush(i)
+			out.WriteByte(c)
+			continue
+		}
+		if start < 0 {
+			start = i
+		}
+	}
+	flush(len(s))
+	return out.String()
 }

@@ -56,7 +56,10 @@ func hookBody(binary string, hookName ...string) string {
 	} else {
 		b.WriteString("if command -v " + shellQuote(binary) + " >/dev/null 2>&1; then\n")
 	}
-	b.WriteString("  (" + shellQuote(binary) + " auto-index >/dev/null 2>&1) &\n")
+	// The work tree whose commit ran this hook, asked of Git rather than taken
+	// from where the hook file lives: hooks are shared by every linked
+	// worktree of a repository, so the file's location names none of them.
+	b.WriteString("  (" + shellQuote(binary) + ` --project "$(git rev-parse --show-toplevel 2>/dev/null)" auto-index >/dev/null 2>&1) &` + "\n")
 	b.WriteString("fi\n")
 	b.WriteString(hookEnd + "\n")
 	return b.String()
@@ -219,33 +222,52 @@ type HooksReport struct {
 // otherwise get a file Git never runs — installed, reported as working, and
 // silently inert.
 func hooksDir(root string) (string, error) {
+	// Git itself answers where hooks live: --git-path hooks honours
+	// core.hooksPath, and in a linked worktree it names the main repository's
+	// hooks directory, which is the one Git reads. The worktree's own
+	// .git/worktrees/<name>/hooks is never consulted.
 	//nolint:gosec // G702: an argument vector, not a shell line; root is the project directory, passed as one argument
-	if out, err := exec.Command("git", "-C", root, "config", "--get", "core.hooksPath").Output(); err == nil {
+	if out, err := exec.Command("git", "-C", root, "rev-parse", "--git-path", "hooks").Output(); err == nil {
 		if p := strings.TrimSpace(string(out)); p != "" {
 			if filepath.IsAbs(p) {
-				return p, nil
+				return filepath.Clean(p), nil
 			}
+			// A relative answer is relative to the directory git ran in.
 			return filepath.Join(root, p), nil
 		}
 	}
+	return hooksDirFromFiles(root)
+}
+
+// hooksDirFromFiles is the answer when the git binary cannot be asked: it
+// reads core.hooksPath and the .git entry directly.
+func hooksDirFromFiles(root string) (string, error) {
 	gitDir := filepath.Join(root, ".git")
 	info, err := os.Stat(gitDir)
 	if err != nil {
 		return "", fmt.Errorf("hooks: %s is not a Git repository: %w", root, err)
 	}
 	if !info.IsDir() {
-		// A worktree or submodule: .git is a file pointing at the real dir.
+		// A linked worktree: .git is a file naming the worktree's own git
+		// directory, whose commondir file points at the shared one that
+		// holds the hooks.
 		data, readErr := os.ReadFile(gitDir)
 		if readErr != nil {
 			return "", fmt.Errorf("hooks: read %s: %w", gitDir, readErr)
 		}
-		line := strings.TrimSpace(string(data))
-		p := strings.TrimSpace(strings.TrimPrefix(line, "gitdir:"))
+		p := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(string(data)), "gitdir:"))
 		if p == "" {
 			return "", fmt.Errorf("hooks: %s does not name a git directory", gitDir)
 		}
 		if !filepath.IsAbs(p) {
 			p = filepath.Join(root, p)
+		}
+		if cd, err := os.ReadFile(filepath.Join(p, "commondir")); err == nil { //nolint:gosec // G304: a path read from the repository's own .git file
+			c := strings.TrimSpace(string(cd))
+			if !filepath.IsAbs(c) {
+				c = filepath.Join(p, c)
+			}
+			p = filepath.Clean(c)
 		}
 		return filepath.Join(p, "hooks"), nil
 	}

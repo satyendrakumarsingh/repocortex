@@ -196,11 +196,56 @@ func checkSelect(raw string) (string, error) {
 	if strings.Contains(stripSQLStrings(q), ";") {
 		return "", errors.New("only one statement is accepted; remove the ';'")
 	}
-	first := strings.ToUpper(strings.Fields(q)[0])
+	// The statement's own first word, past any leading comments: a comment is
+	// not the statement, and naming it in the message (upper-cased, as it
+	// used to be) described something the user never wrote.
+	body := strings.TrimSpace(skipLeadingSQLComments(q))
+	if body == "" {
+		return "", errors.New("the query holds only comments; write a SELECT")
+	}
+	words := strings.Fields(body)
+	first := strings.ToUpper(words[0])
 	if first != "SELECT" && first != "WITH" {
-		return "", fmt.Errorf("only SELECT (or WITH ... SELECT) is accepted, not %s; the index is read-only", first)
+		return "", fmt.Errorf("only SELECT (or WITH ... SELECT) is accepted, not %s; the index is read-only", sqlKeywordForMessage(words[0]))
+	}
+	if len(words) == 1 {
+		return "", fmt.Errorf("%s has nothing after it; say what to select, for example: SELECT name, kind FROM symbols", first)
 	}
 	return q, nil
+}
+
+// skipLeadingSQLComments drops /* ... */ and -- comments from the front.
+func skipLeadingSQLComments(q string) string {
+	for {
+		q = strings.TrimSpace(q)
+		switch {
+		case strings.HasPrefix(q, "--"):
+			i := strings.IndexByte(q, '\n')
+			if i < 0 {
+				return ""
+			}
+			q = q[i+1:]
+		case strings.HasPrefix(q, "/*"):
+			i := strings.Index(q[2:], "*/")
+			if i < 0 {
+				return ""
+			}
+			q = q[2+i+2:]
+		default:
+			return q
+		}
+	}
+}
+
+// sqlKeywordForMessage upper-cases a word that is a plain keyword and leaves
+// anything else exactly as the user wrote it.
+func sqlKeywordForMessage(w string) string {
+	for _, r := range w {
+		if (r < 'a' || r > 'z') && (r < 'A' || r > 'Z') {
+			return w
+		}
+	}
+	return strings.ToUpper(w)
 }
 
 // stripSQLStrings blanks out quoted text, so a ';' inside a string literal is
