@@ -230,7 +230,17 @@ func RunCompilerIndexers(ctx context.Context, reg *registry.Registry, runID int6
 		default:
 			cs.Version = s.Installed.Version
 			if cs.Version == "" {
-				cs.Version = s.Pin.Version
+				// The version probe failed (it has a timeout, and a loaded
+				// machine can miss it). Falling back to the pin made the key
+				// differ from the run whose probe answered, so a valid cached
+				// index was thrown away and the indexer ran again for minutes.
+				// The same binary reports the same version: take the one
+				// recorded beside the index when the binary is unchanged.
+				if v, ok := recordedToolVersion(dir, s.Project, toolFingerprint(s.Installed)); ok {
+					cs.Version = v
+				} else {
+					cs.Version = s.Pin.Version
+				}
 			}
 			cs.Output = filepath.ToSlash(filepath.Join(CompilerIndexDir, slugOf(s.Project)+".scip"))
 			key := cacheKey(opts.Root, s, cs.Version, plan.Runner, files)
@@ -241,7 +251,7 @@ func RunCompilerIndexers(ctx context.Context, reg *registry.Registry, runID int6
 				// what the index was built from, so today's hashes are the
 				// index's hashes (see RestoreCompilerProof).
 				if !sidecarHasHashes(dir, s.Project) {
-					if werr := writeCacheKey(dir, s.Project, key, files); werr != nil && opts.Logger != nil {
+					if werr := writeCacheKey(dir, s.Project, key, files, cs.Version, toolFingerprint(s.Installed)); werr != nil && opts.Logger != nil {
 						opts.Logger.Warn("could not record file hashes beside the cached index", "dir", dir, "error", werr)
 					}
 				}
@@ -309,7 +319,7 @@ func RunCompilerIndexers(ctx context.Context, reg *registry.Registry, runID int6
 			id := projectID(p.step.Project)
 			if e, ok := byKey[id]; ok {
 				cs.Ran, cs.RunTime = true, e.Duration
-				if werr := writeCacheKey(dir, p.step.Project, p.key, files); werr != nil && opts.Logger != nil {
+				if werr := writeCacheKey(dir, p.step.Project, p.key, files, cs.Version, toolFingerprint(p.step.Installed)); werr != nil && opts.Logger != nil {
 					opts.Logger.Warn("could not record the indexer cache key", "dir", dir, "error", werr)
 				}
 				continue
@@ -695,6 +705,42 @@ type cacheSidecar struct {
 	Language string            `json:"language,omitempty"`
 	Dir      string            `json:"dir,omitempty"`
 	Files    map[string]string `json:"files,omitempty"`
+	// ToolVersion is the version the indexer reported when the index was
+	// written, and ToolBinary the fingerprint of the binary that reported it
+	// (toolFingerprint). Together they let a later run whose version probe
+	// timed out key the index as the same tool did.
+	ToolVersion string `json:"tool_version,omitempty"`
+	ToolBinary  string `json:"tool_binary,omitempty"`
+}
+
+// toolFingerprint identifies an installed indexer without running it: its
+// path, size and modification time, or its container image. "" when there is
+// nothing to identify it by.
+func toolFingerprint(inst indexer.Installed) string {
+	if inst.Path != "" {
+		fi, err := os.Stat(inst.Path)
+		if err != nil {
+			return ""
+		}
+		return fmt.Sprintf("%s|%d|%d", inst.Path, fi.Size(), fi.ModTime().UnixNano())
+	}
+	if inst.Image != "" {
+		return "image|" + inst.Image
+	}
+	return ""
+}
+
+// recordedToolVersion is the version recorded beside a project's cached index
+// when it was written by the binary fingerprint names.
+func recordedToolVersion(dir string, p indexer.Project, fingerprint string) (string, bool) {
+	if fingerprint == "" {
+		return "", false
+	}
+	sc, ok := readSidecar(sidecarPath(dir, p))
+	if !ok || sc.ToolBinary != fingerprint || sc.ToolVersion == "" {
+		return "", false
+	}
+	return sc.ToolVersion, true
 }
 
 func sidecarPath(dir string, p indexer.Project) string {
@@ -751,14 +797,15 @@ func projectFileHashes(p indexer.Project, files []model.File) map[string]string 
 	return out
 }
 
-func writeCacheKey(dir string, p indexer.Project, key string, files []model.File) error {
+func writeCacheKey(dir string, p indexer.Project, key string, files []model.File, toolVersion, toolBinary string) error {
 	fi, err := os.Stat(indexPath(dir, p))
 	if err != nil {
 		return err
 	}
 	raw, err := json.Marshal(cacheSidecar{
 		Key: key, Size: fi.Size(), Language: string(p.Language), Dir: p.Dir,
-		Files: projectFileHashes(p, files),
+		Files:       projectFileHashes(p, files),
+		ToolVersion: toolVersion, ToolBinary: toolBinary,
 	})
 	if err != nil {
 		return err
