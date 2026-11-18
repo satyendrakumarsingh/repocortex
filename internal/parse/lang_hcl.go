@@ -1,8 +1,11 @@
 package parse
 
 import (
+	"path"
 	"regexp"
 	"strings"
+
+	ts "github.com/odvcencio/gotreesitter"
 )
 
 // HCL (Terraform, OpenTofu, Packer, Terragrunt, Nomad). What the index holds,
@@ -40,9 +43,152 @@ import (
 // correction registered below receives the text of the block, reads its header
 // (or the `name =` of a locals entry) and builds the name.
 func init() {
-	registerDefinitions("hcl", hclDefinitions, true)
+	registerDefinitions("hcl", hclDefinitions+"\n"+hclReferences, true)
 	registerNameFix("hcl", hclName)
+	tagAdjusters["hcl"] = hclReferenceNames
+	registerImportFix("hcl", hclImport)
 }
+
+// # References between the blocks of a Terraform module
+//
+// A Terraform module is a directory: every `.tf` file in it shares one scope, and an
+// expression names what it uses by its address, which is what a definition above is
+// named by. So a reference is the traversal it is written as, under the name it is
+// looked up by:
+//
+//	var.region                   var.region
+//	local.tags                   local.tags
+//	data.aws_ami.ubuntu.id       data.aws_ami.ubuntu
+//	aws_instance.web.id          aws_instance.web
+//	module.net                   module.net
+//	module.net.subnet_id         module.net.subnet_id   (the output of the module the block names)
+//	provider = aws.west          provider.aws.west
+//	region = "x" in a .tfvars    var.region
+//
+// A first segment that is none of those words and has no underscore (`each`, `count`,
+// `self`, `path`, `terraform`, a `for` variable) is not an address and is not read. A
+// resource type has an underscore (`aws_instance`, `null_resource`) because it begins
+// with its provider's name. What a file reaches through `module.net.x` is found through
+// the `source` of the block `module "net"`, which is read as an import row (hclImport):
+// the repository directory of a local path, or `remote:` and the source of a registry
+// or git module, which is outside the repository.
+//
+// Only Terraform's files are resolved. Packer, Nomad and Terragrunt write `.hcl` files
+// whose traversals mean other things, and the resolver ignores a reference written in
+// one (internal/resolve/infer/hcl.go).
+const hclReferences = `
+(expression (variable_expr (identifier) @_h) . (get_attr (identifier) @name) (#any-of? @_h "var" "local")) @reference.hcl1
+(expression (variable_expr (identifier) @_h) . (get_attr (identifier) @name) (#match? @_h "_")) @reference.hcl1
+(expression (variable_expr (identifier) @_h) . (get_attr (identifier) @name) (#eq? @_h "module")) @reference.hcl1
+(expression (variable_expr (identifier) @_h) . (get_attr) . (get_attr (identifier) @name) (#any-of? @_h "data" "module")) @reference.hcl2
+(attribute . (identifier) @_a . (expression (variable_expr (identifier) @_h) . (get_attr (identifier) @name)) (#eq? @_a "provider")) @reference.hclprovider2
+(attribute . (identifier) @_a . (expression (variable_expr (identifier) @name) .) (#eq? @_a "provider")) @reference.hclprovider1
+(config_file (body (attribute . (identifier) @name) @reference.hcltfvar))
+`
+
+// hclReferenceNames gives each reference tag the address it is looked up by, read
+// back from the source before the captured name.
+func hclReferenceNames(src []byte, tags []ts.Tag) []ts.Tag {
+	out := tags[:0]
+	for _, t := range tags {
+		switch t.Kind {
+		case "reference.hcl1", "reference.hcl2":
+			back := 1
+			if t.Kind == "reference.hcl2" {
+				back = 2
+			}
+			start := int(t.NameRange.StartByte)
+			for i := 0; i < back; i++ {
+				if start < 2 || src[start-1] != '.' {
+					start = -1
+					break
+				}
+				j := start - 1
+				for j > 0 && hclIdentChar(src[j-1]) {
+					j--
+				}
+				start = j
+			}
+			if start < 0 {
+				continue
+			}
+			t.Name = string(src[start:t.NameRange.EndByte])
+			t.NameRange.StartByte = uint32(start)
+		case "reference.hclprovider1":
+			t.Name = "provider." + t.Name
+		case "reference.hclprovider2":
+			t.Name = "provider." + hclWordBefore(src, int(t.NameRange.StartByte)) + "." + t.Name
+		case "reference.hcltfvar":
+			t.Name = "var." + t.Name
+		}
+		out = append(out, t)
+	}
+	return out
+}
+
+func hclIdentChar(b byte) bool {
+	return b == '_' || b == '-' || (b >= '0' && b <= '9') || (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z')
+}
+
+// hclWordBefore is the identifier that ends just before the `.` before pos.
+func hclWordBefore(src []byte, pos int) string {
+	if pos < 2 || src[pos-1] != '.' {
+		return ""
+	}
+	end := pos - 1
+	j := end
+	for j > 0 && hclIdentChar(src[j-1]) {
+		j--
+	}
+	return string(src[j:end])
+}
+
+// hclImport reads a `module` block into a row, `name=source`, with the alias `include`
+// so that the rows of every file of a directory can be read together (the registry
+// keeps them as the file's directives): `module.net.x`, written in any file of the
+// directory, names an output of the module `net`, which only the file that declares
+// the block can say.
+//
+//	module "net" { source = "./modules/net" }      net=modules/net
+//	module "vpc" { source = "terraform-aws-modules/vpc/aws" }
+//	                                               vpc=remote:terraform-aws-modules/vpc/aws
+//
+// The path of a local module is relative to the directory of the file that writes the
+// block and is rewritten to the repository directory, without a trailing slash. A
+// source that is not a path (a registry address, `git::`, `github.com/...`, `s3::`) is
+// kept after `remote:`; a path above the repository's root names nothing in it.
+func hclImport(filePath string, imp Import) []Import {
+	text := imp.Path
+	h := hclHeader.FindStringSubmatch(text)
+	if h == nil || h[1] != "module" {
+		return nil
+	}
+	var name string
+	if l := hclLabel.FindStringSubmatch(h[2]); l != nil {
+		name = l[1]
+		if name == "" {
+			name = strings.Trim(l[0], `"`)
+		}
+	}
+	src := hclSource.FindStringSubmatch(text)
+	if name == "" || src == nil {
+		return nil
+	}
+	source := src[1]
+	imp.Alias = ModuleInclude
+	if strings.HasPrefix(source, "./") || strings.HasPrefix(source, "../") || source == "." || source == ".." {
+		dir := path.Join(path.Dir(filePath), source)
+		if strings.HasPrefix(dir, "..") {
+			return nil
+		}
+		imp.Path = name + "=" + dir
+		return []Import{imp}
+	}
+	imp.Path = name + "=remote:" + source
+	return []Import{imp}
+}
+
+var hclSource = regexp.MustCompile(`(?m)^\s*source\s*=\s*"([^"]*)"`)
 
 // hclLabelled is a top-level block with at least one label. HEAD stands for
 // the predicate that selects the block by its keyword.

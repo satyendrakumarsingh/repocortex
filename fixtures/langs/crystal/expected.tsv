@@ -1,0 +1,33 @@
+# Crystal. A class, struct and enum are class, a module is package (named by the last segment of
+# `Shop::Util`), `alias X = T` is type_alias, a constant is constant. A `def` is a method in the body of
+# a class, struct, module or enum (`def self.f` too, an operator by its symbol) and a function elsewhere;
+# `abstract def` is a method. `@x : T` in a class body is a field.
+# Not definitions: `getter`, `property` and `setter` calls, an instance variable assigned without a type,
+# locals, parameters, enum members, require, include.
+sample.cr	4	constant	MAX
+sample.cr	5	type_alias	Id
+sample.cr	7	package	Util
+sample.cr	8	constant	VERSION
+sample.cr	10	method	slug
+sample.cr	14	method	pad
+sample.cr	19	class	Base
+sample.cr	20	method	area
+sample.cr	22	method	name
+sample.cr	27	class	Cart
+sample.cr	30	constant	LIMIT
+sample.cr	32	field	@items
+sample.cr	35	method	initialize
+sample.cr	38	method	total
+sample.cr	43	method	build
+sample.cr	47	method	inner
+sample.cr	50	method	helper
+sample.cr	54	method	==
+sample.cr	58	method	empty?
+sample.cr	62	class	Kind
+sample.cr	66	method	small?
+sample.cr	72	class	Point
+sample.cr	73	method	initialize
+sample.cr	76	method	sum
+sample.cr	81	class	Color
+sample.cr	86	function	top_level
+sample.cr	90	function	hidden

@@ -1374,6 +1374,77 @@ func NewSpecs() *Specs {
 	fortran.ProximityIsEvidence = false
 	fortran.MemberSeparators = sepDefault
 	add(fortran)
+	// HCL. A Terraform module is a directory: every `.tf` file in it shares one scope, and
+	// a reference reaches a block by its address in any of them (hcl.go), so the directory
+	// is the package. A `.tftest.hcl` file and the test/ and tests/ directories are Terraform's
+	// own tests.
+	hcl := scopeSpec("hcl", []string{"hcl"}, TestFiles{
+		Suffixes: []string{".tftest.hcl"},
+		Dirs:     []string{"test", "tests"},
+	})
+	hcl.PackageIsDirectory = true
+	hcl.ProximityIsEvidence = false
+	hcl.MemberSeparators = sepDefault
+	add(hcl)
+	// GDScript. A script is a class, reached by the class_name it declares, by the path
+	// a preload or an extends writes, and by nothing else: a neighbour is no more in
+	// scope than any other script (ProximityIsEvidence off), and what a name reaches is
+	// gdscript.go's. GUT tests are `test_*.gd` files under test/ or tests/.
+	gdscript := scopeSpec("gdscript", []string{"gdscript"}, TestFiles{
+		Prefixes: []string{"test_"},
+		Suffixes: []string{"_test.gd"},
+		Dirs:     []string{"test", "tests"},
+	})
+	gdscript.ProximityIsEvidence = false
+	gdscript.MemberSeparators = sepDefault
+	add(gdscript)
+	// Crystal. A program is the files its entry point requires, compiled as one: types
+	// and modules are open and global by name, so a neighbour is no more in scope than
+	// any file the program requires (ProximityIsEvidence off, as for Ruby). Specs are
+	// `spec/**/*_spec.cr`.
+	crystal := scopeSpec("crystal", []string{"crystal"}, TestFiles{
+		Suffixes: []string{"_spec.cr"},
+		Dirs:     []string{"spec"},
+	})
+	crystal.ProximityIsEvidence = false
+	add(crystal)
+	// Nim. A module is a file, reached by `import a/b` and nothing else, and only the
+	// names it exports (`proc f*()`) are visible to its importers. A neighbour is no
+	// more in scope than any other file (ProximityIsEvidence off), and what a name
+	// reaches is filemodules.go's. Testament's tests are `t*.nim` under `tests/`, and
+	// unittest's `test_*.nim` and `*_test.nim`.
+	nim := scopeSpec("nim", []string{"nim"}, TestFiles{
+		Suffixes: []string{"_test.nim", "_tests.nim"},
+		Prefixes: []string{"test_"},
+		Dirs:     []string{"tests", "test"},
+	})
+	nim.ProximityIsEvidence = false
+	nim.MemberSeparators = sepDefault
+	add(nim)
+	// D. A module is a file, reached by `import a.b;`, and what a name reaches is
+	// what the file declares, what its class declares or what an import brings in
+	// (filemodules.go): a neighbour is no more in scope than any other file. Tests
+	// are `unittest {}` blocks in ordinary files, which a file convention cannot see;
+	// the `test/` and `tests/` directories and `*_test.d` files are what is claimed.
+	dlang := scopeSpec("d", []string{"d"}, TestFiles{
+		Suffixes: []string{"_test.d", "_tests.d", "_unittest.d"},
+		Dirs:     []string{"tests", "test", "unittest"},
+	})
+	dlang.ProximityIsEvidence = false
+	dlang.MemberSeparators = sepDefault
+	add(dlang)
+	// ReScript. A file Foo.res is the module Foo, global to the project: no import is
+	// needed to write `Foo.f()`, and a neighbour is no more in scope than any other
+	// file (ProximityIsEvidence off). What a bare name reaches is the file's own
+	// definitions or what an `open` brings in, which is modules.go's. Tests are
+	// `*_test.res` and `*Test.res` files and the `__tests__/` directory.
+	rescript := scopeSpec("rescript", []string{"rescript"}, TestFiles{
+		Suffixes: []string{"_test.res", "test.res", "_spec.res", "_test.resi"},
+		Dirs:     []string{"__tests__", "test", "tests"},
+	})
+	rescript.ProximityIsEvidence = false
+	rescript.MemberSeparators = sepDefault
+	add(rescript)
 
 	// --- C# ------------------------------------------------------------------
 	//

@@ -199,6 +199,15 @@ func (r *Resolver) resolveCall(c call, stats *Stats) decision {
 		return r.callMacro(c)
 	}
 	c.cands = withoutMacros(c.cands)
+	if c.spec.Name == "gdscript" {
+		// A script is a class reached by class_name, preload or extends: gdscript.go.
+		return r.callGDScript(c, stats)
+	}
+	if fileModuleLanguages[c.spec.Name] {
+		// Nim and D reach a name through the module (a file) that declares it: see
+		// filemodules.go. Their constructions, which are asked before the rest, are too.
+		return r.callFileModule(c, stats)
+	}
 	if isConstruction(c.ref.Kind) {
 		return r.callNew(c, stats)
 	}

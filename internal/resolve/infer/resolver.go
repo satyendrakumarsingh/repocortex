@@ -201,6 +201,15 @@ type Resolver struct {
 	reexportGraph  *reexportGraph
 	reexportLoaded bool
 
+	// reachGraphs is the same, per language, for the module languages whose
+	// imports are directives (Nim's `export`, D's `public import`); see filemodules.go.
+	reachGraphs map[string]*reexportGraph
+	reachMemo   map[string][]string
+
+	// hclModules are the module blocks of each Terraform directory, by name, built
+	// from the rows of its files on first use. See hcl.go.
+	hclModules map[string]map[string]string
+
 	// guide is the candidate source's guided port, nil when it has none; gfiles
 	// is the run's file index built from it on first use. See guided.go.
 	guide  GuidedCandidates
@@ -452,6 +461,11 @@ func (r *Resolver) ResolveFile(
 	fileImports := fr.Imports
 	if spec.ReExports {
 		fileImports = r.reexports(ctx, spec, fileImports)
+	}
+	if fileModuleLanguages[spec.Name] || spec.Name == "gdscript" || spec.Name == "hcl" {
+		// What a module re-exports, a script extends, or a directory's module blocks name
+		// (filemodules.go, gdscript.go, hcl.go).
+		r.loadReach(ctx, spec.Name)
 	}
 	imports := buildImportSet(spec, fileImports)
 	imports.layout = r.layout
@@ -709,6 +723,31 @@ func (r *Resolver) ResolveFile(
 		// bound to nothing.
 		if strings.HasSuffix(ref.Kind, indirectCallSuffix) {
 			unresolved(ref, false)
+			return
+		}
+
+		// A Terraform reference names a block of the module directory, by its address, and
+		// no rule below knows an address: see hcl.go. The `.hcl` files of Packer, Nomad and
+		// Terragrunt are not Terraform's and their traversals are not read.
+		if spec.Name == "hcl" && edgeKind == model.EdgeReferences {
+			if !isTerraformFile(fr.Path) {
+				outcomes = append(outcomes, registry.RefOutcome{RefID: ref.ID, Resolution: registry.ResolutionIgnored})
+				return
+			}
+			d := r.resolveHCL(call{
+				spec: spec, fr: fr, imports: imports, ref: ref, cands: cands, symbols: symbols,
+				typesNamed: typesNamed, facts: facts,
+			})
+			switch {
+			case d.verdict == verdictBound && d.best.confidence.AtLeast(r.opts.MinConfidence):
+				bind(ref, d.best)
+			case d.verdict == verdictExternal:
+				unresolved(ref, true)
+			case d.verdict == verdictUnresolved:
+				unresolved(ref, false)
+			default:
+				ambiguous(ref)
+			}
 			return
 		}
 
@@ -2149,8 +2188,11 @@ func headerOwner(symbols []registry.EnclosingSymbol, line, col int) (int64, bool
 // private is private to its FILE: a C `static` function has internal linkage
 // (its own translation unit), and a Clojure `defn-` is reachable from its own
 // namespace, which is a file. A name another file's `extern` declaration or
-// `:refer` writes is a different definition, or none; no call reaches it.
-var fileLocalPrivate = map[string]bool{"c": true, "clojure": true}
+// `:refer` writes is a different definition, or none; no call reaches it. A Nim
+// name without the export marker and a D name marked `private` belong to their
+// module, which is the file, and a Crystal `private` method or type is the file's
+// (or the type's) own.
+var fileLocalPrivate = map[string]bool{"c": true, "clojure": true, "nim": true, "d": true, "crystal": true}
 
 // unreachablePrivate reports whether a call in file `from` cannot reach the
 // candidate because it is private to another file. A definition in a header

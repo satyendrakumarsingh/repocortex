@@ -20,6 +20,11 @@ import (
 //     of a record's primary parts are not defaulted. `private protected` is
 //     reachable from a derived type and is not private here;
 //   - Clojure: `defn-`, and `^:private` on a definition's name;
+//   - Crystal: the `private` keyword before a def or a type;
+//   - D: the `private` attribute, written on the declaration or as a `private:`
+//     section before it (a private name is the module's own, which is the file);
+//   - Nim: a name written without the export marker (`proc f()`, not `proc f*()`),
+//     which is the module's own;
 //   - C: `static` on a function definition, which gives it internal linkage.
 //     The same keyword on a C++ member is a different thing and is not read.
 //
@@ -45,8 +50,19 @@ var privateDefNodes = map[string]map[string]bool{
 		"method_declaration": true, "property_declaration": true, "const_declaration": true,
 		"trait_declaration": true,
 	},
-	"c":       {"function_definition": true},
+	"c": {"function_definition": true},
+	"nim": {
+		"proc_declaration": true, "func_declaration": true, "method_declaration": true, "iterator_declaration": true,
+		"template_declaration": true, "macro_declaration": true, "converter_declaration": true,
+		"type_symbol_declaration": true, "variable_declaration": true,
+	},
 	"clojure": {"list_lit": true},
+	"crystal": {"method_def": true, "class_def": true, "struct_def": true, "module_def": true, "enum_def": true},
+	"d": {
+		"function_declaration": true, "constructor": true, "class_declaration": true, "struct_declaration": true,
+		"union_declaration": true, "interface_declaration": true, "enum_declaration": true,
+		"alias_declaration": true, "variable_declaration": true, "auto_declaration": true,
+	},
 }
 
 // definitionFlags returns, keyed by the start byte of a definition's name, the
@@ -157,6 +173,26 @@ func (p *genericParser) privateMarker(def, name *ts.Node, src []byte) bool {
 		return false
 	case "clojure":
 		return clojurePrivate(def, name, p.lang, src)
+	case "crystal":
+		// `private def f` and `private class C`: private to the file, or for a method
+		// to the type (it is called without a receiver).
+		for i := 0; i < def.ChildCount(); i++ {
+			if c := def.Child(i); c != nil && c.Type(p.lang) == "private" {
+				return true
+			}
+		}
+		return false
+	case "d":
+		return dPrivate(def, p.lang, src)
+	case "nim":
+		// A name carries the export marker (`proc add*`) or does not, and a name that
+		// does not is the module's own: no importer sees it.
+		for n := name; n != nil && n != def; n = n.Parent() {
+			if n.Type(p.lang) == "exported_symbol" {
+				return false
+			}
+		}
+		return true
 	}
 	return false
 }

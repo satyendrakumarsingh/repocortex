@@ -80,3 +80,12 @@ var callback = func(x):
 func uses_lambda():
 	var f = func(a): return a + 1
 	return f.call(1)
+
+func _init(start: int = 0):
+	health = start
+
+class Bag:
+	var size: int
+
+	func _init(n: int):
+		size = n

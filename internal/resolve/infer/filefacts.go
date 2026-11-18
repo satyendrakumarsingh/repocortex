@@ -31,6 +31,10 @@ type fileFacts struct {
 	packages     []registry.EnclosingSymbol
 	packagesDone bool
 
+	// modules are the modules the file's imports name; see allModules.
+	modules     []string
+	modulesDone bool
+
 	perlHome   map[int]string
 	juliaHome  map[int]string
 	elixirHome map[int]string
@@ -53,6 +57,27 @@ func (f *fileFacts) moduleDirectives() moduleDirectiveSet {
 		f.modDirs = &set
 	}
 	return *f.modDirs
+}
+
+// allModules are the modules the file's imports name, whatever they do with them
+// (bring every name in, a list of them, a qualifier, or nothing but the qualified
+// names): the modules a qualified call may be made on. A re-export and an include
+// are not imports of the file.
+func (f *fileFacts) allModules() []string {
+	if !f.modulesDone {
+		f.modulesDone = true
+		seen := map[string]struct{}{}
+		for _, imp := range f.fr.Imports {
+			if imp.Alias == parse.ModuleExport || imp.Alias == parse.ModuleInclude {
+				continue
+			}
+			if _, dup := seen[imp.Path]; !dup {
+				seen[imp.Path] = struct{}{}
+				f.modules = append(f.modules, imp.Path)
+			}
+		}
+	}
+	return f.modules
 }
 
 func (f *fileFacts) elixirDirectives() elixirDirectiveSet {

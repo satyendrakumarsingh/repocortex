@@ -121,6 +121,19 @@ func TestFileAndModuleLanguagesAreResolved(t *testing.T) {
 	}
 }
 
+// Nim, Crystal, D, ReScript, GDScript and HCL (Terraform) read their imports, and so bind
+// calls and references across files.
+func TestFileModuleLanguagesAreResolved(t *testing.T) {
+	for _, lang := range []string{"nim", "crystal", "d", "rescript", "gdscript", "hcl"} {
+		if ImportQuery(lang) == "" {
+			t.Errorf("%s: no import query", lang)
+		}
+		if got := TierFor(lang); got != TierResolved {
+			t.Errorf("%s: want TierResolved, got %v", lang, got)
+		}
+	}
+}
+
 func TestTiersCoversEveryGrammar(t *testing.T) {
 	all := PureGoBackend().Languages()
 	tiers := Tiers()

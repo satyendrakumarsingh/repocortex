@@ -57,7 +57,7 @@ func moduleDirectives(parts ...string) string {
 // lose one. Groovy keeps both rows of `import a.b.C as D` (the class, and the
 // alias) for the same reason. Every other language keeps the behaviour it has
 // always had.
-var keepsEveryDirective = map[string]bool{"erlang": true, "clojure": true, "julia": true, "groovy": true, "haskell": true, "ocaml": true, "perl": true, "zig": true, "fsharp": true, "fortran": true, "cmake": true, "matlab": true, "dart": true}
+var keepsEveryDirective = map[string]bool{"erlang": true, "clojure": true, "julia": true, "groovy": true, "haskell": true, "ocaml": true, "perl": true, "zig": true, "fsharp": true, "fortran": true, "cmake": true, "matlab": true, "dart": true, "rescript": true, "nim": true, "d": true, "crystal": true, "gdscript": true, "hcl": true}
 
 // dedupeDirectives drops only exact repeats of a row, in the order given.
 func dedupeDirectives(in []Import) []Import {

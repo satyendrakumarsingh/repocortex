@@ -24,7 +24,7 @@ import (
 //
 // It is an approximation and says so by erring toward binding nothing: a name
 // bound anywhere in an enclosing pattern counts, whatever order it was bound in.
-var shadowLanguages = map[string]bool{"haskell": true, "ocaml": true, "fsharp": true, "matlab": true, "clojure": true}
+var shadowLanguages = map[string]bool{"rescript": true, "haskell": true, "ocaml": true, "fsharp": true, "matlab": true, "clojure": true}
 
 func shadowedByLocal(language string, root *ts.Node, lang *ts.Language, src []byte, at, end uint32, name string) bool {
 	if language == "matlab" {
@@ -93,6 +93,42 @@ func shadowedByLocal(language string, root *ts.Node, lang *ts.Language, src []by
 					for j := 0; j < def.ChildCount(); j++ {
 						if lb := def.Child(j); lb != nil && lb.Type(lang) == "let_binding" {
 							if v := lb.ChildByFieldName("pattern", lang); v != nil && v.Text(src) == name {
+								return true
+							}
+						}
+					}
+				}
+			}
+		case "rescript":
+			switch p.Type(lang) {
+			case "function":
+				// The parameters of the function the call is written in: `(f) => f(1)`,
+				// and the single-parameter form `x => x(1)`.
+				for i := 0; i < p.ChildCount(); i++ {
+					if c := p.Child(i); c != nil && c != child && (c.Type(lang) == "formal_parameters" || c.Type(lang) == "parameter") && binds(c, "value_identifier") {
+						return true
+					}
+				}
+				if first := p.Child(0); first != nil && first != child && first.Type(lang) == "value_identifier" && first.Text(src) == name {
+					return true
+				}
+			case "block":
+				// A `let` of the block before the call. A module's body is a block too, and
+				// what it defines is a definition of the module, not a local.
+				if parent := p.Parent(); parent != nil && parent.Type(lang) == "module_binding" {
+					break
+				}
+				for i := 0; i < p.ChildCount(); i++ {
+					d := p.Child(i)
+					if d == nil || d == child {
+						break
+					}
+					if d.Type(lang) != "let_declaration" {
+						continue
+					}
+					for j := 0; j < d.ChildCount(); j++ {
+						if lb := d.Child(j); lb != nil && lb.Type(lang) == "let_binding" {
+							if v := lb.Child(0); v != nil && v.Type(lang) == "value_identifier" && v.Text(src) == name {
 								return true
 							}
 						}
