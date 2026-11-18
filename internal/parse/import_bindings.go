@@ -38,6 +38,19 @@ var importBindingLanguages = map[string]bool{
 	"javascript": true, "typescript": true, "tsx": true,
 }
 
+// walkedImports are the languages whose imports importedBindings reads from
+// the tree, beside or instead of an import query. TierFor counts them as
+// reading imports: Rust has no import query since its use lists became a
+// walk (lang_rust_uses.go), and without this it fell to the parsed tier while
+// its calls still bound across files. Keep it in step with the switch below.
+var walkedImports = map[string]bool{"php": true, "rust": true, "scala": true, "solidity": true}
+
+// ReadsImports reports whether the parser reads a language's imports, by an
+// import query or by walking the tree.
+func ReadsImports(language string) bool {
+	return ImportQuery(language) != "" || walkedImports[language]
+}
+
 // importedBindings returns the local names a file's import statements bind,
 // as Import rows to merge with the import query's. Nil for a language it does
 // not read and for a tree it cannot walk.

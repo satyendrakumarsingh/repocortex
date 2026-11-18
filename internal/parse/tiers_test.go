@@ -1,6 +1,10 @@
 package parse
 
-import "testing"
+import (
+	"sort"
+	"strings"
+	"testing"
+)
 
 func TestTierForGoIsTyped(t *testing.T) {
 	if got := TierFor("go"); got != TierTyped {
@@ -34,7 +38,7 @@ func TestTierForPythonIsTyped(t *testing.T) {
 func TestTypedTierIsEarnedByDiscrimination(t *testing.T) {
 	for lang, tier := range Tiers() {
 		_, hasArity := arityDialectFor(lang)
-		earned := ImportQuery(lang) != "" && HasMeasuredReceivers(lang) &&
+		earned := ReadsImports(lang) && HasMeasuredReceivers(lang) &&
 			(hasArity || HasScopeAnalysis(lang))
 		if (tier == TierTyped) != earned {
 			t.Errorf("%s: tier %v, but imports+receiver+(arity or scope analysis) = %v", lang, tier, earned)
@@ -143,6 +147,41 @@ func TestTiersCoversEveryGrammar(t *testing.T) {
 	for _, lang := range all {
 		if _, ok := tiers[lang]; !ok {
 			t.Errorf("Tiers() is missing %q", lang)
+		}
+	}
+}
+
+// The published tiers, pinned. Rust fell from typed to parsed when its import
+// query became a tree walk, and nothing noticed: a language's tier changes
+// only when this list is changed with it.
+func TestPublishedTiersArePinned(t *testing.T) {
+	want := map[Tier][]string{
+		TierTyped: {"c_sharp", "cpp", "go", "java", "javascript", "kotlin", "php", "python", "ruby", "rust", "scala", "typescript"},
+		TierResolved: {"apex", "bash", "c", "clojure", "cmake", "crystal", "cuda", "d", "dart", "elixir", "erlang", "fortran",
+			"fsharp", "gdscript", "glsl", "groovy", "haskell", "hcl", "hlsl", "julia", "lua", "matlab", "nim", "objc", "ocaml",
+			"perl", "powershell", "r", "rescript", "solidity", "svelte", "swift", "tsx", "vue", "zig"},
+	}
+	got := map[Tier][]string{}
+	for lang, tier := range Tiers() {
+		if tier != TierParsed {
+			got[tier] = append(got[tier], lang)
+		}
+	}
+	for tier, langs := range want {
+		sort.Strings(got[tier])
+		if strings.Join(got[tier], " ") != strings.Join(langs, " ") {
+			t.Errorf("%s tier:\n got  %v\n want %v", tier, got[tier], langs)
+		}
+	}
+}
+
+// Every language the parser walks imports for must be one the switch in
+// importedBindings handles; a name in walkedImports alone would claim a tier
+// it does not have.
+func TestWalkedImportsMatchTheWalkers(t *testing.T) {
+	for lang := range walkedImports {
+		if !ReadsImports(lang) {
+			t.Errorf("%s: walkedImports but ReadsImports is false", lang)
 		}
 	}
 }

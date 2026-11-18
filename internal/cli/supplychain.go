@@ -662,13 +662,14 @@ func (x *supplyIndex) Files(ctx stdctx.Context) ([]supplychain.FileInfo, error) 
 }
 
 // importBindingLanguages lists the languages whose imports the index records,
-// derived from the query set as `repocortex languages` derives its tiers. A
+// derived as `repocortex languages` derives its tiers (an import query or a
+// tree walk: Rust has only the walk). A
 // single-file component delegates its script block to a language that has an
 // import query, so its imports are recorded too.
 func importBindingLanguages() []string {
 	var out []string
 	for lang := range parse.Tiers() {
-		if parse.ImportQuery(lang) != "" || lang == "vue" || lang == "svelte" {
+		if parse.ReadsImports(lang) || lang == "vue" || lang == "svelte" {
 			out = append(out, lang)
 		}
 	}

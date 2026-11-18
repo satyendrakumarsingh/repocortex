@@ -80,7 +80,7 @@ func (t Tier) Description() string {
 // Unknown languages report TierParsed, which is the honest floor: if we do
 // not know the language we certainly cannot resolve it.
 func TierFor(language string) Tier {
-	hasImports := ImportQuery(language) != ""
+	hasImports := ReadsImports(language)
 	// A single-file component has no import query of its own: its <script> is
 	// handed to the TypeScript or JavaScript parser (sfc.go), which reads the
 	// imports, and the template's components are bound through them. It is
