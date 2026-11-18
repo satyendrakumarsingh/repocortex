@@ -607,6 +607,7 @@ func (p *genericParser) Parse(ctx context.Context, path string, src []byte) (*Re
 	// retry is kept only if the guard in cmacro.go says it is better. A nil
 	// answer is every file with nothing to mask and every file that parsed
 	// cleanly. The two masks share that one retry.
+	origSrc := src
 	mp := by.retryMaskedWithin(ctx, tree, stop, src, tags, probe)
 	outran := probe < ceil && stop.early && stop.reason == ts.ParseStopTimeout
 	if mp == nil && outran && ctx.Err() == nil {
@@ -692,7 +693,8 @@ func (p *genericParser) Parse(ctx context.Context, path string, src []byte) (*Re
 	// The type each function declares it returns, read from the same tree for
 	// the same reason. See returns.go.
 	returnTypes := by.definitionReturnTypes(tree, src, tags)
-	defFlags := by.definitionFlags(tree, src, tags)
+	defFlags := by.definitionFlags(tree, src, origSrc, tags)
+	callBlocks := by.rubyCallBlocks(tree, tags)
 
 	// Constructor delegation (`this(...)`, `super(...)`, `: base(...)`) has no
 	// name to tag and is built from the tree. See delegation.go.
@@ -791,7 +793,7 @@ func (p *genericParser) Parse(ctx context.Context, path string, src []byte) (*Re
 			sym.ReturnType = returnTypes[tag.NameRange.StartByte]
 			f := defFlags[tag.NameRange.StartByte]
 			sym.Private, sym.Trait = f&model.SymbolFlagPrivate != 0, f&model.SymbolFlagTrait != 0
-			sym.Conditional, sym.RefImpl = f&model.SymbolFlagConditional != 0, f&model.SymbolFlagRefImpl != 0
+			sym.Singleton, sym.Conditional, sym.RefImpl = f&model.SymbolFlagSingleton != 0, f&model.SymbolFlagConditional != 0, f&model.SymbolFlagRefImpl != 0
 			if py != nil {
 				// A nested definition is qualified by what encloses it, so that
 				// two classes' `save` are two names. Module-level definitions
@@ -905,6 +907,7 @@ func (p *genericParser) Parse(ctx context.Context, path string, src []byte) (*Re
 				// `class Foo extends Bar` sharing a line with a `Bar(...)` call
 				// must not inherit that call's argument count.
 				r.ArgCount = argCounts[site]
+				r.Block = callBlocks[tag.NameRange.StartByte]
 			}
 			if t, ok := implementers[tag.NameRange.StartByte]; ok && isSupertypeRef(tag.Kind) {
 				r.Receiver, r.ReceiverKind = t, model.ReceiverImplementer

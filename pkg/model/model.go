@@ -257,10 +257,20 @@ type Symbol struct {
 	// not one: its methods are implementations. Migration 0024_symbol_flags.
 	Trait bool `json:"trait,omitempty"`
 
-	// Conditional is true for a Rust definition under a `#[cfg(...)]` attribute,
-	// on itself or on an item that encloses it. Two definitions of one name that
-	// are both conditional are usually alternatives of which a build keeps one, so
-	// a call that reaches either cannot say which (infer/rustcfg.go).
+	// Singleton is true for a Ruby method defined on the class or module
+	// itself (`def self.x`, `class << self; def x`), not on its instances.
+	// False is "not read as singleton", which for every other language is
+	// all it can say. Bit 16 of symbols.flags.
+	Singleton bool `json:"singleton,omitempty"`
+
+	// Conditional is true for a definition that exists in some builds and not
+	// in others. Rust: under a `#[cfg(...)]` attribute, on itself or on an
+	// item that encloses it. C and C++: a function definition written inside a
+	// preprocessor conditional (`#if`, `#ifdef`, `#else`), other than a header
+	// guard or `#ifdef __cplusplus`. Two definitions of one name that are both
+	// conditional are usually alternatives of which a build keeps one, so a
+	// call that reaches either cannot say which (infer/rustcfg.go for Rust).
+	// Bit 4 of symbols.flags.
 	Conditional bool `json:"conditional,omitempty"`
 
 	// RefImpl is true for a Rust method declared in an impl whose self type is a
@@ -441,18 +451,27 @@ const (
 // identifier in any language, so it cannot collide with a real receiver.
 const OpaqueReceiver = "?"
 
+// The bits of symbol_references.flags (migration 0028_reference_flags).
+const (
+	// ReferenceFlagBlock marks a call that passes a block. Read for Ruby.
+	ReferenceFlagBlock = 1
+)
+
 // The bits of symbols.flags (migration 0024_symbol_flags).
 const (
 	SymbolFlagPrivate = 1
 	SymbolFlagTrait   = 2
-	// SymbolFlagConditional: the definition, or something that encloses it, sits
-	// under a `#[cfg(...)]` attribute, so it exists in some builds and not in
-	// others. Rust only; see Symbol.Conditional.
+	// SymbolFlagConditional: the definition exists in some builds and not in
+	// others: Rust under a `#[cfg(...)]` attribute (on itself or on something
+	// that encloses it), C and C++ inside a preprocessor conditional. One bit
+	// for the one concept; see Symbol.Conditional.
 	SymbolFlagConditional = 4
 	// SymbolFlagRefImpl: a Rust method of an `impl Trait for &T` (or `&mut T`),
 	// whose receiver is a reference, as opposed to the same trait implemented
 	// for T. See Symbol.RefImpl.
 	SymbolFlagRefImpl = 8
+	// SymbolFlagSingleton: a Ruby method defined on the class or module itself.
+	SymbolFlagSingleton = 16
 )
 
 // Flags is the symbol's bit set as the index stores it.
@@ -469,6 +488,9 @@ func (s Symbol) Flags() int {
 	}
 	if s.RefImpl {
 		f |= SymbolFlagRefImpl
+	}
+	if s.Singleton {
+		f |= SymbolFlagSingleton
 	}
 	return f
 }

@@ -292,8 +292,7 @@ func (c *CandidateCache) fetch(ctx context.Context, names []string) (map[string]
 				return nil, err
 			}
 			e.Exported = exported == 1
-			e.Private, e.Trait = flags&model.SymbolFlagPrivate != 0, flags&model.SymbolFlagTrait != 0
-			e.Conditional, e.RefImpl = flags&model.SymbolFlagConditional != 0, flags&model.SymbolFlagRefImpl != 0
+			e.setFlags(flags)
 			e.ParamCount = model.Arity(paramCount)
 			e.FilePath = c.internPath(e.FilePath)
 			e.Kind = c.internKind(e.Kind)

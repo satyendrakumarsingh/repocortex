@@ -101,6 +101,10 @@ type Reference struct {
 	// resolver keeps the variable's producer only if f returns the type the
 	// producer's result has. Migration 0026_reference_reassigns.
 	Reassigns bool
+	// Block is true for a call that passes a block: Ruby's `patch do ... end`
+	// and `each { ... }`. Read for Ruby only; false everywhere else means
+	// "not read". See migration 0028_reference_flags.
+	Block bool
 
 	Range model.Range
 }

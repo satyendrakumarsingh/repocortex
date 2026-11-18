@@ -44,6 +44,17 @@ type Reference struct {
 	// assignment back to the variable (`x = x.f(a)`). See migration
 	// 0026_reference_reassigns.
 	Reassigns bool
+
+	// Block is true for a call that passes a block. See migration
+	// 0028_reference_flags.
+	Block bool
+}
+
+func (r Reference) flags() int {
+	if r.Block {
+		return model.ReferenceFlagBlock
+	}
+	return 0
 }
 
 // Import is a dependency declared by a file.
@@ -76,7 +87,7 @@ func (w *Writer) AddReference(ctx context.Context, fileID int64, r Reference) er
 	}
 	if _, err := w.st.ref.ExecContext(ctx,
 		w.runID, fileID, r.Name, r.Kind, r.Receiver, r.ReceiverKind, r.Line, r.Col, int(r.ArgCount),
-		r.ValueLine, r.ValueCol, boolToInt(r.Reassigns),
+		r.ValueLine, r.ValueCol, boolToInt(r.Reassigns), r.flags(),
 	); err != nil {
 		return w.fail(fmt.Errorf("registry: add reference %q: %w", r.Name, err))
 	}
@@ -116,10 +127,10 @@ func (r *Registry) ReplaceFileReferences(
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO symbol_references
 				(index_run_id, file_id, name, kind, receiver, receiver_kind, start_line, start_col, arg_count,
-				 value_line, value_col, reassigns, resolution)
-			VALUES (?,?,?,?,?,?,?,?,?,?,?,?, 'pending')`,
+				 value_line, value_col, reassigns, flags, resolution)
+			VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?, 'pending')`,
 			runID, fileID, ref.Name, ref.Kind, ref.Receiver, ref.ReceiverKind, ref.Line, ref.Col, int(ref.ArgCount),
-			ref.ValueLine, ref.ValueCol, boolToInt(ref.Reassigns),
+			ref.ValueLine, ref.ValueCol, boolToInt(ref.Reassigns), ref.flags(),
 		); err != nil {
 			return fmt.Errorf("registry: re-add reference %q: %w", ref.Name, err)
 		}
@@ -353,7 +364,7 @@ func (r *Registry) importsForFile(ctx context.Context, fileID int64) ([]Import, 
 func (r *Registry) refsForFile(ctx context.Context, fileID int64) ([]Reference, error) {
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, name, kind, receiver, receiver_kind, start_line, start_col, arg_count,
-		       value_line, value_col, reassigns
+		       value_line, value_col, reassigns, flags
 		  FROM symbol_references
 		 WHERE file_id = ? AND resolution = 'pending'
 		 ORDER BY start_line, start_col, name`, fileID)
@@ -365,11 +376,12 @@ func (r *Registry) refsForFile(ctx context.Context, fileID int64) ([]Reference, 
 	var out []Reference
 	for rows.Next() {
 		ref := Reference{FileID: fileID}
-		var argCount, reassigns int
+		var argCount, reassigns, flags int
 		if err := rows.Scan(&ref.ID, &ref.Name, &ref.Kind, &ref.Receiver, &ref.ReceiverKind,
-			&ref.Line, &ref.Col, &argCount, &ref.ValueLine, &ref.ValueCol, &reassigns); err != nil {
+			&ref.Line, &ref.Col, &argCount, &ref.ValueLine, &ref.ValueCol, &reassigns, &flags); err != nil {
 			return nil, err
 		}
+		ref.Block = flags&model.ReferenceFlagBlock != 0
 		ref.ArgCount = model.Arity(argCount)
 		ref.Reassigns = reassigns == 1
 		out = append(out, ref)
@@ -413,13 +425,21 @@ type SymbolIndexEntry struct {
 	// interface. See migration 0024_symbol_flags.
 	Private, Trait bool
 
-	// Conditional is true for a Rust definition under a `#[cfg(...)]`. See
-	// model.Symbol.Conditional.
-	Conditional bool
+	// Singleton is true for a Ruby `def self.x` or a method under `class << self`.
+	// Conditional is true for a Rust `#[cfg]` definition or a C or C++ one inside
+	// a preprocessor conditional. See model.Symbol and migration 0024_symbol_flags.
+	Singleton, Conditional bool
 
 	// RefImpl is true for a Rust method of an impl for a reference type. See
 	// model.Symbol.RefImpl.
 	RefImpl bool
+}
+
+// setFlags reads the symbols.flags bit set into the entry.
+func (e *SymbolIndexEntry) setFlags(flags int) {
+	e.Private, e.Trait = flags&model.SymbolFlagPrivate != 0, flags&model.SymbolFlagTrait != 0
+	e.Singleton, e.Conditional = flags&model.SymbolFlagSingleton != 0, flags&model.SymbolFlagConditional != 0
+	e.RefImpl = flags&model.SymbolFlagRefImpl != 0
 }
 
 // LoadSymbolIndex returns every symbol in a run, keyed by name.
@@ -466,8 +486,7 @@ func (r *Registry) LoadSymbolIndex(ctx context.Context, runID int64) (map[string
 			return nil, err
 		}
 		e.Exported = exported == 1
-		e.Private, e.Trait = flags&model.SymbolFlagPrivate != 0, flags&model.SymbolFlagTrait != 0
-		e.Conditional, e.RefImpl = flags&model.SymbolFlagConditional != 0, flags&model.SymbolFlagRefImpl != 0
+		e.setFlags(flags)
 		e.ParamCount = model.Arity(paramCount)
 		e.FilePath = intern(paths, e.FilePath)
 		e.Kind = intern(kinds, e.Kind)

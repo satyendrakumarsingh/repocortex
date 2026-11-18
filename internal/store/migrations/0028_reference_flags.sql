@@ -1,0 +1,17 @@
+-- 0028_reference_flags: facts about the way a call is written that the index
+-- had nowhere to keep.
+--
+-- WHY. A Ruby bare call that passes a block (`patch do ... end`,
+-- `resource "x" do ... end`) is, far more often than a bare call without one, a
+-- call to a DSL method of the object the enclosing block runs against, and not
+-- to a helper of the same name defined in the same file. On Homebrew, 35 of the
+-- 52 wrong `high` bindings of "defined in the same file" were calls that pass a
+-- block, where a spec-local `def patch` was bound to a `patch do` that runs
+-- against `Formula`. The resolver could not tell them from a plain call.
+--
+-- symbol_references.flags is a bit set, 0 for every existing row, every
+-- SCIP-imported row and every language with no reader, so that "not read" is
+-- never "no block":
+--   1  block: the call passes a block (`do ... end` or `{ ... }`). Read for
+--      Ruby only.
+ALTER TABLE symbol_references ADD COLUMN flags INTEGER NOT NULL DEFAULT 0;
