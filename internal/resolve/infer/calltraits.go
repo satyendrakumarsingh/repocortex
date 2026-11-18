@@ -278,6 +278,12 @@ type ruleTiers struct {
 	// express, where the owner of a prototype or object method is the name its
 	// callers give the object (`res.send`, `app.use`), and high in JavaScript.
 	//
+	// Rust, against rust-analyzer on rtk, regex-syntax and sqlparser (docs/accuracy.md,
+	// "Rust against rust-analyzer"): a path or scope receiver 4 of 4 at high; a name
+	// no declaration binds 35 of 35, held at medium; a variable declared without a
+	// type 10 of 15, held at low (rustValueNameTier), and not at all where the call
+	// that assigned it declares what it returns (rustReturnWins). High stays.
+	//
 	// Low in C#: 9 right of 21 on serilog (the whole tier, read edge by edge),
 	// and every one of the 12 wrong is `log.Warning(...)` on an `ILogger log`
 	// bound to the members of the static class `Log`. A C# type that cannot be

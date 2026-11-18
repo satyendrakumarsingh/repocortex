@@ -257,6 +257,18 @@ type Symbol struct {
 	// not one: its methods are implementations. Migration 0024_symbol_flags.
 	Trait bool `json:"trait,omitempty"`
 
+	// Conditional is true for a Rust definition under a `#[cfg(...)]` attribute,
+	// on itself or on an item that encloses it. Two definitions of one name that
+	// are both conditional are usually alternatives of which a build keeps one, so
+	// a call that reaches either cannot say which (infer/rustcfg.go).
+	Conditional bool `json:"conditional,omitempty"`
+
+	// RefImpl is true for a Rust method declared in an impl whose self type is a
+	// reference: `impl<'a, T> IntoIterator for &'a Vec<T>`. The same trait is
+	// usually also implemented for the owned type, under the same qualified name,
+	// and which one a call reaches depends on whether the receiver is borrowed.
+	RefImpl bool `json:"ref_impl,omitempty"`
+
 	// Confidence describes how reliably this symbol was extracted. Symbols are
 	// usually high or exact; a Tier-1 generic extraction may be medium.
 	Confidence Confidence `json:"confidence"`
@@ -433,6 +445,14 @@ const OpaqueReceiver = "?"
 const (
 	SymbolFlagPrivate = 1
 	SymbolFlagTrait   = 2
+	// SymbolFlagConditional: the definition, or something that encloses it, sits
+	// under a `#[cfg(...)]` attribute, so it exists in some builds and not in
+	// others. Rust only; see Symbol.Conditional.
+	SymbolFlagConditional = 4
+	// SymbolFlagRefImpl: a Rust method of an `impl Trait for &T` (or `&mut T`),
+	// whose receiver is a reference, as opposed to the same trait implemented
+	// for T. See Symbol.RefImpl.
+	SymbolFlagRefImpl = 8
 )
 
 // Flags is the symbol's bit set as the index stores it.
@@ -443,6 +463,12 @@ func (s Symbol) Flags() int {
 	}
 	if s.Trait {
 		f |= SymbolFlagTrait
+	}
+	if s.Conditional {
+		f |= SymbolFlagConditional
+	}
+	if s.RefImpl {
+		f |= SymbolFlagRefImpl
 	}
 	return f
 }

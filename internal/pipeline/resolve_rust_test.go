@@ -38,6 +38,10 @@ func TestRustResolution(t *testing.T) {
 		{"src/cart.rs:Cart.fresh_total", "src/money.rs:Money.zero", high},
 		{"src/cart.rs:Cart.label", "src/cart.rs:Cart.describe", high},
 		{"src/cart.rs:Cart.new", "src/order.rs:Order.new", high},
+		// `use crate::util::{self, pad, slug};` names both: a grouped import is read.
+		{"src/cart.rs:Cart.new", "src/util.rs:slug", high},
+		{"src/cart.rs:Cart.save", "src/util.rs:pad", high},
+		{"src/cart.rs:Cart.save", "src/util.rs:slug", high},
 		{"src/cart.rs:Cart.save", "src/order.rs:Order.save", high},
 		{"src/cart.rs:Cart.save", "src/order.rs:Order.validate", high},
 		{"src/cart.rs:Money.describe", "src/money.rs:Money.short", high},
@@ -83,9 +87,6 @@ func TestRustResolution(t *testing.T) {
 	}
 	// Edges the resolver may produce, each no higher than the confidence given.
 	ceilings := []want{
-		{"src/cart.rs:Cart.new", "src/util.rs:slug", model.ConfidenceMedium},
-		{"src/cart.rs:Cart.save", "src/util.rs:pad", model.ConfidenceMedium},
-		{"src/cart.rs:Cart.save", "src/util.rs:slug", model.ConfidenceMedium},
 		{"src/convert.rs:Converter.run", "src/money.rs:Money.short", model.ConfidenceMedium},
 		{"src/convert.rs:Converter.run", "src/order.rs:Order.save", model.ConfidenceMedium},
 		{"src/order.rs:Order.save", "src/money.rs:Money.short", model.ConfidenceLow},

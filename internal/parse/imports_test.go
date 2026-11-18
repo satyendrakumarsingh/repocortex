@@ -2308,3 +2308,48 @@ resource "aws_instance" "web" {
 		t.Errorf("tfvars references = %v, want var.region and var.size", got)
 	}
 }
+
+// Rust `use`: a list, a nested list, a rename, `self` and a glob each leave one
+// row per leaf, and the plain forms are unchanged.
+func TestRustUseImports(t *testing.T) {
+	res := parse(t, "src/main.rs", `use crate::core::utils::{resolved_command, tool_exists};
+use a::{b::{c, d}, e};
+use x::y::{self, z as w};
+use p::q as r;
+use serde_json as json;
+use m::n::*;
+use super::*;
+use std::fmt::Display as _;
+use ::std::io;
+pub use crate::api::{Client, error::{Error as ApiError}};
+use plain::path::item;
+
+mod inner {
+    use crate::deep::{one, two};
+    fn f() { use crate::in_fn::helper; }
+}
+`)
+	wantRows(t, res, []string{
+		"crate::core::utils::resolved_command ",
+		"crate::core::utils::tool_exists ",
+		"a::b::c ", "a::b::d ", "a::e ",
+		"x::y ",
+		"x::y .w=z",
+		"p .r=q",
+		"serde_json json",
+		"m::n::* ",
+		"super::* ",
+		"std::io ",
+		"crate::api::Client ",
+		"crate::api::error .ApiError=Error",
+		"plain::path::item ",
+		"crate::deep::one ", "crate::deep::two ",
+		"crate::in_fn::helper ",
+	})
+	got := importRows(res)
+	for _, bad := range []string{"std::fmt::Display ", "std::fmt .Display=_", "x::y::z "} {
+		if got[bad] {
+			t.Errorf("unexpected import row %q in %+v", bad, res.Imports)
+		}
+	}
+}

@@ -134,6 +134,13 @@ type call struct {
 	// facts are the file's own directives and blocks, built once per file
 	// (filefacts.go); nil outside ResolveFile, where factsOf builds them.
 	facts *fileFacts
+
+	// producerStatesType is set where the receiver was assigned from a call whose
+	// definition declares what it returns and that type is not one this
+	// repository defines (Rust's `Result<T>`, which `?` unwraps). The declaration
+	// then says what the variable is and the variable's name does not outrank it.
+	// See rustReturnWins.
+	producerStatesType bool
 }
 
 // isConstructorDelegation reports whether the call is `this(...)` written in a
@@ -282,6 +289,7 @@ func (r *Resolver) resolveCall(c call, stats *Stats) decision {
 		if d, ok := r.callReturned(c, stats); ok {
 			return d
 		}
+		c.producerStatesType = rustReturnWins(c)
 		return r.memberByName(c, model.ConfidenceHigh, stats)
 	default:
 		// An expression with no name, or a shape nothing recorded.
@@ -981,6 +989,9 @@ func outerQual(qual string) string {
 func (r *Resolver) bareByName(c call, reach []registry.SymbolIndexEntry, stats *Stats) decision {
 	// A name the file imported by name comes from that import and from
 	// nowhere else, whatever the repository also defines.
+	if d, ok := r.rustImportedBare(c, reach); ok {
+		return d
+	}
 	switch c.spec.Calls.Imports {
 	case ImportsNameModules:
 		// A module imported whole and then called (`const debug =
@@ -1571,6 +1582,9 @@ func (r *Resolver) callScoped(c call, stats *Stats) decision {
 	if len(segs) == 0 {
 		return r.memberByName(c, model.ConfidenceLow, stats)
 	}
+	if d, ok := r.rustScopedCall(c, segs); ok {
+		return d
+	}
 	if c.spec.hasExternalRoot(segs) {
 		return externalCall
 	}
@@ -1833,7 +1847,7 @@ func (r *Resolver) memberByName(c call, limit model.Confidence, stats *Stats) de
 
 	// A receiver named after a type is evidence about its type: `request` is
 	// usually a Request. It chooses between types that declare the member.
-	if hint := namingHint(c.ref); hint != "" {
+	if hint := namingHint(c.ref); hint != "" && !c.producerStatesType {
 		var named []registry.SymbolIndexEntry
 		for _, s := range members {
 			if owner, _ := memberOwner(s); strings.EqualFold(owner, hint) {
@@ -1852,6 +1866,7 @@ func (r *Resolver) memberByName(c call, limit model.Confidence, stats *Stats) de
 				// not a measurement: medium, not high.
 				tier = weaker(tier, model.ConfidenceMedium)
 			}
+			tier = rustValueNameTier(c, tier)
 			reason := ruleNamedAfterType
 			if o.overloaded() {
 				tier, reason = weaker(tier, model.ConfidenceLow), overloadedReason(ruleNamedAfterType, hint, o)

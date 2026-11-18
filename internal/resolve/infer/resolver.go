@@ -757,10 +757,11 @@ func (r *Resolver) ResolveFile(
 		// package that is not in the repository has no candidates, and is the
 		// one kind of unresolved reference that is known not to be a gap.
 		if edgeKind == model.EdgeCalls && ref.ReceiverKind != "" && !spec.QualifiedMembers {
-			d := r.resolveCall(call{
+			cl := call{
 				spec: spec, fr: fr, imports: imports, ref: ref, cands: cands, symbols: symbols,
 				produced: produced, typesNamed: typesNamed, facts: facts,
-			}, stats)
+			}
+			d := capConditionalTwins(cl, r.resolveCall(cl, stats))
 			switch {
 			case d.verdict == verdictBound && d.best.confidence.AtLeast(r.opts.MinConfidence):
 				bind(ref, d.best)

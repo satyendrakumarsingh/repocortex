@@ -65,6 +65,10 @@ type Layout struct {
 	// itself (an R DESCRIPTION's Package: field) to the directories that
 	// declare it, in path order. See OwnPackageDirs.
 	ownPackages map[string][]string
+
+	// rustFiles holds the path of every indexed Rust file as written, for the
+	// module a `use` path names (rustuse.go).
+	rustFiles map[string]struct{}
 }
 
 // SetOwnPackages records the packages the repository declares for itself. It
@@ -153,6 +157,7 @@ func NewLayout(filePaths, dependencies []string) *Layout {
 		moduleRoots:  make(map[string]struct{}, 4),
 		projectRoots: make(map[string]struct{}, 8),
 		deps:         make(map[string]struct{}, len(dependencies)),
+		rustFiles:    make(map[string]struct{}),
 	}
 	// Secondary markers in conventional subfolders, decided once every
 	// primary root is known: they count only when no project encloses them.
@@ -178,6 +183,9 @@ func NewLayout(filePaths, dependencies []string) *Layout {
 			}
 		}
 		l.stems[strings.ToLower(strings.TrimSuffix(base, path.Ext(base)))] = struct{}{}
+		if strings.HasSuffix(base, ".rs") {
+			l.rustFiles[p] = struct{}{}
+		}
 		if _, seen := l.dirs[key]; seen {
 			continue
 		}
@@ -300,6 +308,15 @@ func (l *Layout) HasDirNamed(name string) bool {
 		return false
 	}
 	_, ok := l.dirNames[strings.ToLower(name)]
+	return ok
+}
+
+// HasRustFile reports whether this exact path is an indexed Rust file.
+func (l *Layout) HasRustFile(p string) bool {
+	if l == nil {
+		return false
+	}
+	_, ok := l.rustFiles[p]
 	return ok
 }
 
