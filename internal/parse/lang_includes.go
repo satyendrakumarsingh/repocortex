@@ -5,13 +5,17 @@ import (
 	"strings"
 )
 
-// CUDA, GLSL and HLSL: `#include "x.cuh"`, `#include "common.glsl"`, `#include
-// "lighting.hlsli"`. The grammars read the directive as C's grammar does, and the
-// resolver compares an import with a file by the file's stem (a `.cu` and the
-// `.cuh` it pairs with are one name, as a `.m` and `.h` are in Objective-C), so
-// the extension is dropped and the include is rewritten to the files it can name.
+// C, C++, CUDA, GLSL and HLSL: `#include "util.h"`, `#include "x.cuh"`,
+// `#include "common.glsl"`, `#include "lighting.hlsli"`. The resolver compares an
+// import with a file by the file's stem (a `.c` and the `.h` it pairs with are one
+// name, as a `.m` and `.h` are in Objective-C, and any header extension (`.h`,
+// `.hh`, `.hpp`, `.hxx`, `.inl`, `.cuh`) pairs with any source extension (`.c`,
+// `.cc`, `.cpp`, `.cxx`, `.cu`) of the same stem), so the extension is dropped and
+// the include is rewritten to the files it can name. Before this C and C++ recorded
+// the path as written (`util.h`), which names no file, so no include ever reached
+// a definition.
 //
-// CUDA is C++ and keeps the rule of the C family: a quoted include is looked for
+// C++ and CUDA keep the rule of the C family: a quoted include is looked for
 // beside the including file and then on the include path, which the source does
 // not state. Both readings are recorded (see objcImport, which this follows).
 //
@@ -20,6 +24,8 @@ import (
 // shader preprocessor read it the same way, so it is the form real shader trees
 // use. HLSL's preprocessor reads it natively.
 func init() {
+	registerImportFix("c", includeFileImport)
+	registerImportFix("cpp", includeFileImport)
 	registerImportFix("cuda", includeFileImport)
 	registerImportFix("glsl", includeFileImport)
 	registerImportFix("hlsl", includeFileImport)

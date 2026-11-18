@@ -445,6 +445,35 @@ func TestObjCImports(t *testing.T) {
 	}
 }
 
+// C and C++: a quoted include names the file it reaches by its stem, so that
+// `#include "util.h"` covers util.h and the util.c beside it. The path is kept as
+// written and also joined to the including file's directory (a header on the
+// include path, and one beside the file); `..` is resolved in the joined one. An
+// angle-bracket include is kept as written only, and an absolute one names nothing.
+func TestCAndCPPIncludeImports(t *testing.T) {
+	for _, lang := range []string{"c", "cpp"} {
+		res := parseAs(t, lang, "src/app/main.c", `#include <stdio.h>
+#include <util/log.hh>
+#include "util.h"
+#include "../include/shape.hpp"
+#include "detail/math.inl"
+#include "/abs/path.h"
+
+int main(void) { return 0; }
+`)
+		for _, want := range []string{"stdio", "util/log", "util", "src/app/util", "src/include/shape", "detail/math", "src/app/detail/math"} {
+			if !hasImport(res, want) {
+				t.Errorf("%s: missing import %q; got %v", lang, want, importPaths(res))
+			}
+		}
+		for _, p := range importPaths(res) {
+			if strings.HasSuffix(p, ".h") || strings.HasSuffix(p, ".hpp") || strings.HasSuffix(p, ".inl") || strings.HasPrefix(p, "..") || strings.HasPrefix(p, "/") || strings.Contains(p, "src/app/stdio") || strings.Contains(p, "src/app/util/log") {
+				t.Errorf("%s: unexpected import %q", lang, p)
+			}
+		}
+	}
+}
+
 // `require` is a function call, so the path is the string argument, and the
 // alias is the local the module is bound to.
 func TestLuaImports(t *testing.T) {

@@ -1297,7 +1297,15 @@ func NewSpecs() *Specs {
 	// without one the compiler does not know it.
 	objc.TypesNeedImport = true
 	add(objc)
-	add(scopeSpec("cpp", nil, TestFiles{Dirs: []string{"test", "tests"}}))
+	// A class of a neighbouring file is in scope only through an #include, as in
+	// Objective-C and CUDA, so two directories' `Stack` are told apart by the header
+	// the file includes. ProximityIsEvidence stays on, unlike CUDA: measured on C and
+	// C++ trees, the same-directory tier carries edges that are right far more often
+	// than not (a function declared in a header whose name is not its source's), and
+	// the `static` neighbour it binds wrongly is reported at low (calltraits.go).
+	cpp := scopeSpec("cpp", nil, TestFiles{Dirs: []string{"test", "tests"}})
+	cpp.TypesNeedImport = true
+	add(cpp)
 	add(scopeSpec("c", nil, TestFiles{Dirs: []string{"test", "tests"}}))
 	// CUDA is C++: the same linker, the same #include of headers (`.cuh`, `.h`), and
 	// a kernel launch `kern<<<g, b>>>(x)` is a call of `kern`. The spec is the

@@ -465,7 +465,11 @@ var callTraitsByLanguage = map[string]CallTraits{
 	"ruby":       {Measured: ruleTiers{NamedAfterType: model.ConfidenceHigh}, ImplicitSelf: true, DynamicSelf: true, OpenTypes: true, TypesAreCapitalised: true, Builtins: rubyBuiltins},
 	"c_sharp":    {NewConstructs: true, NoFreeFunctions: true, Measured: ruleTiers{UnknownReceiver: model.ConfidenceMedium, NamedAfterType: model.ConfidenceLow, UniqueTypeName: model.ConfidenceHigh}, ImplicitSelf: true, Overloads: true, OpenTypes: true, TypesAreCapitalised: true, ExternalRoots: []string{"System", "Microsoft"}, Builtins: csharpBuiltins},
 	"cpp":        {Measured: ruleTiers{NamedAfterType: model.ConfidenceHigh, Neighbour: model.ConfidenceLow}, CallConstructs: true, ImplicitSelf: true, Overloads: true, OpenTypes: true, ScopeNamesModule: true, ExternalRoots: []string{"std"}},
-	"c":          {OpenTypes: true},
+	// C reads a neighbour the include did not name at low, as C++ does: a `static`
+	// function of another file is not linkable, and a same-directory definition is
+	// the only thing that tells a file's own helper from one it merely shares a
+	// directory with. Measured on C code in this repository's reach (see CHANGELOG).
+	"c": {Measured: ruleTiers{Neighbour: model.ConfidenceLow}, OpenTypes: true},
 	// CUDA is C++ with kernels: the traits are C++'s (a `.cu` file includes a C++ header
 	// and calls through the same linker), and the runtime's own names are external.
 	"cuda":       {Measured: ruleTiers{NamedAfterType: model.ConfidenceHigh, Neighbour: model.ConfidenceLow}, CallConstructs: true, ImplicitSelf: true, Overloads: true, OpenTypes: true, ScopeNamesModule: true, ExternalRoots: []string{"std", "thrust", "cub", "cooperative_groups", "nvcuda", "cuda"}},
