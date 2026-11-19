@@ -459,8 +459,9 @@ func (r *Resolver) ResolveFile(
 
 	// Index this file's imports once; every reference in the file consults them.
 	fileImports := fr.Imports
+	var routes []dartRoute
 	if spec.ReExports {
-		fileImports = r.reexports(ctx, spec, fileImports)
+		fileImports, routes = r.reexports(ctx, spec, fileImports)
 	}
 	if fileModuleLanguages[spec.Name] || spec.Name == "gdscript" || spec.Name == "hcl" {
 		// What a module re-exports, a script extends, or a directory's module blocks name
@@ -486,6 +487,11 @@ func (r *Resolver) ResolveFile(
 		if err := r.foldCandidates(ctx, spec, fr, symbols); err != nil {
 			return nil, nil, fmt.Errorf("spellings for %s: %w", fr.Path, err)
 		}
+	}
+	if spec.ReExports {
+		// `show` and `hide`: a name an import does not let through is not
+		// among the candidates for the tiers to bind.
+		r.hideCandidates(spec, fr, routes, symbols)
 	}
 
 	facts := newFileFacts(fr)

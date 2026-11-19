@@ -51,3 +51,27 @@ func TestReexportReach(t *testing.T) {
 		t.Errorf("a unique suffix reached %v", got)
 	}
 }
+
+func TestReexportFilters(t *testing.T) {
+	g := newReexportGraph(map[string]registry.FileDirectives{
+		"lib/shop": {
+			Exports:       []string{"lib/src/a", "lib/src/b"},
+			ExportFilters: []string{"show:f,g", "hiding:h"},
+		},
+	})
+	got := g.reachFiltered([]reachRoot{{path: "lib/shop", filter: parseFilter("hiding:g")}})
+	if len(got) != 2 {
+		t.Fatalf("reached %d routes, want 2: %v", len(got), got)
+	}
+	// a: through the import's hide g and the export's show f,g.
+	if !got[0].chain.allows("f") || got[0].chain.allows("g") || got[0].chain.allows("h") {
+		t.Errorf("a lets f=%v g=%v h=%v, want true false false", got[0].chain.allows("f"), got[0].chain.allows("g"), got[0].chain.allows("h"))
+	}
+	// b: the import's hide g and the export's hide h.
+	if !got[1].chain.allows("f") || got[1].chain.allows("g") || got[1].chain.allows("h") {
+		t.Errorf("b lets f=%v g=%v h=%v, want true false false", got[1].chain.allows("f"), got[1].chain.allows("g"), got[1].chain.allows("h"))
+	}
+	if !parseFilter("").open() || parseFilter("show:x").open() {
+		t.Error("open() misreads an empty filter or a show list")
+	}
+}

@@ -21,8 +21,11 @@ import (
 // `cs(i)`, which reads as a call; and a type-bound call `c%grow(2.0)`, which is a
 // call on a value.
 //
-// What it does not bind, by design: a procedure written in other case than it is
-// called (the index is looked up by the name as written), a generic interface name
+// Procedure names are case-insensitive: `CALL SCALE_SHAPE(...)` is `Scale_Shape`
+// and `PERIMETER(c)` is `perimeter`, and the module the program uses decides
+// which of two spellings (geometry_legacy has a `normalize_it` of its own) is meant.
+//
+// What it does not bind, by design: a generic interface name
 // (`interface area`), a type-bound procedure, a name renamed by `use m, loc =>
 // name`, and a procedure that an `include` line pulls in. An external procedure is
 // bound at low: nothing in the call says the file is the one meant.
@@ -44,6 +47,9 @@ func TestFortranResolution(t *testing.T) {
 		// `use geometry, only: area` in one module, `use geometry_legacy, only: report` in another.
 		{"src/stats.f90:stats.total_area", "src/geometry.f90:geometry.area", high},
 		{"src/stats.f90:stats.total_area", "src/legacy/geometry.f90:geometry_legacy.report", high},
+		// A procedure written in other case than it is defined.
+		{"app/main.f90:main", "src/geometry.f90:geometry.Normalize_It", high},
+		{"app/main.f90:main", "src/geometry.f90:geometry.scale_up", high},
 		// A module spelled in capitals.
 		{"src/report.f90:Reporting.show_perimeter", "src/geometry.f90:geometry.perimeter", high},
 		// External procedures: the file of no module, bound by name.
@@ -57,6 +63,9 @@ func TestFortranResolution(t *testing.T) {
 		// geometry_legacy is not the module the program uses.
 		{Src: "app/main.f90", Dst: "src/legacy/geometry.f90"},
 		{Src: "src/stats.f90:stats.total_area", Dst: "src/legacy/geometry.f90:geometry_legacy.area"},
+		// The other spelling's module is not the one the program uses.
+		{Src: "app/main.f90", Dst: "geometry_legacy.normalize_it"},
+		{Src: "app/main.f90", Dst: "geometry_legacy.scale_up"},
 		// A private procedure is not reached through `use`.
 		{Src: "app/main.f90", Dst: "geometry.<private>"},
 		{Src: "src/report.f90", Dst: "geometry.<private>"},
@@ -73,7 +82,7 @@ func fortranFixture() map[string]string {
 		"src/geometry.f90": `module geometry
   implicit none
   private
-  public :: area, perimeter, Scale_Shape
+  public :: area, perimeter, Scale_Shape, Normalize_It, scale_up
   type, public :: circle
     real :: r
   contains
@@ -97,6 +106,14 @@ contains
     real, intent(in) :: k
     self%r = self%r * k
   end subroutine circle_grow
+
+  subroutine Normalize_It(k)
+    real, intent(in) :: k
+  end subroutine Normalize_It
+
+  subroutine scale_up(k)
+    real, intent(in) :: k
+  end subroutine scale_up
 
   subroutine Scale_Shape(c, k)
     type(circle), intent(inout) :: c
@@ -126,6 +143,14 @@ contains
   subroutine report(k)
     real, intent(in) :: k
   end subroutine report
+
+  subroutine normalize_it(k)
+    real, intent(in) :: k
+  end subroutine normalize_it
+
+  subroutine SCALE_UP(k)
+    real, intent(in) :: k
+  end subroutine SCALE_UP
 end module geometry_legacy
 `,
 		"src/stats.f90": `module stats
@@ -188,6 +213,8 @@ END MODULE Reporting
   real :: t
   t = total_area(cs, 2)
   call Scale_Shape(cs(1), 2.0)
+  CALL NORMALIZE_IT(2.0)
+  CALL scale_UP(2.0)
   print *, perimeter(cs(1)), area(cs(2))
   call finish(t)
   call log_scale(t)

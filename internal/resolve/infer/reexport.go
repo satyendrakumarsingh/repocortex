@@ -6,7 +6,9 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/satyendrakumarsingh/repocortex/internal/parse"
 	"github.com/satyendrakumarsingh/repocortex/internal/registry"
+	"github.com/satyendrakumarsingh/repocortex/pkg/model"
 )
 
 // # What a library reaches beyond what it imports
@@ -26,9 +28,22 @@ import (
 // What a file reaches is then its imports plus, for each, the parts of that
 // library and everything it exports, followed to maxExportDepth with a visited
 // set (barrels export barrels, and a barrel may export the library that
-// imports it). Show and hide combinators are not read: a name a combinator
-// hides would be reachable here, and it is reached at the same confidence the
-// import tier gives any name of an imported file, no higher.
+// imports it).
+//
+// # Show and hide
+//
+// `import 'a.dart' show f;` brings in f alone and `hide g` everything but g,
+// and `export` takes the same combinators. They are carried on the rows
+// (parse.ModuleShowPrefix, parse.ModuleHidingPrefix) and kept along the chain a
+// name travels: a name reaches a file through a barrel only if the import and
+// every export on the way let it pass. The same file reached by two routes is
+// reached if either lets the name through, so a name hidden by one import is
+// still bound through another that exposes it.
+//
+// A combinator names top-level declarations. A candidate that is one, defined
+// in a file only combinator-limited routes reach, and that no route lets
+// through, is dropped before any tier runs (hideCandidates); members are
+// reached through their type and are left alone.
 
 // maxExportDepth bounds how many barrels deep a name is followed. Real
 // packages stack one or two; the bound is for cycles and for chains that are
@@ -101,65 +116,206 @@ func (g *reexportGraph) lookup(importPath string) (registry.FileDirectives, bool
 
 // reach returns the paths a file reaches by way of the files it imports: their
 // parts, and what they export, transitively. In the order first reached, each
-// once, and never a path the file imports itself.
+// once, and never a path the file imports itself. Combinators are not read.
 func (g *reexportGraph) reach(imported []string) []string {
+	roots := make([]reachRoot, len(imported))
 	have := make(map[string]struct{}, len(imported))
-	for _, p := range imported {
+	for i, p := range imported {
+		roots[i] = reachRoot{path: p}
 		have[p] = struct{}{}
 	}
 	var out []string
-	add := func(p string) bool {
-		if _, dup := have[p]; dup {
-			return false
+	for _, r := range g.reachFiltered(roots) {
+		if _, dup := have[r.path]; dup {
+			continue
 		}
-		have[p] = struct{}{}
-		out = append(out, p)
-		return true
+		have[r.path] = struct{}{}
+		out = append(out, r.path)
 	}
-	visited := make(map[string]struct{})
-	var walk func(p string, depth int)
-	walk = func(p string, depth int) {
-		if _, seen := visited[p]; seen {
+	return out
+}
+
+// reachRoot is a file an import names, with the combinators the import wrote.
+type reachRoot struct {
+	path   string
+	filter nameFilter
+}
+
+// reached is a file a root reaches and the combinators every step of the way
+// there carried. A file reached by two routes appears once per route.
+type reached struct {
+	path  string
+	chain filterChain
+}
+
+// reachFiltered is reach with the chain of combinators kept. In the order first
+// reached, each (path, chain) once. A file the importer names itself is listed
+// too, when a barrel exports it: the two routes may let different names pass.
+func (g *reexportGraph) reachFiltered(roots []reachRoot) []reached {
+	var out []reached
+	seen := make(map[string]struct{})
+	add := func(p string, c filterChain) {
+		k := p + "|" + c.key()
+		if _, dup := seen[k]; dup {
 			return
 		}
-		visited[p] = struct{}{}
+		seen[k] = struct{}{}
+		out = append(out, reached{path: p, chain: c})
+	}
+	visited := make(map[string]struct{})
+	var walk func(p string, c filterChain, depth int)
+	walk = func(p string, c filterChain, depth int) {
+		k := p + "|" + c.key()
+		if _, seen := visited[k]; seen {
+			return
+		}
+		visited[k] = struct{}{}
 		d, ok := g.lookup(p)
 		if !ok {
 			return
 		}
 		for _, part := range d.Parts {
-			add(part)
+			add(part, c)
 		}
 		if depth >= maxExportDepth {
 			return
 		}
-		for _, exp := range d.Exports {
-			add(exp)
-			walk(exp, depth+1)
+		for i, exp := range d.Exports {
+			next := c
+			if i < len(d.ExportFilters) {
+				next = c.with(parseFilter(d.ExportFilters[i]))
+			}
+			add(exp, next)
+			walk(exp, next, depth+1)
 		}
 	}
-	for _, p := range imported {
-		walk(p, 0)
+	for _, r := range roots {
+		walk(r.path, filterChain{}.with(r.filter), 0)
 	}
 	return out
 }
 
+// nameFilter is what one `show` and `hide` pair lets through.
+type nameFilter struct {
+	raw     string // the directives it was read from; its identity
+	limited bool   // a `show` list was written
+	show    map[string]struct{}
+	hide    map[string]struct{}
+}
+
+// parseFilter reads the directives the parser wrote (`show:f,g;hiding:h`). A
+// string with none gives the filter that lets everything through.
+func parseFilter(directives string) nameFilter {
+	var f nameFilter
+	for _, part := range strings.Split(directives, parse.ModuleDirectiveSeparator) {
+		switch {
+		case strings.HasPrefix(part, parse.ModuleShowPrefix):
+			f.limited = true
+			f.show = nameSet(strings.TrimPrefix(part, parse.ModuleShowPrefix), f.show)
+		case strings.HasPrefix(part, parse.ModuleHidingPrefix):
+			f.hide = nameSet(strings.TrimPrefix(part, parse.ModuleHidingPrefix), f.hide)
+		default:
+			continue
+		}
+		if f.raw != "" {
+			f.raw += parse.ModuleDirectiveSeparator
+		}
+		f.raw += part
+	}
+	return f
+}
+
+func nameSet(list string, into map[string]struct{}) map[string]struct{} {
+	if into == nil {
+		into = map[string]struct{}{}
+	}
+	for _, n := range strings.Split(list, ",") {
+		into[n] = struct{}{}
+	}
+	return into
+}
+
+// open reports a filter that lets every name through.
+func (f nameFilter) open() bool { return !f.limited && len(f.hide) == 0 }
+
+func (f nameFilter) allows(name string) bool {
+	if f.limited {
+		if _, ok := f.show[name]; !ok {
+			return false
+		}
+	}
+	_, hidden := f.hide[name]
+	return !hidden
+}
+
+// filterChain is the combinators a name passes on its way to a file: the
+// import's, then each export's. Open filters are not kept.
+type filterChain []nameFilter
+
+// with returns the chain extended by f, never sharing the receiver's storage.
+func (c filterChain) with(f nameFilter) filterChain {
+	if f.open() {
+		return c
+	}
+	out := make(filterChain, len(c), len(c)+1)
+	copy(out, c)
+	return append(out, f)
+}
+
+func (c filterChain) allows(name string) bool {
+	for _, f := range c {
+		if !f.allows(name) {
+			return false
+		}
+	}
+	return true
+}
+
+func (c filterChain) key() string {
+	if len(c) == 0 {
+		return ""
+	}
+	parts := make([]string, len(c))
+	for i, f := range c {
+		parts[i] = f.raw
+	}
+	return strings.Join(parts, "|")
+}
+
+// dartRoute is one way a file's names are reached: the import path as the
+// resolver compares it, and the combinators on the way.
+type dartRoute struct {
+	segments []string
+	chain    filterChain
+}
+
 // reexports returns a Dart file's import rows as the import tier should read
-// them, with the paths its imports reach added. An `export` row is dropped
-// (see above) and a `part` row becomes a plain import.
-func (r *Resolver) reexports(ctx context.Context, spec LanguageSpec, rows []registry.Import) []registry.Import {
-	var imported []string
+// them, with the paths its imports reach added, and the routes (see dartRoute)
+// that say which names each path lets through. An `export` row is dropped (see
+// above) and a `part` row becomes a plain import. A row's second column is its
+// prefix alone afterwards: the combinators are in the routes.
+func (r *Resolver) reexports(ctx context.Context, spec LanguageSpec, rows []registry.Import) ([]registry.Import, []dartRoute) {
+	var roots []reachRoot
+	var routes []dartRoute
 	kept := make([]registry.Import, 0, len(rows))
+	route := func(p string, c filterChain) {
+		if segs := importSegments(spec, strings.Trim(p, "./")); len(segs) > 0 {
+			routes = append(routes, dartRoute{segments: segs, chain: c})
+		}
+	}
 	for _, row := range rows {
-		switch row.Alias {
+		prefix, kind, filter := splitDartAlias(row.Alias)
+		switch kind {
 		case exportDirective:
 			continue
 		case includeDirective:
-			row.Alias = ""
+			prefix = ""
 		}
+		row.Alias = prefix
 		kept = append(kept, row)
-		if row.Alias == "" {
-			imported = append(imported, row.Path)
+		route(row.Path, filterChain{}.with(filter))
+		if prefix == "" {
+			roots = append(roots, reachRoot{path: row.Path, filter: filter})
 		}
 	}
 	if !r.reexportLoaded {
@@ -171,12 +327,118 @@ func (r *Resolver) reexports(ctx context.Context, spec LanguageSpec, rows []regi
 		}
 	}
 	if r.reexportGraph == nil {
-		return kept
+		return kept, routes
 	}
-	for _, p := range r.reexportGraph.reach(imported) {
-		kept = append(kept, registry.Import{Path: p})
+	have := make(map[string]struct{}, len(roots))
+	for _, root := range roots {
+		have[root.path] = struct{}{}
 	}
-	return kept
+	for _, got := range r.reexportGraph.reachFiltered(roots) {
+		route(got.path, got.chain)
+		if _, dup := have[got.path]; dup {
+			continue
+		}
+		have[got.path] = struct{}{}
+		kept = append(kept, registry.Import{Path: got.path})
+	}
+	return kept, routes
+}
+
+// splitDartAlias reads the second column of a Dart import row: an optional
+// prefix, an optional `export` or `include`, and the combinators.
+func splitDartAlias(col string) (prefix, kind string, filter nameFilter) {
+	if col == "" {
+		return "", "", nameFilter{}
+	}
+	var rest []string
+	for _, part := range strings.Split(col, parse.ModuleDirectiveSeparator) {
+		switch {
+		case part == exportDirective || part == includeDirective:
+			kind = part
+		case strings.HasPrefix(part, parse.ModuleShowPrefix), strings.HasPrefix(part, parse.ModuleHidingPrefix):
+			rest = append(rest, part)
+		default:
+			prefix = part
+		}
+	}
+	return prefix, kind, parseFilter(strings.Join(rest, parse.ModuleDirectiveSeparator))
+}
+
+// hideCandidates drops, from what each name of the file could be, the top-level
+// definitions the file's imports do not let through. A candidate is dropped
+// only when the imports that name its file (the deepest match, as the import
+// tier ranks them) all carry combinators that exclude the name: a file no
+// import names, the file itself, and members of types are left as they were.
+func (r *Resolver) hideCandidates(spec LanguageSpec, fr registry.FileRefs, routes []dartRoute, symbols map[string][]registry.SymbolIndexEntry) {
+	limited := false
+	for _, rt := range routes {
+		if len(rt.chain) > 0 {
+			limited = true
+			break
+		}
+	}
+	if !limited {
+		return
+	}
+	done := make(map[string]struct{}, len(fr.Refs))
+	segsOf := map[string][]string{}
+	for _, ref := range fr.Refs {
+		if _, ok := done[ref.Name]; ok {
+			continue
+		}
+		done[ref.Name] = struct{}{}
+		cands := symbols[ref.Name]
+		var kept []registry.SymbolIndexEntry
+		for i, c := range cands {
+			if hiddenBy(spec, fr.Path, routes, segsOf, c) {
+				if kept == nil {
+					kept = append(make([]registry.SymbolIndexEntry, 0, len(cands)), cands[:i]...)
+				}
+				continue
+			}
+			if kept != nil {
+				kept = append(kept, c)
+			}
+		}
+		if kept != nil {
+			symbols[ref.Name] = kept
+		}
+	}
+}
+
+// topLevelKind reports whether a symbol of this kind is something a library
+// declares at its top level, which is what a combinator can name. A method or a
+// field is reached through its type.
+func topLevelKind(kind string) bool {
+	switch model.EntityKind(kind) {
+	case model.KindFunction, model.KindClass, model.KindInterface, model.KindConstant, model.KindVariable, model.KindTypeAlias:
+		return true
+	}
+	return false
+}
+
+func hiddenBy(spec LanguageSpec, callerPath string, routes []dartRoute, segsOf map[string][]string, c registry.SymbolIndexEntry) bool {
+	if c.FilePath == callerPath || strings.Contains(c.Name, ".") || !topLevelKind(c.Kind) {
+		return false
+	}
+	segs, ok := segsOf[c.FilePath]
+	if !ok {
+		segs = fileSegments(spec, c.FilePath)
+		segsOf[c.FilePath] = segs
+	}
+	best := 0
+	allowed := false
+	for _, rt := range routes {
+		d := commonSuffixLen(rt.segments, segs)
+		switch {
+		case d == 0 || d < best:
+		case d > best:
+			best, allowed = d, rt.chain.allows(c.Name)
+		default:
+			allowed = allowed || rt.chain.allows(c.Name)
+		}
+	}
+	return best > 0 && !allowed
 }
 
 // The two directive aliases the parser gives a Dart row (parse.ModuleExport,

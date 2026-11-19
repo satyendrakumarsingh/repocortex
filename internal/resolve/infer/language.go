@@ -339,8 +339,8 @@ type LanguageSpec struct {
 	ModuleDirs []string
 
 	// FoldNames reports that the language does not tell two spellings of a name
-	// apart by case: PowerShell command names, where `write-log` calls
-	// `Write-Log`. Candidate lookup is by exact name, so a call written in
+	// apart by case: PowerShell and CMake command names, Fortran procedure names, where `write-log` calls
+	// `Write-Log` (variables are not folded). Candidate lookup is by exact name, so a call written in
 	// another case finds nothing; with this set it falls back to the spellings
 	// the repository defines (Resolver.foldCandidates).
 	FoldNames bool
@@ -1347,6 +1347,7 @@ func NewSpecs() *Specs {
 		Dirs:     []string{"test", "tests"},
 	})
 	cmake.ProximityIsEvidence = false
+	cmake.FoldNames = true
 	cmake.MemberSeparators = sepDefault
 	add(cmake)
 	// MATLAB. A function file `foo.m` defines `foo`, and every function on the path
@@ -1372,6 +1373,7 @@ func NewSpecs() *Specs {
 		Dirs:     []string{"test", "tests"},
 	})
 	fortran.ProximityIsEvidence = false
+	fortran.FoldNames = true
 	fortran.MemberSeparators = sepDefault
 	add(fortran)
 	// HCL. A Terraform module is a directory: every `.tf` file in it shares one scope, and

@@ -22,6 +22,7 @@ import "strings"
 //	               `use parent` and `use base`)
 //	hiding:f,g     every function of the module EXCEPT the listed (Haskell's
 //	               `import A hiding (f)`)
+//	show:f,g       only the listed names of the library (Dart's `show`)
 //	include        Path names a FILE whose definitions join this file's module
 //	               (Julia's include, Dart's `part`)
 //	export         Path names a library this file re-exports: whoever imports
@@ -34,6 +35,7 @@ const (
 	ModuleImportPrefix       = "import:"
 	ModuleParent             = "parent"
 	ModuleHidingPrefix       = "hiding:"
+	ModuleShowPrefix         = "show:"
 	ModuleInclude            = "include"
 	ModuleExport             = "export"
 	ModuleDirectiveSeparator = ";"

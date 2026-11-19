@@ -876,9 +876,9 @@ var importQueries = map[string]string{
 	// path is rewritten by dartImport (lang_dart.go), which has the importing
 	// file's directory to resolve a relative URI against.
 	"dart": `
-(import_specification (configurable_uri (uri (string_literal) @path)) (identifier) @alias)
-(import_specification (configurable_uri (uri (string_literal) @path)))
-(library_export "export" @directive (configurable_uri (uri (string_literal) @path)))
+(import_specification (configurable_uri (uri (string_literal) @path)) (identifier) @alias) @clause
+(import_specification (configurable_uri (uri (string_literal) @path))) @clause
+(library_export "export" @directive (configurable_uri (uri (string_literal) @path))) @clause
 (part_directive "part" @directive (uri (string_literal) @path))
 (part_of_directive (uri (string_literal) @path))
 `,

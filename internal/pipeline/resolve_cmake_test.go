@@ -20,8 +20,9 @@ import (
 // commands (`set`, `add_library`, `message`, `target_link_libraries`), which a
 // definition of the repository does not replace.
 //
-// What it does not bind, by design: a command spelled in other case than it is
-// defined (`Shop_Add_Module`), a command that two files define (shop_log called from
+// Command names are case-insensitive: `Shop_Add_Module(...)` runs `shop_add_module`.
+//
+// What it does not bind, by design: a command that two files define (shop_log called from
 // a file that includes neither), and a file that an included file includes.
 func TestCMakeResolution(t *testing.T) {
 	got := langEdges(t, cmakeFixture())
@@ -41,11 +42,12 @@ func TestCMakeResolution(t *testing.T) {
 		{"shop/src/plugins/CMakeLists.txt:(top level)", "shop/src/local.cmake:src_tweak", low},
 		{"shop/tests/CMakeLists.txt:(top level)", "shop/cmake/CompilerWarnings.cmake:shop_enable_warnings", low},
 		{"shop/tests/CMakeLists.txt:(top level)", "shop/cmake/helpers.cmake:shop_add_module", low},
+		// A command written in other case than it is defined: shop_only_caps has
+		// two definitions, and the included file's is the one meant.
+		{"shop/CMakeLists.txt:shop_summary", "shop/cmake/helpers.cmake:Shop_Only_Caps", high},
 	}
 	forbid := []want{
 		{Src: "", Dst: "third_party/"},
-		// Case: command names are not case-sensitive, and the index looks a name up as written.
-		{Src: "shop/src/plugins/CMakeLists.txt", Dst: "shop_other"},
 		// Two files define it, and neither of these includes either.
 		{Src: "shop/src/local.cmake", Dst: ":shop_log"},
 	}
@@ -71,6 +73,7 @@ find_package(Fmt REQUIRED)
 function(shop_summary)
   message(STATUS "shop")
   shop_log("configured")
+  SHOP_ONLY_CAPS()
 endfunction()
 
 add_subdirectory(src)
@@ -80,6 +83,9 @@ shop_enable_warnings(shop_core)
 `,
 		"shop/cmake/helpers.cmake": `function(shop_log msg)
   message(STATUS "[shop] ${msg}")
+endfunction()
+
+function(Shop_Only_Caps)
 endfunction()
 
 macro(shop_add_module name)
@@ -101,7 +107,10 @@ endfunction()
   message(STATUS "fmt")
 endfunction()
 `,
-		"third_party/cmake/helpers.cmake": `function(shop_log msg)
+		"third_party/cmake/helpers.cmake": `function(shop_only_caps)
+endfunction()
+
+function(shop_log msg)
   message("[vendor] ${msg}")
 endfunction()
 `,

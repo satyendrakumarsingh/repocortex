@@ -126,6 +126,11 @@ type Import struct {
 	// into what the row stores; it is never persisted itself.
 	Directive string
 
+	// Clause is the text of the whole statement when the import query captured
+	// it (@clause): Dart's `show` and `hide` combinators are read from it. A
+	// language's import fix reads it; it is never persisted itself.
+	Clause string
+
 	Range model.Range
 }
 
