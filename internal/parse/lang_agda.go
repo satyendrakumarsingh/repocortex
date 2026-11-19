@@ -29,6 +29,7 @@ const agdaDefinitions = `
 (data (data_name) @name) @definition.class
 (record (record_name) @name) @definition.class
 (fields (signature (field_name) @name) @definition.field)
+(record_declarations_block (ERROR) @_f . (function (lhs (function_name) @name) (rhs) @_r (#match? @_r "^:")) @definition.field (#match? @_f "^field$"))
 
 (source_file (function (lhs (function_name) @name) (rhs) @_r (#match? @_r "^:")) @definition.function)
 (module (function (lhs (function_name) @name) (rhs) @_r (#match? @_r "^:")) @definition.function)

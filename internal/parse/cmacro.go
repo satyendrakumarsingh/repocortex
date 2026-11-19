@@ -901,9 +901,9 @@ func (p *genericParser) retryMaskedWithin(ctx context.Context, tree *ts.Tree, st
 	// trouble on or after the first one. Only a tree with errors, or one that
 	// stopped, is looked at.
 	var spans []maskSpan
-	if sm.find != nil && root != nil && (stop.early || root.HasError()) {
+	if sm.find != nil && root != nil && (stop.early || root.HasError() || sm.silent) {
 		spans = sm.find(src)
-		if len(spans) == 0 || !stop.early && !troubleFrom(root, spans[0].start) {
+		if len(spans) == 0 || !stop.early && !sm.silent && !troubleFrom(root, spans[0].start) {
 			spans = nil
 		}
 	}
@@ -963,6 +963,11 @@ func (p *genericParser) retryMaskedWithin(ctx context.Context, tree *ts.Tree, st
 			plainEarly: stop.early, maskedEarly: stop2.early,
 			plainParsed: stop.parsedBytes, maskedParsed: stop2.parsedBytes,
 		}
+		for _, sp := range spans {
+			if sp.drop {
+				mc.dropped = append(mc.dropped, condSpan{sp.start, sp.start + len(sp.repl)})
+			}
+		}
 		if len(spans) > 0 && sm.swallows && !stop.early {
 			// The plain parse reached the end of the file, but by reading
 			// everything after the first construct as part of it: that is a
@@ -1001,9 +1006,16 @@ func (p *genericParser) retryMaskedWithin(ctx context.Context, tree *ts.Tree, st
 // repl replaces the bytes [start, start+len(repl)). It must be exactly as long
 // as the text it replaces and keep its newlines, so that every offset and line
 // number is unchanged; applyMaskSpans skips a span that does not fit the text.
+//
+// drop marks text whose definitions are not real: the plain parse reads the
+// local signatures of a where block as top-level functions, and the masked
+// parse rightly does not have them. The guard does not hold the mask to
+// account for a definition that starts inside such a span, and a mask that
+// removed one is a better reading even when nothing was gained.
 type maskSpan struct {
 	start int
 	repl  []byte
+	drop  bool
 }
 
 // spanMask is a language's own construct that the grammar cannot read and that
@@ -1019,9 +1031,16 @@ type maskSpan struct {
 // closed): the plain parse then reaches the end of the file with an error
 // count that only describes the text before the construct, so the guard
 // judges it as a parse that stopped at the first span.
+//
+// silent is set for a construct the grammar misreads without an error node
+// (a right-hand side that takes in the lines after it): find is then asked
+// for spans whether or not the plain tree has errors, so it must return
+// nothing for a file the mask would not change, or every file of the language
+// is parsed twice.
 type spanMask struct {
 	find     func(src []byte) []maskSpan
 	swallows bool
+	silent   bool
 }
 
 // spanMasks ride on the retry above and share its guard, so a file is still
@@ -1034,6 +1053,7 @@ var spanMasks = map[string]spanMask{
 	"swift":  {find: findSwiftTypeAttributes},
 	"make":   {find: findMakeEmptySubstitutions},
 	"haxe":   {find: findHaxeConstructs},
+	"agda":   {find: findAgdaConstructs, silent: true},
 }
 
 // applyMaskSpans returns a copy of src with the spans overwritten.
@@ -1113,6 +1133,18 @@ type maskContext struct {
 	swallowed bool
 	// givenUp is set by maskGuard: see maskedParse.lost.
 	givenUp int
+	// dropped are the byte ranges of spans marked drop (see maskSpan).
+	dropped []condSpan
+}
+
+// inDropped reports whether byte offset pos lies in a span marked drop.
+func (mc *maskContext) inDropped(pos int) bool {
+	for _, s := range mc.dropped {
+		if pos >= s.start && pos < s.end {
+			return true
+		}
+	}
+	return false
 }
 
 // nearErrorSpans lists the error and missing nodes of a tree, each widened by
@@ -1298,10 +1330,14 @@ func maskGuard(plainRoot *ts.Node, plain []ts.Tag, maskedRoot *ts.Node, masked [
 	// regions were as likely wrong as right. Otherwise it is held to account
 	// like any other.
 	strong := mc != nil && !mc.plainEarly && maskedErrs*2 <= plainErrs
-	nPlain, givenUp := 0, 0
+	nPlain, givenUp, droppedN := 0, 0, 0
 	offset := map[string]int{}
 	for _, t := range plain {
 		if !isDefinitionTag(t.Kind) {
+			continue
+		}
+		if mc != nil && mc.inDropped(int(t.NameRange.StartByte)) {
+			droppedN++
 			continue
 		}
 		if t.Kind != cMacroDefinitionTag && names[t.Name] {
@@ -1347,7 +1383,7 @@ func maskGuard(plainRoot *ts.Node, plain []ts.Tag, maskedRoot *ts.Node, masked [
 	if nMasked < nPlain+givenUp || moreDefs && nMasked <= nPlain {
 		return false
 	}
-	return better || nMasked > nPlain
+	return better || nMasked > nPlain || droppedN > 0
 }
 
 // grewMuch reports whether the masked parse has at least half as many

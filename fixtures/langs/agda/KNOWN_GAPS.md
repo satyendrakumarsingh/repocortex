@@ -1,70 +1,33 @@
 # Agda known gaps
 
 The Agda grammar is layout-sensitive and loses its place on several common
-forms. None of these is in `expected.tsv`; each is a form the grammar parses
-wrongly, and a query cannot repair it.
+forms. Most of them are recovered; `Recovery.agda` holds each with definitions
+after it, and `internal/parse/mask_agda.go` explains the mechanism. Three
+things the grammar reads wrongly are repaired before the definitions are read:
 
-## `where` clauses with local signatures
+- an expression of three or more atoms in a row (`n +++ n`, `Vec A zero`,
+  `g (h x) y`), in an equation, a signature, a constructor or a field, which
+  takes in the lines after it: the expression's text is overwritten;
+- a `where` block (or a `let`) in an equation, whose local signatures would be
+  read as top-level functions: the equation's right-hand side is overwritten;
+- `data Vec (A : Set) : Nat → Set where`, parameters together with an index:
+  the parameters are overwritten.
 
-```agda
-triple : Nat → Nat
-triple n = go n
-  where
-    go : Nat → Nat
-    go m = m +++ double m
+A file with one of these is parsed twice, and the second parse is kept only
+if it has every definition the first had, apart from those inside a where
+block. The result then says `read with N constructs masked`, and the text of a
+masked signature reads `f : _` in the index.
 
-next : Nat
-next = zero
-```
+`field x : T` on one line stays an `ERROR "field"` in the tree (the file is
+reported as partial); the query reads the signature after it as a field.
 
-The `where` keyword becomes a `function` node of its own (`function "where"`),
-the local `go : Nat → Nat` is read as a top-level function, and the local
-equation starts an `ERROR` that runs to the end of the file. `go` is therefore
-indexed as if it were top level, and every definition after the `where` block
-is missing. A one-line `where k = suc` does not do this.
+## What remains
 
-## Indexed data with parameters
-
-```agda
-data Vec (A : Set) : Nat → Set where
-  nil  : Vec A zero
-  cons : {n : Nat} → A → Vec A n → Vec A (suc n)
-```
-
-A `data` with both parameters and an index type fails: the whole file becomes
-one `ERROR` node (`ERROR "module F where..."`) and nothing in it is extracted.
-`data Index : Nat → Set` (an index, no parameters) and `data List (A : Set) :
-Set` (parameters, no index) parse.
-
-## A right-hand side of three or more atoms swallows what follows
-
-```agda
-double : Nat → Nat
-double n = n +++ n
-
-unit : Nat
-unit = zero
-
-apply : Nat → Nat
-apply f = f
-```
-
-The right-hand side `n +++ n` (also `f n n`, or a `let ... in` body) runs on as
-one expression: it takes in the next lines as atoms
-(`rhs "= n +++ n..."` holds `unit`, `:`, `Nat`, `unit`, `=` and so on), so the
-following signature and sometimes the following definitions are not found. A
-right-hand side of one or two atoms (`suc n`, `f x`, `suc (n +++ m)`) does not
-do this. This is the most damaging gap: how much of a file is lost depends on
-how its equations are written. The fixture keeps its equations short for that
-reason.
-
-## A record field on the same line as `field`
-
-```agda
-record Wrapper : Set where
-  field unwrap : Nat
-```
-
-The grammar reports `ERROR "field"` and reads `unwrap : Nat` as a function
-inside the record, so `unwrap` is not a field. `field` on its own line, with
-the signatures indented below it, works.
+- `field x y : T` (several names after a one-line `field`): the grammar reads
+  `x y` as the arguments of a function, so neither name is a field. Only the
+  first name of `field x : T` is recovered, and only when it is alone.
+- A where block or let in a signature, or an expression of three atoms in a
+  `data` or `record` header (`data D : Vec A n → Set`): not masked.
+- Local definitions in a where block are never indexed, by design (they are
+  not top level); a function that is only reachable through a where block of
+  another is not found.
