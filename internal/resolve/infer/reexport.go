@@ -89,14 +89,23 @@ func newReexportGraph(files map[string]registry.FileDirectives) *reexportGraph {
 // path is that, or the one that ends with it where a package lives under a
 // directory. Two such files are no answer.
 func (g *reexportGraph) lookup(importPath string) (registry.FileDirectives, bool) {
-	if d, ok := g.files[importPath]; ok {
-		return d, true
+	k, ok := g.lookupKey(importPath)
+	if !ok {
+		return registry.FileDirectives{}, false
+	}
+	return g.files[k], true
+}
+
+// lookupKey is lookup's file: the key of the file an import path names.
+func (g *reexportGraph) lookupKey(importPath string) (string, bool) {
+	if _, ok := g.files[importPath]; ok {
+		return importPath, true
 	}
 	found, ok := g.bySuffix[importPath]
 	if !ok || found == ambiguous {
-		return registry.FileDirectives{}, false
+		return "", false
 	}
-	return g.files[found], true
+	return found, true
 }
 
 // reach returns the paths a file reaches by way of the files it imports: their

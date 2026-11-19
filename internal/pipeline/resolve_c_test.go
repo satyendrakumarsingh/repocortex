@@ -18,10 +18,10 @@ import (
 // also calls by name, and which no other file can link to; and the C library
 // (`printf`, `malloc`, `strlen`), which is the system's and not the repository's.
 //
-// What it does not bind, by design: a function reached through a header that an
-// included header includes (only the file's own includes are read). A neighbour's
-// function that no include of the file names binds at low and is listed as known:
-// it is `bump`, which only the same-directory tier reaches.
+// A function reached through a header that an included header includes binds
+// (TestCTransitiveIncludes). A neighbour's function that no include of the file
+// names binds at low and is listed as known: it is `bump`, which only the
+// same-directory tier reaches.
 func TestCResolution(t *testing.T) {
 	got := langEdges(t, cFixture())
 	high := model.ConfidenceHigh

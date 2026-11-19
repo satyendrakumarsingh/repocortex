@@ -519,18 +519,7 @@ func (r *Resolver) typeNamed(c call, name string) (t typeRef, found, known bool)
 		// scope at all. Asked after the file's own module, before the
 		// repository-wide fallback below, which would call two modules' Money
 		// ambiguous and leave the call unbound.
-		var imported []registry.SymbolIndexEntry
-		best := 0
-		for _, s := range types {
-			if d, ok := c.imports.covers(s.FilePath); ok && d > best {
-				best = d
-			}
-		}
-		for _, s := range types {
-			if d, ok := c.imports.covers(s.FilePath); ok && d == best && best > 0 {
-				imported = append(imported, s)
-			}
-		}
+		imported := c.imports.nearest(types)
 		if sameDirectory(c.spec, imported) {
 			if t, ok := pick(imported, true); ok {
 				return t, true, true

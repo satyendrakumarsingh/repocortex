@@ -20,8 +20,8 @@ import (
 // the toolkit's and not the repository's.
 //
 // What it does not bind, by design: a function reached through a header that an
-// included header includes (only the file's own includes are read), a call on an
-// object of a class (CUDA's definitions carry no class), and a neighbour's function
+// included header includes (transitive includes are followed for C, GLSL and
+// HLSL, not yet for C++ and CUDA), a call on an object of a class (CUDA's definitions carry no class), and a neighbour's function
 // that no include of the file names.
 func TestCUDAResolution(t *testing.T) {
 	got := langEdges(t, cudaFixture())

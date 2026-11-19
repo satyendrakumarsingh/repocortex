@@ -17,9 +17,9 @@ import (
 // `dot`, `pow`, `normalize`, `float3`), which are the language's; and a method of a
 // built-in resource (`albedo.Sample(samp, uv)`), which no file defines.
 //
-// What it does not bind, by design: `luma` in pbr.hlsl, which reaches math.hlsli
-// only through the include of lighting.hlsli (only a file's own includes are read),
-// and a method called on a value.
+// `luma` in pbr.hlsl, which reaches math.hlsli only through the include of
+// lighting.hlsli, binds as a transitive include does (TestHLSLTransitiveIncludes).
+// What it does not bind, by design: a method called on a value.
 func TestHLSLResolution(t *testing.T) {
 	got := langEdges(t, hlslFixture())
 	high := model.ConfidenceHigh
@@ -28,6 +28,8 @@ func TestHLSLResolution(t *testing.T) {
 		{"shaders/pbr.hlsl:main", "shaders/common/lighting.hlsli:diffuse", high},
 		{"shaders/pbr.hlsl:main", "shaders/common/lighting.hlsli:tonemap", high},
 		{"shaders/pbr.hlsl:main", "shaders/pbr.hlsl:fresnel", high},
+		// math.hlsli is reached through the include of lighting.hlsli alone.
+		{"shaders/pbr.hlsl:main", "shaders/common/math.hlsli:luma", high},
 		{"shaders/post.hlsl:main", "shaders/legacy/math.hlsli:gamma_correct", high},
 		{"shaders/post.hlsl:main", "shaders/legacy/math.hlsli:luma", high},
 		{"shaders/sky.hlsl:main", "shaders/sky.hlsl:luma", high},

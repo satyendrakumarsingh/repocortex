@@ -206,6 +206,11 @@ type Resolver struct {
 	reachGraphs map[string]*reexportGraph
 	reachMemo   map[string][]string
 
+	// importGraphs is each transitive language's import rows, read on first use.
+	// See transitive.go.
+	importGraphs map[string]*reexportGraph
+	importStems  map[string]map[string][]string
+
 	// hclModules are the module blocks of each Terraform directory, by name, built
 	// from the rows of its files on first use. See hcl.go.
 	hclModules map[string]map[string]string
@@ -468,6 +473,9 @@ func (r *Resolver) ResolveFile(
 		r.loadReach(ctx, spec.Name)
 	}
 	imports := buildImportSet(spec, fileImports)
+	if spec.TransitiveImports {
+		imports.reached = r.reachedFiles(ctx, spec, fr, fileImports)
+	}
 	imports.layout = r.layout
 	if spec.QualifiedMembers {
 		imports.base = pathSegments(path.Dir(fr.Path))
@@ -1486,6 +1494,11 @@ type importSet struct {
 	// relative import is relative TO. Set by ResolveFile; empty in a set built
 	// without a file, where a relative import then anchors at the root.
 	base []string
+
+	// reached is the files the direct imports reach in turn, by path without
+	// extension, with how many steps away each is (1 or more). Only for a
+	// language with LanguageSpec.TransitiveImports. See transitive.go.
+	reached map[string]int
 }
 
 // renameSeparator joins the local name and the exported name in a member
@@ -1696,6 +1709,54 @@ func moduleStem(spec LanguageSpec, filePath string) string {
 // suffix. Two imports can both cover a candidate, and the one that shares more
 // of the path is the one that named it.
 func (s importSet) covers(filePath string) (int, bool) {
+	_, d, ok := s.coverage(filePath)
+	return d, ok
+}
+
+// coverage is covers with how near the file is: 0 for one a direct import
+// names, n for one n steps down the chain of imports (transitive.go). The nearest
+// wins; d is the number of trailing segments shared with the import that names
+// the file.
+func (s importSet) coverage(filePath string) (depth, d int, ok bool) {
+	if d, ok := s.directCovers(filePath); ok {
+		return 0, d, true
+	}
+	if len(s.reached) > 0 {
+		key := strings.TrimSuffix(filePath, path.Ext(filePath))
+		if n, ok := s.reached[key]; ok {
+			return n, len(pathSegments(key)), true
+		}
+	}
+	return 0, 0, false
+}
+
+// nearest keeps, of the candidates the imports cover, those the nearest import
+// names and, among them, the ones sharing the most trailing segments with it.
+func (s importSet) nearest(cands []registry.SymbolIndexEntry) []registry.SymbolIndexEntry {
+	bestDepth, best := 0, 0
+	for _, c := range cands {
+		depth, d, ok := s.coverage(c.FilePath)
+		if !ok {
+			continue
+		}
+		if best == 0 || depth < bestDepth || (depth == bestDepth && d > best) {
+			bestDepth, best = depth, d
+		}
+	}
+	if best == 0 {
+		return nil
+	}
+	var out []registry.SymbolIndexEntry
+	for _, c := range cands {
+		if depth, d, ok := s.coverage(c.FilePath); ok && depth == bestDepth && d == best {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+// directCovers is the match of the imports a file wrote itself.
+func (s importSet) directCovers(filePath string) (int, bool) {
 	if len(s.imports) == 0 {
 		return 0, false
 	}
@@ -1844,20 +1905,9 @@ func (r *Resolver) pickImported(
 		// same module.
 		return candidate{}, false
 	}
-	best := 0
-	for _, c := range cands {
-		if d, ok := imports.covers(c.FilePath); ok && d > best {
-			best = d
-		}
-	}
-	if best == 0 {
+	imported := imports.nearest(cands)
+	if len(imported) == 0 {
 		return candidate{}, false
-	}
-	var imported []registry.SymbolIndexEntry
-	for _, c := range cands {
-		if d, ok := imports.covers(c.FilePath); ok && d == best {
-			imported = append(imported, c)
-		}
 	}
 	if len(imported) == 1 {
 		return candidate{imported[0], model.ConfidenceHigh, "single match in an imported package"}, true

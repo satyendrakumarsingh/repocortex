@@ -98,6 +98,10 @@ type CandidateCache struct {
 	// once on first use. See Directives.
 	directives map[string]map[string]FileDirectives
 
+	// importGraphs holds, per language, each file's import paths. Read once on
+	// first use. See ImportGraph.
+	importGraphs map[string]map[string][]string
+
 	hits, misses, evictions int
 }
 

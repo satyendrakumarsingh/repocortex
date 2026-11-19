@@ -351,6 +351,21 @@ type LanguageSpec struct {
 	// reexport.go.
 	ReExports bool
 
+	// TransitiveImports reports that what a file imports brings in what THAT file
+	// imports, in turn: Bash and PowerShell sourcing, a C-family or shader
+	// #include. A definition two or more steps away is in scope, a nearer file's
+	// beats a farther one's, and a file that is not on the chain is not made to
+	// look imported. See transitive.go.
+	TransitiveImports bool
+
+	// HeaderPairs reports that a header and the unit that defines what it declares
+	// are two files of one stem, in directories that need not be the same
+	// (`include/util.h`, `src/util.c`): an include of the header reaches the unit.
+	// With TransitiveImports, a header reached through another header brings the
+	// unit that includes it and shares its stem. C only: a shader's include is the
+	// file that defines, and two shaders of one stem are two files.
+	HeaderPairs bool
+
 	// NamespaceDirs names the only directories whose files share a namespace
 	// with no import: an R package's `R/`, where every file's functions are the
 	// package's and every other file of the directory calls them by name. Empty
@@ -1140,6 +1155,7 @@ func NewSpecs() *Specs {
 	})
 	bash.ProximityIsEvidence = false
 	bash.MemberSeparators = sepDefault
+	bash.TransitiveImports = true
 	add(bash)
 	// C and C++ have no test convention worth claiming; they keep the directory
 	// rule. Interop nil: unclassified, pending the header-sharing decision above.
@@ -1193,6 +1209,7 @@ func NewSpecs() *Specs {
 	powershell.TypesNeedImport = true
 	powershell.MemberSeparators = sepDefault
 	powershell.FoldNames = true
+	powershell.TransitiveImports = true
 	add(powershell)
 	// R. A file is a script that loads nothing it does not `source()`, except
 	// inside a package's `R/`, whose files are one namespace (NamespaceDirs). An
@@ -1306,7 +1323,10 @@ func NewSpecs() *Specs {
 	cpp := scopeSpec("cpp", nil, TestFiles{Dirs: []string{"test", "tests"}})
 	cpp.TypesNeedImport = true
 	add(cpp)
-	add(scopeSpec("c", nil, TestFiles{Dirs: []string{"test", "tests"}}))
+	cspec := scopeSpec("c", nil, TestFiles{Dirs: []string{"test", "tests"}})
+	cspec.TransitiveImports = true
+	cspec.HeaderPairs = true
+	add(cspec)
 	// CUDA is C++: the same linker, the same #include of headers (`.cuh`, `.h`), and
 	// a kernel launch `kern<<<g, b>>>(x)` is a call of `kern`. The spec is the
 	// C++ one (the C family's Interop is the call traits' Family), with a type in a
@@ -1330,11 +1350,13 @@ func NewSpecs() *Specs {
 	glsl := scopeSpec("glsl", nil, TestFiles{Dirs: []string{"test", "tests"}})
 	glsl.ProximityIsEvidence = false
 	glsl.TypesNeedImport = true
+	glsl.TransitiveImports = true
 	glsl.MemberSeparators = sepDefault
 	add(glsl)
 	hlsl := scopeSpec("hlsl", nil, TestFiles{Dirs: []string{"test", "tests"}})
 	hlsl.ProximityIsEvidence = false
 	hlsl.TypesNeedImport = true
+	hlsl.TransitiveImports = true
 	hlsl.MemberSeparators = sepDefault
 	add(hlsl)
 	// CMake. A command (a function() or macro() that was run) is global once its

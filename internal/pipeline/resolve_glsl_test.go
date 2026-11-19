@@ -17,10 +17,9 @@ import (
 // not the library's; and the built-ins (`texture`, `normalize`, `dot`, `clamp`,
 // `pow`, `vec3`), which are the language's.
 //
-// What it does not bind, by design: a function in a file that an included file
-// includes (the include of lighting.glsl does not name math.glsl, and the shader
-// that wants `saturate` includes it itself), and the entry point `main`, which no
-// shader calls.
+// A function in a file that an included file includes binds as well
+// (TestGLSLTransitiveIncludes). What it does not bind, by design: the entry point
+// `main`, which no shader calls.
 func TestGLSLResolution(t *testing.T) {
 	got := langEdges(t, glslFixture())
 	high := model.ConfidenceHigh
