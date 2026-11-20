@@ -1746,6 +1746,8 @@ func (p *genericParser) extractImports(tree *ts.Tree, src []byte) []Import {
 				imp.Alias = text
 			case "directive":
 				imp.Directive = text
+			case "clause":
+				imp.Clause = c.Text(src)
 			}
 		}
 		if imp.Path != "" {

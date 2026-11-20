@@ -2353,3 +2353,28 @@ mod inner {
 		}
 	}
 }
+
+// Dart's show and hide combinators are recorded on the row, on imports and on
+// exports, beside a prefix when there is one. A URI or a comment that holds the
+// word is not a combinator.
+func TestDartCombinators(t *testing.T) {
+	res := parse(t, "lib/app.dart", `import 'a.dart' show f, g;
+import 'b.dart' hide h;
+import 'c.dart' as c show k;
+import 'd/show hide.dart'; // show nothing
+export 'e.dart' show m hide n;
+export 'f.dart';
+`)
+	for path, want := range map[string]string{
+		"lib/a":           "show:f,g",
+		"lib/b":           "hiding:h",
+		"lib/c":           "c;show:k",
+		"lib/d/show hide": "",
+		"lib/e":           "export;show:m;hiding:n",
+		"lib/f":           "export",
+	} {
+		if got, ok := importAlias(res, path); !ok || got != want {
+			t.Errorf("%s: alias = %q (found %v), want %q; rows %v", path, got, ok, want, importPaths(res))
+		}
+	}
+}

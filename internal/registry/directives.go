@@ -13,7 +13,11 @@ import (
 // names. Paths are as the parser wrote them, without extension.
 type FileDirectives struct {
 	Exports []string
-	Parts   []string
+	// ExportFilters is parallel to Exports: what the export's `show` and `hide`
+	// combinators say, as the directives the parser wrote after "export"
+	// (`show:f,g;hiding:h`), or "" for an export that names no combinator.
+	ExportFilters []string
+	Parts         []string
 }
 
 // Directives returns the export and part directives of every file of a
@@ -31,7 +35,7 @@ func (c *CandidateCache) Directives(ctx context.Context, language string) (map[s
 	rows, err := c.reg.db.QueryContext(ctx,
 		`SELECT f.path, i.path, i.alias
 		   FROM file_imports i JOIN files f ON f.id = i.file_id
-		  WHERE i.index_run_id = ? AND f.language = ? AND i.alias IN ('export', 'include')
+		  WHERE i.index_run_id = ? AND f.language = ? AND ((i.alias IN ('export', 'include') OR i.alias LIKE 'export;%') OR i.alias LIKE 'export;%')
 		  ORDER BY f.path, i.start_line, i.path`, c.runID, language)
 	if err != nil {
 		return nil, fmt.Errorf("registry: load directives: %w", err)
@@ -45,8 +49,9 @@ func (c *CandidateCache) Directives(ctx context.Context, language string) (map[s
 		}
 		key := strings.TrimSuffix(file, path.Ext(file))
 		d := out[key]
-		if alias == "export" {
+		if alias == "export" || strings.HasPrefix(alias, "export;") {
 			d.Exports = append(d.Exports, target)
+			d.ExportFilters = append(d.ExportFilters, strings.TrimPrefix(strings.TrimPrefix(alias, "export"), ";"))
 		} else {
 			d.Parts = append(d.Parts, target)
 		}

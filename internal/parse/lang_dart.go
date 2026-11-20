@@ -2,6 +2,7 @@ package parse
 
 import (
 	"path"
+	"regexp"
 	"strings"
 
 	ts "github.com/odvcencio/gotreesitter"
@@ -173,13 +174,17 @@ func dartImport(filePath string, imp Import) []Import {
 		return nil
 	}
 	imp.Path = uri
+	combinators := dartCombinators(imp.Clause)
 	switch imp.Directive {
 	case "export":
-		imp.Alias = moduleDirectives(imp.Alias, ModuleExport)
+		imp.Alias = moduleDirectives(append([]string{imp.Alias, ModuleExport}, combinators...)...)
 	case "part":
 		imp.Alias = moduleDirectives(imp.Alias, ModuleInclude)
+	default:
+		imp.Alias = moduleDirectives(append([]string{imp.Alias}, combinators...)...)
 	}
 	imp.Directive = ""
+	imp.Clause = ""
 	return []Import{imp}
 }
 
@@ -235,4 +240,43 @@ func dartCallShape(src []byte, at int) callShape {
 		return opaque
 	}
 	return classifyReceiver("dart", string(src[j:i]), ".")
+}
+
+// dartNoise matches what is not code in a directive: comments and string
+// literals (the URIs, which may hold a "show" or "hide" of their own).
+var dartNoise = regexp.MustCompile(`//[^\n]*|/\*[\s\S]*?\*/|'[^']*'|"[^"]*"`)
+
+// dartCombinator is one `show a, b` or `hide a, b` clause.
+var dartCombinator = regexp.MustCompile(`\b(show|hide)\s+([\w$]+(?:\s*,\s*[\w$]+)*)`)
+
+// dartCombinators reads the `show` and `hide` clauses of an import or export
+// statement as directives: `show:f,g` and `hiding:h`. A statement with none
+// gives none. Several of one kind are one list.
+func dartCombinators(clause string) []string {
+	if clause == "" {
+		return nil
+	}
+	clause = dartNoise.ReplaceAllString(clause, " ")
+	var show, hide []string
+	for _, m := range dartCombinator.FindAllStringSubmatch(clause, -1) {
+		var names []string
+		for _, n := range strings.Split(m[2], ",") {
+			if n = strings.TrimSpace(n); n != "" {
+				names = append(names, n)
+			}
+		}
+		if m[1] == "show" {
+			show = append(show, names...)
+		} else {
+			hide = append(hide, names...)
+		}
+	}
+	var out []string
+	if len(show) > 0 {
+		out = append(out, ModuleShowPrefix+strings.Join(show, ","))
+	}
+	if len(hide) > 0 {
+		out = append(out, ModuleHidingPrefix+strings.Join(hide, ","))
+	}
+	return out
 }
