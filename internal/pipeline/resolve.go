@@ -381,7 +381,10 @@ type runAncestry struct {
 
 // Supertypes answers the deferred pass's one question, run-scoped.
 func (a runAncestry) Supertypes(ctx context.Context, types []string) (map[string][]string, error) {
-	return a.reg.Supertypes(ctx, a.runID, types)
+	// Heuristic only: see Registry.HeuristicSupertypes. An incremental update
+	// must bind what a full index binds, and a full index has no compiler edge
+	// yet when it resolves.
+	return a.reg.HeuristicSupertypes(ctx, a.runID, types)
 }
 
 // Compile-time proof the adapter still satisfies the port. Cheap, and it fails

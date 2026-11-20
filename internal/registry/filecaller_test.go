@@ -187,6 +187,40 @@ func TestFileCallerEdgesStayOutOfTheWholeGraphReaders(t *testing.T) {
 	}
 }
 
+// TestTopLevelCallsReturnsTheCallersAndTheirEdges: the read the whole-graph
+// consumers add to Symbols and Edges returns the synthetic callers that start
+// an edge, and exactly those edges.
+func TestTopLevelCallsReturnsTheCallersAndTheirEdges(t *testing.T) {
+	ctx := context.Background()
+	reg, runID, ids := fileCallerFixture(t)
+	if _, err := reg.EnsureFileCallers(ctx, runID); err != nil {
+		t.Fatal(err)
+	}
+	fc, err := reg.FileCallerIDs(ctx, runID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mk := func(src int64, line int) model.Edge {
+		return model.Edge{SrcID: src, DstID: ids["target"], Kind: model.EdgeCalls, Confidence: model.ConfidenceHigh,
+			Evidence: model.Evidence{FilePath: "a.test.ts", Range: model.Range{Start: model.Position{Line: line}},
+				Source: model.SourceSourceCode, Detail: "t"}}
+	}
+	if _, err := reg.AddResolvedEdges(ctx, runID, []model.Edge{mk(ids["helper"], 12), mk(fc["a.test.ts"], 30)}); err != nil {
+		t.Fatal(err)
+	}
+	top, err := reg.TopLevelCalls(ctx, runID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// b.ts has a caller row too, but no edge starts there.
+	if len(top.Callers) != 1 || top.Callers[0].ID != fc["a.test.ts"] || top.Callers[0].Kind != model.KindFile {
+		t.Fatalf("callers = %+v, want only the top level of a.test.ts", top.Callers)
+	}
+	if len(top.Edges) != 1 || top.Edges[0].SrcID != fc["a.test.ts"] || top.Edges[0].Evidence.Range.Start.Line != 30 {
+		t.Fatalf("edges = %+v, want only the call at line 30", top.Edges)
+	}
+}
+
 // TestPruneFileCallersKeepsOnlyTheOnesWithEdges.
 func TestPruneFileCallersKeepsOnlyTheOnesWithEdges(t *testing.T) {
 	ctx := context.Background()

@@ -267,6 +267,25 @@ const maxSupertypesPerName = 64
 //     produces — an order that varied with the query plan would silently break
 //     the determinism gate.
 func (r *Registry) Supertypes(ctx context.Context, runID int64, types []string) (map[string][]string, error) {
+	return r.supertypes(ctx, runID, types, false)
+}
+
+// HeuristicSupertypes is Supertypes as the heuristic resolver may read it: an
+// inheritance edge a compiler alone established is left out.
+//
+// WHY. The heuristic pass of a full index runs BEFORE any compiler index is
+// imported, so the hierarchy it sees holds only what it bound itself. An
+// incremental update runs it AFTER, with every compiler edge of the untouched
+// files already in the table; reading those would let the changed file bind a
+// call through an ancestor the same file bound to nothing in a full index, and
+// the two indexes of one tree would differ. An edge the heuristic bound and a
+// compiler later confirmed is still there (it keeps its prior confidence), so
+// it still counts.
+func (r *Registry) HeuristicSupertypes(ctx context.Context, runID int64, types []string) (map[string][]string, error) {
+	return r.supertypes(ctx, runID, types, true)
+}
+
+func (r *Registry) supertypes(ctx context.Context, runID int64, types []string, heuristicOnly bool) (map[string][]string, error) {
 	if len(types) == 0 {
 		return map[string][]string{}, nil
 	}
@@ -289,7 +308,7 @@ func (r *Registry) Supertypes(ctx context.Context, runID int64, types []string) 
 	out := make(map[string][]string, len(want))
 	for start := 0; start < len(want); start += supertypeChunk {
 		end := min(start+supertypeChunk, len(want))
-		if err := r.supertypeChunkInto(ctx, runID, want[start:end], out); err != nil {
+		if err := r.supertypeChunkInto(ctx, runID, want[start:end], out, heuristicOnly); err != nil {
 			return nil, err
 		}
 	}
@@ -306,7 +325,16 @@ func (r *Registry) Supertypes(ctx context.Context, runID int64, types []string) 
 // and walks every edge of the run for each chunk, then throws away the ones
 // whose source name is not in the list: on a 1.5-million-edge index that was
 // a full scan per call, hundreds of calls per resolve.
-func supertypeSQL(n int) string {
+func supertypeSQL(n int) string { return supertypeSQLFor(n, false) }
+
+// supertypeSQLFor is supertypeSQL, optionally without the edges only a compiler
+// established (see HeuristicSupertypes). prior_confidence is empty for an edge
+// a compiler inserted and holds the heuristic tier of one it upgraded.
+func supertypeSQLFor(n int, heuristicOnly bool) string {
+	only := ""
+	if heuristicOnly {
+		only = " AND (e.source <> 'compiler' OR e.prior_confidence <> '')"
+	}
 	return `
 		SELECT src_name, dst_name FROM (
 		  SELECT src_name, dst_name,
@@ -317,7 +345,7 @@ func supertypeSQL(n int) string {
 		            CROSS JOIN symbols dst ON dst.id = e.dst_id AND dst.index_run_id = ?
 		           WHERE src.index_run_id = ?
 		             AND src.name IN (` + strings.TrimSuffix(strings.Repeat("?,", n), ",") + `)
-		             AND e.kind IN (?,?)))
+		             AND e.kind IN (?,?)` + only + `))
 		 WHERE rn <= ?
 		 ORDER BY src_name, dst_name`
 }
@@ -332,6 +360,7 @@ func (r *Registry) supertypeChunkInto(
 	runID int64,
 	names []string,
 	out map[string][]string,
+	heuristicOnly bool,
 ) error {
 	args := make([]any, 0, len(names)+6)
 	args = append(args, runID, runID, runID)
@@ -340,7 +369,7 @@ func (r *Registry) supertypeChunkInto(
 	}
 	args = append(args, string(model.EdgeExtends), string(model.EdgeImplements), maxSupertypesPerName)
 
-	rows, err := r.db.QueryContext(ctx, supertypeSQL(len(names)), args...)
+	rows, err := r.db.QueryContext(ctx, supertypeSQLFor(len(names), heuristicOnly), args...)
 	if err != nil {
 		return fmt.Errorf("registry: load supertypes: %w", err)
 	}

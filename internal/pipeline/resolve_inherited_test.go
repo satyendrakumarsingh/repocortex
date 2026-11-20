@@ -3,6 +3,7 @@ package pipeline
 import (
 	"context"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -40,7 +41,11 @@ type javaClass struct {
 // (settle is owned by BasePayment, not Payment), same-directory no, imported
 // no, unique-in-repository no. The reference is parked, and only the ancestry
 // walk can settle it.
-func inheritanceFixture(tb testing.TB, dir string) (*registry.Registry, int64) {
+//
+// A class named in noSuper is written without its inheritance reference, so
+// the heuristic resolver can never bind its EXTENDS edge: the shape of a
+// hierarchy only a compiler knows.
+func inheritanceFixture(tb testing.TB, dir string, noSuper ...string) (*registry.Registry, int64) {
 	tb.Helper()
 	ctx := context.Background()
 
@@ -105,7 +110,7 @@ func inheritanceFixture(tb testing.TB, dir string) (*registry.Registry, int64) {
 				tb.Fatalf("add method %s.%s: %v", c.name, m, err)
 			}
 		}
-		if c.superName != "" {
+		if c.superName != "" && !slices.Contains(noSuper, c.name) {
 			// On the class's own declaration line, so the enclosing symbol is
 			// the class — which is what makes the resulting edge an assertion
 			// about the TYPE hierarchy rather than about some method.

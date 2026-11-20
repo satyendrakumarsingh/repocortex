@@ -255,3 +255,77 @@ func (r *Registry) ReferenceLines(ctx context.Context, fileID int64) (map[int]st
 	}
 	return out, rows.Err()
 }
+
+// TopLevel is the part of a run's graph that Symbols and Edges leave out: the
+// synthetic top-level callers and the edges that start at them.
+type TopLevel struct {
+	// Callers are the file-kind symbols that start at least one edge, ordered by
+	// file path.
+	Callers []model.Symbol
+	// Edges are the edges that start at one of Callers, in the order Edges uses.
+	Edges []model.Edge
+}
+
+// TopLevelCalls reads the top-level callers of a run and their edges, so a
+// whole-graph consumer (export, docs, diff) can add them to what Symbols and
+// Edges return and show the same calls `callers` and `callees` list. A caller
+// that starts no edge is not returned: it is an empty row, not a fact.
+func (r *Registry) TopLevelCalls(ctx context.Context, runID int64) (TopLevel, error) {
+	var out TopLevel
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT s.id, s.file_id, s.kind, s.name, s.fqn,
+		       s.start_line, s.start_col, s.end_line, s.end_col,
+		       COALESCE(s.signature,''), COALESCE(s.doc,''), s.exported, s.confidence, s.source
+		  FROM symbols s JOIN files f ON f.id = s.file_id
+		 WHERE s.index_run_id = ? AND s.kind = 'file'
+		   AND EXISTS (SELECT 1 FROM edges e WHERE e.index_run_id = s.index_run_id AND e.src_id = s.id)
+		 ORDER BY f.path, s.id`, runID)
+	if err != nil {
+		return out, fmt.Errorf("registry: list top-level callers: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var s model.Symbol
+		var kind, conf, src string
+		var exported int
+		if err := rows.Scan(&s.ID, &s.FileID, &kind, &s.Name, &s.FQN,
+			&s.Range.Start.Line, &s.Range.Start.Col, &s.Range.End.Line, &s.Range.End.Col,
+			&s.Signature, &s.Doc, &exported, &conf, &src); err != nil {
+			return out, fmt.Errorf("registry: list top-level callers: scan: %w", err)
+		}
+		s.Kind = model.EntityKind(kind)
+		s.Confidence = model.Confidence(conf)
+		s.Source = model.SourceType(src)
+		s.Exported = exported == 1
+		out.Callers = append(out.Callers, s)
+	}
+	if err := rows.Err(); err != nil {
+		return out, err
+	}
+
+	erows, err := r.db.QueryContext(ctx, `
+		SELECT id, src_id, dst_id, kind, confidence,
+		       evidence_file, evidence_line, evidence_col, source, COALESCE(detail,'')
+		  FROM edges WHERE index_run_id = ?
+		   AND EXISTS (SELECT 1 FROM symbols fc WHERE fc.id = edges.src_id AND fc.kind = 'file')
+		 ORDER BY src_id, dst_id, kind, evidence_file, evidence_line`, runID)
+	if err != nil {
+		return out, fmt.Errorf("registry: list top-level edges: %w", err)
+	}
+	defer erows.Close()
+	for erows.Next() {
+		var e model.Edge
+		var kind, conf, src string
+		if err := erows.Scan(&e.ID, &e.SrcID, &e.DstID, &kind, &conf,
+			&e.Evidence.FilePath, &e.Evidence.Range.Start.Line, &e.Evidence.Range.Start.Col,
+			&src, &e.Evidence.Detail); err != nil {
+			return out, fmt.Errorf("registry: list top-level edges: scan: %w", err)
+		}
+		e.Kind = model.EdgeKind(kind)
+		e.Confidence = model.Confidence(conf)
+		e.Evidence.Source = model.SourceType(src)
+		e.IndexRunID = runID
+		out.Edges = append(out.Edges, e)
+	}
+	return out, erows.Err()
+}
