@@ -37,6 +37,9 @@ type Registry interface {
 	Files(ctx context.Context, runID int64) ([]model.File, error)
 	Symbols(ctx context.Context, runID int64) ([]model.Symbol, error)
 	Edges(ctx context.Context, runID int64) ([]model.Edge, error)
+	// TopLevelCalls is the calls made outside every definition and the
+	// synthetic per-file callers that make them.
+	TopLevelCalls(ctx context.Context, runID int64) (registry.TopLevel, error)
 }
 
 // Compile-time proof that the production adapter satisfies the port. If a

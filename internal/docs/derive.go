@@ -144,6 +144,11 @@ func (g *Generator) Derive(ctx context.Context, runID int64, m arch.Model) (*Vie
 		return nil, fmt.Errorf("docs: read edges for run %d: %w", runID, err)
 	}
 
+	top, err := g.reg.TopLevelCalls(ctx, runID)
+	if err != nil {
+		return nil, fmt.Errorf("docs: read top-level calls for run %d: %w", runID, err)
+	}
+
 	v := &View{
 		RunID:              runID,
 		ConfigPath:         g.configPath,
@@ -153,7 +158,7 @@ func (g *Generator) Derive(ctx context.Context, runID int64, m arch.Model) (*Vie
 		Counts: Counts{
 			Files:   len(files),
 			Symbols: len(symbols),
-			Edges:   len(edges),
+			Edges:   len(edges) + len(top.Edges),
 		},
 	}
 
@@ -161,9 +166,13 @@ func (g *Generator) Derive(ctx context.Context, runID int64, m arch.Model) (*Vie
 	// registry already returns these ordered, but the promise this package makes
 	// is "identical index, byte-identical output", and a promise that depends on
 	// an adapter's ORDER BY clause staying put is not a promise.
-	edges = sortedEdges(edges)
+	// A call made outside every definition starts at the file's synthetic
+	// top-level caller. The caller is indexed (a component crossing can start
+	// there) but not counted as a symbol of the component.
+	edges = sortedEdges(append(edges, top.Edges...))
 
 	idx := indexSymbols(files, symbols, m)
+	addTopLevelCallers(idx, top.Callers, files, m)
 
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("docs: derive run %d: %w", runID, err)
@@ -260,6 +269,24 @@ func indexSymbols(files []model.File, symbols []model.Symbol, m arch.Model) *sym
 	sortEntries(idx.endpoints)
 	sortEntries(idx.tables)
 	return idx
+}
+
+// addTopLevelCallers adds the synthetic per-file callers to the index so an
+// edge that starts at one has a source. They are not counted in symCount and
+// are never an endpoint or a table.
+func addTopLevelCallers(idx *symbolIndex, callers []model.Symbol, files []model.File, m arch.Model) {
+	if len(callers) == 0 {
+		return
+	}
+	resolver := arch.NewResolver(m)
+	pathOf := make(map[int64]string, len(files))
+	for _, f := range files {
+		pathOf[f.ID] = f.Path
+	}
+	for _, s := range callers {
+		p := pathOf[s.FileID]
+		idx.byID[s.ID] = symEntry{sym: s, path: p, comp: resolver.ComponentOf(p)}
+	}
 }
 
 func sortEntries(es []symEntry) {

@@ -212,6 +212,15 @@ func loadExportGraph(ctx stdctx.Context, s *session, floor model.Confidence) (me
 	if err != nil {
 		return metrics.Graph{}, exportStats{}, fmt.Errorf("export: read edges of run %d: %w", s.runID, err)
 	}
+	// The top-level callers are kept out of Symbols and Edges for the consumers
+	// that list definitions; the graph needs them, or a call made outside every
+	// function is missing from it although `callers` lists it.
+	top, err := s.reg.TopLevelCalls(ctx, s.runID)
+	if err != nil {
+		return metrics.Graph{}, exportStats{}, fmt.Errorf("export: read top-level calls of run %d: %w", s.runID, err)
+	}
+	symbols = append(symbols, top.Callers...)
+	edges = append(edges, top.Edges...)
 	return buildExportGraph(ctx, paths, symbols, edges, floor)
 }
 

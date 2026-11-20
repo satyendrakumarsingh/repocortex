@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/satyendrakumarsingh/repocortex/internal/arch"
+	"github.com/satyendrakumarsingh/repocortex/internal/registry"
 	"github.com/satyendrakumarsingh/repocortex/pkg/model"
 )
 
@@ -17,6 +18,7 @@ type fakeRegistry struct {
 	files   []model.File
 	symbols []model.Symbol
 	edges   []model.Edge
+	top     registry.TopLevel
 	err     error
 }
 
@@ -29,6 +31,9 @@ func (f *fakeRegistry) Symbols(_ context.Context, _ int64) ([]model.Symbol, erro
 func (f *fakeRegistry) Edges(_ context.Context, _ int64) ([]model.Edge, error) {
 	return f.edges, f.err
 }
+func (f *fakeRegistry) TopLevelCalls(_ context.Context, _ int64) (registry.TopLevel, error) {
+	return f.top, f.err
+}
 
 // shuffled returns the same index with every slice reordered.
 //
@@ -40,8 +45,13 @@ func (f *fakeRegistry) shuffled(seed int64) *fakeRegistry {
 		files:   append([]model.File(nil), f.files...),
 		symbols: append([]model.Symbol(nil), f.symbols...),
 		edges:   append([]model.Edge(nil), f.edges...),
-		err:     f.err,
+		top: registry.TopLevel{
+			Callers: append([]model.Symbol(nil), f.top.Callers...),
+			Edges:   append([]model.Edge(nil), f.top.Edges...),
+		},
+		err: f.err,
 	}
+	rng.Shuffle(len(out.top.Edges), func(i, j int) { out.top.Edges[i], out.top.Edges[j] = out.top.Edges[j], out.top.Edges[i] })
 	rng.Shuffle(len(out.files), func(i, j int) { out.files[i], out.files[j] = out.files[j], out.files[i] })
 	rng.Shuffle(len(out.symbols), func(i, j int) { out.symbols[i], out.symbols[j] = out.symbols[j], out.symbols[i] })
 	rng.Shuffle(len(out.edges), func(i, j int) { out.edges[i], out.edges[j] = out.edges[j], out.edges[i] })

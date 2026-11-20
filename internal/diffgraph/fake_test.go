@@ -20,6 +20,7 @@ type fakeSource struct {
 	edges     map[int64][]model.Edge
 	endpoints map[int64][]registry.Endpoint
 	tables    map[int64][]registry.TableUsage
+	top       map[int64]registry.TopLevel
 }
 
 func newFakeSource() *fakeSource {
@@ -30,6 +31,7 @@ func newFakeSource() *fakeSource {
 		edges:     map[int64][]model.Edge{},
 		endpoints: map[int64][]registry.Endpoint{},
 		tables:    map[int64][]registry.TableUsage{},
+		top:       map[int64]registry.TopLevel{},
 	}
 }
 
@@ -54,6 +56,10 @@ func (f *fakeSource) Symbols(ctx context.Context, runID int64) ([]model.Symbol, 
 
 func (f *fakeSource) Edges(ctx context.Context, runID int64) ([]model.Edge, error) {
 	return f.edges[runID], ctx.Err()
+}
+
+func (f *fakeSource) TopLevelCalls(ctx context.Context, runID int64) (registry.TopLevel, error) {
+	return f.top[runID], ctx.Err()
 }
 
 func (f *fakeSource) EndpointReport(ctx context.Context, runID int64) ([]registry.Endpoint, error) {

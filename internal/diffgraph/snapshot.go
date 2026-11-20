@@ -118,6 +118,18 @@ func loadSnapshot(ctx context.Context, src IndexSource, runID int64, maxSites, m
 	if err != nil {
 		return nil, err
 	}
+	top, err := src.TopLevelCalls(ctx, runID)
+	if err != nil {
+		return nil, fmt.Errorf("diffgraph: load top-level calls for run %d: %w", runID, err)
+	}
+	// A top-level caller is the source of an edge but not a definition: it
+	// takes a key so its edges are kept, and stays out of the symbol set so
+	// it is never reported as an added or removed symbol.
+	for _, c := range top.Callers {
+		if p, ok := pathByID[c.FileID]; ok {
+			keyByID[c.ID] = SymbolKey{Path: p, FQN: c.FQN, Kind: c.Kind}
+		}
+	}
 
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("diffgraph: load run %d: %w", runID, err)
@@ -127,7 +139,7 @@ func loadSnapshot(ctx context.Context, src IndexSource, runID int64, maxSites, m
 	if err != nil {
 		return nil, fmt.Errorf("diffgraph: load edges for run %d: %w", runID, err)
 	}
-	s.indexEdges(edges, keyByID, maxSites)
+	s.indexEdges(append(edges, top.Edges...), keyByID, maxSites)
 
 	endpoints, err := src.EndpointReport(ctx, runID)
 	if err != nil {
